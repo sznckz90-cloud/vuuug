@@ -1,4 +1,4 @@
-import { users, withdrawalRequests, referrals, dailyStreaks, appSettings, songs, type User, type InsertUser, type WithdrawalRequest, type InsertWithdrawalRequest, type Referral, type InsertReferral, type DailyStreak, type AppSettings, type Song, type InsertSong } from "@shared/schema";
+import { users, withdrawalRequests, referrals, dailyStreaks, appSettings, songs, type User, type InsertUser, type WithdrawalRequest, type InsertWithdrawalRequest, type Referral, type InsertReferral, type DailyStreak, type AppSettings, type Song, type InsertSong } from "@shared/scheme";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
 
