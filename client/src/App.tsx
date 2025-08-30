@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { X, Play, Zap, Trophy, Users, Wallet, Copy, ExternalLink, Search, Filter, Settings, Share, MessageCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 const ADMIN_EMAILS = ["sznofficial.store@gmail.com", "official.me.szn@gmail.com"];
 // Placeholder for admin telegram IDs, replace with actual fetched IDs or environment variables
