@@ -175,10 +175,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markReferralsAsClaimed(userId: string): Promise<void> {
+    // Only mark unclaimed referrals as claimed
     await db
       .update(referrals)
-      .set({ claimed: true })
-      .where(eq(referrals.referrerId, userId));
+      .set({ claimed: true, updatedAt: new Date() })
+      .where(and(
+        eq(referrals.referrerId, userId),
+        eq(referrals.claimed, false)
+      ));
   }
 
   async getUserStreak(userId: string): Promise<DailyStreak | undefined> {
@@ -223,11 +227,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateAppSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
+    // First ensure settings record exists
+    await this.getAppSettings();
+    
+    // Convert numeric strings to proper numbers
+    const processedUpdates = { ...updates };
+    if (processedUpdates.baseEarningsPerAd) {
+      processedUpdates.baseEarningsPerAd = processedUpdates.baseEarningsPerAd.toString();
+    }
+    if (processedUpdates.minWithdrawal) {
+      processedUpdates.minWithdrawal = processedUpdates.minWithdrawal.toString();
+    }
+    if (processedUpdates.maxWithdrawal) {
+      processedUpdates.maxWithdrawal = processedUpdates.maxWithdrawal.toString();
+    }
+    if (processedUpdates.newUserBonus) {
+      processedUpdates.newUserBonus = processedUpdates.newUserBonus.toString();
+    }
+    if (processedUpdates.referralCommissionRate) {
+      processedUpdates.referralCommissionRate = processedUpdates.referralCommissionRate.toString();
+    }
+    if (processedUpdates.dailyStreakMultiplier) {
+      processedUpdates.dailyStreakMultiplier = processedUpdates.dailyStreakMultiplier.toString();
+    }
+    
     const [settings] = await db
       .update(appSettings)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...processedUpdates, updatedAt: new Date() })
       .where(eq(appSettings.id, "main"))
       .returning();
+    
+    console.log('Database settings updated:', settings);
     return settings;
   }
 
