@@ -2,10 +2,12 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, decimal, integer, timestamp, boolean, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { nanoid } from '@ai-chatbot/nanoid';
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").unique().notNull(),
+  telegramId: text("telegram_id").notNull().unique(),
+  email: text("email"), // Made optional for backward compatibility
   username: text("username").notNull(),
   personalCode: text("personal_code").notNull().unique(), // Match existing column
   withdrawBalance: decimal("withdraw_balance", { precision: 10, scale: 2 }).default("55"), // Match existing
@@ -31,9 +33,10 @@ export const users = pgTable("users", {
 export const withdrawalRequests = pgTable("withdrawal_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  email: text("email").notNull(), // Match existing
+  telegramId: text("telegram_id").notNull(), // Added telegramId
+  email: text("email"), // Made optional for backward compatibility
   name: text("name"), // User's full name
-  telegramUsername: text("telegram_username"), // User's telegram username
+  telegramUsername: text("telegram_username").notNull(), // User's telegram username
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   walletAddress: text("wallet_address").notNull(), // Match existing column name
   method: text("method").default("lightning"), // Match existing
