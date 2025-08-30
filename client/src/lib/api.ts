@@ -29,34 +29,48 @@ export async function getOrCreateUser(telegramId: string, username: string, refe
   return response.json();
 }
 
-// Ad watching API
-export async function watchAd(userId: string): Promise<WatchAdResponse> {
+// Watch Ad API
+export async function watchAd(userId: string): Promise<any> {
   console.log(`Calling watch-ad API for user: ${userId}`);
   try {
-    // Use fetch directly to handle errors properly
     const response = await fetch('/api/watch-ad', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ userId }),
-      credentials: 'include',
+      credentials: 'include'
     });
     
-    const result = await response.json();
-    console.log('Watch-ad API raw response:', result);
+    const data = await response.json();
+    console.log('Watch-ad API raw response:', data);
     
-    if (!response.ok || !result.success) {
-      const errorMsg = result.error || 'Failed to watch ad';
-      console.error('Watch-ad API error:', errorMsg);
-      throw new Error(errorMsg);
+    if (!response.ok) {
+      const errorMessage = data.error || 'Failed to watch ad';
+      console.error('Watch-ad API error:', errorMessage);
+      throw new Error(errorMessage);
     }
     
-    console.log('Watch-ad API success:', result);
-    return result;
+    console.log('Watch-ad API success:', data);
+    return data;
   } catch (error) {
     console.error('Watch-ad API error:', error);
     throw error;
   }
 }
+
+// Withdrawal API
+export async function createWithdrawalRequest(userId: string, amount: string, telegramUsername: string, lightningAddress: string): Promise<any> {
+  const response = await apiRequest('POST', '/api/withdraw', {
+    userId,
+    amount,
+    telegramUsername,
+    lightningAddress
+  });
+  return response.json();
+}
+
+
 
 // Earnings API
 export async function claimEarnings(userId: string): Promise<ClaimEarningsResponse> {
