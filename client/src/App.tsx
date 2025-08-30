@@ -377,13 +377,15 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
 
 
 
-  // Fetch app settings for dynamic earnings display
+  // Fetch app settings for dynamic earnings display with real-time updates
   const { data: settings } = useQuery({
     queryKey: ['/api/admin/settings'],
     queryFn: async () => {
       const response = await fetch('/api/admin/settings');
       return response.json();
     },
+    refetchInterval: 2000, // Refresh every 2 seconds for real-time updates
+    staleTime: 0, // Always consider data stale
   });
 
   const dailyAdsWatched = user?.dailyAdsWatched || 0;
@@ -399,7 +401,7 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
           <div className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent mb-2">
             💰 EARN SATS! 💰
           </div>
-          <div className="text-lg font-bold text-accent mb-1">{settings ? parseFloat(settings.baseEarningsPerAd || "0.01").toFixed(3) : (localStorage.getItem('admin_settings_cache') ? parseFloat(JSON.parse(localStorage.getItem('admin_settings_cache') || '{}').baseEarningsPerAd || "0.01").toFixed(3) : "0.01")} Sats per Ad</div>
+          <div className="text-lg font-bold text-accent mb-1">{settings ? parseFloat(settings.baseEarningsPerAd || "0.25").toFixed(3) : "0.250"} Sats per Ad</div>
           <div className="text-sm text-muted-foreground">Watch ads and earn instantly!</div>
         </div>
         <div className="absolute top-2 right-2 text-2xl animate-bounce">⚡</div>
@@ -540,14 +542,14 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
       setHasClaimedChannel(true);
       toast({
         title: "Channel Task Completed!",
-        description: "You earned +1 Sats for joining our channel!",
+        description: "Thanks for joining our official channel!",
       });
     } catch (error) {
       console.error('Channel task ad error:', error);
       setHasClaimedChannel(true);
       toast({
         title: "Channel Task Completed!",
-        description: "You earned +1 Sats for joining our channel!",
+        description: "Thanks for joining our official channel!",
       });
     }
   };
@@ -795,7 +797,9 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
     }
   };
 
-  const totalCommission = referrals.reduce((sum: number, ref: any) => sum + parseFloat(ref.commission || "0"), 0);
+  // Only calculate unclaimed commission
+  const unclaimedReferrals = referrals.filter((ref: any) => !ref.claimed);
+  const totalCommission = unclaimedReferrals.reduce((sum: number, ref: any) => sum + parseFloat(ref.commission || "0"), 0);
 
   // Mutation for claiming commission
   const claimCommissionMutation = useMutation({
@@ -839,10 +843,14 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
   });
 
   const handleClaimCommission = async () => {
-    if (totalCommission <= 0 || referrals.length === 0) {
+    // Check if there are any unclaimed referrals
+    const unclaimedReferrals = referrals.filter((ref: any) => !ref.claimed);
+    const unclaimedCommission = unclaimedReferrals.reduce((sum: number, ref: any) => sum + parseFloat(ref.commission || "0"), 0);
+
+    if (unclaimedCommission <= 0 || unclaimedReferrals.length === 0) {
       toast({
         title: "No Commission Available",
-        description: "You need to refer someone first to earn commission!",
+        description: "All available commission has been claimed!",
         variant: "destructive"
       });
       return;
@@ -939,7 +947,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
       <div className="mt-4">
         <Button
           onClick={() => {
-            const shareText = `⚡Join Lightning Sats✓ and earn crypto, just by watching ads, easy and simple💸\n\nhttps://t.me/LightningSatsbot?start=${user.personalCode}`;
+            const shareText = `⚡Join Lightning Sats✓ and earn crypto, just by watching ads, easy and simple💸\n\nhttps://t.me/LightingSatsbot?start=${user.personalCode}`;
 
             // Show rewarded ad for sharing
             if (window.show_9368336) {
@@ -994,7 +1002,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
       <div className="mt-3">
         <Button
           onClick={() => {
-            const telegramUrl = `https://t.me/LightningSatsbot?start=${user.personalCode}`;
+            const telegramUrl = `https://t.me/LightingSatsbot?start=${user.personalCode}`;
             window.open(telegramUrl, '_blank');
 
             toast({
@@ -1005,7 +1013,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
           className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl h-12 flex items-center justify-center gap-2"
         >
           <MessageCircle className="h-4 w-4" />
-          Open in Telegram
+          Invite Friends
         </Button>
       </div>
     </div>
@@ -1384,7 +1392,24 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
   const availableBalance = totalBalance - pendingWithdrawals;
 
   const refreshUser = () => {
-    window.location.reload();
+    // Invalidate all user-related queries to get fresh data
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/referrals'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/user-streak'] });
+    
+    // Also refresh the stored user data
+    if (user) {
+      fetch(`/api/user-refresh?userId=${user.id}`)
+        .then(response => response.json())
+        .then(updatedUser => {
+          localStorage.setItem('lighting_sats_user', JSON.stringify(updatedUser));
+          window.location.reload();
+        })
+        .catch(() => {
+          window.location.reload();
+        });
+    }
   };
 
   const openModal = (modalName: string) => {
@@ -1507,7 +1532,25 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
           {/* Cashout */}
           <Card 
             className="p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg bg-gradient-to-r from-success/10 to-accent/10 border-success/30 rounded-xl"
-            onClick={() => openModal('cashout')}
+            onClick={() => {
+              const balance = parseFloat(user.withdrawBalance || "0");
+              const adsWatched = user.adsWatched || 0;
+              
+              // Get real-time settings for withdrawal requirements
+              const minAdsRequired = settings?.minAdsForWithdrawal || 500;
+              const minWithdrawal = parseFloat(settings?.minWithdrawal || "2500");
+              
+              if (adsWatched < minAdsRequired || balance < minWithdrawal) {
+                toast({
+                  title: "Withdrawal Requirements Not Met",
+                  description: `You need ${Math.max(0, minWithdrawal - balance)} more sats and ${Math.max(0, minAdsRequired - adsWatched)} more ads to withdraw.`,
+                  variant: "destructive"
+                });
+                return;
+              }
+              
+              openModal('cashout');
+            }}
           >
             <div className="flex items-center justify-center">
               <div className="flex items-center space-x-3">
@@ -2530,9 +2573,11 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
       const response = await fetch(`/api/admin/settings?email=${user.email}`);
       return response.json();
     },
+    refetchInterval: 1000, // Refresh every second for real-time updates
+    staleTime: 0, // Always consider data stale
   });
 
-  // Sync local state with fetched settings and persist to localStorage
+  // Sync local state with fetched settings without localStorage caching
   useEffect(() => {
     if (settings) {
       const newSettingsValues = {
@@ -2540,7 +2585,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
         maxWithdrawal: parseFloat(settings.maxWithdrawal || "100000"),
         withdrawalCooldown: settings.withdrawalCooldown || 7,
         minAdsForWithdrawal: settings.minAdsForWithdrawal || 500,
-        baseEarningsPerAd: parseFloat(settings.baseEarningsPerAd || "0.01"),
+        baseEarningsPerAd: parseFloat(settings.baseEarningsPerAd || "0.25"),
         dailyAdLimit: settings.dailyAdLimit || 250,
         newUserBonus: parseFloat(settings.newUserBonus || "55"),
         referralCommissionRate: (parseFloat(settings.referralCommissionRate || "0.10") * 100),
@@ -2552,23 +2597,9 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
         shuffleMode: settings.shuffleMode === true
       };
       setSettingsValues(newSettingsValues);
-      // Store settings in localStorage for persistence
-      localStorage.setItem('admin_settings_cache', JSON.stringify(newSettingsValues));
       setHasUnsavedChanges(false);
     }
   }, [settings]);
-
-  // Load settings from localStorage on component mount
-  useEffect(() => {
-    const cachedSettings = localStorage.getItem('admin_settings_cache');
-    if (cachedSettings && !settings) {
-      try {
-        setSettingsValues(JSON.parse(cachedSettings));
-      } catch (error) {
-        console.error('Failed to parse cached settings:', error);
-      }
-    }
-  }, []);
 
   // Mutation for processing withdrawal requests
   const processWithdrawalMutation = useMutation({
@@ -2644,14 +2675,13 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
       return response.json();
     },
     onSuccess: (updatedSettings, variables) => {
-      // Update localStorage cache with new settings
-      const updatedCache = { ...settingsValues, ...variables };
-      localStorage.setItem('admin_settings_cache', JSON.stringify(updatedCache));
-
       // Invalidate ALL settings-related queries to ensure fresh data everywhere
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
       queryClient.invalidateQueries({ queryKey: ['/api/music/settings'] }); // Also refresh public music settings
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      
+      // Force refetch settings immediately
+      queryClient.refetchQueries({ queryKey: ['/api/admin/settings'] });
 
       setHasUnsavedChanges(false);
       toast({ title: "Settings Saved!", description: "All settings have been saved successfully and will persist" });
