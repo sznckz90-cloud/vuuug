@@ -7,6 +7,7 @@ import multer from "multer";
 import { parseFile } from "music-metadata";
 import path from "path";
 import fs from "fs";
+import { setupTelegramBot, processTelegramUpdate } from "./telegram-bot";
 
 // Generate referral code
 function generateReferralCode(): string {
@@ -30,6 +31,24 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  
+  // Initialize Telegram bot
+  await setupTelegramBot();
+  
+  // Telegram bot webhook endpoint
+  app.post('/bot7561099955:AAGZcVgDyWJ3CZ-gvFSNxicTGvJDFojNjug', (req, res) => {
+    try {
+      const update = req.body;
+      console.log('Telegram webhook received:', JSON.stringify(update, null, 2));
+      
+      processTelegramUpdate(update);
+      
+      res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error('Telegram webhook error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
   
   // Serve uploaded music files statically
   app.use('/uploads', express.static('uploads'));
@@ -302,19 +321,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No commission available to claim' });
       }
 
-      // Add commission to user's balance
-      await storage.updateUser(userId, {
-        withdrawBalance: (parseFloat(user.withdrawBalance || "0") + totalCommission).toString(),
-        totalEarnings: (parseFloat(user.totalEarnings || "0") + totalCommission).toString(),
-      });
-
-      // Mark referrals as claimed to prevent double claiming
+      // Mark referrals as claimed FIRST to prevent race conditions
       await storage.markReferralsAsClaimed(userId);
+
+      // Then add commission to user's balance
+      const newBalance = parseFloat(user.withdrawBalance || "0") + totalCommission;
+      const newTotalEarnings = parseFloat(user.totalEarnings || "0") + totalCommission;
+      
+      await storage.updateUser(userId, {
+        withdrawBalance: newBalance.toString(),
+        totalEarnings: newTotalEarnings.toString(),
+      });
 
       res.json({ 
         success: true, 
         claimedAmount: totalCommission.toFixed(2),
-        newBalance: (parseFloat(user.withdrawBalance || "0") + totalCommission).toString()
+        newBalance: newBalance.toString()
       });
     } catch (error) {
       console.error('Error in /api/claim-commission:', error);
@@ -382,21 +404,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Add bonus to user balance
-      const bonusAmount = 1; // 1 sat bonus for claiming streak
-      await storage.updateUser(userId, {
-        withdrawBalance: (parseFloat(user.withdrawBalance || "0") + bonusAmount).toString(),
-        totalEarnings: (parseFloat(user.totalEarnings || "0") + bonusAmount).toString(),
-      });
-
+      // Daily streak only provides multiplier bonus, no direct sats
       res.json({ 
         success: true,
         streak: streak.currentStreak,
         multiplier: streak.streakMultiplier,
-        bonusAmount
+        bonusAmount: 0 // No sats bonus, only multiplier
       });
     } catch (error) {
       console.error('Error in /api/claim-daily-streak:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Refresh user data endpoint
+  app.get('/api/user-refresh', async (req, res) => {
+    try {
+      const { userId } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+      }
+
+      const user = await storage.getUser(userId as string);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json(user);
+    } catch (error) {
+      console.error('Error in /api/user-refresh:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -812,10 +849,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Get app settings
-  app.get('/api/admin/settings', checkAdminAccess, async (req, res) => {
+  app.get('/api/admin/settings', async (req, res) => {
     try {
-      const settings = await storage.getAppSettings();
-      res.json(settings);
+      const email = req.query.email;
+      if (email && ADMIN_EMAILS.includes(email as string)) {
+        const settings = await storage.getAppSettings();
+        res.json(settings);
+      } else {
+        // Return basic settings for non-admin users
+        const settings = await storage.getAppSettings();
+        const publicSettings = {
+          baseEarningsPerAd: settings.baseEarningsPerAd,
+          dailyAdLimit: settings.dailyAdLimit,
+          minWithdrawal: settings.minWithdrawal,
+          minAdsForWithdrawal: settings.minAdsForWithdrawal
+        };
+        res.json(publicSettings);
+      }
     } catch (error) {
       console.error('Error in /api/admin/settings:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -825,8 +875,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Update app settings
   app.post('/api/admin/settings', checkAdminAccess, async (req, res) => {
     try {
-      const updates = req.body;
+      const { email, ...updates } = req.body;
+      console.log('Updating settings with:', updates);
+      
+      // Remove email from updates object before saving
+      delete updates.email;
+      
       const settings = await storage.updateAppSettings(updates);
+      console.log('Settings updated successfully:', settings);
+      
       res.json(settings);
     } catch (error) {
       console.error('Error in /api/admin/settings/update:', error);
