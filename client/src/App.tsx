@@ -53,28 +53,106 @@ function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('lighting_sats_user');
-    if (storedUser) {
+    const initializeAuth = async () => {
+      // Initialize Telegram WebApp first
       try {
-        const parsedUser: User = JSON.parse(storedUser);
-        setUser(parsedUser);
+        if (window.Telegram?.WebApp) {
+          console.log('Initializing Telegram WebApp...');
+          window.Telegram.WebApp.ready();
+          window.Telegram.WebApp.expand();
+          window.Telegram.WebApp.enableClosingConfirmation();
+          
+          // Set theme
+          window.Telegram.WebApp.setHeaderColor('#000000');
+          window.Telegram.WebApp.setBackgroundColor('#000000');
+          
+          console.log('Telegram WebApp initialized successfully');
+
+          // Get Telegram user data
+          const telegramUser = window.Telegram.WebApp.initDataUnsafe?.user;
+          if (telegramUser) {
+            console.log('Telegram user found:', telegramUser);
+            
+            // Check for referral code from start parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const referralCode = urlParams.get('start') || '';
+            
+            try {
+              // Authenticate/register user with Telegram data
+              const response = await fetch('/api/user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  telegramId: telegramUser.id.toString(),
+                  username: telegramUser.username || `${telegramUser.first_name}_${telegramUser.id}`,
+                  referralCode: referralCode || undefined,
+                }),
+              });
+
+              if (response.ok) {
+                const userData = await response.json();
+                localStorage.setItem('lighting_sats_user', JSON.stringify(userData));
+                setUser(userData);
+                console.log('Telegram user authenticated successfully');
+              } else {
+                console.error('Failed to authenticate Telegram user');
+                setIsLoading(false);
+                return;
+              }
+            } catch (error) {
+              console.error('Error authenticating Telegram user:', error);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            console.log('No Telegram user data found');
+            setIsLoading(false);
+            return;
+          }
+        } else {
+          console.log('Not running in Telegram WebApp environment');
+          // For non-Telegram environments, check localStorage
+          const storedUser = localStorage.getItem('lighting_sats_user');
+          if (storedUser) {
+            try {
+              const parsedUser: User = JSON.parse(storedUser);
+              setUser(parsedUser);
+            } catch (error) {
+              console.error('Failed to parse stored user:', error);
+              localStorage.removeItem('lighting_sats_user');
+            }
+          }
+        }
       } catch (error) {
-        console.error('Failed to parse stored user:', error);
-        localStorage.removeItem('lighting_sats_user');
+        console.error('Telegram WebApp initialization error:', error);
+        // Fallback to localStorage check
+        const storedUser = localStorage.getItem('lighting_sats_user');
+        if (storedUser) {
+          try {
+            const parsedUser: User = JSON.parse(storedUser);
+            setUser(parsedUser);
+          } catch (error) {
+            console.error('Failed to parse stored user:', error);
+            localStorage.removeItem('lighting_sats_user');
+          }
+        }
       }
-    }
-    setIsLoading(false);
+      
+      setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const logout = () => {
-    if (user && ADMIN_EMAILS.includes(user.email)) {
+    if (user && ADMIN_EMAILS.includes(user.email || '')) {
       localStorage.removeItem('lighting_sats_user');
       setUser(null);
       window.location.reload();
     }
   };
 
-  const canLogout = user && ADMIN_EMAILS.includes(user.email);
+  const canLogout = user && ADMIN_EMAILS.includes(user.email || '');
 
   return { user, isLoading, isAuthenticated: !!user, logout, canLogout, setUser };
 }
@@ -3610,51 +3688,141 @@ function BackgroundAdManager() {
   return null; // This component doesn't render anything
 }
 
+// Error Boundary Component
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('App Error Boundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-black flex items-center justify-center p-4">
+          <div className="text-center space-y-4 max-w-md">
+            <div className="text-red-500 text-4xl">⚠️</div>
+            <div className="text-white text-xl font-semibold">Something went wrong</div>
+            <div className="text-gray-400 text-sm">
+              Please try refreshing the app or contact support if the problem persists.
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-semibold"
+            >
+              Refresh App
+            </button>
+            {this.state.error && (
+              <details className="text-left bg-gray-900 p-2 rounded text-xs text-gray-300">
+                <summary>Error Details</summary>
+                <pre>{this.state.error.toString()}</pre>
+              </details>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 // Main App Component
 function App() {
   const { user, isLoading, isAuthenticated, logout, canLogout, setUser } = useAuth();
-  const [adminView, setAdminView] = useState<'admin' | 'earn'>('earn'); // Default to earning view
+  const [adminView, setAdminView] = useState<'admin' | 'earn'>('earn');
+
+  // Debug logging
+  useEffect(() => {
+    console.log('App state:', { user: !!user, isLoading, isAuthenticated });
+    console.log('Telegram WebApp available:', !!window.Telegram?.WebApp);
+    console.log('Window location:', window.location.href);
+  }, [user, isLoading, isAuthenticated]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
+          <div className="text-white text-lg font-semibold">Loading Lighting Sats...</div>
+          <div className="text-gray-400 text-sm">
+            {window.Telegram?.WebApp ? 'Connecting to Telegram...' : 'Initializing app...'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if running in Telegram environment
+  const isTelegramEnvironment = !!window.Telegram?.WebApp?.initDataUnsafe?.user;
+
+  // If in Telegram but no user authenticated, show error
+  if (isTelegramEnvironment && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="text-red-500 text-4xl">⚠️</div>
+          <div className="text-white text-xl font-semibold">Authentication Error</div>
+          <div className="text-gray-400 text-sm">
+            Unable to authenticate with Telegram. Please close and reopen the app.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-semibold"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   // Admin view switcher for admin users
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email);
+  const isAdmin = user && ADMIN_EMAILS.includes(user.email || '');
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="dark">
-        <BackgroundAdManager />
-        {!isAuthenticated ? (
-          <AuthForm onSuccess={setUser} />
-        ) : isAdmin ? (
-          adminView === 'admin' ? (
-            <AdminPanel 
-              user={user} 
-              onLogout={logout} 
-              canLogout={!!canLogout}
-              onSwitchToEarn={() => setAdminView('earn')}
-            />
-          ) : (
-            <MainApp 
-              user={user} 
-              onLogout={logout} 
-              canLogout={!!canLogout}
-              onSwitchToAdmin={() => setAdminView('admin')}
-              isAdmin={true}
-            />
-          )
-        ) : user ? (
-          <MainApp user={user} onLogout={logout} canLogout={!!canLogout} />
-        ) : null}
-        <Toaster />
-      </div>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <div className="dark min-h-screen bg-black">
+          <BackgroundAdManager />
+          {!isAuthenticated && !isTelegramEnvironment ? (
+            <AuthForm onSuccess={setUser} />
+          ) : isAuthenticated && user ? (
+            isAdmin ? (
+              adminView === 'admin' ? (
+                <AdminPanel 
+                  user={user} 
+                  onLogout={logout} 
+                  canLogout={!!canLogout}
+                  onSwitchToEarn={() => setAdminView('earn')}
+                />
+              ) : (
+                <MainApp 
+                  user={user} 
+                  onLogout={logout} 
+                  canLogout={!!canLogout}
+                  onSwitchToAdmin={() => setAdminView('admin')}
+                  isAdmin={true}
+                />
+              )
+            ) : (
+              <MainApp user={user} onLogout={logout} canLogout={!!canLogout} />
+            )
+          ) : null}
+          <Toaster />
+        </div>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
