@@ -2,6 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Fix SSL certificate issues for development
+process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -24,7 +27,7 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-      
+
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
