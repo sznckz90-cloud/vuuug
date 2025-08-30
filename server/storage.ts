@@ -7,28 +7,29 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByPersonalCode(code: string): Promise<User | undefined>;
+  getUserByTelegramId(telegramId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
   getAllUsers(): Promise<User[]>;
-  
+
   // Withdrawal requests
   createWithdrawalRequest(request: InsertWithdrawalRequest): Promise<WithdrawalRequest>;
   getWithdrawalRequests(userId?: string): Promise<WithdrawalRequest[]>;
   updateWithdrawalRequest(id: string, updates: Partial<WithdrawalRequest>): Promise<WithdrawalRequest>;
-  
+
   // Referrals
   createReferral(referral: InsertReferral): Promise<Referral>;
   getReferralsByUser(userId: string): Promise<Referral[]>;
   markReferralsAsClaimed(userId: string): Promise<void>;
-  
+
   // Daily streaks
   getUserStreak(userId: string): Promise<DailyStreak | undefined>;
   updateStreak(userId: string, updates: Partial<DailyStreak>): Promise<DailyStreak>;
-  
+
   // App settings
   getAppSettings(): Promise<AppSettings>;
   updateAppSettings(updates: Partial<AppSettings>): Promise<AppSettings>;
-  
+
   // Song management
   getAllSongs(): Promise<Song[]>;
   getActiveSongs(): Promise<Song[]>;
@@ -54,14 +55,19 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.telegramId, telegramId));
+    return user || undefined;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(insertUser)
       .returning();
-    
+
     // Skip streak initialization for now since table doesn't exist yet
-    
+
     return user;
   }
 
@@ -111,7 +117,7 @@ export class DatabaseStorage implements IStorage {
         email: withdrawalRequests.email,
         name: withdrawalRequests.name,
         telegramUsername: withdrawalRequests.telegramUsername,
-        
+
         // User Basic Info
         userEmail: users.email,
         username: users.username,
@@ -122,7 +128,7 @@ export class DatabaseStorage implements IStorage {
         adsWatched: users.adsWatched,
         level: users.level,
         banned: users.banned,
-        
+
         // Login Info
         lastLoginAt: users.lastLoginAt,
         lastLoginIp: users.lastLoginIp,
@@ -132,7 +138,7 @@ export class DatabaseStorage implements IStorage {
       .from(withdrawalRequests)
       .leftJoin(users, eq(withdrawalRequests.userId, users.id))
       .orderBy(desc(withdrawalRequests.createdAt));
-    
+
     return withdrawalsWithUserInfo;
   }
 
@@ -170,7 +176,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(referrals.refereeId, users.id))
       .where(eq(referrals.referrerId, userId))
       .orderBy(desc(referrals.createdAt));
-    
+
     return referralData as any;
   }
 
@@ -193,7 +199,7 @@ export class DatabaseStorage implements IStorage {
   async updateStreak(userId: string, updates: Partial<DailyStreak>): Promise<DailyStreak> {
     // Check if streak exists
     const existing = await this.getUserStreak(userId);
-    
+
     if (!existing) {
       // Create new streak
       const [streak] = await db
@@ -214,7 +220,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAppSettings(): Promise<AppSettings> {
     let [settings] = await db.select().from(appSettings).where(eq(appSettings.id, "main"));
-    
+
     // Create default settings if they don't exist
     if (!settings) {
       [settings] = await db
@@ -222,14 +228,14 @@ export class DatabaseStorage implements IStorage {
         .values({ id: "main" })
         .returning();
     }
-    
+
     return settings;
   }
 
   async updateAppSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
     // First ensure settings record exists
     await this.getAppSettings();
-    
+
     // Convert numeric strings to proper numbers
     const processedUpdates = { ...updates };
     if (processedUpdates.baseEarningsPerAd) {
@@ -250,13 +256,13 @@ export class DatabaseStorage implements IStorage {
     if (processedUpdates.dailyStreakMultiplier) {
       processedUpdates.dailyStreakMultiplier = processedUpdates.dailyStreakMultiplier.toString();
     }
-    
+
     const [settings] = await db
       .update(appSettings)
       .set({ ...processedUpdates, updatedAt: new Date() })
       .where(eq(appSettings.id, "main"))
       .returning();
-    
+
     console.log('Database settings updated:', settings);
     return settings;
   }

@@ -54,42 +54,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/uploads', express.static('uploads'));
   
   // Admin access control
-  const ADMIN_EMAILS = ["sznofficial.store@gmail.com", "official.me.szn@gmail.com"];
+  const ADMIN_TELEGRAM_IDS = ["6653616672", "8200750251"];
   
   const checkAdminAccess = (req: any, res: any, next: any) => {
-    const email = req.body?.email || req.query?.email;
-    console.log('Admin access check - received email:', email);
-    console.log('Allowed admin emails:', ADMIN_EMAILS);
-    console.log('Email match found:', ADMIN_EMAILS.includes(email));
+    const telegramId = req.body?.telegramId || req.query?.telegramId;
+    console.log('Admin access check - received telegramId:', telegramId);
+    console.log('Allowed admin telegram IDs:', ADMIN_TELEGRAM_IDS);
+    console.log('Telegram ID match found:', ADMIN_TELEGRAM_IDS.includes(telegramId));
     
-    if (!ADMIN_EMAILS.includes(email)) {
+    if (!ADMIN_TELEGRAM_IDS.includes(telegramId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     next();
   };
 
-  // Register/Login endpoint
-  app.post('/api/register', async (req, res) => {
+  // Create/Get user from Telegram data (automatic registration)
+  app.post('/api/user', async (req, res) => {
     try {
-      const { email, referralCode, agreedToTerms } = req.body;
+      const { telegramId, username, referralCode } = req.body;
       
-      if (!email || !email.includes('@gmail.com')) {
-        return res.status(400).json({ error: 'Gmail address required' });
+      if (!telegramId) {
+        return res.status(400).json({ error: 'Telegram ID required' });
       }
 
-      // Check if user exists
-      let user = await storage.getUserByEmail(email);
+      // Check if user exists by Telegram ID
+      let user = await storage.getUserByTelegramId(telegramId);
       
       if (user) {
-        // Simply return existing user without streak updates for now
+        // Update last login info
+        const loginIp = req.ip || req.connection.remoteAddress || 'Unknown';
+        const userAgent = req.get('User-Agent') || 'Unknown';
+        const loginDevice = userAgent.includes('Mobile') ? 'Mobile' : 
+                           userAgent.includes('Tablet') ? 'Tablet' : 'Desktop';
+        
+        user = await storage.updateUser(user.id, {
+          lastLoginAt: new Date(),
+          lastLoginIp: loginIp,
+          lastLoginDevice: loginDevice,
+          lastLoginUserAgent: userAgent,
+        });
+        
         return res.json(user);
       }
 
-      if (!agreedToTerms) {
-        return res.status(400).json({ error: 'Must agree to Terms & Conditions' });
-      }
-
-      // Create new user
+      // Create new user from Telegram data
       const newPersonalCode = generateReferralCode();
       let referredBy = null;
       let newUserBonus = "0"; // No bonus without referral code
@@ -100,17 +108,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (referrer) {
           referredBy = referrer.id;
           newUserBonus = "20"; // 20 sats bonus with referral code
-          console.log(`New user ${email} referred by ${referralCode}`);
+          console.log(`New user ${telegramId} referred by ${referralCode}`);
         }
       }
       
       const userData = {
-        email,
-        username: email.split('@')[0],
+        telegramId: telegramId.toString(),
+        username: username || `user_${telegramId}`,
         personalCode: newPersonalCode,
         referredBy,
         withdrawBalance: newUserBonus,
         totalEarnings: newUserBonus,
+        lastLoginAt: new Date(),
+        lastLoginIp: req.ip || req.connection.remoteAddress || 'Unknown',
+        lastLoginDevice: req.get('User-Agent')?.includes('Mobile') ? 'Mobile' : 'Desktop',
+        lastLoginUserAgent: req.get('User-Agent') || 'Unknown',
       };
       
       user = await storage.createUser(userData);
@@ -133,69 +145,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             commission,
           });
           
-          console.log(`Referral bonus: +${commission} sats to ${referrer.email}`);
+          console.log(`Referral bonus: +${commission} sats to ${referrer.username}`);
         }
       }
 
       res.json(user);
     } catch (error) {
-      console.error('Error in /api/register:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
-
-  // Login endpoint (same as register for existing users)
-  app.post('/api/login', async (req, res) => {
-    try {
-      const { email } = req.body;
-      
-      if (!email || !email.includes('@gmail.com')) {
-        return res.status(400).json({ error: 'Gmail address required' });
-      }
-
-      // Capture login information
-      const loginIp = req.ip || req.connection.remoteAddress || 'Unknown';
-      const userAgent = req.get('User-Agent') || 'Unknown';
-      const loginDevice = userAgent.includes('Mobile') ? 'Mobile' : 
-                         userAgent.includes('Tablet') ? 'Tablet' : 'Desktop';
-
-      let user = await storage.getUserByEmail(email);
-      
-      if (!user) {
-        // Auto-create admin accounts for specific emails
-        if (ADMIN_EMAILS.includes(email)) {
-          const newPersonalCode = generateReferralCode();
-          const userData = {
-            email,
-            username: email.split('@')[0],
-            personalCode: newPersonalCode,
-            withdrawBalance: "50", // Admin starting balance
-            totalEarnings: "50",
-            lastLoginAt: new Date(),
-            lastLoginIp: loginIp,
-            lastLoginDevice: loginDevice,
-            lastLoginUserAgent: userAgent,
-          };
-          
-          user = await storage.createUser(userData);
-          console.log(`Auto-created admin account for ${email}`);
-        } else {
-          return res.status(404).json({ error: 'User not found. Please sign up first.' });
-        }
-      } else {
-        // Update login information for existing user
-        user = await storage.updateUser(user.id, {
-          lastLoginAt: new Date(),
-          lastLoginIp: loginIp,
-          lastLoginDevice: loginDevice,
-          lastLoginUserAgent: userAgent,
-        });
-      }
-
-      // Simply return the user without streak updates for now
-      res.json(user);
-    } catch (error) {
-      console.error('Error in /api/login:', error);
+      console.error('Error in /api/user:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -544,8 +500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const withdrawal = await storage.createWithdrawalRequest({
         userId,
-        email: user.email,
-        name: null, // Name field removed from frontend, set to null
+        telegramId: user.telegramId,
         telegramUsername,
         amount: amount.toString(),
         walletAddress: lightningAddress,
@@ -851,8 +806,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Get app settings
   app.get('/api/admin/settings', async (req, res) => {
     try {
-      const email = req.query.email;
-      if (email && ADMIN_EMAILS.includes(email as string)) {
+      const telegramId = req.query.telegramId;
+      if (telegramId && ADMIN_TELEGRAM_IDS.includes(telegramId as string)) {
         const settings = await storage.getAppSettings();
         res.json(settings);
       } else {
@@ -875,11 +830,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Update app settings
   app.post('/api/admin/settings', checkAdminAccess, async (req, res) => {
     try {
-      const { email, ...updates } = req.body;
+      const { telegramId, ...updates } = req.body;
       console.log('Updating settings with:', updates);
       
-      // Remove email from updates object before saving
-      delete updates.email;
+      // Remove telegramId from updates object before saving
+      delete updates.telegramId;
       
       const settings = await storage.updateAppSettings(updates);
       console.log('Settings updated successfully:', settings);
@@ -900,7 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No audio file uploaded' });
       }
 
-      const { email } = req.body;
+      const { telegramId } = req.body;
       const filePath = req.file.path;
       
       try {
@@ -925,7 +880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           artist,
           filename: permanentPath,
           duration,
-          uploadedBy: email,
+          uploadedBy: telegramId,
           isActive: true,
           playCount: 0
         });
@@ -956,7 +911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           artist: 'Unknown Artist',
           filename: permanentPath,
           duration: 0,
-          uploadedBy: email,
+          uploadedBy: telegramId,
           isActive: true,
           playCount: 0
         });

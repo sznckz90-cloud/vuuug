@@ -40,22 +40,16 @@ export function sendWelcomeMessage(chatId: number) {
     inline_keyboard: [
       [
         {
-          text: '🫶 Subscribe to us',
-          url: 'https://t.me/LightingSats'
-        }
-      ],
-      [
-        {
-          text: '💬 Join community',
-          url: 'https://t.me/Official_Lightingsats'
-        }
-      ],
-      [
-        {
           text: '💰 Get Paid',
           web_app: {
             url: 'https://lighting-sats-app.onrender.com'
           }
+        }
+      ],
+      [
+        {
+          text: '🫶 Subscribe to us',
+          url: 'https://t.me/LightingSats'
         }
       ]
     ]
