@@ -124,19 +124,49 @@ export function getMockTelegramUser(): TelegramUser {
 }
 
 export function initializeTelegramWebApp(): void {
-  const webApp = getTelegramWebApp();
-  if (webApp) {
-    webApp.ready();
-    webApp.expand();
-    
-    // Set theme colors
-    webApp.headerColor = '#000000';
-    webApp.backgroundColor = '#000000';
-    
-    // Configure haptic feedback for better UX
-    if (webApp.HapticFeedback) {
-      // Add haptic feedback to buttons when needed
+  try {
+    const webApp = getTelegramWebApp();
+    if (webApp) {
+      console.log('Starting Telegram WebApp initialization...');
+      
+      // Initialize in the correct order
+      webApp.ready();
+      
+      // Wait a bit before other operations
+      setTimeout(() => {
+        try {
+          webApp.expand();
+          webApp.enableClosingConfirmation();
+          
+          // Set theme colors safely
+          if (webApp.setHeaderColor) {
+            webApp.setHeaderColor('#000000');
+          } else {
+            webApp.headerColor = '#000000';
+          }
+          
+          if (webApp.setBackgroundColor) {
+            webApp.setBackgroundColor('#000000');
+          } else {
+            webApp.backgroundColor = '#000000';
+          }
+          
+          console.log('Telegram WebApp fully initialized');
+          
+          // Configure haptic feedback
+          if (webApp.HapticFeedback) {
+            console.log('Haptic feedback available');
+          }
+        } catch (error) {
+          console.error('Error in delayed initialization:', error);
+        }
+      }, 100);
+      
+    } else {
+      console.log('Telegram WebApp not available - running in browser mode');
     }
+  } catch (error) {
+    console.error('Critical error in Telegram WebApp initialization:', error);
   }
 }
 
