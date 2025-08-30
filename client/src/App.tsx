@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { X, Play, Zap, Trophy, Users, Wallet, Copy, ExternalLink, Search, Filter, Settings } from "lucide-react";
+import { X, Play, Zap, Trophy, Users, Wallet, Copy, ExternalLink, Search, Filter, Settings, Share, MessageCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const ADMIN_EMAILS = ["sznofficial.store@gmail.com", "official.me.szn@gmail.com"];
@@ -96,14 +96,14 @@ function AuthForm({ onSuccess }: { onSuccess: (user: User) => void }) {
     },
     onSuccess: async (user: User) => {
       localStorage.setItem('lighting_sats_user', JSON.stringify(user));
-      
+
       // Show welcome popup ad for new users with referral code
       if (isSignup && referralCode.trim() && window.show_9368336) {
         try {
           setTimeout(async () => {
             // Simplified ad call
             window.show_9368336('pop');
-            
+
             toast({
               title: "Referral Bonus Earned!",
               description: "You earned bonus Sats for joining with a referral!",
@@ -113,7 +113,7 @@ function AuthForm({ onSuccess }: { onSuccess: (user: User) => void }) {
           console.error('Welcome referral ad error:', error);
         }
       }
-      
+
       onSuccess(user);
       toast({
         title: isSignup ? "Welcome to Lighting Sats!" : "Welcome back!",
@@ -130,7 +130,7 @@ function AuthForm({ onSuccess }: { onSuccess: (user: User) => void }) {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!email.trim()) {
       toast({
         title: "Error",
@@ -171,7 +171,7 @@ function AuthForm({ onSuccess }: { onSuccess: (user: User) => void }) {
             {isSignup ? "Create your account" : "Login to your account"}
           </p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <Label htmlFor="email" className="text-foreground text-sm font-medium">Gmail Address</Label>
@@ -215,7 +215,7 @@ function AuthForm({ onSuccess }: { onSuccess: (user: User) => void }) {
               </div>
             </>
           )}
-          
+
           <Button
             type="submit"
             className="w-full btn-primary-gradient font-semibold rounded-xl h-12"
@@ -224,7 +224,7 @@ function AuthForm({ onSuccess }: { onSuccess: (user: User) => void }) {
             {authMutation.isPending ? "Please wait..." : (isSignup ? "Create Account" : "Login")}
           </Button>
         </form>
-        
+
         <div className="text-center mt-6">
           <Button
             variant="ghost"
@@ -280,10 +280,10 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
       const now = Date.now();
       const timeDiff = now - lastWatch;
       const cooldownTime = 3000;
-      
+
       if (timeDiff < cooldownTime) {
         setCooldown(Math.ceil((cooldownTime - timeDiff) / 1000));
-        
+
         const timer = setInterval(() => {
           const remaining = Math.ceil((cooldownTime - (Date.now() - lastWatch)) / 1000);
           if (remaining <= 0) {
@@ -293,7 +293,7 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
             setCooldown(remaining);
           }
         }, 1000);
-        
+
         return () => clearInterval(timer);
       }
     }
@@ -301,7 +301,7 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
 
   const handleWatchAd = async () => {
     if (cooldown > 0 || isWatchingAd) return;
-    
+
     setIsWatchingAd(true);
     try {
       // Check if Monetag SDK is available
@@ -311,16 +311,16 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
           title: "Loading Ad...",
           description: "Please wait while the ad loads",
         });
-        
+
         try {
           // Show rewarded interstitial ad
           await window.show_9368336();
-          
+
           toast({
             title: "Ad Completed!",
             description: "Processing your reward...",
           });
-          
+
         } catch (adError) {
           console.error('Monetag ad error:', adError);
           toast({
@@ -339,7 +339,7 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
         });
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
-      
+
       // Process earnings after ad completion
       const response = await fetch('/api/watch-ad', {
         method: 'POST',
@@ -449,7 +449,7 @@ function WatchToEarnModal({ user, onRefresh }: { user: User; onRefresh: () => vo
 function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => void }) {
   const [hasClaimedChannel, setHasClaimedChannel] = useState(false);
   const { toast } = useToast();
-  
+
   // Get user streak data
   const { data: streakData } = useQuery({
     queryKey: ['/api/user-streak', user.id],
@@ -468,11 +468,11 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
       return response.json();
     },
   });
-  
+
   const currentStreak = streakData?.currentStreak || 0;
   const multiplier = (2.000 + parseFloat(streakData?.multiplier || "0")).toFixed(3);
   const canClaim = streakData?.canClaim !== false; // Default to true if no data
-  
+
   // Claim daily streak mutation
   const claimStreakMutation = useMutation({
     mutationFn: async () => {
@@ -481,22 +481,22 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to claim daily bonus');
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
       // Refresh streak data
       queryClient.invalidateQueries({ queryKey: ['/api/user-streak'] });
-      
+
       if (onRefresh) {
         onRefresh();
       }
-      
+
       toast({
         title: "Daily Bonus Claimed!",
         description: `Streak day ${data.streak}! You earned +${data.bonusAmount} Sats and +${data.multiplier}× multiplier!`,
@@ -510,19 +510,19 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
       });
     },
   });
-  
+
   const handleClaimDaily = async () => {
     if (!canClaim || claimStreakMutation.isPending) return;
-    
+
     try {
       // Show rewarded popup ad for streak claiming
       if (window.show_9368336) {
         window.show_9368336('pop');
       }
-      
+
       // Claim the daily streak
       claimStreakMutation.mutate();
-      
+
     } catch (error) {
       console.error('Streak ad error:', error);
       // Still try to claim even if ad fails
@@ -536,7 +536,7 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
       if (window.show_9368336) {
         window.show_9368336('pop');
       }
-      
+
       setHasClaimedChannel(true);
       toast({
         title: "Channel Task Completed!",
@@ -551,7 +551,7 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
       });
     }
   };
-  
+
   return (
     <div className="space-y-6">
       <div className="text-center space-y-4">
@@ -559,7 +559,7 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
           <div className="text-4xl font-bold text-secondary mb-2">{currentStreak}</div>
           <div className="text-sm text-muted-foreground">Day Streak</div>
         </div>
-        
+
         <div className="bg-muted/10 p-4 rounded-xl space-y-3">
           <div className="flex justify-between">
             <span className="text-foreground">Current Multiplier:</span>
@@ -570,14 +570,14 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
             <span className="text-primary font-bold">{(parseFloat(settings?.baseEarningsPerAd || "0.01") + parseFloat(multiplier || "0")).toFixed(3)} Sats</span>
           </div>
         </div>
-        
+
         <div className="text-xs text-muted-foreground space-y-1">
           <p>Each day adds +0.002× multiplier</p>
           <p>Applies to all ad earnings</p>
           <p>Miss a day = streak resets</p>
         </div>
       </div>
-      
+
       <Button
         onClick={handleClaimDaily}
         disabled={!canClaim || claimStreakMutation.isPending}
@@ -585,7 +585,7 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
       >
         {claimStreakMutation.isPending ? "Claiming..." : !canClaim ? "Come back tomorrow" : "Claim Daily Bonus (+1 Sat)"}
       </Button>
-      
+
       {/* Channel Task */}
       <div className="bg-muted/10 p-3 rounded-xl flex items-center justify-between">
         <div className="flex flex-col">
@@ -603,7 +603,7 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
           {hasClaimedChannel ? "Claimed ✓" : "Claim"}
         </Button>
       </div>
-      
+
       <div className="bg-gradient-to-r from-secondary/20 to-primary/20 p-4 rounded-xl">
         <div className="text-center">
           <div className="text-sm font-medium text-foreground mb-2">Keep your streak alive!</div>
@@ -618,7 +618,7 @@ function DailyStreakModal({ user, onRefresh }: { user: User; onRefresh?: () => v
 function ChallengeModal({ user }: { user: User }) {
   const [claimedRewards, setClaimedRewards] = useState<number[]>([]);
   const { toast } = useToast();
-  
+
   // Get user streak data
   const { data: streakData } = useQuery({
     queryKey: ['/api/user-streak', user.id],
@@ -628,26 +628,26 @@ function ChallengeModal({ user }: { user: User }) {
       return response.json();
     },
   });
-  
+
   const streakDay = streakData?.currentStreak || 0;
   const nextMilestone = streakDay < 10 ? 10 : streakDay < 20 ? 20 : 30;
-  
+
   const challenges = [
     { days: 10, reward: '1-1,000 Sats', status: 'Login for claim 1 day' },
     { days: 20, reward: '1-2,000 Sats', status: 'Login for claim 1 day' },
     { days: 30, reward: '1-3,000 Sats', status: 'Login for claim 1 day' }
   ];
-  
+
   const handleClaimReward = async (challengeDays: number) => {
     if (streakDay < challengeDays || claimedRewards.includes(challengeDays)) return;
-    
+
     try {
       // Show rewarded popup ad for challenge reward
       if (window.show_9368336) {
         // Simplified ad call
         window.show_9368336('pop');
       }
-      
+
       setClaimedRewards(prev => [...prev, challengeDays]);
       const randomReward = Math.floor(Math.random() * (challengeDays * 100)) + 1;
       toast({
@@ -665,7 +665,7 @@ function ChallengeModal({ user }: { user: User }) {
       });
     }
   };
-  
+
   return (
     <div className="space-y-4 max-h-[70vh] overflow-hidden">
       {/* Header - Fixed */}
@@ -673,7 +673,7 @@ function ChallengeModal({ user }: { user: User }) {
         <div className="text-2xl font-bold text-accent mb-1">Day {streakDay}</div>
         <div className="text-xs text-muted-foreground">Challenge Progress</div>
       </div>
-      
+
       {/* Challenge List - Compact */}
       <div className="bg-muted/10 p-3 rounded-xl space-y-3">
         {challenges.map((challenge, index) => (
@@ -702,7 +702,7 @@ function ChallengeModal({ user }: { user: User }) {
           </div>
         ))}
       </div>
-      
+
       {/* Progress Bar - Compact */}
       <div className="bg-muted/10 p-3 rounded-xl">
         <div className="text-xs text-muted-foreground mb-2">Next milestone: {nextMilestone} days</div>
@@ -714,7 +714,7 @@ function ChallengeModal({ user }: { user: User }) {
         </div>
         <div className="text-xs text-muted-foreground mt-1">{Math.max(0, nextMilestone - streakDay)} days to go</div>
       </div>
-      
+
       {/* Info - Compact */}
       <div className="text-center text-xs text-muted-foreground bg-muted/10 p-2 rounded-xl">
         <div>Complete daily challenges to unlock rewards!</div>
@@ -742,7 +742,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
         try {
           // Simplified ad call without await since it's async
           window.show_9368336('pop');
-          
+
           toast({
             title: "Share Bonus Earned!",
             description: "You earned +0.5 Sats for sharing!",
@@ -751,7 +751,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
           console.error('Share ad error:', adError);
         }
       }
-      
+
       // Try modern clipboard API first
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(user.personalCode);
@@ -768,7 +768,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
         document.execCommand('copy');
         textArea.remove();
       }
-      
+
       toast({
         title: "Copied!",
         description: "Personal code copied to clipboard",
@@ -807,23 +807,23 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
         },
         body: JSON.stringify({ userId: user.id }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to claim commission');
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
       // Invalidate user data and referrals to refresh balances
       queryClient.invalidateQueries({ queryKey: ['/api/referrals'] });
-      
+
       // Refresh the main user interface
       if (onRefresh) {
         onRefresh();
       }
-      
+
       toast({
         title: "Commission Claimed!",
         description: `You earned +${data.claimedAmount} Sats commission!`,
@@ -853,10 +853,10 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
       if (window.show_9368336) {
         window.show_9368336('pop');
       }
-      
+
       // Actually claim the commission via API
       claimCommissionMutation.mutate();
-      
+
     } catch (error) {
       console.error('Commission ad error:', error);
       // Still try to claim even if ad fails
@@ -871,7 +871,7 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
         <div className="text-xl font-bold text-primary mb-1">10% Commission</div>
         <div className="text-xs text-muted-foreground">Earn from every referral</div>
       </div>
-      
+
       {/* Personal Code - Fixed */}
       <div className="bg-muted/10 p-3 rounded-xl">
         <div className="text-center">
@@ -933,6 +933,80 @@ function AffiliatesModal({ user, onRefresh }: { user: User; onRefresh?: () => vo
       {/* Info - Fixed */}
       <div className="text-center text-xs text-muted-foreground bg-muted/10 p-2 rounded-xl">
         <div>Share your code and earn 10% commission!</div>
+      </div>
+
+      {/* Share App & Earn Button */}
+      <div className="mt-4">
+        <Button
+          onClick={() => {
+            const shareText = `⚡Join Lightning Sats✓ and earn crypto, just by watching ads, easy and simple💸\n\nhttps://t.me/LightningSatsbot?start=${user.personalCode}`;
+
+            // Show rewarded ad for sharing
+            if (window.show_9368336) {
+              try {
+                window.show_9368336('pop');
+                toast({
+                  title: "Share Bonus Earned!",
+                  description: "You earned +0.5 Sats for sharing!",
+                });
+              } catch (adError) {
+                console.error('Share ad error:', adError);
+              }
+            }
+
+            // Try to share via Web Share API first
+            if (navigator.share) {
+              navigator.share({
+                title: '⚡Lightning Sats - Earn Crypto',
+                text: shareText,
+              }).catch(console.error);
+            } else {
+              // Fallback to copying to clipboard
+              navigator.clipboard.writeText(shareText).then(() => {
+                toast({
+                  title: "Copied!",
+                  description: "Share message copied to clipboard",
+                });
+              }).catch(() => {
+                // Final fallback
+                const textArea = document.createElement('textarea');
+                textArea.value = shareText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                toast({
+                  title: "Copied!",
+                  description: "Share message copied to clipboard",
+                });
+              });
+            }
+          }}
+          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-xl h-12 flex items-center justify-center gap-2"
+        >
+          <Share className="h-4 w-4" />
+          Share App & Earn
+        </Button>
+      </div>
+
+      {/* Direct Telegram Link */}
+      <div className="mt-3">
+        <Button
+          onClick={() => {
+            const telegramUrl = `https://t.me/LightningSatsbot?start=${user.personalCode}`;
+            window.open(telegramUrl, '_blank');
+
+            toast({
+              title: "Opening Telegram",
+              description: "Your referral link is ready to share!",
+            });
+          }}
+          className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl h-12 flex items-center justify-center gap-2"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Open in Telegram
+        </Button>
       </div>
     </div>
   );
@@ -1088,7 +1162,7 @@ function CashoutModal({ user }: { user: User }) {
     onSuccess: () => {
       // Invalidate withdrawal history to show the new request immediately
       queryClient.invalidateQueries({ queryKey: ['/api/withdrawals', user.id] });
-      
+
       toast({
         title: "Withdrawal Requested!",
         description: "Your withdrawal request has been submitted for processing.",
@@ -1109,7 +1183,7 @@ function CashoutModal({ user }: { user: User }) {
 
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!amount || !lightningAddress || !telegramUsername) {
       toast({
         title: "Error",
@@ -1121,11 +1195,11 @@ function CashoutModal({ user }: { user: User }) {
 
     const withdrawAmount = parseFloat(amount);
     const adsWatched = user.adsWatched || 0;
-    
+
     // Get dynamic settings for validation
     const minAdsRequired = settings?.minAdsForWithdrawal || 500;
     const minWithdrawal = parseFloat(settings?.minWithdrawal || "2500");
-    
+
     // Ads requirement
     if (adsWatched < minAdsRequired) {
       toast({
@@ -1455,7 +1529,7 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
               <ExternalLink className="h-4 w-4" />
               Support
             </Button>
-            
+
             <Button
               onClick={() => openModal('converter')}
               variant="outline"
@@ -1546,14 +1620,14 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
       setCurrentSong(firstSong);
       setCurrentIndex(0);
       console.log('Setting first song:', firstSong.title, 'by', firstSong.artist);
-      
+
       // Immediately try to start playing with multiple strategies
       setTimeout(() => {
         if (audioRef.current) {
           // Set volume to maximum
           audioRef.current.volume = 1.0;
           console.log('Attempting to auto-start music:', firstSong.title);
-          
+
           // Strategy 1: Direct play attempt
           audioRef.current.play().then(() => {
             setIsPlaying(true);
@@ -1561,7 +1635,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
             console.log('✅ Music auto-started successfully:', firstSong.title);
           }).catch((error) => {
             console.log('❌ Browser blocked autoplay:', error.message);
-            
+
             // Strategy 2: Add click listener to start music on any user interaction
             const startOnInteraction = () => {
               if (audioRef.current) {
@@ -1578,16 +1652,16 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
                 });
               }
             };
-            
+
             // Listen for any user interaction to start music
             document.addEventListener('click', startOnInteraction);
             document.addEventListener('touchstart', startOnInteraction);
             document.addEventListener('keydown', startOnInteraction);
-            
+
             // Also try when page becomes visible/focused
             document.addEventListener('visibilitychange', startOnInteraction);
             window.addEventListener('focus', startOnInteraction);
-            
+
             console.log('🎵 Music will start on first user interaction (click, touch, key press, or page focus)');
           });
         }
@@ -1637,7 +1711,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
       setIsPlaying(true);
       console.log('▶️ Audio started playing:', currentSong?.title);
     };
-    
+
     const handlePause = () => {
       setIsPlaying(false);
       console.log('⏸️ Audio paused:', currentSong?.title);
@@ -1685,18 +1759,18 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
 
     const handleEnded = () => {
       if (songs.length === 0) return;
-      
+
       let nextIndex;
       if (settings?.shuffleMode) {
         nextIndex = Math.floor(Math.random() * songs.length);
       } else {
         nextIndex = (currentIndex + 1) % songs.length;
       }
-      
+
       const nextSong = songs[nextIndex];
       setCurrentSong(nextSong);
       setCurrentIndex(nextIndex);
-      
+
       // Auto-play next song immediately to keep music playing continuously  
       setTimeout(() => {
         if (audioRef.current) {
@@ -1734,7 +1808,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
         const newSong = songs[0];
         setCurrentSong(newSong);
         setCurrentIndex(0);
-        
+
         if (isPlaying) {
           setTimeout(() => {
             if (audioRef.current) {
@@ -1892,12 +1966,12 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
-    
+
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const width = rect.width;
     const newTime = (clickX / width) * duration;
-    
+
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -1919,7 +1993,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
     setCurrentSong(firstSong);
     setCurrentIndex(0);
   }
-  
+
   // Don't show anything if no current song
   if (!currentSong) {
     return null;
@@ -1934,7 +2008,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
         preload="auto"
         autoPlay={true}
       />
-      
+
       {/* Music start button for all users */}
       {currentSong && !isPlaying && (
         <div className="fixed top-4 right-4 z-50 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm cursor-pointer animate-pulse" onClick={async () => {
@@ -1954,14 +2028,14 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
           ▶️ Start Music: {currentSong.title}
         </div>
       )}
-      
+
       {/* Current song display */}
       {currentSong && isPlaying && (
         <div className="fixed top-4 right-4 z-50 bg-black/80 text-white px-3 py-2 rounded-lg text-xs">
           🎵 Playing: {currentSong.title} - {currentSong.artist}
         </div>
       )}
-      
+
       {isAdmin && (
       <Card className="bg-card/95 backdrop-blur border shadow-xl overflow-hidden">
         {isMinimized ? (
@@ -2030,7 +2104,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
               >
                 ⏮️
               </Button>
-              
+
               <Button
                 variant="default"
                 size="sm"
@@ -2041,7 +2115,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
               >
                 {isPlaying ? '⏸️' : '▶️'}
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -2315,13 +2389,13 @@ function MusicManagementPanel({ user }: { user: User }) {
       }
 
       const result = await response.json();
-      
+
       refetchSongs();
       toast({ 
         title: "File Uploaded Successfully", 
         description: `"${result.metadata.title}" by ${result.metadata.artist} has been added to the library` 
       });
-      
+
       // Clear the file input
       event.target.value = '';
     } catch (error) {
@@ -2421,7 +2495,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
   const [userSearch, setUserSearch] = useState('');
   const [userFilter, setUserFilter] = useState<'all' | 'active' | 'banned'>('all');
   const [chartPeriod, setChartPeriod] = useState<'7days' | '30days'>('7days');
-  
+
   // Local state for settings values to make them controlled inputs
   const [settingsValues, setSettingsValues] = useState<any>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -2510,12 +2584,12 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
           adminNotes,
         }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to process withdrawal');
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -2523,10 +2597,10 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      
+
       // Also invalidate user withdrawal history queries so users see updates in real-time
       queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
-      
+
       toast({
         title: "Withdrawal Processed",
         description: "The withdrawal request has been updated successfully",
@@ -2573,12 +2647,12 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
       // Update localStorage cache with new settings
       const updatedCache = { ...settingsValues, ...variables };
       localStorage.setItem('admin_settings_cache', JSON.stringify(updatedCache));
-      
+
       // Invalidate ALL settings-related queries to ensure fresh data everywhere
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
       queryClient.invalidateQueries({ queryKey: ['/api/music/settings'] }); // Also refresh public music settings
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
-      
+
       setHasUnsavedChanges(false);
       toast({ title: "Settings Saved!", description: "All settings have been saved successfully and will persist" });
     },
@@ -2622,12 +2696,12 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
     const matchesSearch = !userSearch || 
       u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.username.toLowerCase().includes(userSearch.toLowerCase());
-    
+
     const matchesFilter = 
       userFilter === 'all' || 
       (userFilter === 'active' && !u.banned) ||
       (userFilter === 'banned' && u.banned);
-    
+
     return matchesSearch && matchesFilter;
   });
 
@@ -2948,7 +3022,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
                 {withdrawals.map((w: any) => (
                   <Card key={w.id} className="p-6" data-testid={`withdrawal-card-${w.id}`}>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      
+
                       {/* User Basic Info */}
                       <div className="space-y-4">
                         <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
@@ -2962,7 +3036,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
                           </div>
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Registration Date</label>
-                            <p className="text-sm">{new Date(w.userCreatedAt).toLocaleDateString()}</p>
+                            <p className="text-sm">{new Date(w.createdAt).toLocaleDateString()}</p>
                           </div>
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Last Login</label>
@@ -3053,14 +3127,14 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
                               </span>
                             </div>
                           </div>
-                          
+
                           {w.processedAt && (
                             <div>
                               <label className="text-sm font-medium text-muted-foreground">Processed At</label>
                               <p className="text-sm">{new Date(w.processedAt).toLocaleDateString()} at {new Date(w.processedAt).toLocaleTimeString()}</p>
                             </div>
                           )}
-                          
+
                           {w.adminNotes && (
                             <div>
                               <label className="text-sm font-medium text-muted-foreground">Admin Notes</label>
@@ -3090,7 +3164,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
                               </div>
                             </div>
                           )}
-                          
+
                           {/* User Account Actions */}
                           <div className="space-y-2 pt-4 border-t">
                             <label className="text-sm font-medium text-muted-foreground">User Account</label>
@@ -3118,7 +3192,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
                     </div>
                   </Card>
                 ))}
-                
+
                 {withdrawals.length === 0 && (
                   <Card className="p-8 text-center">
                     <div className="text-4xl mb-4">💰</div>
@@ -3158,7 +3232,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
                   </Button>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Withdrawal Settings */}
                 <Card className="p-6">
