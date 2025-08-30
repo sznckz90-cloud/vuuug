@@ -1,9 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
