@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: lightingsats
+    env: node
+    plan: free
+    buildCommand: npm install && ./build.sh
+    startCommand: npm run start
+    healthCheckPath: /
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lightingsats-db
+          property: connectionString
+    
+databases:
+  - name: lightingsats-db
+    databaseName: lightingsats
+    user: lightingsats_user
+    plan: free
+    region: oregon
