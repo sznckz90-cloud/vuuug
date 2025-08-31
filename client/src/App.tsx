@@ -10,11 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { X, Play, Zap, Trophy, Users, Wallet, Copy, ExternalLink, Search, Filter, Settings, Share, MessageCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ADMIN_EMAILS = ["sznofficial.store@gmail.com", "official.me.szn@gmail.com"];
-// Placeholder for admin telegram IDs, replace with actual fetched IDs or environment variables
-const ADMIN_TELEGRAM_IDS = ["123456789", "987654321"]; 
 
 // Monetag SDK type declarations
 declare global {
@@ -27,7 +24,7 @@ declare global {
 interface User {
   id: string;
   email: string;
-  username?: string;
+  username: string;
   personalCode: string;
   withdrawBalance: string;
   totalEarnings: string;
@@ -40,11 +37,6 @@ interface User {
   banned: boolean;
   createdAt: string;
   updatedAt: string;
-  telegramId?: string;
-  availableBalance?: number; // Added for admin view
-  pendingWithdrawals?: number; // Added for admin view
-  referralCount?: number; // Added for admin view
-  level?: number; // Added for admin view
 }
 
 // Auth hook
@@ -56,8 +48,7 @@ function useAuth() {
     const storedUser = localStorage.getItem('lighting_sats_user');
     if (storedUser) {
       try {
-        const parsedUser: User = JSON.parse(storedUser);
-        setUser(parsedUser);
+        setUser(JSON.parse(storedUser));
       } catch (error) {
         console.error('Failed to parse stored user:', error);
         localStorage.removeItem('lighting_sats_user');
@@ -1162,23 +1153,19 @@ function CashoutModal({ user }: { user: User }) {
   const availableBalance = totalBalance - pendingWithdrawals;
 
   const withdrawMutation = useMutation({
-    mutationFn: async ({ userId, amount, lightningAddress, telegramUsername }: any) => {
+    mutationFn: async (data: { userId: string; amount: string; lightningAddress: string; telegramUsername: string }) => {
       const response = await fetch('/api/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          amount,
-          lightningAddress,
-          telegramUsername
-        }),
+        body: JSON.stringify(data),
       });
 
-      const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create withdrawal request');
+        const error = await response.json();
+        throw new Error(error.error || 'Withdrawal failed');
       }
-      return result;
+
+      return response.json();
     },
     onSuccess: () => {
       // Invalidate withdrawal history to show the new request immediately
@@ -1287,7 +1274,7 @@ function CashoutModal({ user }: { user: User }) {
     <div className="space-y-6">
       {/* Balance Display */}
       <div className="text-center">
-        <div className="text-3xl font-bold text-success mb-2">{availableBalance.toLocaleString()}</div>
+        <div className="text-3xl font-bold text-success mb-2">{balance.toLocaleString()}</div>
         <div className="text-sm text-muted-foreground">Available Balance</div>
       </div>
 
@@ -1385,7 +1372,6 @@ function CashoutModal({ user }: { user: User }) {
 
 // Main Dashboard
 function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user: User; onLogout: () => void; canLogout: boolean; onSwitchToAdmin?: () => void; isAdmin?: boolean }) {
-  // Modal state management integrated using Dialog components
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Fetch withdrawal data for balance calculation
@@ -1405,22 +1391,13 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
   const totalBalance = parseFloat(user.withdrawBalance || "0");
   const availableBalance = totalBalance - pendingWithdrawals;
 
-  // Fetch settings for withdrawal validation in MainApp
-  const { data: settings } = useQuery({
-    queryKey: ['/api/admin/settings'],
-    queryFn: async () => {
-      const response = await fetch('/api/admin/settings');
-      return response.json();
-    },
-  });
-
   const refreshUser = () => {
     // Invalidate all user-related queries to get fresh data
     queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
     queryClient.invalidateQueries({ queryKey: ['/api/referrals'] });
     queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
     queryClient.invalidateQueries({ queryKey: ['/api/user-streak'] });
-
+    
     // Also refresh the stored user data
     if (user) {
       fetch(`/api/user-refresh?userId=${user.id}`)
@@ -1558,11 +1535,11 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
             onClick={() => {
               const balance = parseFloat(user.withdrawBalance || "0");
               const adsWatched = user.adsWatched || 0;
-
+              
               // Get real-time settings for withdrawal requirements
               const minAdsRequired = settings?.minAdsForWithdrawal || 500;
               const minWithdrawal = parseFloat(settings?.minWithdrawal || "2500");
-
+              
               if (adsWatched < minAdsRequired || balance < minWithdrawal) {
                 toast({
                   title: "Withdrawal Requirements Not Met",
@@ -1571,7 +1548,7 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
                 });
                 return;
               }
-
+              
               openModal('cashout');
             }}
           >
@@ -1609,66 +1586,29 @@ function MainApp({ user, onLogout, canLogout, onSwitchToAdmin, isAdmin }: { user
       </div>
 
       {/* Modals */}
-      {activeModal === 'watch' && (
-        <Dialog open={true} onOpenChange={closeModal}>
-          <DialogContent className="bg-card border-border" data-testid="dialog-watch">
-            <DialogHeader>
-              <DialogTitle className="text-white">Watch to Earn</DialogTitle>
-            </DialogHeader>
-            <WatchToEarnModal user={user} onRefresh={refreshUser} />
-          </DialogContent>
-        </Dialog>
-      )}
-      {activeModal === 'streak' && (
-        <Dialog open={true} onOpenChange={closeModal}>
-          <DialogContent className="bg-card border-border" data-testid="dialog-streak">
-            <DialogHeader>
-              <DialogTitle className="text-white">Daily Streak</DialogTitle>
-            </DialogHeader>
-            <DailyStreakModal user={user} onRefresh={refreshUser} />
-          </DialogContent>
-        </Dialog>
-      )}
-      {activeModal === 'challenge' && (
-        <Dialog open={true} onOpenChange={closeModal}>
-          <DialogContent className="bg-card border-border" data-testid="dialog-challenge">
-            <DialogHeader>
-              <DialogTitle className="text-white">Challenges</DialogTitle>
-            </DialogHeader>
-            <ChallengeModal user={user} />
-          </DialogContent>
-        </Dialog>
-      )}
-      {activeModal === 'affiliates' && (
-        <Dialog open={true} onOpenChange={closeModal}>
-          <DialogContent className="bg-card border-border" data-testid="dialog-affiliates">
-            <DialogHeader>
-              <DialogTitle className="text-white">Affiliates</DialogTitle>
-            </DialogHeader>
-            <AffiliatesModal user={user} onRefresh={refreshUser} />
-          </DialogContent>
-        </Dialog>
-      )}
-      {activeModal === 'cashout' && (
-        <Dialog open={true} onOpenChange={closeModal}>
-          <DialogContent className="bg-card border-border" data-testid="dialog-cashout">
-            <DialogHeader>
-              <DialogTitle className="text-white">Withdraw Funds</DialogTitle>
-            </DialogHeader>
-            <CashoutModal user={user} />
-          </DialogContent>
-        </Dialog>
-      )}
-      {activeModal === 'converter' && (
-        <Dialog open={true} onOpenChange={closeModal}>
-          <DialogContent className="bg-card border-border" data-testid="dialog-converter">
-            <DialogHeader>
-              <DialogTitle className="text-white">Sats Converter</DialogTitle>
-            </DialogHeader>
-            <SatsConverterModal />
-          </DialogContent>
-        </Dialog>
-      )}
+      <Modal isOpen={activeModal === 'watch'} onClose={closeModal} title="Watch to Earn">
+        <WatchToEarnModal user={user} onRefresh={refreshUser} />
+      </Modal>
+
+      <Modal isOpen={activeModal === 'streak'} onClose={closeModal} title="Daily Streak">
+        <DailyStreakModal user={user} onRefresh={refreshUser} />
+      </Modal>
+
+      <Modal isOpen={activeModal === 'challenge'} onClose={closeModal} title="Challenges">
+        <ChallengeModal user={user} />
+      </Modal>
+
+      <Modal isOpen={activeModal === 'affiliates'} onClose={closeModal} title="Affiliates">
+        <AffiliatesModal user={user} onRefresh={refreshUser} />
+      </Modal>
+
+      <Modal isOpen={activeModal === 'cashout'} onClose={closeModal} title="Cashout">
+        <CashoutModal user={user} />
+      </Modal>
+
+      <Modal isOpen={activeModal === 'converter'} onClose={closeModal} title="Sats Converter">
+        <SatsConverterModal />
+      </Modal>
 
       {/* Music Player - Floating (only controls for admin, always background music) */}
       <MusicPlayer isAdmin={isAdmin} />
@@ -1770,7 +1710,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
         }
       }, 500);
     }
-  }, [songs, currentSong, playCountMutation]);
+  }, [songs, currentSong]);
 
   // Set volume from admin settings
   useEffect(() => {
@@ -1853,7 +1793,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [currentSong, playCountMutation]);
+  }, [currentSong]);
 
   // Auto-advance to next song when current song ends
   useEffect(() => {
@@ -1899,7 +1839,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
 
     audio.addEventListener('ended', handleEnded);
     return () => audio.removeEventListener('ended', handleEnded);
-  }, [currentIndex, songs, settings?.shuffleMode, playCountMutation]);
+  }, [currentIndex, songs, settings?.shuffleMode]);
 
   // Update current song when song list changes (admin adds/removes songs)
   useEffect(() => {
@@ -1933,7 +1873,7 @@ function MusicPlayer({ isAdmin }: { isAdmin?: boolean }) {
         }
       }
     }
-  }, [songs, currentSong, isPlaying, playCountMutation]);
+  }, [songs, currentSong, isPlaying]);
 
   // Listen for admin control events
   useEffect(() => {
@@ -2627,14 +2567,14 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
     },
   });
 
-  // Fetch app settings for admin panel
-  const { data: settings, refetch: refetchSettings } = useQuery({
-    queryKey: ['/api/admin/settings', user?.telegramId],
+  const { data: settings } = useQuery({
+    queryKey: ['/api/admin/settings'],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/settings?telegramId=${user?.telegramId}`);
+      const response = await fetch(`/api/admin/settings?email=${user.email}`);
       return response.json();
     },
-    enabled: !!user && ADMIN_TELEGRAM_IDS.includes(user.telegramId!), // Use non-null assertion for telegramId
+    refetchInterval: 1000, // Refresh every second for real-time updates
+    staleTime: 0, // Always consider data stale
   });
 
   // Sync local state with fetched settings without localStorage caching
@@ -2650,6 +2590,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
         newUserBonus: parseFloat(settings.newUserBonus || "55"),
         referralCommissionRate: (parseFloat(settings.referralCommissionRate || "0.10") * 100),
         musicVolume: settings.musicVolume || 50,
+        dailyStreakMultiplier: parseFloat(settings.dailyStreakMultiplier || "0.002"),
         soundEnabled: settings.soundEnabled !== false,
         backgroundMusic: settings.backgroundMusic === true,
         autoPlay: settings.autoPlay === true,
@@ -2738,7 +2679,7 @@ function AdminPanel({ user, onLogout, canLogout, onSwitchToEarn }: { user: User;
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
       queryClient.invalidateQueries({ queryKey: ['/api/music/settings'] }); // Also refresh public music settings
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
-
+      
       // Force refetch settings immediately
       queryClient.refetchQueries({ queryKey: ['/api/admin/settings'] });
 
