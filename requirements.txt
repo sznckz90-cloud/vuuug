@@ -1,3 +1,3 @@
-python-telegram-bot==20.7
-psycopg2-binary
-python-dotenv==1.0.0
+python-telegram-bot==20.7  # Or consider upgrading to v22.3 [citation:1][citation:4]
+psycopg2-binary==2.9.10  # Pin the version; be mindful of its use in production [citation:2][citation:7]
+python-dotenv==1.0.0  # Correct and stable [citation:3][citation:8][citation:9]
