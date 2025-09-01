@@ -448,3 +448,18 @@ Cover topics like the token launch, its role in the ClickBee ecosystem, how user
 
     else:
         await query.answer("Unknown contest type")
+
+# -----------------------------
+# Main entry point
+if __name__ == "__main__":
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    # Command handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("Bot is running...")
+
+    # Start the bot
+    app.run_polling()
