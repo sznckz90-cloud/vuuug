@@ -6,11 +6,12 @@ from config import BOT_TOKEN, ADMIN_ID, CHANNEL_ID, SUPPORT_LINK, CHANNEL_LINK, 
 from database import db
 from datetime import datetime
 import psycopg2
-import os
 from dotenv import load_dotenv
+import os
 
 # Load env variables
 load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Enable logging
