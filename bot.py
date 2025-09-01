@@ -389,7 +389,7 @@ async def show_language_selection(update: Update, context: ContextTypes.DEFAULT_
         [InlineKeyboardButton("🇷🇺 русский", callback_data='lang_ru'),
          InlineKeyboardButton("🇪🇦 español", callback_data='lang_es')],
         [InlineKeyboardButton("🇵🇹 Português", callback_data='lang_pt'),
-         InlineKeyboardButton("🇫🇷 français', callback_data='lang_fr')],
+         InlineKeyboardButton("🇫🇷 français", callback_data='lang_fr')],
         [InlineKeyboardButton("🇺🇿 o'zbek", callback_data='lang_uz')],
         [InlineKeyboardButton("🔙 Back", callback_data='back_to_settings')]
     ]
