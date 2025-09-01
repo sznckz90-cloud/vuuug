@@ -426,24 +426,25 @@ Complete the tasks below to claim your $SATS:"""
 async def handle_contest_participation(update: Update, context: ContextTypes.DEFAULT_TYPE, contest_type: str):
     query = update.callback_query
     await query.answer()
-    
+
     if contest_type == 'meme':
         message = """🔥 Airdrop - Create & Share Memes
 👉🏻 Mission: Craft a meme about $BEES and share it in Telegram crypto groups. Get creative and showcase your humor!
 ❓ Share your meme in groups and press « ✅ Confirm »."""
-        
+
         keyboard = [[InlineKeyboardButton("✅ Confirm", callback_data='contest_meme_confirm')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(message, reply_markup=reply_markup)
-    
+
     elif contest_type == 'youtube':
         message = """🔥 Airdrop - YouTube Bonanza
 👉🏻 Mission: Talk about $BEES and ClickBeeBot in YouTube videos/podcasts.
 Cover topics like the token launch, its role in the ClickBee ecosystem, how users can earn crypto by completing tasks, and that tasks lead to token burns.
 ❓ Post your video on YouTube and press « ✅ Confirm »."""
-        
+
         keyboard = [[InlineKeyboardButton("✅ Confirm", callback_data='contest_youtube_confirm')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(message, reply_markup=reply_markup)
-    
-    elif contest_type == 'm
+
+    else:
+        await query.answer("Unknown contest type")
