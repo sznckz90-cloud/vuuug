@@ -35,7 +35,7 @@ def get_db_config():
 
 DB_CONFIG = get_db_config()
 
-# Payment methods configuration (unchanged)
+# Payment methods configuration
 PAYMENT_METHODS = {
     'telegram_stars': {
         'name': 'Telegram Stars',
