@@ -1,21 +1,41 @@
-# Bot configuration
-BOT_TOKEN = "7561099955:AAGZcVgDyWJ3CZ-gvFSNxicTGvJDFojNjug"
-ADMIN_ID = 6653616672
-CHANNEL_ID = -1002480439556
-SUPPORT_LINK = "https://t.me/szxzyz"
-CHANNEL_LINK = "https://t.me/LightingSats"
-WEBAPP_URL = "https://lighting-sats-app.onrender.com"
+import os
+from urllib.parse import urlparse
 
-# Database configuration
-DB_CONFIG = {
-    'host': 'localhost',
-    'database': 'lightning_sats',
-    'user': 'postgres',
-    'password': 'password',
-    'port': 5432
-}
+# Bot configuration - use environment variables with fallbacks
+BOT_TOKEN = os.getenv('BOT_TOKEN', "7561099955:AAGZcVgDyWJ3CZ-gvFSNxicTGvJDFojNjug")
+ADMIN_ID = int(os.getenv('ADMIN_ID', 6653616672))
+CHANNEL_ID = int(os.getenv('CHANNEL_ID', -1002480439556))
+SUPPORT_LINK = os.getenv('SUPPORT_LINK', "https://t.me/szxzyz")
+CHANNEL_LINK = os.getenv('CHANNEL_LINK', "https://t.me/LightingSats")
+WEBAPP_URL = os.getenv('WEBAPP_URL', "https://lighting-sats-app.onrender.com")
 
-# Payment methods configuration
+# Database configuration from DATABASE_URL
+def get_db_config():
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        parsed_url = urlparse(database_url)
+        return {
+            'host': parsed_url.hostname,
+            'database': parsed_url.path[1:],  # remove the leading slash
+            'user': parsed_url.username,
+            'password': parsed_url.password,
+            'port': parsed_url.port,
+            'sslmode': 'require'  # SSL is required for Render databases
+        }
+    else:
+        # Fallback for local development
+        return {
+            'host': 'localhost',
+            'database': 'lightning_sats',
+            'user': 'postgres',
+            'password': 'password',
+            'port': 5432,
+            'sslmode': 'disable'
+        }
+
+DB_CONFIG = get_db_config()
+
+# Payment methods configuration (unchanged)
 PAYMENT_METHODS = {
     'telegram_stars': {
         'name': 'Telegram Stars',
