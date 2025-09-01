@@ -5,6 +5,13 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from config import BOT_TOKEN, ADMIN_ID, CHANNEL_ID, SUPPORT_LINK, CHANNEL_LINK, WEBAPP_URL, PAYMENT_METHODS, PER_AD_REWARD, STREAK_BONUS, DAILY_GOAL
 from database import db
 from datetime import datetime
+import psycopg2
+import os
+from dotenv import load_dotenv
+
+# Load env variables
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -20,6 +27,27 @@ logger = logging.getLogger(__name__)
     CONTEST_SUBMISSION,
     HELP_SECTION
 ) = range(7)
+
+# ✅ DB Init function
+def init_db():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            telegram_id BIGINT UNIQUE NOT NULL,
+            username TEXT,
+            balance BIGINT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✅ Users table checked/created successfully!")
+    except Exception as e:
+        print("❌ Error creating table:", e)
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
