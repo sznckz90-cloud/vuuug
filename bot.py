@@ -446,8 +446,4 @@ Cover topics like the token launch, its role in the ClickBee ecosystem, how user
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(message, reply_markup=reply_markup)
     
-    elif contest_type == 'meme_confirm':
-    # Add your code here with proper indentation
-    await query.edit_message_text("Enter the link to your meme:")
-    context.user_data['state'] = CONTEST_SUBMISSION
-    context.user_data['contest_type'] = 'meme'
+    elif contest_type == 'meme
