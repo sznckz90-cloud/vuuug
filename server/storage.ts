@@ -408,7 +408,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async generateReferralCode(userId: string): Promise<string> {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // First check if user already has a referral code
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (user && user.referralCode) {
+      return user.referralCode;
+    }
+    
+    // Generate a referral code using user's username or Telegram ID for better tracking
+    let code = user?.username || userId;
+    
+    // If it's too long, truncate and add random suffix
+    if (code.length > 8) {
+      code = code.substring(0, 5) + Math.random().toString(36).substring(2, 5).toUpperCase();
+    }
+    
+    // Make sure it's uppercase
+    code = code.toUpperCase();
     
     await db
       .update(users)

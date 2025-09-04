@@ -51,14 +51,7 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
     if (!telegramData) {
-
-     return res.status(401).json({ message: "Telegram authentication required. Please access this app through Telegram." });
-        });
-        
-        req.user = { telegramUser: mockUser };
-        return next();
-      }
-      return res.status(401).json({ message: "Telegram authentication required" });
+      return res.status(401).json({ message: "Telegram authentication required. Please access this app through Telegram." });
     }
 
     try {
@@ -79,7 +72,7 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
         username: telegramUser.username,
-        personalCode: `${telegramUser.username || 'user'}_${telegramUser.id}`,
+        personalCode: telegramUser.username || telegramUser.id.toString(),
         withdrawBalance: '0',
         totalEarnings: '0',
         adsWatched: 0,
@@ -320,7 +313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
         username: telegramUser.username,
-        personalCode: `${telegramUser.username || 'user'}_${telegramUser.id}`,
+        personalCode: telegramUser.username || telegramUser.id.toString(),
         withdrawBalance: '0',
         totalEarnings: '0',
         adsWatched: 0,
