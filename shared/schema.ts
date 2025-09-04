@@ -26,32 +26,36 @@ export const sessions = pgTable(
 
 // User storage table (required for Replit Auth)
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  balance: decimal("balance", { precision: 10, scale: 5 }).default('0'),
-  totalEarned: decimal("total_earned", { precision: 10, scale: 5 }).default('0'),
-  currentStreak: integer("current_streak").default(0),
-  lastStreakDate: timestamp("last_streak_date"),
-  adsWatchedToday: integer("ads_watched_today").default(0),
-  lastAdDate: timestamp("last_ad_date"),
-  referralCode: varchar("referral_code").unique(),
+  id: varchar("id").primaryKey(),
+  email: text("email"),
+  username: text("username"),
+  personalCode: text("personal_code"),
+  withdrawBalance: decimal("withdraw_balance", { precision: 10, scale: 8 }),
+  totalEarnings: decimal("total_earnings", { precision: 10, scale: 8 }),
+  adsWatched: integer("ads_watched"),
+  dailyAdsWatched: integer("daily_ads_watched"),
+  dailyEarnings: decimal("daily_earnings", { precision: 10, scale: 8 }),
+  lastAdWatch: timestamp("last_ad_watch"),
+  level: integer("level"),
   referredBy: varchar("referred_by"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  flagged: boolean("flagged"),
+  flagReason: text("flag_reason"),
+  banned: boolean("banned"),
+  lastLoginAt: timestamp("last_login_at"),
+  lastLoginIp: text("last_login_ip"),
+  lastLoginDevice: text("last_login_device"),
+  lastLoginUserAgent: text("last_login_user_agent"),
+  createdAt: timestamp("created_at"),
+  updatedAt: timestamp("updated_at"),
 });
 
 // Earnings history table
 export const earnings = pgTable("earnings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: integer("id").primaryKey(),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 5 }).notNull(),
-  type: varchar("type").notNull(), // 'ad_watch', 'streak_bonus', 'referral', 'withdrawal'
+  amount: decimal("amount", { precision: 10, scale: 8 }).notNull(),
+  source: varchar("source").notNull(),
   description: text("description"),
-  metadata: jsonb("metadata"), // Store additional data like ad type, streak day, etc.
   createdAt: timestamp("created_at").defaultNow(),
 });
 
