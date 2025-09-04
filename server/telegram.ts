@@ -1,6 +1,11 @@
 // Telegram Bot API integration for sending notifications
 import { storage } from './storage';
 
+const isAdmin = (telegramId: string): boolean => {
+  const adminId = process.env.TELEGRAM_ADMIN_ID;
+  return adminId === telegramId;
+};
+
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
 
@@ -196,7 +201,7 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
       [
         {
           text: "🚀 Get Paid Now",
-          url: "https://lighting-sats-app.onrender.com"
+          url: process.env.RENDER_EXTERNAL_URL || "https://your-render-app.onrender.com"
         }
       ],
       [
@@ -269,7 +274,112 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       return true;
     }
 
-    return false;
+    // Handle /help command
+    if (text.startsWith('/help')) {
+      const helpMessage = `
+🤖 <b>CashWatch Bot Commands</b>
+
+/start - Start using the app and get your referral link
+/help - Show this help message
+/balance - Check your current balance
+/stats - View your account statistics
+/admin - Access admin panel (admins only)
+
+💰 <b>Earn money by watching ads!</b>
+Open the app through the bot menu to start earning.
+      `;
+      
+      await sendUserTelegramNotification(chatId, helpMessage);
+      return true;
+    }
+
+    // Handle /balance command
+    if (text.startsWith('/balance')) {
+      try {
+        const user = await storage.getUser(chatId);
+        if (user) {
+          const balanceMessage = `
+💰 <b>Your Balance</b>
+
+💵 Available: $${user.withdrawBalance}
+📈 Total Earned: $${user.totalEarnings}
+📺 Ads Watched: ${user.adsWatched}
+📊 Daily Ads: ${user.dailyAdsWatched}
+🎯 Level: ${user.level}
+          `;
+          await sendUserTelegramNotification(chatId, balanceMessage);
+        } else {
+          await sendUserTelegramNotification(chatId, "❌ User not found. Please use /start first.");
+        }
+      } catch (error) {
+        console.error('Error fetching balance:', error);
+        await sendUserTelegramNotification(chatId, "❌ Error fetching your balance. Please try again.");
+      }
+      return true;
+    }
+
+    // Handle /stats command
+    if (text.startsWith('/stats')) {
+      try {
+        const user = await storage.getUser(chatId);
+        if (user) {
+          const statsMessage = `
+📊 <b>Your Statistics</b>
+
+👤 Name: ${user.firstName} ${user.lastName || ''}
+💰 Balance: $${user.withdrawBalance}
+📈 Total Earned: $${user.totalEarnings}
+📺 Total Ads Watched: ${user.adsWatched}
+📅 Today's Ads: ${user.dailyAdsWatched}
+💸 Daily Earnings: $${user.dailyEarnings}
+🎯 Level: ${user.level}
+🔗 Referral Code: ${user.personalCode || user.id}
+
+🚀 Keep watching ads to earn more!
+          `;
+          await sendUserTelegramNotification(chatId, statsMessage);
+        } else {
+          await sendUserTelegramNotification(chatId, "❌ User not found. Please use /start first.");
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        await sendUserTelegramNotification(chatId, "❌ Error fetching your statistics. Please try again.");
+      }
+      return true;
+    }
+
+    // Handle /admin command (admin only)
+    if (text.startsWith('/admin')) {
+      if (!isAdmin(chatId)) {
+        await sendUserTelegramNotification(chatId, "❌ You don't have admin permissions.");
+        return true;
+      }
+      
+      const adminMessage = `
+👑 <b>Admin Panel Access</b>
+
+🌐 Access your admin panel at:
+<code>https://your-render-app.onrender.com/admin</code>
+
+From there you can:
+• View withdrawal requests
+• Approve/reject withdrawals  
+• Monitor user activity
+• View app statistics
+      `;
+      
+      await sendUserTelegramNotification(chatId, adminMessage);
+      return true;
+    }
+
+    // Default response for unrecognized commands
+    await sendUserTelegramNotification(chatId, `
+🤔 I don't understand that command.
+
+Use /help to see available commands, or /start to begin earning!
+    `);
+    
+    return true;
   } catch (error) {
     console.error('Error handling Telegram message:', error);
     return false;
