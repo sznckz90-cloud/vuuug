@@ -655,6 +655,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // One-time production database fix endpoint
+  app.get('/api/fix-production-db', async (req: any, res) => {
+    try {
+      const { fixProductionDatabase } = require('../fix-production-db');
+      console.log('🔧 Running production database fix...');
+      await fixProductionDatabase();
+      res.json({ 
+        success: true, 
+        message: 'Production database fixed successfully! Your app should work now.',
+        instructions: 'Try using your Telegram bot - it should now send messages properly!'
+      });
+    } catch (error) {
+      console.error('Fix production DB error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        message: 'Database fix failed. Check the logs for details.'
+      });
+    }
+  });
+
   // Auto-setup webhook endpoint (automatically determines URL)
   app.get('/api/telegram/auto-setup', async (req: any, res) => {
     try {
