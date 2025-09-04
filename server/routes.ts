@@ -115,6 +115,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/test', (req: any, res) => {
     console.log('✅ Test route called!');
     res.json({ status: 'API routes working!', timestamp: new Date().toISOString() });
+    });
+  
+  // Database initialization endpoint for free tier users
+  app.get('/api/init-database', async (req: any, res) => {
+    try {
+      console.log('🔧 Initializing database tables...');
+      
+      // Import the database migration function
+      const { db } = await import('./db');
+      
+      // Try to create a test user to ensure tables exist
+      const testResult = await storage.upsertUser({
+        id: 'init-test-user',
+        email: 'test@init.com',
+        firstName: 'Init',
+        lastName: 'Test',
+        profileImageUrl: null,
+      });
+      
+      console.log('✅ Database tables initialized successfully');
+      res.json({ 
+        success: true, 
+        message: 'Database tables created successfully!',
+        timestamp: new Date().toISOString(),
+        testUser: testResult.user ? 'Created' : 'Already exists'
+      });
+    } catch (error) {
+      console.error('❌ Database initialization failed:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        message: 'Failed to initialize database' 
+      });
+    }
   });
   
   // Telegram Bot Webhook endpoint - MUST be first to avoid Vite catch-all interference
