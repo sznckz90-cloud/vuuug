@@ -1,14 +1,61 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+// Function to get Telegram WebApp initData
+const getTelegramInitData = (): string | null => {
+  if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
+    return window.Telegram.WebApp.initData;
+  }
+  return null;
+};
+
+// Function to authenticate with Telegram
+const authenticateWithTelegram = async (initData: string) => {
+  const response = await fetch('/api/auth/telegram', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ initData }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Telegram authentication failed');
+  }
+  
+  return response.json();
+};
 
 export function useAuth() {
+  const queryClient = useQueryClient();
+  
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
   });
 
+  const telegramAuthMutation = useMutation({
+    mutationFn: authenticateWithTelegram,
+    onSuccess: (userData) => {
+      // Update the user query cache with the authenticated user
+      queryClient.setQueryData(["/api/auth/user"], userData);
+    },
+  });
+
+  const authenticateWithTelegramWebApp = () => {
+    const initData = getTelegramInitData();
+    if (initData) {
+      telegramAuthMutation.mutate(initData);
+    } else {
+      console.error('Telegram WebApp initData not available');
+    }
+  };
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
+    authenticateWithTelegramWebApp,
+    isTelegramAuthenticating: telegramAuthMutation.isPending,
+    telegramAuthError: telegramAuthMutation.error,
   };
 }
