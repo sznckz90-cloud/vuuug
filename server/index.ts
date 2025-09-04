@@ -79,10 +79,15 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
+  // Other ports are firewalled. Default to 10000 for Render.
   // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 10000;
+  
+  // Ensure port is valid
+  if (isNaN(port) || port <= 0 || port >= 65536) {
+    console.error(`Invalid port: ${process.env.PORT}, using default 10000`);
+    port = 10000;
+  }
   server.listen({
     port,
     host: "0.0.0.0",
