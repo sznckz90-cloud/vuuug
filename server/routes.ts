@@ -258,6 +258,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Function to verify Telegram WebApp initData with HMAC-SHA256
+  function verifyTelegramWebAppData(initData: string, botToken: string): { isValid: boolean; user?: any } {
+    try {
+      const urlParams = new URLSearchParams(initData);
+      const hash = urlParams.get('hash');
+      
+      if (!hash) {
+        return { isValid: false };
+      }
+      
+      // Remove hash from params for verification
+      urlParams.delete('hash');
+      
+      // Sort parameters and create data check string
+      const sortedParams = Array.from(urlParams.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n');
+      
+      // Create secret key from bot token
+      const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+      
+      // Calculate expected hash
+      const expectedHash = crypto.createHmac('sha256', secretKey).update(sortedParams).digest('hex');
+      
+      // Verify hash
+      const isValid = expectedHash === hash;
+      
+      if (isValid) {
+        const userString = urlParams.get('user');
+        if (userString) {
+          try {
+            const user = JSON.parse(userString);
+            return { isValid: true, user };
+          } catch (parseError) {
+            console.error('Error parsing user data:', parseError);
+            return { isValid: false };
+          }
+        }
+      }
+      
+      return { isValid };
+    } catch (error) {
+      console.error('Error verifying Telegram data:', error);
+      return { isValid: false };
+    }
+  }
+
+  // New Telegram WebApp authentication route
+  app.post('/api/auth/telegram', async (req: any, res) => {
+    try {
+      const { initData } = req.body;
+      
+      if (!initData) {
+        return res.status(400).json({ message: 'Missing initData' });
+      }
+      
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        return res.status(500).json({ message: 'Bot token not configured' });
+      }
+      
+      // Verify the initData with HMAC-SHA256
+      const { isValid, user: telegramUser } = verifyTelegramWebAppData(initData, botToken);
+      
+      if (!isValid || !telegramUser) {
+        return res.status(401).json({ message: 'Invalid Telegram authentication data' });
+      }
+      
+      // Check if user exists in database, create if not
+      const { user: upsertedUser, isNewUser } = await storage.upsertUser({
+        id: telegramUser.id.toString(),
+        email: `${telegramUser.username || telegramUser.id}@telegram.user`,
+        firstName: telegramUser.first_name,
+        lastName: telegramUser.last_name,
+        username: telegramUser.username,
+        personalCode: `${telegramUser.username || 'user'}_${telegramUser.id}`,
+        withdrawBalance: '0',
+        totalEarnings: '0',
+        adsWatched: 0,
+        dailyAdsWatched: 0,
+        dailyEarnings: '0',
+        level: 1,
+        flagged: false,
+        banned: false,
+      });
+      
+      // Send welcome message to new users
+      if (isNewUser) {
+        try {
+          await sendWelcomeMessage(telegramUser.id.toString());
+        } catch (welcomeError) {
+          console.error('Error sending welcome message:', welcomeError);
+          // Don't fail authentication if welcome message fails
+        }
+      }
+      
+      res.json(upsertedUser);
+    } catch (error) {
+      console.error('Telegram authentication error:', error);
+      res.status(500).json({ message: 'Authentication failed' });
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', authenticateTelegram, async (req: any, res) => {
     try {
