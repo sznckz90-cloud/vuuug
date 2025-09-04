@@ -59,8 +59,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // IMPORTANT: Register API routes BEFORE Vite middleware to prevent catch-all interference
   const server = await registerRoutes(app);
 
+  // Error handling middleware
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -69,9 +71,7 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+  // Setup Vite/static serving AFTER API routes are registered
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
@@ -79,14 +79,14 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 10000 for Render.
+  // For Replit, use port 5000. For Render, use PORT env variable (default 10000).
   // this serves both the API and the client.
-  let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 10000;
+  let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
   
   // Ensure port is valid
   if (isNaN(port) || port <= 0 || port >= 65536) {
-    console.error(`Invalid port: ${process.env.PORT}, using default 10000`);
-    port = 10000;
+    console.error(`Invalid port: ${process.env.PORT}, using default 5000`);
+    port = 5000;
   }
   server.listen({
     port,
@@ -118,4 +118,3 @@ app.use((req, res, next) => {
     }
   });
 })();
-

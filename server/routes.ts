@@ -62,9 +62,16 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
       const { user: upsertedUser, isNewUser } = await storage.upsertUser({
         id: mockUser.id,
         email: `${mockUser.username}@telegram.user`,
-        firstName: mockUser.first_name,
-        lastName: mockUser.last_name,
-        profileImageUrl: null,
+        username: mockUser.username,
+        personalCode: `${mockUser.username}_${mockUser.id}`,
+        withdrawBalance: '0',
+        totalEarnings: '0',
+        adsWatched: 0,
+        dailyAdsWatched: 0,
+        dailyEarnings: '0',
+        level: 1,
+        flagged: false,
+        banned: false,
       });
       
       // Send welcome message to new users
@@ -115,31 +122,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/test', (req: any, res) => {
     console.log('✅ Test route called!');
     res.json({ status: 'API routes working!', timestamp: new Date().toISOString() });
-    });
-  
+  });
+
+  // Debug route to check database columns
+  app.get('/api/debug/db-schema', async (req: any, res) => {
+    try {
+      const { pool } = await import('./db');
+      
+      // Check what columns exist in users table
+      const result = await pool.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'users'
+        ORDER BY ordinal_position;
+      `);
+      
+      res.json({ 
+        success: true, 
+        columns: result.rows,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Schema check failed:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message
+      });
+    }
+  });
+
   // Database initialization endpoint for free tier users
   app.get('/api/init-database', async (req: any, res) => {
     try {
       console.log('🔧 Initializing database tables...');
       
-      // Import the database migration function
-      const { db } = await import('./db');
+      // Import database dependencies
+      const { pool } = await import('./db');
       
-      // Try to create a test user to ensure tables exist
-      const testResult = await storage.upsertUser({
-        id: 'init-test-user',
-        email: 'test@init.com',
-        firstName: 'Init',
-        lastName: 'Test',
-        profileImageUrl: null,
-      });
+      // Create tables manually using raw SQL if they don't exist
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id VARCHAR PRIMARY KEY,
+          email VARCHAR NOT NULL UNIQUE,
+          first_name VARCHAR NOT NULL,
+          last_name VARCHAR NOT NULL,
+          profile_image_url VARCHAR,
+          balance DECIMAL(10,8) DEFAULT 0,
+          total_earned DECIMAL(10,8) DEFAULT 0,
+          ads_watched_today INTEGER DEFAULT 0,
+          last_ad_date DATE,
+          streak_count INTEGER DEFAULT 0,
+          last_streak_date DATE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS earnings (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          amount DECIMAL(10,8) NOT NULL,
+          source VARCHAR NOT NULL,
+          description VARCHAR,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS withdrawals (
+          id VARCHAR PRIMARY KEY,
+          user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          amount DECIMAL(10,8) NOT NULL,
+          wallet_address VARCHAR NOT NULL,
+          status VARCHAR DEFAULT 'pending',
+          transaction_hash VARCHAR,
+          admin_notes VARCHAR,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS referrals (
+          id SERIAL PRIMARY KEY,
+          referrer_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          referred_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(referrer_id, referred_id)
+        );
+      `);
       
       console.log('✅ Database tables initialized successfully');
       res.json({ 
         success: true, 
         message: 'Database tables created successfully!',
-        timestamp: new Date().toISOString(),
-        testUser: testResult.user ? 'Created' : 'Already exists'
+        timestamp: new Date().toISOString()
       });
     } catch (error) {
       console.error('❌ Database initialization failed:', error);

@@ -133,7 +133,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(earnings.userId, userId),
           gte(earnings.createdAt, today),
-          sql`${earnings.type} != 'withdrawal'`
+          sql`${earnings.source} <> 'withdrawal'`
         )
       );
 
@@ -146,7 +146,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(earnings.userId, userId),
           gte(earnings.createdAt, weekAgo),
-          sql`${earnings.type} != 'withdrawal'`
+          sql`${earnings.source} <> 'withdrawal'`
         )
       );
 
@@ -159,7 +159,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(earnings.userId, userId),
           gte(earnings.createdAt, monthAgo),
-          sql`${earnings.type} != 'withdrawal'`
+          sql`${earnings.source} <> 'withdrawal'`
         )
       );
 
@@ -171,7 +171,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(earnings.userId, userId),
-          sql`${earnings.type} != 'withdrawal'`
+          sql`${earnings.source} <> 'withdrawal'`
         )
       );
 
