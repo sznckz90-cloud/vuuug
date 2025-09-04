@@ -102,7 +102,6 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 
 export const insertEarningSchema = createInsertSchema(earnings).omit({
-  id: true,
   createdAt: true,
 });
 
