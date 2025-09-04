@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 // Function to get Telegram WebApp initData
 const getTelegramInitData = (): string | null => {
   if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
+    console.log('Telegram WebApp initData found:', window.Telegram.WebApp.initData);
     return window.Telegram.WebApp.initData;
   }
+  console.log('Telegram WebApp not available or no initData');
   return null;
 };
 
