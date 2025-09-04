@@ -6,11 +6,12 @@ import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
 import RewardNotification from "@/components/RewardNotification";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 
 export default function Home() {
   const { toast } = useToast();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authenticateWithTelegramWebApp, isTelegramAuthenticating, telegramAuthError } = useAuth();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/user/stats"],
@@ -38,6 +39,25 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-20">
+        {/* Telegram Authentication Test Button */}
+        {!user && (
+          <div className="mb-4 p-4 bg-primary/10 rounded-lg">
+            <h3 className="font-semibold mb-2">Telegram Authentication</h3>
+            <Button 
+              onClick={authenticateWithTelegramWebApp}
+              disabled={isTelegramAuthenticating}
+              className="w-full"
+            >
+              {isTelegramAuthenticating ? "Authenticating..." : "Login with Telegram"}
+            </Button>
+            {telegramAuthError && (
+              <p className="text-red-500 text-sm mt-2">
+                Error: {telegramAuthError.message}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Balance Section */}
         <BalanceCard user={user} stats={stats} />
 
