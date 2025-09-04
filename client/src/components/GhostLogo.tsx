@@ -1,4 +1,4 @@
-import ghostLogo from '@assets/Screenshot_2025-08-31-16-26-19-172_com.android.vending-edit_1756912945485.jpg';
+const ghostLogo = '/ghost-logo.jpg';
 
 export default function GhostLogo() {
   return (
