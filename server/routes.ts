@@ -51,22 +51,8 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
     if (!telegramData) {
-      // Development fallback - remove in production
-      if (process.env.NODE_ENV === 'development') {
-        const mockUser = {
-          id: '12345',
-          first_name: 'Demo',
-          last_name: 'User',
-          username: 'demo_user'
-        };
-        
-        const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-          id: mockUser.id,
-          email: `${mockUser.username}@telegram.user`,
-          firstName: mockUser.first_name,
-          lastName: mockUser.last_name,
-          username: mockUser.username,
-          personalCode: `${mockUser.username}_${mockUser.id}`,
+
+     return res.status(401).json({ message: "Telegram authentication required. Please access this app through Telegram." });
         });
         
         req.user = { telegramUser: mockUser };
