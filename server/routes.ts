@@ -6,6 +6,7 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { sendTelegramMessage, formatWithdrawalNotification, sendUserTelegramNotification, formatUserNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook } from "./telegram";
+import { migrateMissingColumns } from "./migrate";
 
 // Check if user is admin
 const isAdmin = (telegramId: string): boolean => {
@@ -50,20 +51,49 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
     if (!telegramData) {
-      // For development, create a mock user
-      const mockUser = {
-        id: '12345',
-        first_name: 'Demo',
-        last_name: 'User',
-        username: 'demo_user'
-      };
+      // Development fallback - remove in production
+      if (process.env.NODE_ENV === 'development') {
+        const mockUser = {
+          id: '12345',
+          first_name: 'Demo',
+          last_name: 'User',
+          username: 'demo_user'
+        };
+        
+        const { user: upsertedUser, isNewUser } = await storage.upsertUser({
+          id: mockUser.id,
+          email: `${mockUser.username}@telegram.user`,
+          firstName: mockUser.first_name,
+          lastName: mockUser.last_name,
+          username: mockUser.username,
+          personalCode: `${mockUser.username}_${mockUser.id}`,
+        });
+        
+        req.user = { telegramUser: mockUser };
+        return next();
+      }
+      return res.status(401).json({ message: "Telegram authentication required" });
+    }
+
+    try {
+      // Parse Telegram Web App data
+      const urlParams = new URLSearchParams(telegramData);
+      const userString = urlParams.get('user');
+      
+      if (!userString) {
+        return res.status(401).json({ message: "Invalid Telegram data" });
+      }
+
+      const telegramUser = JSON.parse(userString);
       
       // Ensure user exists in database
       const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-        id: mockUser.id,
-        email: `${mockUser.username}@telegram.user`,
-        username: mockUser.username,
-        personalCode: `${mockUser.username}_${mockUser.id}`,
+        id: telegramUser.id.toString(),
+        email: `${telegramUser.username || telegramUser.id}@telegram.user`,
+        firstName: telegramUser.first_name,
+        lastName: telegramUser.last_name,
+        username: telegramUser.username,
+        personalCode: `${telegramUser.username || 'user'}_${telegramUser.id}`,
         withdrawBalance: '0',
         totalEarnings: '0',
         adsWatched: 0,
@@ -76,39 +106,15 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
       
       // Send welcome message to new users
       if (isNewUser) {
-        await sendWelcomeMessage(mockUser.id.toString());
+        await sendWelcomeMessage(telegramUser.id.toString());
       }
       
-      req.user = { telegramUser: mockUser };
-      return next();
+      req.user = { telegramUser };
+      next();
+    } catch (parseError) {
+      console.error("Failed to parse Telegram data:", parseError);
+      return res.status(401).json({ message: "Invalid Telegram data format" });
     }
-
-    // Parse Telegram Web App data
-    const urlParams = new URLSearchParams(telegramData);
-    const userString = urlParams.get('user');
-    
-    if (!userString) {
-      return res.status(401).json({ message: "Invalid Telegram data" });
-    }
-
-    const telegramUser = JSON.parse(userString);
-    
-    // Ensure user exists in database
-    const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-      id: telegramUser.id.toString(),
-      email: telegramUser.username ? `${telegramUser.username}@telegram.user` : null,
-      firstName: telegramUser.first_name,
-      lastName: telegramUser.last_name,
-      profileImageUrl: telegramUser.photo_url || null,
-    });
-    
-    // Send welcome message to new users
-    if (isNewUser) {
-      await sendWelcomeMessage(telegramUser.id.toString());
-    }
-
-    req.user = { telegramUser };
-    next();
   } catch (error) {
     console.error("Telegram auth error:", error);
     res.status(401).json({ message: "Authentication failed" });
@@ -274,9 +280,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const earning = await storage.addEarning({
         userId,
         amount: "0.00021",
-        type: 'ad_watch',
+        source: 'ad_watch',
         description: 'Watched advertisement',
-        metadata: { adType: adType || 'rewarded' },
       });
       
       // Increment ads watched count

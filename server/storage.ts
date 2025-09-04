@@ -244,9 +244,8 @@ export class DatabaseStorage implements IStorage {
       await this.addEarning({
         userId,
         amount: rewardEarned,
-        type: 'streak_bonus',
+        source: 'streak_bonus',
         description: `Daily streak bonus`,
-        metadata: { streakDay: newStreak },
       });
     }
 
@@ -334,9 +333,8 @@ export class DatabaseStorage implements IStorage {
     await this.addEarning({
       userId: withdrawal.userId,
       amount: `-${withdrawal.amount}`,
-      type: 'withdrawal',
+      source: 'withdrawal',
       description: `Withdrawal via ${withdrawal.method}`,
-      metadata: { withdrawalId: newWithdrawal.id },
     });
     
     return newWithdrawal;
@@ -394,9 +392,8 @@ export class DatabaseStorage implements IStorage {
     await this.addEarning({
       userId: referrerId,
       amount: "0.50",
-      type: 'referral',
+      source: 'referral',
       description: 'Referral bonus',
-      metadata: { referredUserId: referredId },
     });
     
     return referral;
