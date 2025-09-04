@@ -1,7 +1,7 @@
 // One-time script to fix production database schema on Render
 // Run this once on your deployed app to fix all database issues
 
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
 async function fixProductionDatabase() {
   if (!process.env.DATABASE_URL) {
@@ -110,8 +110,8 @@ async function fixProductionDatabase() {
 }
 
 // Run if this file is executed directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   fixProductionDatabase();
 }
 
-module.exports = { fixProductionDatabase };
+export { fixProductionDatabase };
