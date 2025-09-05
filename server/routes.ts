@@ -810,6 +810,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin stats endpoint
+  app.get('/api/admin/stats', authenticateAdmin, async (req: any, res) => {
+    try {
+      // Get various statistics for admin dashboard using drizzle
+      const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+      const totalEarningsSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
+      const totalWithdrawalsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(eq(withdrawals.status, 'completed'));
+      const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(eq(withdrawals.status, 'pending'));
+      const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
+      const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
+
+      res.json({
+        totalUsers: totalUsersCount[0]?.count || 0,
+        totalEarnings: totalEarningsSum[0]?.total || '0',
+        totalWithdrawals: totalWithdrawalsSum[0]?.total || '0',
+        pendingWithdrawals: pendingWithdrawalsCount[0]?.count || 0,
+        dailyActiveUsers: dailyActiveCount[0]?.count || 0,
+        totalAdsWatched: totalAdsSum[0]?.total || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  // Admin users endpoint
+  app.get('/api/admin/users', authenticateAdmin, async (req: any, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Admin ban/unban user endpoint
+  app.post('/api/admin/users/:id/ban', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { banned } = req.body;
+      
+      await storage.updateUserBanStatus(id, banned);
+      
+      res.json({ 
+        success: true,
+        message: banned ? 'User banned successfully' : 'User unbanned successfully'
+      });
+    } catch (error) {
+      console.error("Error updating user ban status:", error);
+      res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -55,6 +55,10 @@ export interface IStorage {
   
   // Generate referral code
   generateReferralCode(userId: string): Promise<string>;
+  
+  // Admin operations
+  getAllUsers(): Promise<User[]>;
+  updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -80,6 +84,15 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
+    
+    // Auto-generate referral code for new users if they don't have one
+    if (isNewUser && !user.referralCode) {
+      try {
+        await this.generateReferralCode(user.id);
+      } catch (error) {
+        console.error('Failed to generate referral code for new user:', error);
+      }
+    }
     
     return { user, isNewUser };
   }
@@ -435,6 +448,24 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
     
     return code;
+  }
+
+  // Admin operations
+  async getAllUsers(): Promise<User[]> {
+    return db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+  }
+
+  async updateUserBanStatus(userId: string, banned: boolean): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        banned,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
   }
 }
 

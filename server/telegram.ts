@@ -241,26 +241,30 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 
     console.log(`📝 Received message: "${text}" from user ${chatId}`);
 
+    // Create/update user for ANY message (not just /start)
+    // This ensures users are automatically registered when they interact with the bot
+    const { user: dbUser, isNewUser } = await storage.upsertUser({
+      id: chatId,
+      email: user.username ? `${user.username}@telegram.user` : `${chatId}@telegram.user`,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      username: user.username,
+      personalCode: user.username || chatId,
+      withdrawBalance: '0',
+      totalEarnings: '0',
+      adsWatched: 0,
+      dailyAdsWatched: 0,
+      dailyEarnings: '0',
+      level: 1,
+      flagged: false,
+      banned: false,
+    });
+
     // Handle /start command
     if (text.startsWith('/start')) {
       console.log('🚀 Processing /start command...');
       // Extract referral code if present (e.g., /start REF123)
       const referralCode = text.split(' ')[1];
-      
-      // Create/update user in database
-      const { user: dbUser, isNewUser } = await storage.upsertUser({
-        id: chatId,
-        email: user.username ? `${user.username}@telegram.user` : null,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        profileImageUrl: null,
-        referredBy: referralCode || null,
-      });
-
-      // Always send welcome message
-      console.log('📤 Sending welcome message to:', chatId);
-      const messageSent = await sendWelcomeMessage(chatId);
-      console.log('📧 Welcome message sent successfully:', messageSent);
       
       // Process referral if referral code was provided (only for new users)
       if (isNewUser && referralCode && referralCode !== chatId) {
@@ -270,6 +274,11 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           console.log('Referral processing failed:', error);
         }
       }
+
+      // Always send welcome message
+      console.log('📤 Sending welcome message to:', chatId);
+      const messageSent = await sendWelcomeMessage(chatId);
+      console.log('📧 Welcome message sent successfully:', messageSent);
 
       return true;
     }
