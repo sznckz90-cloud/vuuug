@@ -309,93 +309,134 @@ export default function AdminPage() {
           </div>
 
           <Tabs defaultValue="dashboard" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="dashboard" data-testid="tab-dashboard">
-                <i className="fas fa-chart-line mr-2"></i>
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="payouts" data-testid="tab-payouts">
-                <i className="fas fa-money-bill-wave mr-2"></i>
-                Reward & Payout
-              </TabsTrigger>
-              <TabsTrigger value="promo-codes" data-testid="tab-promo-codes">
-                <i className="fas fa-tags mr-2"></i>
-                Promo Codes
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto mb-6">
+              <TabsList className="flex w-full min-w-max">
+                <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-chart-line mr-2"></i>
+                  Dashboard
+                </TabsTrigger>
+                <TabsTrigger value="payouts" data-testid="tab-payouts" className="flex-1 min-w-[140px]">
+                  <i className="fas fa-money-bill-wave mr-2"></i>
+                  Reward & Payout
+                </TabsTrigger>
+                <TabsTrigger value="promo-codes" data-testid="tab-promo-codes" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-tags mr-2"></i>
+                  Promo Codes
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Dashboard Tab */}
-            <TabsContent value="dashboard" className="space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <TabsContent value="dashboard" className="space-y-4">
+              {/* Stats Cards - Compact Layout */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                <Card className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Users</p>
+                      <p className="text-lg font-bold" data-testid="text-total-users">
+                        {stats?.totalUsers?.toLocaleString() || '0'}
+                      </p>
+                    </div>
                     <i className="fas fa-users text-blue-600"></i>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold" data-testid="text-total-users">
-                      {stats?.totalUsers?.toLocaleString() || '0'}
-                    </div>
-                  </CardContent>
+                  </div>
                 </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active Users Today</CardTitle>
+                <Card className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Active Today</p>
+                      <p className="text-lg font-bold" data-testid="text-active-users">
+                        {stats?.dailyActiveUsers?.toLocaleString() || '0'}
+                      </p>
+                    </div>
                     <i className="fas fa-user-check text-green-600"></i>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold" data-testid="text-active-users">
-                      {stats?.dailyActiveUsers?.toLocaleString() || '0'}
-                    </div>
-                  </CardContent>
+                  </div>
                 </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Ads Watched</CardTitle>
+                <Card className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Ads Watched</p>
+                      <p className="text-lg font-bold" data-testid="text-total-ads">
+                        {stats?.totalAdsWatched?.toLocaleString() || '0'}
+                      </p>
+                    </div>
                     <i className="fas fa-eye text-purple-600"></i>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold" data-testid="text-total-ads">
-                      {stats?.totalAdsWatched?.toLocaleString() || '0'}
-                    </div>
-                  </CardContent>
+                  </div>
                 </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Earnings Distributed</CardTitle>
+                <Card className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Earnings</p>
+                      <p className="text-lg font-bold text-green-600" data-testid="text-total-earnings">
+                        ${stats?.totalEarnings || '0.00'}
+                      </p>
+                    </div>
                     <i className="fas fa-dollar-sign text-yellow-600"></i>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600" data-testid="text-total-earnings">
-                      ${stats?.totalEarnings || '0.00'}
-                    </div>
-                  </CardContent>
+                  </div>
                 </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pending Withdraw Requests</CardTitle>
+                <Card className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Pending</p>
+                      <p className="text-lg font-bold text-orange-600" data-testid="text-pending-withdrawals">
+                        {stats?.pendingWithdrawals || '0'}
+                      </p>
+                    </div>
                     <i className="fas fa-clock text-orange-600"></i>
+                  </div>
+                </Card>
+
+                <Card className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Processed</p>
+                      <p className="text-lg font-bold text-green-600" data-testid="text-total-withdrawals">
+                        ${stats?.totalWithdrawals || '0.00'}
+                      </p>
+                    </div>
+                    <i className="fas fa-check-circle text-green-600"></i>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center">
+                      <i className="fas fa-chart-bar mr-2 text-blue-600"></i>
+                      Daily Activity 📈
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600" data-testid="text-pending-withdrawals">
-                      {stats?.pendingWithdrawals || '0'}
+                    <div className="h-48 flex items-center justify-center bg-muted/20 rounded-lg">
+                      <div className="text-center">
+                        <i className="fas fa-chart-line text-3xl text-blue-600 mb-2"></i>
+                        <p className="text-sm text-muted-foreground">Ads watched per day</p>
+                        <p className="text-lg font-bold">{stats?.totalAdsWatched || 0} today</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Withdrawals Processed</CardTitle>
-                    <i className="fas fa-check-circle text-green-600"></i>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center">
+                      <i className="fas fa-users mr-2 text-green-600"></i>
+                      User Analytics 📈
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600" data-testid="text-total-withdrawals">
-                      ${stats?.totalWithdrawals || '0.00'}
+                    <div className="h-48 flex items-center justify-center bg-muted/20 rounded-lg">
+                      <div className="text-center">
+                        <i className="fas fa-user-friends text-3xl text-green-600 mb-2"></i>
+                        <p className="text-sm text-muted-foreground">Active users per day</p>
+                        <p className="text-lg font-bold">{stats?.dailyActiveUsers || 0} active</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
