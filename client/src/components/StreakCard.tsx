@@ -60,17 +60,22 @@ export default function StreakCard({ user }: StreakCardProps) {
     
     try {
       if (typeof window.show_9368336 === 'function') {
-        await window.show_9368336('pop');
-        // Ad watched successfully - process streak
-        claimStreakMutation.mutate();
+        try {
+          await window.show_9368336('pop');
+        } catch (adError) {
+          console.log('Ad display failed, but proceeding with streak claim:', adError);
+        }
       } else {
-        throw new Error('Ad SDK not loaded');
+        console.log('Ad SDK not loaded, proceeding with streak claim anyway');
       }
+      
+      // Always process streak claim regardless of ad success/failure
+      claimStreakMutation.mutate();
     } catch (error) {
-      console.error('Streak ad failed:', error);
+      console.error('Streak claim failed:', error);
       toast({
         title: "Error",
-        description: "Unable to load ad. Please try again.",
+        description: "Failed to claim streak. Please try again.",
         variant: "destructive",
       });
     } finally {
