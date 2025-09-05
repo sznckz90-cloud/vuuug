@@ -162,60 +162,6 @@ export default function Stats() {
             </CardContent>
           </Card>
 
-          {/* Earning Types Breakdown */}
-          <Card className="shadow-sm border border-border">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Earning Sources</h3>
-              
-              {earningsLoading ? (
-                <div className="text-center py-4">
-                  <div className="text-muted-foreground">Loading breakdown...</div>
-                </div>
-              ) : !earnings || earnings.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-muted-foreground mb-2">No earnings yet</div>
-                  <div className="text-muted-foreground text-sm">
-                    Watch ads to start earning!
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {['ad_watch', 'streak_bonus', 'referral'].map(type => {
-                    const typeEarnings = earnings.filter((e: any) => e.type === type);
-                    const total = typeEarnings.reduce((sum: number, e: any) => sum + parseFloat(e.amount), 0);
-                    const count = typeEarnings.length;
-                    
-                    return (
-                      <div key={type} className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-primary/10 p-2 rounded-lg">
-                            <i className={`fas ${
-                              type === 'ad_watch' ? 'fa-video text-primary' :
-                              type === 'streak_bonus' ? 'fa-fire text-secondary' :
-                              'fa-users text-primary'
-                            } text-sm`}></i>
-                          </div>
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {type === 'ad_watch' ? 'Ad Watching' :
-                               type === 'streak_bonus' ? 'Streak Bonuses' :
-                               'Referral Bonuses'}
-                            </div>
-                            <div className="text-muted-foreground text-xs">
-                              {count} {count === 1 ? 'transaction' : 'transactions'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="font-semibold text-foreground">
-                          ${total.toFixed(5)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </main>
     </Layout>
