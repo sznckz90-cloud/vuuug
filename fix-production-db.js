@@ -99,8 +99,40 @@ async function fixProductionDatabase() {
     const userTest = await pool.query('SELECT COUNT(*) FROM users');
     console.log(`✓ Users table: ${userTest.rows[0].count} records`);
 
+    // Check and create promo_codes table
+    const promoTableCheck = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_name = 'promo_codes'
+    `);
+    
+    if (promoTableCheck.rows.length === 0) {
+      await pool.query(`
+        CREATE TABLE "promo_codes" (
+          "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "code" varchar UNIQUE NOT NULL,
+          "reward_amount" numeric(10, 8) NOT NULL,
+          "reward_currency" varchar DEFAULT 'USDT',
+          "usage_limit" integer,
+          "usage_count" integer DEFAULT 0,
+          "per_user_limit" integer DEFAULT 1,
+          "is_active" boolean DEFAULT true,
+          "expires_at" timestamp,
+          "created_at" timestamp DEFAULT now(),
+          "updated_at" timestamp DEFAULT now()
+        );
+      `);
+      console.log('✅ Created promo_codes table');
+    } else {
+      console.log('✓ Promo_codes table already exists');
+    }
+
+    // Test promo_codes table
+    const promoTest = await pool.query('SELECT COUNT(*) FROM promo_codes');
+    console.log(`✓ Promo codes table: ${promoTest.rows[0].count} records`);
+
     console.log('🎉 Production database fixed successfully!');
-    console.log('🚀 Your app should now work perfectly!');
+    console.log('🚀 Your promo codes APIs should now work perfectly!');
 
   } catch (error) {
     console.error('❌ Error fixing database:', error.message);
