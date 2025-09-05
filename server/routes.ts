@@ -1,12 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users } from "@shared/schema";
+import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
 import { sendTelegramMessage, formatWithdrawalNotification, sendUserTelegramNotification, formatUserNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook } from "./telegram";
-import { migrateMissingColumns } from "./migrate";
 
 // Check if user is admin
 const isAdmin = (telegramId: string): boolean => {

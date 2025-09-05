@@ -52,6 +52,7 @@ export interface IStorage {
   
   // Admin withdrawal operations
   getAllPendingWithdrawals(): Promise<Withdrawal[]>;
+  getAllWithdrawals(): Promise<Withdrawal[]>;
   updateWithdrawalStatus(withdrawalId: string, status: string, transactionHash?: string, adminNotes?: string): Promise<Withdrawal>;
   
   // Referral operations
@@ -365,6 +366,14 @@ export class DatabaseStorage implements IStorage {
     return db
       .select()
       .from(withdrawals)
+      .where(eq(withdrawals.status, 'pending'))
+      .orderBy(desc(withdrawals.createdAt));
+  }
+
+  async getAllWithdrawals(): Promise<Withdrawal[]> {
+    return db
+      .select()
+      .from(withdrawals)
       .orderBy(desc(withdrawals.createdAt));
   }
 
@@ -461,6 +470,23 @@ export class DatabaseStorage implements IStorage {
   async getUserByReferralCode(referralCode: string): Promise<User | null> {
     const [user] = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
     return user || null;
+  }
+
+  // Helper method to ensure all users have referral codes
+  async ensureAllUsersHaveReferralCodes(): Promise<void> {
+    const usersWithoutCodes = await db
+      .select()
+      .from(users)
+      .where(sql`${users.referralCode} IS NULL OR ${users.referralCode} = ''`);
+    
+    for (const user of usersWithoutCodes) {
+      try {
+        await this.generateReferralCode(user.id);
+        console.log(`Generated referral code for user ${user.id}`);
+      } catch (error) {
+        console.error(`Failed to generate referral code for user ${user.id}:`, error);
+      }
+    }
   }
 
   async generateReferralCode(userId: string): Promise<string> {
