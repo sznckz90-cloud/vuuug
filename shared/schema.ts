@@ -111,6 +111,38 @@ export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
   updatedAt: true,
 });
 
+// Promo codes table for admin-created promotional codes
+export const promoCodes = pgTable("promo_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").unique().notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  rewardCurrency: varchar("reward_currency").default('USDT'), // 'USDT', 'BTC', 'ETH'
+  usageLimit: integer("usage_limit"), // null for unlimited
+  usageCount: integer("usage_count").default(0),
+  perUserLimit: integer("per_user_limit").default(1), // How many times each user can use it
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Promo code usage tracking
+export const promoCodeUsage = pgTable("promo_code_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  usedAt: timestamp("used_at").defaultNow(),
+});
+
+// Insert schemas
+export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({
+  id: true,
+  usageCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -119,3 +151,6 @@ export type Earning = typeof earnings.$inferSelect;
 export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type Referral = typeof referrals.$inferSelect;
+export type PromoCode = typeof promoCodes.$inferSelect;
+export type InsertPromoCode = z.infer<typeof insertPromoCodeSchema>;
+export type PromoCodeUsage = typeof promoCodeUsage.$inferSelect;
