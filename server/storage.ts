@@ -378,7 +378,6 @@ export class DatabaseStorage implements IStorage {
     return db
       .select()
       .from(withdrawals)
-      .where(eq(withdrawals.status, 'pending'))
       .orderBy(desc(withdrawals.createdAt));
   }
 

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, insertWithdrawalSchema, withdrawals } from "@shared/schema";
+import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
@@ -50,7 +50,39 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
     // Get Telegram Web App data from headers or query params
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
+    // Development mode fallback - create a test user when no Telegram data available
     if (!telegramData) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔧 Development mode: Using test user authentication');
+        const testUser = {
+          id: '123456789',
+          username: 'testuser',
+          first_name: 'Test',
+          last_name: 'User'
+        };
+        
+        // Ensure test user exists in database
+        const { user: upsertedUser, isNewUser } = await storage.upsertUser({
+          id: testUser.id.toString(),
+          email: `${testUser.username}@telegram.user`,
+          firstName: testUser.first_name,
+          lastName: testUser.last_name,
+          username: testUser.username,
+          personalCode: testUser.username || testUser.id.toString(),
+          withdrawBalance: '0',
+          totalEarnings: '0',
+          adsWatched: 0,
+          dailyAdsWatched: 0,
+          dailyEarnings: '0',
+          level: 1,
+          flagged: false,
+          banned: false,
+        });
+        
+        req.user = { telegramUser: testUser };
+        return next();
+      }
+      
       return res.status(401).json({ message: "Telegram authentication required. Please access this app through Telegram." });
     }
 
@@ -519,14 +551,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Referral code required" });
       }
       
-      // Find referrer by code
-      const referrer = await storage.getUser(referralCode);
-      if (!referrer) {
+      // Find referrer by referral code (not user ID)
+      const referrer = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
+      if (!referrer[0]) {
         return res.status(404).json({ message: "Invalid referral code" });
       }
       
       // Create referral relationship
-      const referral = await storage.createReferral(referrer.id, userId);
+      const referral = await storage.createReferral(referrer[0].id, userId);
       
       res.json({ 
         success: true, 

@@ -186,31 +186,31 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
-  const message = `😏 Why waste time? Our app pays higher per Ad than anyone else!
+  const message = `🔥 Welcome to the Future of Ad Earnings! 🔥
 
-🤝 Invite your friends & earn up to 10% extra from their ads!
-⚡ Fast Earnings – 3x more than other apps 🗿
+😏 Forget those trash apps giving you $0.0001 after a month.
+Here, every ad = real cash, fast payouts.
 
-🚮Other apps Slow + $0.0001 peanuts 😴
+🚀 Your time = Money. No excuses.
+💸 Watch. Earn. Withdraw. Repeat.
 
-⏳ Don't waste time, make it money…
-👉 Tap below & Get Paid Now!`;
+👉 Ready to turn your screen-time into income? Let's go!`;
 
   const inlineKeyboard = {
     inline_keyboard: [
       [
         {
-          text: "🚀 Get Paid Now",
-          url: process.env.RENDER_EXTERNAL_URL || "https://your-render-app.onrender.com"
+          text: "👨🏼‍💻 Start Earning Now",
+          url: "https://lighting-sats-app.onrender.com"
         }
       ],
       [
         {
-          text: "📡 Project Vibes",
+          text: "📢 Stay Updated",
           url: "https://t.me/LightingSats"
         },
         {
-          text: "😎 Help Desk",
+          text: "💬 Need Help?",
           url: "https://t.me/szxzyz"
         }
       ]
@@ -225,7 +225,7 @@ export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   return await sendUserTelegramNotification(userId, message, inlineKeyboard);
 }
 
-// Handle incoming Telegram messages and commands
+// Handle incoming Telegram messages - simplified to only show welcome messages
 export async function handleTelegramMessage(update: any): Promise<boolean> {
   try {
     console.log('🔄 Processing Telegram update...');
@@ -260,7 +260,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       banned: false,
     });
 
-    // Handle /start command
+    // Handle /start command with referral processing
     if (text.startsWith('/start')) {
       console.log('🚀 Processing /start command...');
       // Extract referral code if present (e.g., /start REF123)
@@ -283,110 +283,10 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       return true;
     }
 
-    // Handle /help command
-    if (text.startsWith('/help')) {
-      const helpMessage = `
-🤖 <b>CashWatch Bot Commands</b>
-
-/start - Start using the app and get your referral link
-/help - Show this help message
-/balance - Check your current balance
-/stats - View your account statistics
-/admin - Access admin panel (admins only)
-
-💰 <b>Earn money by watching ads!</b>
-Open the app through the bot menu to start earning.
-      `;
-      
-      await sendUserTelegramNotification(chatId, helpMessage);
-      return true;
-    }
-
-    // Handle /balance command
-    if (text.startsWith('/balance')) {
-      try {
-        const user = await storage.getUser(chatId);
-        if (user) {
-          const balanceMessage = `
-💰 <b>Your Balance</b>
-
-💵 Available: $${user.withdrawBalance}
-📈 Total Earned: $${user.totalEarnings}
-📺 Ads Watched: ${user.adsWatched}
-📊 Daily Ads: ${user.dailyAdsWatched}
-🎯 Level: ${user.level}
-          `;
-          await sendUserTelegramNotification(chatId, balanceMessage);
-        } else {
-          await sendUserTelegramNotification(chatId, "❌ User not found. Please use /start first.");
-        }
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-        await sendUserTelegramNotification(chatId, "❌ Error fetching your balance. Please try again.");
-      }
-      return true;
-    }
-
-    // Handle /stats command
-    if (text.startsWith('/stats')) {
-      try {
-        const user = await storage.getUser(chatId);
-        if (user) {
-          const statsMessage = `
-📊 <b>Your Statistics</b>
-
-👤 Name: ${user.firstName} ${user.lastName || ''}
-💰 Balance: $${user.withdrawBalance}
-📈 Total Earned: $${user.totalEarnings}
-📺 Total Ads Watched: ${user.adsWatched}
-📅 Today's Ads: ${user.dailyAdsWatched}
-💸 Daily Earnings: $${user.dailyEarnings}
-🎯 Level: ${user.level}
-🔗 Referral Code: ${user.personalCode || user.id}
-
-🚀 Keep watching ads to earn more!
-          `;
-          await sendUserTelegramNotification(chatId, statsMessage);
-        } else {
-          await sendUserTelegramNotification(chatId, "❌ User not found. Please use /start first.");
-        }
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-        await sendUserTelegramNotification(chatId, "❌ Error fetching your statistics. Please try again.");
-      }
-      return true;
-    }
-
-    // Handle /admin command (admin only)
-    if (text.startsWith('/admin')) {
-      if (!isAdmin(chatId)) {
-        await sendUserTelegramNotification(chatId, "❌ You don't have admin permissions.");
-        return true;
-      }
-      
-      const adminMessage = `
-👑 <b>Admin Panel Access</b>
-
-🌐 Access your admin panel at:
-<code>https://your-render-app.onrender.com/admin</code>
-
-From there you can:
-• View withdrawal requests
-• Approve/reject withdrawals  
-• Monitor user activity
-• View app statistics
-      `;
-      
-      await sendUserTelegramNotification(chatId, adminMessage);
-      return true;
-    }
-
-    // Default response for unrecognized commands
-    await sendUserTelegramNotification(chatId, `
-🤔 I don't understand that command.
-
-Use /help to see available commands, or /start to begin earning!
-    `);
+    // For any other message, just send welcome message (no other commands supported)
+    console.log('📤 Sending welcome message for any interaction to:', chatId);
+    const messageSent = await sendWelcomeMessage(chatId);
+    console.log('📧 Welcome message sent successfully:', messageSent);
     
     return true;
   } catch (error) {
