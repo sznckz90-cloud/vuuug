@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,10 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 export default function Profile() {
   const { toast } = useToast();
   const { user, isLoading } = useAuth();
+  const { isAdmin } = useAdmin();
   const queryClient = useQueryClient();
   
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
@@ -203,6 +206,30 @@ export default function Profile() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Admin Dashboard Access */}
+          {isAdmin && (
+            <Card className="shadow-sm border border-border mb-6 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950 border-orange-200 dark:border-orange-800">
+              <CardContent className="p-6 text-center">
+                <div className="bg-orange-500/10 p-4 rounded-full inline-block mb-4">
+                  <i className="fas fa-crown text-orange-600 dark:text-orange-400 text-2xl"></i>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">Admin Dashboard</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Access admin controls to manage users, withdrawals, and app statistics
+                </p>
+                <Link href="/admin">
+                  <Button 
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                    data-testid="button-admin-dashboard"
+                  >
+                    <i className="fas fa-chart-line mr-2"></i>
+                    Open Admin Dashboard
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Balance & Withdrawal */}
           <Card className="shadow-sm border border-border mb-6">
