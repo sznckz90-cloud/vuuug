@@ -3,6 +3,8 @@ import {
   earnings,
   withdrawals,
   referrals,
+  promoCodes,
+  promoCodeUsage,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -10,6 +12,9 @@ import {
   type InsertWithdrawal,
   type Withdrawal,
   type Referral,
+  type PromoCode,
+  type InsertPromoCode,
+  type PromoCodeUsage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
@@ -59,6 +64,13 @@ export interface IStorage {
   // Admin operations
   getAllUsers(): Promise<User[]>;
   updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
+  
+  // Promo code operations
+  createPromoCode(promoCode: InsertPromoCode): Promise<PromoCode>;
+  getAllPromoCodes(): Promise<PromoCode[]>;
+  getPromoCode(code: string): Promise<PromoCode | undefined>;
+  updatePromoCodeStatus(id: string, isActive: boolean): Promise<PromoCode>;
+  usePromoCode(code: string, userId: string): Promise<{ success: boolean; message: string; reward?: string }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -466,6 +478,111 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
+  }
+
+  // Promo code operations
+  async createPromoCode(promoCodeData: InsertPromoCode): Promise<PromoCode> {
+    const [promoCode] = await db
+      .insert(promoCodes)
+      .values(promoCodeData)
+      .returning();
+    
+    return promoCode;
+  }
+
+  async getAllPromoCodes(): Promise<PromoCode[]> {
+    return db
+      .select()
+      .from(promoCodes)
+      .orderBy(desc(promoCodes.createdAt));
+  }
+
+  async getPromoCode(code: string): Promise<PromoCode | undefined> {
+    const [promoCode] = await db
+      .select()
+      .from(promoCodes)
+      .where(eq(promoCodes.code, code));
+    
+    return promoCode;
+  }
+
+  async updatePromoCodeStatus(id: string, isActive: boolean): Promise<PromoCode> {
+    const [promoCode] = await db
+      .update(promoCodes)
+      .set({
+        isActive,
+        updatedAt: new Date(),
+      })
+      .where(eq(promoCodes.id, id))
+      .returning();
+    
+    return promoCode;
+  }
+
+  async usePromoCode(code: string, userId: string): Promise<{ success: boolean; message: string; reward?: string }> {
+    // Get promo code
+    const promoCode = await this.getPromoCode(code);
+    
+    if (!promoCode) {
+      return { success: false, message: "Invalid promo code" };
+    }
+
+    if (!promoCode.isActive) {
+      return { success: false, message: "Promo code is inactive" };
+    }
+
+    // Check if expired
+    if (promoCode.expiresAt && new Date() > new Date(promoCode.expiresAt)) {
+      return { success: false, message: "Promo code has expired" };
+    }
+
+    // Check usage limit
+    if (promoCode.usageLimit && promoCode.usageCount >= promoCode.usageLimit) {
+      return { success: false, message: "Promo code usage limit reached" };
+    }
+
+    // Check per-user limit
+    const userUsageCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(promoCodeUsage)
+      .where(and(
+        eq(promoCodeUsage.promoCodeId, promoCode.id),
+        eq(promoCodeUsage.userId, userId)
+      ));
+
+    if (userUsageCount[0]?.count >= promoCode.perUserLimit) {
+      return { success: false, message: "You have reached the usage limit for this promo code" };
+    }
+
+    // Record usage
+    await db.insert(promoCodeUsage).values({
+      promoCodeId: promoCode.id,
+      userId,
+      rewardAmount: promoCode.rewardAmount,
+    });
+
+    // Update usage count
+    await db
+      .update(promoCodes)
+      .set({
+        usageCount: sql`${promoCodes.usageCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(promoCodes.id, promoCode.id));
+
+    // Add reward to user balance
+    await this.addEarning({
+      userId,
+      amount: promoCode.rewardAmount,
+      source: 'promo_code',
+      description: `Promo code reward: ${code}`,
+    });
+
+    return {
+      success: true,
+      message: `Promo code redeemed! You earned ${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
+      reward: `${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
+    };
   }
 }
 

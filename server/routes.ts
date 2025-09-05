@@ -616,104 +616,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simple admin interface
-  app.get('/admin', (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>CashWatch Admin</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .withdrawal { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
-            .pending { border-left: 4px solid #ffa500; }
-            .completed { border-left: 4px solid #4CAF50; }
-            .failed { border-left: 4px solid #f44336; }
-            .processing { border-left: 4px solid #2196F3; }
-            button { padding: 5px 10px; margin: 2px; cursor: pointer; }
-            input { margin: 5px; padding: 5px; }
-            .actions { margin-top: 10px; }
-        </style>
-    </head>
-    <body>
-        <h1>CashWatch Admin - Withdrawal Management</h1>
-        <div id="withdrawals"></div>
-        
-        <script>
-            const API_BASE = '/api/admin';
-            
-            async function loadWithdrawals() {
-                try {
-                    const response = await fetch(API_BASE + '/withdrawals');
-                    const withdrawals = await response.json();
-                    
-                    const container = document.getElementById('withdrawals');
-                    container.innerHTML = withdrawals.map(w => \`
-                        <div class="withdrawal \${w.status}">
-                            <h3>Withdrawal #\${w.id.substring(0, 8)}</h3>
-                            <p><strong>User:</strong> \${w.user?.firstName || ''} \${w.user?.lastName || ''} (ID: \${w.userId})</p>
-                            <p><strong>Amount:</strong> $\${w.amount}</p>
-                            <p><strong>Method:</strong> \${w.method === 'usdt_polygon' ? 'Tether (Polygon POS)' : 'Litecoin (LTC)'}</p>
-                            <p><strong>Address:</strong> \${JSON.stringify(w.details)}</p>
-                            <p><strong>Status:</strong> \${w.status}</p>
-                            <p><strong>Created:</strong> \${new Date(w.createdAt).toLocaleString()}</p>
-                            \${w.transactionHash ? \`<p><strong>TX Hash:</strong> \${w.transactionHash}</p>\` : ''}
-                            \${w.adminNotes ? \`<p><strong>Notes:</strong> \${w.adminNotes}</p>\` : ''}
-                            
-                            <div class="actions">
-                                <select id="status-\${w.id}">
-                                    <option value="pending" \${w.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="processing" \${w.status === 'processing' ? 'selected' : ''}>Processing</option>
-                                    <option value="completed" \${w.status === 'completed' ? 'selected' : ''}>Completed</option>
-                                    <option value="failed" \${w.status === 'failed' ? 'selected' : ''}>Failed</option>
-                                </select>
-                                <input type="text" id="txhash-\${w.id}" placeholder="Transaction Hash" value="\${w.transactionHash || ''}">
-                                <input type="text" id="notes-\${w.id}" placeholder="Admin Notes" value="\${w.adminNotes || ''}">
-                                <button onclick="updateWithdrawal('\${w.id}')">Update</button>
-                            </div>
-                        </div>
-                    \`).join('');
-                } catch (error) {
-                    console.error('Failed to load withdrawals:', error);
-                }
-            }
-            
-            async function updateWithdrawal(id) {
-                const status = document.getElementById(\`status-\${id}\`).value;
-                const transactionHash = document.getElementById(\`txhash-\${id}\`).value;
-                const adminNotes = document.getElementById(\`notes-\${id}\`).value;
-                
-                try {
-                    const response = await fetch(\`\${API_BASE}/withdrawals/\${id}/update\`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status, transactionHash, adminNotes })
-                    });
-                    
-                    if (response.ok) {
-                        alert('Withdrawal updated successfully!');
-                        loadWithdrawals();
-                    } else {
-                        alert('Failed to update withdrawal');
-                    }
-                } catch (error) {
-                    console.error('Update failed:', error);
-                    alert('Update failed');
-                }
-            }
-            
-            // Load withdrawals on page load
-            loadWithdrawals();
-            
-            // Refresh every 30 seconds
-            setInterval(loadWithdrawals, 30000);
-        </script>
-    </body>
-    </html>
-    `);
-  });
 
 
   // Setup webhook endpoint (call this once to register with Telegram)
@@ -861,6 +763,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating user ban status:", error);
       res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
+  // Promo code management endpoints
+  app.post('/api/admin/promo-codes', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { code, rewardAmount, rewardCurrency, usageLimit, perUserLimit, expiresAt } = req.body;
+      
+      if (!code || !rewardAmount) {
+        return res.status(400).json({ message: "Code and reward amount are required" });
+      }
+
+      // Check if code already exists
+      const existingCode = await storage.getPromoCode(code);
+      if (existingCode) {
+        return res.status(400).json({ message: "Promo code already exists" });
+      }
+
+      const promoCode = await storage.createPromoCode({
+        code: code.toUpperCase(),
+        rewardAmount,
+        rewardCurrency: rewardCurrency || 'USDT',
+        usageLimit,
+        perUserLimit: perUserLimit || 1,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+
+      res.json({
+        success: true,
+        promoCode,
+        message: 'Promo code created successfully'
+      });
+    } catch (error) {
+      console.error("Error creating promo code:", error);
+      res.status(500).json({ message: "Failed to create promo code" });
+    }
+  });
+
+  app.get('/api/admin/promo-codes', authenticateAdmin, async (req: any, res) => {
+    try {
+      const promoCodes = await storage.getAllPromoCodes();
+      res.json(promoCodes);
+    } catch (error) {
+      console.error("Error fetching promo codes:", error);
+      res.status(500).json({ message: "Failed to fetch promo codes" });
+    }
+  });
+
+  app.post('/api/admin/promo-codes/:id/toggle', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      
+      const promoCode = await storage.updatePromoCodeStatus(id, isActive);
+      
+      res.json({
+        success: true,
+        promoCode,
+        message: `Promo code ${isActive ? 'activated' : 'deactivated'} successfully`
+      });
+    } catch (error) {
+      console.error("Error updating promo code status:", error);
+      res.status(500).json({ message: "Failed to update promo code status" });
+    }
+  });
+
+  // User promo code redemption endpoint
+  app.post('/api/promo-codes/redeem', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.telegramUser.id.toString();
+      const { code } = req.body;
+      
+      if (!code) {
+        return res.status(400).json({ message: "Promo code is required" });
+      }
+
+      const result = await storage.usePromoCode(code.toUpperCase(), userId);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+          reward: result.reward
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+    } catch (error) {
+      console.error("Error redeeming promo code:", error);
+      res.status(500).json({ message: "Failed to redeem promo code" });
     }
   });
 
