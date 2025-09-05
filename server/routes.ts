@@ -11,7 +11,12 @@ import { migrateMissingColumns } from "./migrate";
 // Check if user is admin
 const isAdmin = (telegramId: string): boolean => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
-  return adminId === telegramId;
+  if (!adminId) {
+    console.warn('⚠️ TELEGRAM_ADMIN_ID not set - admin access disabled');
+    return false;
+  }
+  // Ensure both values are strings for comparison
+  return adminId.toString() === telegramId.toString();
 };
 
 // Admin authentication middleware
@@ -588,7 +593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin routes
   app.get('/api/admin/withdrawals', authenticateAdmin, async (req: any, res) => {
     try {
-      const withdrawals = await storage.getAllPendingWithdrawals();
+      // Get all withdrawals for admin panel, not just pending
+      const withdrawals = await storage.getAllWithdrawals();
       
       // Get user details for each withdrawal
       const withdrawalsWithUsers = await Promise.all(
@@ -902,6 +908,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error redeeming promo code:", error);
       res.status(500).json({ message: "Failed to redeem promo code" });
+    }
+  });
+
+  // Database setup endpoint for free plan deployments (call once after deployment)
+  app.post('/api/setup-database', async (req: any, res) => {
+    try {
+      // Only allow this in production and with a setup key for security
+      const { setupKey } = req.body;
+      
+      if (setupKey !== 'setup-database-schema-2024') {
+        return res.status(403).json({ message: "Invalid setup key" });
+      }
+
+      console.log('🔧 Setting up database schema...');
+      
+      // Use drizzle-kit to push schema
+      const { execSync } = await import('child_process');
+      
+      try {
+        execSync('npx drizzle-kit push --force', { 
+          stdio: 'inherit',
+          cwd: process.cwd()
+        });
+        
+        // Generate referral codes for existing users
+        await storage.ensureAllUsersHaveReferralCodes();
+        
+        console.log('✅ Database setup completed successfully');
+        
+        res.json({
+          success: true,
+          message: 'Database schema setup completed successfully'
+        });
+      } catch (dbError) {
+        console.error('Database setup error:', dbError);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Database setup failed',
+          error: String(dbError)
+        });
+      }
+    } catch (error) {
+      console.error("Error setting up database:", error);
+      res.status(500).json({ message: "Failed to setup database" });
     }
   });
 
