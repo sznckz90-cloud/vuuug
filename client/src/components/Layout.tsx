@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import GhostLogo from "./GhostLogo";
+import PromoCodeDialog from "./PromoCodeDialog";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,6 +9,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const [promoDialogOpen, setPromoDialogOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -17,14 +20,16 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center gap-3 cursor-pointer">
               <GhostLogo />
               <div>
-                <h1 className="font-bold text-lg text-foreground">Paid Ads: Earn Crypto</h1>
                 <p className="text-muted-foreground text-xs">Watch ads and earn crypto</p>
               </div>
             </div>
           </Link>
           <div className="flex items-center gap-2">
-            <button className="p-2 rounded-full bg-muted hover:bg-accent transition-colors">
-              <i className="fas fa-bell text-muted-foreground"></i>
+            <button 
+              className="p-2 rounded-full bg-muted hover:bg-accent transition-colors"
+              onClick={() => setPromoDialogOpen(true)}
+            >
+              <i className="fas fa-ticket-alt text-muted-foreground"></i>
             </button>
             <Link href="/profile">
               <button className="p-2 rounded-full bg-muted hover:bg-accent transition-colors">
@@ -67,6 +72,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </nav>
 
+      <PromoCodeDialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen} />
     </div>
   );
 }
