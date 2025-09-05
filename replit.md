@@ -2,6 +2,17 @@
 
 CashWatch is a React-based web application that allows users to earn money by watching advertisements. The platform features a gamified experience with daily streaks, referral systems, and withdrawal capabilities. Built with a modern full-stack architecture using React, Express, PostgreSQL, and shadcn/ui components.
 
+# Recent Changes
+
+**September 5, 2025:**
+- Fixed authentication persistence - users no longer need to authenticate repeatedly
+- Automatic account creation on any bot interaction (not just /start command)  
+- Auto-generation of referral codes for new users
+- Fixed ad reward crediting system with proper authentication headers
+- Fixed streak claim functionality to work regardless of ad SDK status
+- Created comprehensive React-based admin panel with user management, withdrawal oversight, and system monitoring
+- Added admin API endpoints with proper authentication and statistics
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
