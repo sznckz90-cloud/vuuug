@@ -9,8 +9,22 @@ async function throwIfResNotOk(res: Response) {
 
 // Helper function to get Telegram data
 const getTelegramInitData = (): string | null => {
-  if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
-    return window.Telegram.WebApp.initData;
+  if (typeof window !== 'undefined') {
+    // First try to get from Telegram WebApp
+    if (window.Telegram?.WebApp?.initData) {
+      console.log('✅ Found Telegram WebApp initData');
+      return window.Telegram.WebApp.initData;
+    }
+    
+    // Fallback: try to get from URL params (for testing)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tgData = urlParams.get('tgData');
+    if (tgData) {
+      console.log('✅ Found Telegram data from URL params');
+      return tgData;
+    }
+    
+    console.log('⚠️ No Telegram data found');
   }
   return null;
 };
