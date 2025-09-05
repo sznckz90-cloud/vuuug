@@ -269,7 +269,14 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       // Process referral if referral code was provided (only for new users)
       if (isNewUser && referralCode && referralCode !== chatId) {
         try {
-          await storage.createReferral(referralCode, chatId);
+          // Find the referrer by referral code first, then create referral relationship
+          const referrer = await storage.getUserByReferralCode(referralCode);
+          if (referrer) {
+            await storage.createReferral(referrer.id, chatId);
+            console.log(`✅ Referral created: ${referrer.id} -> ${chatId}`);
+          } else {
+            console.log(`❌ Invalid referral code: ${referralCode}`);
+          }
         } catch (error) {
           console.log('Referral processing failed:', error);
         }

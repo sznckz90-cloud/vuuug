@@ -19,6 +19,20 @@ const authenticateAdmin = async (req: any, res: any, next: any) => {
   try {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
+    // Development mode: Allow admin access for test user
+    if (process.env.NODE_ENV === 'development' && !telegramData) {
+      console.log('🔧 Development mode: Granting admin access to test user');
+      req.user = { 
+        telegramUser: { 
+          id: '123456789',
+          username: 'testuser',
+          first_name: 'Test',
+          last_name: 'Admin'
+        } 
+      };
+      return next();
+    }
+    
     if (!telegramData) {
       return res.status(401).json({ message: "Admin access denied" });
     }

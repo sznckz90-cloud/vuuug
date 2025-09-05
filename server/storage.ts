@@ -60,6 +60,7 @@ export interface IStorage {
   
   // Generate referral code
   generateReferralCode(userId: string): Promise<string>;
+  getUserByReferralCode(referralCode: string): Promise<User | null>;
   
   // Admin operations
   getAllUsers(): Promise<User[]>;
@@ -345,22 +346,8 @@ export class DatabaseStorage implements IStorage {
       .values(withdrawal)
       .returning();
     
-    // Deduct from user balance
-    await db
-      .update(users)
-      .set({
-        balance: sql`${users.balance} - ${withdrawal.amount}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, withdrawal.userId));
-    
-    // Add withdrawal record to earnings (negative amount)
-    await this.addEarning({
-      userId: withdrawal.userId,
-      amount: `-${withdrawal.amount}`,
-      source: 'withdrawal',
-      description: `Withdrawal via ${withdrawal.method}`,
-    });
+    // Only create withdrawal request - don't deduct balance yet
+    // Balance will be deducted when admin marks as completed
     
     return newWithdrawal;
   }
@@ -387,6 +374,17 @@ export class DatabaseStorage implements IStorage {
     transactionHash?: string, 
     adminNotes?: string
   ): Promise<Withdrawal> {
+    // Get current withdrawal info
+    const [currentWithdrawal] = await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.id, withdrawalId));
+    
+    if (!currentWithdrawal) {
+      throw new Error('Withdrawal not found');
+    }
+    
+    // Update withdrawal status
     const [updatedWithdrawal] = await db
       .update(withdrawals)
       .set({
@@ -397,6 +395,35 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(withdrawals.id, withdrawalId))
       .returning();
+    
+    // Handle balance changes based on status
+    if (status === 'completed' && currentWithdrawal.status === 'pending') {
+      // Deduct balance when payment is completed
+      await db
+        .update(users)
+        .set({
+          balance: sql`${users.balance} - ${currentWithdrawal.amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, currentWithdrawal.userId));
+      
+      // Add withdrawal record to earnings (negative amount)
+      await this.addEarning({
+        userId: currentWithdrawal.userId,
+        amount: `-${currentWithdrawal.amount}`,
+        source: 'withdrawal',
+        description: `Withdrawal via ${currentWithdrawal.method} - Completed`,
+      });
+    } else if (status === 'failed' && currentWithdrawal.status !== 'failed') {
+      // Don't deduct balance for failed withdrawals - balance stays as is
+      // Add a note to earnings for tracking
+      await this.addEarning({
+        userId: currentWithdrawal.userId,
+        amount: `0`,
+        source: 'withdrawal_failed',
+        description: `Withdrawal via ${currentWithdrawal.method} - Failed`,
+      });
+    }
     
     return updatedWithdrawal;
   }
@@ -429,6 +456,11 @@ export class DatabaseStorage implements IStorage {
       .from(referrals)
       .where(eq(referrals.referrerId, userId))
       .orderBy(desc(referrals.createdAt));
+  }
+
+  async getUserByReferralCode(referralCode: string): Promise<User | null> {
+    const [user] = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
+    return user || null;
   }
 
   async generateReferralCode(userId: string): Promise<string> {
@@ -536,7 +568,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Check usage limit
-    if (promoCode.usageLimit && promoCode.usageCount >= promoCode.usageLimit) {
+    if (promoCode.usageLimit && (promoCode.usageCount || 0) >= promoCode.usageLimit) {
       return { success: false, message: "Promo code usage limit reached" };
     }
 
@@ -549,7 +581,7 @@ export class DatabaseStorage implements IStorage {
         eq(promoCodeUsage.userId, userId)
       ));
 
-    if (userUsageCount[0]?.count >= promoCode.perUserLimit) {
+    if (userUsageCount[0]?.count >= (promoCode.perUserLimit || 1)) {
       return { success: false, message: "You have reached the usage limit for this promo code" };
     }
 
