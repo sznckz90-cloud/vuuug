@@ -199,9 +199,6 @@ Here, every ad = real cash, fast payouts.
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        {
-          text: "👨🏼‍💻 Start Earning Now",
-          url: "https://lighting-sats-app.onrender.com"
         }
       ],
       [
