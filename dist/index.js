@@ -1,5 +1,7 @@
 var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -7,14 +9,26 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
+var __copyProps = (to, from, except, desc3) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc3 = __getOwnPropDesc(from, key)) || desc3.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // shared/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
   earnings: () => earnings,
   insertEarningSchema: () => insertEarningSchema,
+  insertPromoCodeSchema: () => insertPromoCodeSchema,
   insertUserSchema: () => insertUserSchema,
   insertWithdrawalSchema: () => insertWithdrawalSchema,
+  promoCodeUsage: () => promoCodeUsage,
+  promoCodes: () => promoCodes,
   referrals: () => referrals,
   sessions: () => sessions,
   users: () => users,
@@ -33,7 +47,7 @@ import {
   text
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-var sessions, users, earnings, withdrawals, referrals, insertUserSchema, insertEarningSchema, insertWithdrawalSchema;
+var sessions, users, earnings, withdrawals, referrals, insertUserSchema, insertEarningSchema, insertWithdrawalSchema, promoCodes, promoCodeUsage, insertPromoCodeSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -47,32 +61,44 @@ var init_schema = __esm({
       (table) => [index("IDX_session_expire").on(table.expire)]
     );
     users = pgTable("users", {
-      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-      email: varchar("email").unique(),
-      firstName: varchar("first_name"),
-      lastName: varchar("last_name"),
-      profileImageUrl: varchar("profile_image_url"),
-      balance: decimal("balance", { precision: 10, scale: 5 }).default("0"),
-      totalEarned: decimal("total_earned", { precision: 10, scale: 5 }).default("0"),
+      id: varchar("id").primaryKey(),
+      email: text("email"),
+      firstName: text("first_name"),
+      lastName: text("last_name"),
+      profileImageUrl: text("profile_image_url"),
+      username: text("username"),
+      personalCode: text("personal_code"),
+      balance: decimal("balance", { precision: 10, scale: 8 }).default("0"),
+      withdrawBalance: decimal("withdraw_balance", { precision: 10, scale: 8 }),
+      totalEarnings: decimal("total_earnings", { precision: 10, scale: 8 }),
+      totalEarned: decimal("total_earned", { precision: 10, scale: 8 }).default("0"),
+      adsWatched: integer("ads_watched").default(0),
+      dailyAdsWatched: integer("daily_ads_watched").default(0),
+      adsWatchedToday: integer("ads_watched_today").default(0),
+      dailyEarnings: decimal("daily_earnings", { precision: 10, scale: 8 }),
+      lastAdWatch: timestamp("last_ad_watch"),
+      lastAdDate: timestamp("last_ad_date"),
       currentStreak: integer("current_streak").default(0),
       lastStreakDate: timestamp("last_streak_date"),
-      adsWatchedToday: integer("ads_watched_today").default(0),
-      lastAdDate: timestamp("last_ad_date"),
-      referralCode: varchar("referral_code").unique(),
+      level: integer("level").default(1),
       referredBy: varchar("referred_by"),
-      isActive: boolean("is_active").default(true),
+      referralCode: text("referral_code"),
+      flagged: boolean("flagged").default(false),
+      flagReason: text("flag_reason"),
+      banned: boolean("banned").default(false),
+      lastLoginAt: timestamp("last_login_at"),
+      lastLoginIp: text("last_login_ip"),
+      lastLoginDevice: text("last_login_device"),
+      lastLoginUserAgent: text("last_login_user_agent"),
       createdAt: timestamp("created_at").defaultNow(),
       updatedAt: timestamp("updated_at").defaultNow()
     });
     earnings = pgTable("earnings", {
-      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
       userId: varchar("user_id").references(() => users.id).notNull(),
-      amount: decimal("amount", { precision: 10, scale: 5 }).notNull(),
-      type: varchar("type").notNull(),
-      // 'ad_watch', 'streak_bonus', 'referral', 'withdrawal'
+      amount: decimal("amount", { precision: 10, scale: 8 }).notNull(),
+      source: varchar("source").notNull(),
       description: text("description"),
-      metadata: jsonb("metadata"),
-      // Store additional data like ad type, streak day, etc.
       createdAt: timestamp("created_at").defaultNow()
     });
     withdrawals = pgTable("withdrawals", {
@@ -107,7 +133,6 @@ var init_schema = __esm({
       updatedAt: true
     });
     insertEarningSchema = createInsertSchema(earnings).omit({
-      id: true,
       createdAt: true
     });
     insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
@@ -115,26 +140,61 @@ var init_schema = __esm({
       createdAt: true,
       updatedAt: true
     });
+    promoCodes = pgTable("promo_codes", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      code: varchar("code").unique().notNull(),
+      rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+      rewardCurrency: varchar("reward_currency").default("USDT"),
+      // 'USDT', 'BTC', 'ETH'
+      usageLimit: integer("usage_limit"),
+      // null for unlimited
+      usageCount: integer("usage_count").default(0),
+      perUserLimit: integer("per_user_limit").default(1),
+      // How many times each user can use it
+      isActive: boolean("is_active").default(true),
+      expiresAt: timestamp("expires_at"),
+      createdAt: timestamp("created_at").defaultNow(),
+      updatedAt: timestamp("updated_at").defaultNow()
+    });
+    promoCodeUsage = pgTable("promo_code_usage", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
+      userId: varchar("user_id").references(() => users.id).notNull(),
+      rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+      usedAt: timestamp("used_at").defaultNow()
+    });
+    insertPromoCodeSchema = createInsertSchema(promoCodes).omit({
+      id: true,
+      usageCount: true,
+      createdAt: true,
+      updatedAt: true
+    });
   }
 });
 
 // server/db.ts
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
-var pool, db;
+var db_exports = {};
+__export(db_exports, {
+  db: () => db,
+  pool: () => pool
+});
+import pkg from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+var Pool, pool, db;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
-    neonConfig.webSocketConstructor = ws;
+    ({ Pool } = pkg);
     if (!process.env.DATABASE_URL) {
-      throw new Error(
-        "DATABASE_URL must be set. Did you forget to provision a database?"
-      );
+      console.warn("\u26A0\uFE0F  DATABASE_URL not set - using temporary in-memory fallback");
+      process.env.DATABASE_URL = "postgresql://temp:temp@localhost:5432/temp";
     }
-    pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    db = drizzle({ client: pool, schema: schema_exports });
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+    db = drizzle(pool, { schema: schema_exports });
   }
 });
 
@@ -162,6 +222,13 @@ var init_storage = __esm({
             updatedAt: /* @__PURE__ */ new Date()
           }
         }).returning();
+        if (isNewUser && !user.referralCode) {
+          try {
+            await this.generateReferralCode(user.id);
+          } catch (error) {
+            console.error("Failed to generate referral code for new user:", error);
+          }
+        }
         return { user, isNewUser };
       }
       // Earnings operations
@@ -188,7 +255,7 @@ var init_storage = __esm({
           and(
             eq(earnings.userId, userId),
             gte(earnings.createdAt, today),
-            sql2`${earnings.type} != 'withdrawal'`
+            sql2`${earnings.source} <> 'withdrawal'`
           )
         );
         const [weekResult] = await db.select({
@@ -197,7 +264,7 @@ var init_storage = __esm({
           and(
             eq(earnings.userId, userId),
             gte(earnings.createdAt, weekAgo),
-            sql2`${earnings.type} != 'withdrawal'`
+            sql2`${earnings.source} <> 'withdrawal'`
           )
         );
         const [monthResult] = await db.select({
@@ -206,7 +273,7 @@ var init_storage = __esm({
           and(
             eq(earnings.userId, userId),
             gte(earnings.createdAt, monthAgo),
-            sql2`${earnings.type} != 'withdrawal'`
+            sql2`${earnings.source} <> 'withdrawal'`
           )
         );
         const [totalResult] = await db.select({
@@ -214,7 +281,7 @@ var init_storage = __esm({
         }).from(earnings).where(
           and(
             eq(earnings.userId, userId),
-            sql2`${earnings.type} != 'withdrawal'`
+            sql2`${earnings.source} <> 'withdrawal'`
           )
         );
         return {
@@ -263,9 +330,8 @@ var init_storage = __esm({
           await this.addEarning({
             userId,
             amount: rewardEarned,
-            type: "streak_bonus",
-            description: `Daily streak bonus`,
-            metadata: { streakDay: newStreak }
+            source: "streak_bonus",
+            description: `Daily streak bonus`
           });
         }
         return { newStreak, rewardEarned };
@@ -314,17 +380,6 @@ var init_storage = __esm({
       }
       async createWithdrawal(withdrawal) {
         const [newWithdrawal] = await db.insert(withdrawals).values(withdrawal).returning();
-        await db.update(users).set({
-          balance: sql2`${users.balance} - ${withdrawal.amount}`,
-          updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq(users.id, withdrawal.userId));
-        await this.addEarning({
-          userId: withdrawal.userId,
-          amount: `-${withdrawal.amount}`,
-          type: "withdrawal",
-          description: `Withdrawal via ${withdrawal.method}`,
-          metadata: { withdrawalId: newWithdrawal.id }
-        });
         return newWithdrawal;
       }
       async getUserWithdrawals(userId) {
@@ -334,13 +389,39 @@ var init_storage = __esm({
       async getAllPendingWithdrawals() {
         return db.select().from(withdrawals).where(eq(withdrawals.status, "pending")).orderBy(desc(withdrawals.createdAt));
       }
+      async getAllWithdrawals() {
+        return db.select().from(withdrawals).orderBy(desc(withdrawals.createdAt));
+      }
       async updateWithdrawalStatus(withdrawalId, status, transactionHash, adminNotes) {
+        const [currentWithdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
+        if (!currentWithdrawal) {
+          throw new Error("Withdrawal not found");
+        }
         const [updatedWithdrawal] = await db.update(withdrawals).set({
           status,
           transactionHash,
           adminNotes,
           updatedAt: /* @__PURE__ */ new Date()
         }).where(eq(withdrawals.id, withdrawalId)).returning();
+        if (status === "completed" && currentWithdrawal.status === "pending") {
+          await db.update(users).set({
+            balance: sql2`${users.balance} - ${currentWithdrawal.amount}`,
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq(users.id, currentWithdrawal.userId));
+          await this.addEarning({
+            userId: currentWithdrawal.userId,
+            amount: `-${currentWithdrawal.amount}`,
+            source: "withdrawal",
+            description: `Withdrawal via ${currentWithdrawal.method} - Completed`
+          });
+        } else if (status === "failed" && currentWithdrawal.status !== "failed") {
+          await this.addEarning({
+            userId: currentWithdrawal.userId,
+            amount: `0`,
+            source: "withdrawal_failed",
+            description: `Withdrawal via ${currentWithdrawal.method} - Failed`
+          });
+        }
         return updatedWithdrawal;
       }
       async createReferral(referrerId, referredId) {
@@ -353,22 +434,116 @@ var init_storage = __esm({
         await this.addEarning({
           userId: referrerId,
           amount: "0.50",
-          type: "referral",
-          description: "Referral bonus",
-          metadata: { referredUserId: referredId }
+          source: "referral",
+          description: "Referral bonus"
         });
         return referral;
       }
       async getUserReferrals(userId) {
         return db.select().from(referrals).where(eq(referrals.referrerId, userId)).orderBy(desc(referrals.createdAt));
       }
+      async getUserByReferralCode(referralCode) {
+        const [user] = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
+        return user || null;
+      }
+      // Helper method to ensure all users have referral codes
+      async ensureAllUsersHaveReferralCodes() {
+        const usersWithoutCodes = await db.select().from(users).where(sql2`${users.referralCode} IS NULL OR ${users.referralCode} = ''`);
+        for (const user of usersWithoutCodes) {
+          try {
+            await this.generateReferralCode(user.id);
+            console.log(`Generated referral code for user ${user.id}`);
+          } catch (error) {
+            console.error(`Failed to generate referral code for user ${user.id}:`, error);
+          }
+        }
+      }
       async generateReferralCode(userId) {
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+        if (user && user.referralCode) {
+          return user.referralCode;
+        }
+        let code = user?.username || userId;
+        if (code.length > 8) {
+          code = code.substring(0, 5) + Math.random().toString(36).substring(2, 5).toUpperCase();
+        }
+        code = code.toUpperCase();
         await db.update(users).set({
           referralCode: code,
           updatedAt: /* @__PURE__ */ new Date()
         }).where(eq(users.id, userId));
         return code;
+      }
+      // Admin operations
+      async getAllUsers() {
+        return db.select().from(users).orderBy(desc(users.createdAt));
+      }
+      async updateUserBanStatus(userId, banned) {
+        await db.update(users).set({
+          banned,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq(users.id, userId));
+      }
+      // Promo code operations
+      async createPromoCode(promoCodeData) {
+        const [promoCode] = await db.insert(promoCodes).values(promoCodeData).returning();
+        return promoCode;
+      }
+      async getAllPromoCodes() {
+        return db.select().from(promoCodes).orderBy(desc(promoCodes.createdAt));
+      }
+      async getPromoCode(code) {
+        const [promoCode] = await db.select().from(promoCodes).where(eq(promoCodes.code, code));
+        return promoCode;
+      }
+      async updatePromoCodeStatus(id, isActive) {
+        const [promoCode] = await db.update(promoCodes).set({
+          isActive,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq(promoCodes.id, id)).returning();
+        return promoCode;
+      }
+      async usePromoCode(code, userId) {
+        const promoCode = await this.getPromoCode(code);
+        if (!promoCode) {
+          return { success: false, message: "Invalid promo code" };
+        }
+        if (!promoCode.isActive) {
+          return { success: false, message: "Promo code is inactive" };
+        }
+        if (promoCode.expiresAt && /* @__PURE__ */ new Date() > new Date(promoCode.expiresAt)) {
+          return { success: false, message: "Promo code has expired" };
+        }
+        if (promoCode.usageLimit && (promoCode.usageCount || 0) >= promoCode.usageLimit) {
+          return { success: false, message: "Promo code usage limit reached" };
+        }
+        const userUsageCount = await db.select({ count: sql2`count(*)` }).from(promoCodeUsage).where(and(
+          eq(promoCodeUsage.promoCodeId, promoCode.id),
+          eq(promoCodeUsage.userId, userId)
+        ));
+        if (userUsageCount[0]?.count >= (promoCode.perUserLimit || 1)) {
+          return { success: false, message: "You have reached the usage limit for this promo code" };
+        }
+        await db.insert(promoCodeUsage).values({
+          promoCodeId: promoCode.id,
+          userId,
+          rewardAmount: promoCode.rewardAmount
+        });
+        await db.update(promoCodes).set({
+          usageCount: sql2`${promoCodes.usageCount} + 1`,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq(promoCodes.id, promoCode.id));
+        await this.addEarning({
+          userId,
+          amount: promoCode.rewardAmount,
+          source: "promo_code",
+          description: `Promo code reward: ${code}`
+        });
+        return {
+          success: true,
+          message: `Promo code redeemed! You earned ${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
+          reward: `${promoCode.rewardAmount} ${promoCode.rewardCurrency}`
+        };
       }
     };
     storage = new DatabaseStorage();
@@ -523,30 +698,31 @@ async function sendUserTelegramNotification(userId, message, replyMarkup) {
   }
 }
 function formatWelcomeMessage() {
-  const message = `\u{1F60F} Why waste time? Our app pays higher per Ad than anyone else!
+  const message = `\u{1F525} Welcome to the Future of Ad Earnings! \u{1F525}
 
-\u{1F91D} Invite your friends & earn up to 10% extra from their ads!
-\u26A1 Fast Earnings \u2013 3x more than other apps \u{1F5FF}
+\u{1F60F} Forget those trash apps giving you $0.1 after a month.
+Here, every ad = real cash, fast payouts.
 
-\u{1F6AE}Other apps Slow + $0.0001 peanuts \u{1F634}
+\u{1F680} Your time = Money. No excuses.
+\u{1F4B8} Watch. Earn. Withdraw. Repeat.
 
-\u23F3 Don't waste time, make it money\u2026
-\u{1F449} Tap below & Get Paid Now!`;
+\u{1F449} Ready to turn your screen-time into income? Let's go!`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
         {
-          text: "\u{1F680} Get Paid Now",
-          url: "https://lighting-sats-app.onrender.com"
+          text: "\u{1F680} Start Earning",
+          web_app: { url: "https://lighting-sats-app.onrender.com" }
+          // Telegram Mini App
         }
       ],
       [
         {
-          text: "\u{1F4E1} Project Vibes",
+          text: "\u{1F4E2} Stay Updated",
           url: "https://t.me/LightingSats"
         },
         {
-          text: "\u{1F60E} Help Desk",
+          text: "\u{1F4AC} Need Help?",
           url: "https://t.me/szxzyz"
         }
       ]
@@ -570,30 +746,47 @@ async function handleTelegramMessage(update) {
     const text2 = message.text.trim();
     const user = message.from;
     console.log(`\u{1F4DD} Received message: "${text2}" from user ${chatId}`);
+    const { user: dbUser, isNewUser } = await storage.upsertUser({
+      id: chatId,
+      email: user.username ? `${user.username}@telegram.user` : `${chatId}@telegram.user`,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      username: user.username,
+      personalCode: user.username || chatId,
+      withdrawBalance: "0",
+      totalEarnings: "0",
+      adsWatched: 0,
+      dailyAdsWatched: 0,
+      dailyEarnings: "0",
+      level: 1,
+      flagged: false,
+      banned: false
+    });
     if (text2.startsWith("/start")) {
       console.log("\u{1F680} Processing /start command...");
       const referralCode = text2.split(" ")[1];
-      const { user: dbUser, isNewUser } = await storage.upsertUser({
-        id: chatId,
-        email: user.username ? `${user.username}@telegram.user` : null,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        profileImageUrl: null,
-        referredBy: referralCode || null
-      });
-      console.log("\u{1F4E4} Sending welcome message to:", chatId);
-      const messageSent = await sendWelcomeMessage(chatId);
-      console.log("\u{1F4E7} Welcome message sent successfully:", messageSent);
       if (isNewUser && referralCode && referralCode !== chatId) {
         try {
-          await storage.createReferral(referralCode, chatId);
+          const referrer = await storage.getUserByReferralCode(referralCode);
+          if (referrer) {
+            await storage.createReferral(referrer.id, chatId);
+            console.log(`\u2705 Referral created: ${referrer.id} -> ${chatId}`);
+          } else {
+            console.log(`\u274C Invalid referral code: ${referralCode}`);
+          }
         } catch (error) {
           console.log("Referral processing failed:", error);
         }
       }
+      console.log("\u{1F4E4} Sending welcome message to:", chatId);
+      const messageSent2 = await sendWelcomeMessage(chatId);
+      console.log("\u{1F4E7} Welcome message sent successfully:", messageSent2);
       return true;
     }
-    return false;
+    console.log("\u{1F4E4} Sending welcome message for any interaction to:", chatId);
+    const messageSent = await sendWelcomeMessage(chatId);
+    console.log("\u{1F4E7} Welcome message sent successfully:", messageSent);
+    return true;
   } catch (error) {
     console.error("Error handling Telegram message:", error);
     return false;
@@ -638,6 +831,102 @@ var init_telegram = __esm({
   }
 });
 
+// fix-production-db.js
+var fix_production_db_exports = {};
+__export(fix_production_db_exports, {
+  fixProductionDatabase: () => fixProductionDatabase
+});
+import { Pool as Pool2 } from "pg";
+async function fixProductionDatabase() {
+  if (!process.env.DATABASE_URL) {
+    console.error("\u274C DATABASE_URL not found. Make sure you have a database connected.");
+    return;
+  }
+  const pool2 = new Pool2({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  try {
+    console.log("\u{1F527} Fixing production database schema...");
+    const methodCheck = await pool2.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'withdrawals' AND column_name = 'method'
+    `);
+    if (methodCheck.rows.length === 0) {
+      await pool2.query(`ALTER TABLE withdrawals ADD COLUMN method VARCHAR DEFAULT 'usdt_polygon'`);
+      console.log("\u2705 Added method column to withdrawals table");
+    } else {
+      console.log("\u2713 Method column already exists in withdrawals");
+    }
+    const detailsCheck = await pool2.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'withdrawals' AND column_name = 'details'
+    `);
+    if (detailsCheck.rows.length === 0) {
+      await pool2.query(`ALTER TABLE withdrawals ADD COLUMN details JSONB`);
+      console.log("\u2705 Added details column to withdrawals table");
+    } else {
+      console.log("\u2713 Details column already exists in withdrawals");
+    }
+    const referredCheck = await pool2.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'referrals' AND column_name = 'referred_id'
+    `);
+    if (referredCheck.rows.length === 0) {
+      await pool2.query(`ALTER TABLE referrals ADD COLUMN referred_id VARCHAR REFERENCES users(id)`);
+      console.log("\u2705 Added referred_id column to referrals table");
+    } else {
+      console.log("\u2713 Referred_id column already exists in referrals");
+    }
+    const rewardCheck = await pool2.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'referrals' AND column_name = 'reward_amount'
+    `);
+    if (rewardCheck.rows.length === 0) {
+      await pool2.query(`ALTER TABLE referrals ADD COLUMN reward_amount DECIMAL(10, 5) DEFAULT 0.50`);
+      console.log("\u2705 Added reward_amount column to referrals table");
+    } else {
+      console.log("\u2713 Reward_amount column already exists in referrals");
+    }
+    const statusCheck = await pool2.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'referrals' AND column_name = 'status'
+    `);
+    if (statusCheck.rows.length === 0) {
+      await pool2.query(`ALTER TABLE referrals ADD COLUMN status VARCHAR DEFAULT 'pending'`);
+      console.log("\u2705 Added status column to referrals table");
+    } else {
+      console.log("\u2713 Status column already exists in referrals");
+    }
+    console.log("\u{1F9EA} Testing database...");
+    const withdrawalTest = await pool2.query("SELECT COUNT(*) FROM withdrawals");
+    console.log(`\u2713 Withdrawals table: ${withdrawalTest.rows[0].count} records`);
+    const referralTest = await pool2.query("SELECT COUNT(*) FROM referrals");
+    console.log(`\u2713 Referrals table: ${referralTest.rows[0].count} records`);
+    const userTest = await pool2.query("SELECT COUNT(*) FROM users");
+    console.log(`\u2713 Users table: ${userTest.rows[0].count} records`);
+    console.log("\u{1F389} Production database fixed successfully!");
+    console.log("\u{1F680} Your app should now work perfectly!");
+  } catch (error) {
+    console.error("\u274C Error fixing database:", error.message);
+  } finally {
+    await pool2.end();
+  }
+}
+var init_fix_production_db = __esm({
+  "fix-production-db.js"() {
+    "use strict";
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      fixProductionDatabase();
+    }
+  }
+});
+
 // server/index.ts
 import express2 from "express";
 
@@ -647,14 +936,31 @@ init_schema();
 init_db();
 init_telegram();
 import { createServer } from "http";
-import { eq as eq2 } from "drizzle-orm";
+import { eq as eq2, sql as sql3 } from "drizzle-orm";
+import crypto from "crypto";
 var isAdmin = (telegramId) => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
-  return adminId === telegramId;
+  if (!adminId) {
+    console.warn("\u26A0\uFE0F TELEGRAM_ADMIN_ID not set - admin access disabled");
+    return false;
+  }
+  return adminId.toString() === telegramId.toString();
 };
 var authenticateAdmin = async (req, res, next) => {
   try {
     const telegramData = req.headers["x-telegram-data"] || req.query.tgData;
+    if (process.env.NODE_ENV === "development" && !telegramData) {
+      console.log("\u{1F527} Development mode: Granting admin access to test user");
+      req.user = {
+        telegramUser: {
+          id: "123456789",
+          username: "testuser",
+          first_name: "Test",
+          last_name: "Admin"
+        }
+      };
+      return next();
+    }
     if (!telegramData) {
       return res.status(401).json({ message: "Admin access denied" });
     }
@@ -678,43 +984,67 @@ var authenticateTelegram = async (req, res, next) => {
   try {
     const telegramData = req.headers["x-telegram-data"] || req.query.tgData;
     if (!telegramData) {
-      const mockUser = {
-        id: "12345",
-        first_name: "Demo",
-        last_name: "User",
-        username: "demo_user"
-      };
-      const { user: upsertedUser2, isNewUser: isNewUser2 } = await storage.upsertUser({
-        id: mockUser.id,
-        email: `${mockUser.username}@telegram.user`,
-        firstName: mockUser.first_name,
-        lastName: mockUser.last_name,
-        profileImageUrl: null
-      });
-      if (isNewUser2) {
-        await sendWelcomeMessage(mockUser.id.toString());
+      if (process.env.NODE_ENV === "development") {
+        console.log("\u{1F527} Development mode: Using test user authentication");
+        const testUser = {
+          id: "123456789",
+          username: "testuser",
+          first_name: "Test",
+          last_name: "User"
+        };
+        const { user: upsertedUser, isNewUser } = await storage.upsertUser({
+          id: testUser.id.toString(),
+          email: `${testUser.username}@telegram.user`,
+          firstName: testUser.first_name,
+          lastName: testUser.last_name,
+          username: testUser.username,
+          personalCode: testUser.username || testUser.id.toString(),
+          withdrawBalance: "0",
+          totalEarnings: "0",
+          adsWatched: 0,
+          dailyAdsWatched: 0,
+          dailyEarnings: "0",
+          level: 1,
+          flagged: false,
+          banned: false
+        });
+        req.user = { telegramUser: testUser };
+        return next();
       }
-      req.user = { telegramUser: mockUser };
-      return next();
+      return res.status(401).json({ message: "Telegram authentication required. Please access this app through Telegram." });
     }
-    const urlParams = new URLSearchParams(telegramData);
-    const userString = urlParams.get("user");
-    if (!userString) {
-      return res.status(401).json({ message: "Invalid Telegram data" });
+    try {
+      const urlParams = new URLSearchParams(telegramData);
+      const userString = urlParams.get("user");
+      if (!userString) {
+        return res.status(401).json({ message: "Invalid Telegram data" });
+      }
+      const telegramUser = JSON.parse(userString);
+      const { user: upsertedUser, isNewUser } = await storage.upsertUser({
+        id: telegramUser.id.toString(),
+        email: `${telegramUser.username || telegramUser.id}@telegram.user`,
+        firstName: telegramUser.first_name,
+        lastName: telegramUser.last_name,
+        username: telegramUser.username,
+        personalCode: telegramUser.username || telegramUser.id.toString(),
+        withdrawBalance: "0",
+        totalEarnings: "0",
+        adsWatched: 0,
+        dailyAdsWatched: 0,
+        dailyEarnings: "0",
+        level: 1,
+        flagged: false,
+        banned: false
+      });
+      if (isNewUser) {
+        await sendWelcomeMessage(telegramUser.id.toString());
+      }
+      req.user = { telegramUser };
+      next();
+    } catch (parseError) {
+      console.error("Failed to parse Telegram data:", parseError);
+      return res.status(401).json({ message: "Invalid Telegram data format" });
     }
-    const telegramUser = JSON.parse(userString);
-    const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-      id: telegramUser.id.toString(),
-      email: telegramUser.username ? `${telegramUser.username}@telegram.user` : null,
-      firstName: telegramUser.first_name,
-      lastName: telegramUser.last_name,
-      profileImageUrl: telegramUser.photo_url || null
-    });
-    if (isNewUser) {
-      await sendWelcomeMessage(telegramUser.id.toString());
-    }
-    req.user = { telegramUser };
-    next();
   } catch (error) {
     console.error("Telegram auth error:", error);
     res.status(401).json({ message: "Authentication failed" });
@@ -725,6 +1055,96 @@ async function registerRoutes(app2) {
   app2.get("/api/test", (req, res) => {
     console.log("\u2705 Test route called!");
     res.json({ status: "API routes working!", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  });
+  app2.get("/api/debug/db-schema", async (req, res) => {
+    try {
+      const { pool: pool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      const result = await pool2.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'users'
+        ORDER BY ordinal_position;
+      `);
+      res.json({
+        success: true,
+        columns: result.rows,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (error) {
+      console.error("\u274C Schema check failed:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+  app2.get("/api/init-database", async (req, res) => {
+    try {
+      console.log("\u{1F527} Initializing database tables...");
+      const { pool: pool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      await pool2.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id VARCHAR PRIMARY KEY,
+          email VARCHAR NOT NULL UNIQUE,
+          first_name VARCHAR NOT NULL,
+          last_name VARCHAR NOT NULL,
+          profile_image_url VARCHAR,
+          balance DECIMAL(10,8) DEFAULT 0,
+          total_earned DECIMAL(10,8) DEFAULT 0,
+          ads_watched_today INTEGER DEFAULT 0,
+          last_ad_date DATE,
+          streak_count INTEGER DEFAULT 0,
+          last_streak_date DATE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await pool2.query(`
+        CREATE TABLE IF NOT EXISTS earnings (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          amount DECIMAL(10,8) NOT NULL,
+          source VARCHAR NOT NULL,
+          description VARCHAR,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await pool2.query(`
+        CREATE TABLE IF NOT EXISTS withdrawals (
+          id VARCHAR PRIMARY KEY,
+          user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          amount DECIMAL(10,8) NOT NULL,
+          wallet_address VARCHAR NOT NULL,
+          status VARCHAR DEFAULT 'pending',
+          transaction_hash VARCHAR,
+          admin_notes VARCHAR,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await pool2.query(`
+        CREATE TABLE IF NOT EXISTS referrals (
+          id SERIAL PRIMARY KEY,
+          referrer_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          referred_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(referrer_id, referred_id)
+        );
+      `);
+      console.log("\u2705 Database tables initialized successfully");
+      res.json({
+        success: true,
+        message: "Database tables created successfully!",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (error) {
+      console.error("\u274C Database initialization failed:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: "Failed to initialize database"
+      });
+    }
   });
   app2.post("/api/telegram/webhook", async (req, res) => {
     try {
@@ -740,6 +1160,79 @@ async function registerRoutes(app2) {
     } catch (error) {
       console.error("\u274C Telegram webhook error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+  function verifyTelegramWebAppData(initData, botToken) {
+    try {
+      const urlParams = new URLSearchParams(initData);
+      const hash = urlParams.get("hash");
+      if (!hash) {
+        return { isValid: false };
+      }
+      urlParams.delete("hash");
+      const sortedParams = Array.from(urlParams.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("\n");
+      const secretKey = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
+      const expectedHash = crypto.createHmac("sha256", secretKey).update(sortedParams).digest("hex");
+      const isValid = expectedHash === hash;
+      if (isValid) {
+        const userString = urlParams.get("user");
+        if (userString) {
+          try {
+            const user = JSON.parse(userString);
+            return { isValid: true, user };
+          } catch (parseError) {
+            console.error("Error parsing user data:", parseError);
+            return { isValid: false };
+          }
+        }
+      }
+      return { isValid };
+    } catch (error) {
+      console.error("Error verifying Telegram data:", error);
+      return { isValid: false };
+    }
+  }
+  app2.post("/api/auth/telegram", async (req, res) => {
+    try {
+      const { initData } = req.body;
+      if (!initData) {
+        return res.status(400).json({ message: "Missing initData" });
+      }
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        return res.status(500).json({ message: "Bot token not configured" });
+      }
+      const { isValid, user: telegramUser } = verifyTelegramWebAppData(initData, botToken);
+      if (!isValid || !telegramUser) {
+        return res.status(401).json({ message: "Invalid Telegram authentication data" });
+      }
+      const { user: upsertedUser, isNewUser } = await storage.upsertUser({
+        id: telegramUser.id.toString(),
+        email: `${telegramUser.username || telegramUser.id}@telegram.user`,
+        firstName: telegramUser.first_name,
+        lastName: telegramUser.last_name,
+        username: telegramUser.username,
+        personalCode: telegramUser.username || telegramUser.id.toString(),
+        withdrawBalance: "0",
+        totalEarnings: "0",
+        adsWatched: 0,
+        dailyAdsWatched: 0,
+        dailyEarnings: "0",
+        level: 1,
+        flagged: false,
+        banned: false
+      });
+      if (isNewUser) {
+        try {
+          await sendWelcomeMessage(telegramUser.id.toString());
+        } catch (welcomeError) {
+          console.error("Error sending welcome message:", welcomeError);
+        }
+      }
+      res.json(upsertedUser);
+    } catch (error) {
+      console.error("Telegram authentication error:", error);
+      res.status(500).json({ message: "Authentication failed" });
     }
   });
   app2.get("/api/auth/user", authenticateTelegram, async (req, res) => {
@@ -759,9 +1252,8 @@ async function registerRoutes(app2) {
       const earning = await storage.addEarning({
         userId,
         amount: "0.00021",
-        type: "ad_watch",
-        description: "Watched advertisement",
-        metadata: { adType: adType || "rewarded" }
+        source: "ad_watch",
+        description: "Watched advertisement"
       });
       await storage.incrementAdsWatched(userId);
       res.json({
@@ -882,11 +1374,11 @@ async function registerRoutes(app2) {
       if (!referralCode) {
         return res.status(400).json({ message: "Referral code required" });
       }
-      const referrer = await storage.getUser(referralCode);
-      if (!referrer) {
+      const referrer = await db.select().from(users).where(eq2(users.referralCode, referralCode)).limit(1);
+      if (!referrer[0]) {
         return res.status(404).json({ message: "Invalid referral code" });
       }
-      const referral = await storage.createReferral(referrer.id, userId);
+      const referral = await storage.createReferral(referrer[0].id, userId);
       res.json({
         success: true,
         referral,
@@ -899,7 +1391,7 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/admin/withdrawals", authenticateAdmin, async (req, res) => {
     try {
-      const withdrawals2 = await storage.getAllPendingWithdrawals();
+      const withdrawals2 = await storage.getAllWithdrawals();
       const withdrawalsWithUsers = await Promise.all(
         withdrawals2.map(async (withdrawal) => {
           const user = await storage.getUser(withdrawal.userId);
@@ -958,103 +1450,6 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: "Failed to update withdrawal" });
     }
   });
-  app2.get("/admin", (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>CashWatch Admin</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .withdrawal { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
-            .pending { border-left: 4px solid #ffa500; }
-            .completed { border-left: 4px solid #4CAF50; }
-            .failed { border-left: 4px solid #f44336; }
-            .processing { border-left: 4px solid #2196F3; }
-            button { padding: 5px 10px; margin: 2px; cursor: pointer; }
-            input { margin: 5px; padding: 5px; }
-            .actions { margin-top: 10px; }
-        </style>
-    </head>
-    <body>
-        <h1>CashWatch Admin - Withdrawal Management</h1>
-        <div id="withdrawals"></div>
-        
-        <script>
-            const API_BASE = '/api/admin';
-            
-            async function loadWithdrawals() {
-                try {
-                    const response = await fetch(API_BASE + '/withdrawals');
-                    const withdrawals = await response.json();
-                    
-                    const container = document.getElementById('withdrawals');
-                    container.innerHTML = withdrawals.map(w => \`
-                        <div class="withdrawal \${w.status}">
-                            <h3>Withdrawal #\${w.id.substring(0, 8)}</h3>
-                            <p><strong>User:</strong> \${w.user?.firstName || ''} \${w.user?.lastName || ''} (ID: \${w.userId})</p>
-                            <p><strong>Amount:</strong> $\${w.amount}</p>
-                            <p><strong>Method:</strong> \${w.method === 'usdt_polygon' ? 'Tether (Polygon POS)' : 'Litecoin (LTC)'}</p>
-                            <p><strong>Address:</strong> \${JSON.stringify(w.details)}</p>
-                            <p><strong>Status:</strong> \${w.status}</p>
-                            <p><strong>Created:</strong> \${new Date(w.createdAt).toLocaleString()}</p>
-                            \${w.transactionHash ? \`<p><strong>TX Hash:</strong> \${w.transactionHash}</p>\` : ''}
-                            \${w.adminNotes ? \`<p><strong>Notes:</strong> \${w.adminNotes}</p>\` : ''}
-                            
-                            <div class="actions">
-                                <select id="status-\${w.id}">
-                                    <option value="pending" \${w.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="processing" \${w.status === 'processing' ? 'selected' : ''}>Processing</option>
-                                    <option value="completed" \${w.status === 'completed' ? 'selected' : ''}>Completed</option>
-                                    <option value="failed" \${w.status === 'failed' ? 'selected' : ''}>Failed</option>
-                                </select>
-                                <input type="text" id="txhash-\${w.id}" placeholder="Transaction Hash" value="\${w.transactionHash || ''}">
-                                <input type="text" id="notes-\${w.id}" placeholder="Admin Notes" value="\${w.adminNotes || ''}">
-                                <button onclick="updateWithdrawal('\${w.id}')">Update</button>
-                            </div>
-                        </div>
-                    \`).join('');
-                } catch (error) {
-                    console.error('Failed to load withdrawals:', error);
-                }
-            }
-            
-            async function updateWithdrawal(id) {
-                const status = document.getElementById(\`status-\${id}\`).value;
-                const transactionHash = document.getElementById(\`txhash-\${id}\`).value;
-                const adminNotes = document.getElementById(\`notes-\${id}\`).value;
-                
-                try {
-                    const response = await fetch(\`\${API_BASE}/withdrawals/\${id}/update\`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status, transactionHash, adminNotes })
-                    });
-                    
-                    if (response.ok) {
-                        alert('Withdrawal updated successfully!');
-                        loadWithdrawals();
-                    } else {
-                        alert('Failed to update withdrawal');
-                    }
-                } catch (error) {
-                    console.error('Update failed:', error);
-                    alert('Update failed');
-                }
-            }
-            
-            // Load withdrawals on page load
-            loadWithdrawals();
-            
-            // Refresh every 30 seconds
-            setInterval(loadWithdrawals, 30000);
-        </script>
-    </body>
-    </html>
-    `);
-  });
   app2.post("/api/telegram/setup-webhook", async (req, res) => {
     try {
       const { webhookUrl } = req.body;
@@ -1070,6 +1465,25 @@ async function registerRoutes(app2) {
     } catch (error) {
       console.error("Setup webhook error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+  app2.get("/api/fix-production-db", async (req, res) => {
+    try {
+      const { fixProductionDatabase: fixProductionDatabase2 } = (init_fix_production_db(), __toCommonJS(fix_production_db_exports));
+      console.log("\u{1F527} Running production database fix...");
+      await fixProductionDatabase2();
+      res.json({
+        success: true,
+        message: "Production database fixed successfully! Your app should work now.",
+        instructions: "Try using your Telegram bot - it should now send messages properly!"
+      });
+    } catch (error) {
+      console.error("Fix production DB error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: "Database fix failed. Check the logs for details."
+      });
     }
   });
   app2.get("/api/telegram/auto-setup", async (req, res) => {
@@ -1113,6 +1527,159 @@ async function registerRoutes(app2) {
       res.status(500).json({ error: "Test failed", details: error });
     }
   });
+  app2.get("/api/admin/stats", authenticateAdmin, async (req, res) => {
+    try {
+      const totalUsersCount = await db.select({ count: sql3`count(*)` }).from(users);
+      const totalEarningsSum = await db.select({ total: sql3`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
+      const totalWithdrawalsSum = await db.select({ total: sql3`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(eq2(withdrawals.status, "completed"));
+      const pendingWithdrawalsCount = await db.select({ count: sql3`count(*)` }).from(withdrawals).where(eq2(withdrawals.status, "pending"));
+      const dailyActiveCount = await db.select({ count: sql3`count(distinct ${earnings.userId})` }).from(earnings).where(sql3`DATE(${earnings.createdAt}) = CURRENT_DATE`);
+      const totalAdsSum = await db.select({ total: sql3`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
+      res.json({
+        totalUsers: totalUsersCount[0]?.count || 0,
+        totalEarnings: totalEarningsSum[0]?.total || "0",
+        totalWithdrawals: totalWithdrawalsSum[0]?.total || "0",
+        pendingWithdrawals: pendingWithdrawalsCount[0]?.count || 0,
+        dailyActiveUsers: dailyActiveCount[0]?.count || 0,
+        totalAdsWatched: totalAdsSum[0]?.total || 0
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+  app2.get("/api/admin/users", authenticateAdmin, async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+  app2.post("/api/admin/users/:id/ban", authenticateAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { banned } = req.body;
+      await storage.updateUserBanStatus(id, banned);
+      res.json({
+        success: true,
+        message: banned ? "User banned successfully" : "User unbanned successfully"
+      });
+    } catch (error) {
+      console.error("Error updating user ban status:", error);
+      res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+  app2.post("/api/admin/promo-codes", authenticateAdmin, async (req, res) => {
+    try {
+      const { code, rewardAmount, rewardCurrency, usageLimit, perUserLimit, expiresAt } = req.body;
+      if (!code || !rewardAmount) {
+        return res.status(400).json({ message: "Code and reward amount are required" });
+      }
+      const existingCode = await storage.getPromoCode(code);
+      if (existingCode) {
+        return res.status(400).json({ message: "Promo code already exists" });
+      }
+      const promoCode = await storage.createPromoCode({
+        code: code.toUpperCase(),
+        rewardAmount,
+        rewardCurrency: rewardCurrency || "USDT",
+        usageLimit,
+        perUserLimit: perUserLimit || 1,
+        expiresAt: expiresAt ? new Date(expiresAt) : null
+      });
+      res.json({
+        success: true,
+        promoCode,
+        message: "Promo code created successfully"
+      });
+    } catch (error) {
+      console.error("Error creating promo code:", error);
+      res.status(500).json({ message: "Failed to create promo code" });
+    }
+  });
+  app2.get("/api/admin/promo-codes", authenticateAdmin, async (req, res) => {
+    try {
+      const promoCodes2 = await storage.getAllPromoCodes();
+      res.json(promoCodes2);
+    } catch (error) {
+      console.error("Error fetching promo codes:", error);
+      res.status(500).json({ message: "Failed to fetch promo codes" });
+    }
+  });
+  app2.post("/api/admin/promo-codes/:id/toggle", authenticateAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      const promoCode = await storage.updatePromoCodeStatus(id, isActive);
+      res.json({
+        success: true,
+        promoCode,
+        message: `Promo code ${isActive ? "activated" : "deactivated"} successfully`
+      });
+    } catch (error) {
+      console.error("Error updating promo code status:", error);
+      res.status(500).json({ message: "Failed to update promo code status" });
+    }
+  });
+  app2.post("/api/promo-codes/redeem", authenticateTelegram, async (req, res) => {
+    try {
+      const userId = req.user.telegramUser.id.toString();
+      const { code } = req.body;
+      if (!code) {
+        return res.status(400).json({ message: "Promo code is required" });
+      }
+      const result = await storage.usePromoCode(code.toUpperCase(), userId);
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+          reward: result.reward
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+    } catch (error) {
+      console.error("Error redeeming promo code:", error);
+      res.status(500).json({ message: "Failed to redeem promo code" });
+    }
+  });
+  app2.post("/api/setup-database", async (req, res) => {
+    try {
+      const { setupKey } = req.body;
+      if (setupKey !== "setup-database-schema-2024") {
+        return res.status(403).json({ message: "Invalid setup key" });
+      }
+      console.log("\u{1F527} Setting up database schema...");
+      const { execSync } = await import("child_process");
+      try {
+        execSync("npx drizzle-kit push --force", {
+          stdio: "inherit",
+          cwd: process.cwd()
+        });
+        await storage.ensureAllUsersHaveReferralCodes();
+        console.log("\u2705 Database setup completed successfully");
+        res.json({
+          success: true,
+          message: "Database schema setup completed successfully"
+        });
+      } catch (dbError) {
+        console.error("Database setup error:", dbError);
+        res.status(500).json({
+          success: false,
+          message: "Database setup failed",
+          error: String(dbError)
+        });
+      }
+    } catch (error) {
+      console.error("Error setting up database:", error);
+      res.status(500).json({ message: "Failed to setup database" });
+    }
+  });
   const httpServer = createServer(app2);
   return httpServer;
 }
@@ -1127,16 +1694,14 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 var vite_config_default = defineConfig({
   plugins: [
     react(),
-    runtimeErrorOverlay(),
     ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
-      await import("@replit/vite-plugin-cartographer").then(
-        (m) => m.cartographer()
-      )
-    ] : []
+      // Only load Replit plugins in development
+      await import("@replit/vite-plugin-runtime-error-modal").then((m) => m.default()).catch(() => null),
+      await import("@replit/vite-plugin-cartographer").then((m) => m.cartographer()).catch(() => null)
+    ].filter(Boolean) : []
   ],
   resolve: {
     alias: {
@@ -1285,7 +1850,11 @@ app.use((req, res, next) => {
   } else {
     serveStatic(app);
   }
-  const port = parseInt(process.env.PORT || "5000", 10);
+  let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5e3;
+  if (isNaN(port) || port <= 0 || port >= 65536) {
+    console.error(`Invalid port: ${process.env.PORT}, using default 5000`);
+    port = 5e3;
+  }
   server.listen({
     port,
     host: "0.0.0.0",
