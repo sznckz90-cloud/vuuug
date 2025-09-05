@@ -196,23 +196,26 @@ Here, every ad = real cash, fast payouts.
 
 👉 Ready to turn your screen-time into income? Let's go!`;
 
-  const inlineKeyboard = {
-    inline_keyboard: [
-      [
-        }
-      ],
-      [
-        {
-          text: "📢 Stay Updated",
-          url: "https://t.me/LightingSats"
-        },
-        {
-          text: "💬 Need Help?",
-          url: "https://t.me/szxzyz"
-        }
-      ]
+const inlineKeyboard = {
+  inline_keyboard: [
+    [
+      {
+        text: "🚀 Start Earning",
+        web_app: { url: "https://lighting-sats-app.onrender.com" } // Telegram Mini App
+      }
+    ],
+    [
+      {
+        text: "📢 Stay Updated",
+        url: "https://t.me/LightingSats"
+      },
+      {
+        text: "💬 Need Help?",
+        url: "https://t.me/szxzyz"
+      }
     ]
-  };
+  ]
+};
 
   return { message, inlineKeyboard };
 }
