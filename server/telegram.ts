@@ -188,7 +188,7 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
   const message = `🔥 Welcome to the Future of Ad Earnings! 🔥
 
-😏 Forget those trash apps giving you $0.0001 after a month.
+😏 Forget those trash apps giving you $0.1 after a month.
 Here, every ad = real cash, fast payouts.
 
 🚀 Your time = Money. No excuses.
