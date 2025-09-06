@@ -266,23 +266,23 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       // Extract referral code if present (e.g., /start REF123)
       const referralCode = text.split(' ')[1];
       
-      // Process referral if referral code was provided (only for new users)
+      // Process referral if referrer ID was provided (only for new users)
       if (isNewUser && referralCode && referralCode !== chatId) {
-        console.log(`🔄 Processing referral: code=${referralCode}, newUser=${chatId}, isNewUser=${isNewUser}`);
+        console.log(`🔄 Processing referral: referrerID=${referralCode}, newUser=${chatId}, isNewUser=${isNewUser}`);
         try {
-          // Find the referrer by referral code first, then create referral relationship
-          const referrer = await storage.getUserByReferralCode(referralCode);
+          // Find the referrer by user ID directly
+          const referrer = await storage.getUser(referralCode);
           if (referrer) {
             console.log(`👤 Found referrer: ${referrer.id} (${referrer.firstName || 'No name'})`);
             await storage.createReferral(referrer.id, chatId);
             console.log(`✅ Referral created successfully: ${referrer.id} -> ${chatId}`);
           } else {
-            console.log(`❌ Invalid referral code: ${referralCode} - no user found with this code`);
+            console.log(`❌ Invalid referrer ID: ${referralCode} - no user found with this ID`);
           }
         } catch (error) {
           console.error('❌ Referral processing failed:', error);
           console.error('Error details:', {
-            referralCode,
+            referrerID: referralCode,
             newUserId: chatId,
             isNewUser,
             errorMessage: error instanceof Error ? error.message : String(error)
@@ -293,7 +293,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           console.log(`ℹ️  Skipping referral - user ${chatId} already exists`);
         }
         if (!referralCode) {
-          console.log(`ℹ️  No referral code provided in /start command`);
+          console.log(`ℹ️  No referrer ID provided in /start command`);
         }
         if (referralCode === chatId) {
           console.log(`⚠️  Self-referral attempted: ${chatId}`);

@@ -128,6 +128,43 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, earning.userId));
     
+    // Check for referrer and pay 10% commission (only for ad earnings)
+    if (earning.source === 'ad_reward' || earning.source === 'ad') {
+      try {
+        const referrerResult = await db
+          .select({ referrerId: referrals.referrerId })
+          .from(referrals)
+          .where(eq(referrals.referredId, earning.userId))
+          .limit(1);
+        
+        if (referrerResult.length > 0) {
+          const commissionAmount = (parseFloat(earning.amount) * 0.10).toFixed(8);
+          console.log(`💰 Paying 10% commission: ${commissionAmount} to referrer ${referrerResult[0].referrerId} for user ${earning.userId}'s earning of ${earning.amount}`);
+          
+          // Add commission earning to referrer (but don't trigger recursive commission)
+          const [commissionEarning] = await db.insert(earnings).values({
+            userId: referrerResult[0].referrerId,
+            amount: commissionAmount,
+            source: 'referral_commission',
+            description: `10% commission from referral earnings`,
+          }).returning();
+          
+          // Update referrer's balance
+          await db
+            .update(users)
+            .set({
+              balance: sql`${users.balance} + ${commissionAmount}`,
+              totalEarned: sql`${users.totalEarned} + ${commissionAmount}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, referrerResult[0].referrerId));
+        }
+      } catch (error) {
+        console.error('Error processing referral commission:', error);
+        // Don't fail the original earning if commission fails
+      }
+    }
+    
     return newEarning;
   }
 
@@ -457,24 +494,19 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Referral relationship already exists');
     }
     
-    // Create the referral
+    // Create the referral with 10% commission setup
     const [referral] = await db
       .insert(referrals)
       .values({
         referrerId,
         referredId,
-        rewardAmount: "0.50",
+        rewardAmount: "0.10", // 10% commission rate
         status: 'completed',
       })
       .returning();
     
-    // Add referral bonus to referrer
-    await this.addEarning({
-      userId: referrerId,
-      amount: "0.50",
-      source: 'referral',
-      description: 'Referral bonus',
-    });
+    // No immediate bonus - commission will be paid when referred user earns
+    console.log(`📋 Referral relationship created: ${referrerId} will get 10% of ${referredId}'s earnings`);
     
     return referral;
   }

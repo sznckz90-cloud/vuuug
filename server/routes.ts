@@ -965,35 +965,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/debug/test-referral', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.telegramUser.id.toString();
-      const { referralCode } = req.body;
+      const { referrerId } = req.body;
       
-      console.log(`🧪 DEBUG: Testing referral creation for user ${userId} with code ${referralCode}`);
+      console.log(`🧪 DEBUG: Testing referral creation for user ${userId} with referrer ID ${referrerId}`);
       
-      if (!referralCode) {
-        return res.status(400).json({ error: "Referral code required" });
+      if (!referrerId) {
+        return res.status(400).json({ error: "Referrer ID required" });
       }
       
-      // Find referrer by referral code
-      const referrer = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
-      if (!referrer[0]) {
-        console.log(`🧪 DEBUG: No referrer found with code ${referralCode}`);
-        return res.status(404).json({ error: "Invalid referral code", code: referralCode });
+      // Find referrer by user ID directly
+      const referrer = await storage.getUser(referrerId);
+      if (!referrer) {
+        console.log(`🧪 DEBUG: No referrer found with ID ${referrerId}`);
+        return res.status(404).json({ error: "Invalid referrer ID", referrerId });
       }
       
-      console.log(`🧪 DEBUG: Found referrer: ${referrer[0].id} (${referrer[0].firstName || 'No name'})`);
+      console.log(`🧪 DEBUG: Found referrer: ${referrer.id} (${referrer.firstName || 'No name'})`);
       
       // Check if referral already exists
       const existingReferral = await db
         .select()
         .from(referrals)
         .where(and(
-          eq(referrals.referrerId, referrer[0].id),
+          eq(referrals.referrerId, referrer.id),
           eq(referrals.referredId, userId)
         ))
         .limit(1);
       
       if (existingReferral.length > 0) {
-        console.log(`🧪 DEBUG: Referral already exists between ${referrer[0].id} -> ${userId}`);
+        console.log(`🧪 DEBUG: Referral already exists between ${referrer.id} -> ${userId}`);
         return res.json({ 
           success: false, 
           message: 'Referral already exists',
@@ -1002,13 +1002,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create referral
-      const referral = await storage.createReferral(referrer[0].id, userId);
+      const referral = await storage.createReferral(referrer.id, userId);
       console.log(`🧪 DEBUG: Successfully created referral:`, referral);
       
       res.json({ 
         success: true, 
         referral,
-        referrer: { id: referrer[0].id, name: referrer[0].firstName }
+        referrer: { id: referrer.id, name: referrer.firstName },
+        message: `Referral created! ${referrer.firstName || referrer.id} will now get 10% of your ad earnings.`
       });
     } catch (error) {
       console.error("🧪 DEBUG: Error testing referral:", error);
