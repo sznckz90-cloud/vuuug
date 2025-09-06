@@ -10,6 +10,7 @@ import {
   boolean,
   text,
   serial,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -92,7 +93,9 @@ export const referrals = pgTable("referrals", {
   rewardAmount: decimal("reward_amount", { precision: 10, scale: 5 }).default('0.50'),
   status: varchar("status").default('pending'), // 'pending', 'completed'
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueReferral: unique().on(table.referrerId, table.referredId),
+}));
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
