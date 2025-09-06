@@ -268,17 +268,35 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       
       // Process referral if referral code was provided (only for new users)
       if (isNewUser && referralCode && referralCode !== chatId) {
+        console.log(`🔄 Processing referral: code=${referralCode}, newUser=${chatId}, isNewUser=${isNewUser}`);
         try {
           // Find the referrer by referral code first, then create referral relationship
           const referrer = await storage.getUserByReferralCode(referralCode);
           if (referrer) {
+            console.log(`👤 Found referrer: ${referrer.id} (${referrer.firstName || 'No name'})`);
             await storage.createReferral(referrer.id, chatId);
-            console.log(`✅ Referral created: ${referrer.id} -> ${chatId}`);
+            console.log(`✅ Referral created successfully: ${referrer.id} -> ${chatId}`);
           } else {
-            console.log(`❌ Invalid referral code: ${referralCode}`);
+            console.log(`❌ Invalid referral code: ${referralCode} - no user found with this code`);
           }
         } catch (error) {
-          console.log('Referral processing failed:', error);
+          console.error('❌ Referral processing failed:', error);
+          console.error('Error details:', {
+            referralCode,
+            newUserId: chatId,
+            isNewUser,
+            errorMessage: error instanceof Error ? error.message : String(error)
+          });
+        }
+      } else {
+        if (!isNewUser) {
+          console.log(`ℹ️  Skipping referral - user ${chatId} already exists`);
+        }
+        if (!referralCode) {
+          console.log(`ℹ️  No referral code provided in /start command`);
+        }
+        if (referralCode === chatId) {
+          console.log(`⚠️  Self-referral attempted: ${chatId}`);
         }
       }
 
