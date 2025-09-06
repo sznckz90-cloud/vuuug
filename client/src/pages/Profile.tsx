@@ -369,13 +369,28 @@ export default function Profile() {
                     </div>
                     
                     <Button 
-                      onClick={() => {
-                        const url = `https://t.me/LightningSatsbot?start=${(user as any).referralCode}`;
-                        navigator.clipboard.writeText(url);
-                        toast({
-                          title: "Link Copied!",
-                          description: "Share this link with your friends",
-                        });
+                      onClick={async () => {
+                        try {
+                          // Get bot username from backend
+                          const response = await fetch('/api/telegram/bot-info');
+                          const botInfo = await response.json();
+                          const botUsername = botInfo.username || 'LightningSatsbot'; // fallback
+                          
+                          // Use user ID directly instead of referral code
+                          const url = `https://t.me/${botUsername}?start=${(user as any).id}`;
+                          await navigator.clipboard.writeText(url);
+                          toast({
+                            title: "Link Copied!",
+                            description: `Share this link with your friends: https://t.me/${botUsername}`,
+                          });
+                        } catch (error) {
+                          console.error('Failed to copy referral link:', error);
+                          toast({
+                            title: "Error",
+                            description: "Failed to copy referral link",
+                            variant: "destructive"
+                          });
+                        }
                       }}
                       className="w-full bg-secondary hover:bg-secondary/90"
                       data-testid="button-copy-referral-link"
