@@ -954,6 +954,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get bot info endpoint
+  app.get('/api/telegram/bot-info', (req, res) => {
+    res.json({ 
+      username: process.env.TELEGRAM_BOT_USERNAME || 'LightningSatsbot'
+    });
+  });
+
+  // Debug endpoint for manual referral testing
+  app.post('/api/debug/test-referral', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.telegramUser.id.toString();
+      const { referralCode } = req.body;
+      
+      console.log(`🧪 DEBUG: Testing referral creation for user ${userId} with code ${referralCode}`);
+      
+      if (!referralCode) {
+        return res.status(400).json({ error: "Referral code required" });
+      }
+      
+      // Find referrer by referral code
+      const referrer = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
+      if (!referrer[0]) {
+        console.log(`🧪 DEBUG: No referrer found with code ${referralCode}`);
+        return res.status(404).json({ error: "Invalid referral code", code: referralCode });
+      }
+      
+      console.log(`🧪 DEBUG: Found referrer: ${referrer[0].id} (${referrer[0].firstName || 'No name'})`);
+      
+      // Check if referral already exists
+      const existingReferral = await db
+        .select()
+        .from(referrals)
+        .where(and(
+          eq(referrals.referrerId, referrer[0].id),
+          eq(referrals.referredId, userId)
+        ))
+        .limit(1);
+      
+      if (existingReferral.length > 0) {
+        console.log(`🧪 DEBUG: Referral already exists between ${referrer[0].id} -> ${userId}`);
+        return res.json({ 
+          success: false, 
+          message: 'Referral already exists',
+          existingReferral: existingReferral[0]
+        });
+      }
+      
+      // Create referral
+      const referral = await storage.createReferral(referrer[0].id, userId);
+      console.log(`🧪 DEBUG: Successfully created referral:`, referral);
+      
+      res.json({ 
+        success: true, 
+        referral,
+        referrer: { id: referrer[0].id, name: referrer[0].firstName }
+      });
+    } catch (error) {
+      console.error("🧪 DEBUG: Error testing referral:", error);
+      res.status(500).json({ 
+        error: "Failed to test referral",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
