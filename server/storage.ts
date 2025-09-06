@@ -438,6 +438,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReferral(referrerId: string, referredId: string): Promise<Referral> {
+    // Prevent self-referrals
+    if (referrerId === referredId) {
+      throw new Error('Users cannot refer themselves');
+    }
+    
+    // Check if referral already exists
+    const existingReferral = await db
+      .select()
+      .from(referrals)
+      .where(and(
+        eq(referrals.referrerId, referrerId),
+        eq(referrals.referredId, referredId)
+      ))
+      .limit(1);
+    
+    if (existingReferral.length > 0) {
+      throw new Error('Referral relationship already exists');
+    }
+    
+    // Create the referral
     const [referral] = await db
       .insert(referrals)
       .values({
