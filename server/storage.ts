@@ -3,6 +3,7 @@ import {
   earnings,
   withdrawals,
   referrals,
+  referralCommissions,
   promoCodes,
   promoCodeUsage,
   type User,
@@ -12,6 +13,7 @@ import {
   type InsertWithdrawal,
   type Withdrawal,
   type Referral,
+  type ReferralCommission,
   type PromoCode,
   type InsertPromoCode,
   type PromoCodeUsage,
@@ -127,6 +129,12 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(users.id, earning.userId));
+    
+    // Process referral commission (10% of user's earnings)
+    // Only process commissions for non-referral earnings to avoid recursion
+    if (earning.source !== 'referral_commission' && earning.source !== 'referral') {
+      await this.processReferralCommission(earning.userId, newEarning.id, earning.amount);
+    }
     
     return newEarning;
   }
@@ -660,6 +668,47 @@ export class DatabaseStorage implements IStorage {
       message: `Promo code redeemed! You earned ${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
       reward: `${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
     };
+  }
+
+  // Process referral commission (10% of user's earnings)
+  async processReferralCommission(userId: string, originalEarningId: number, earningAmount: string): Promise<void> {
+    try {
+      // Find who referred this user
+      const [referralInfo] = await db
+        .select({ referrerId: referrals.referrerId })
+        .from(referrals)
+        .where(eq(referrals.referredId, userId))
+        .limit(1);
+
+      if (!referralInfo) {
+        // User was not referred by anyone, no commission to process
+        return;
+      }
+
+      // Calculate 10% commission
+      const commissionAmount = (parseFloat(earningAmount) * 0.1).toFixed(8);
+      
+      // Record the referral commission
+      await db.insert(referralCommissions).values({
+        referrerId: referralInfo.referrerId,
+        referredUserId: userId,
+        originalEarningId,
+        commissionAmount,
+      });
+
+      // Add commission as earnings to the referrer
+      await this.addEarning({
+        userId: referralInfo.referrerId,
+        amount: commissionAmount,
+        source: 'referral_commission',
+        description: `10% commission from referred user`,
+      });
+
+      console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s earnings`);
+    } catch (error) {
+      console.error('Error processing referral commission:', error);
+      // Don't throw error to avoid disrupting the main earning process
+    }
   }
 }
 
