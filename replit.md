@@ -4,6 +4,21 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
+**September 7, 2025 (v2.0 - Code Modernization):**
+- **Complete code modernization**: Removed all legacy authentication patterns and outdated implementations
+- **Unified authentication system**: Consolidated all authentication logic into `server/auth.ts` for better organization and maintainability  
+- **Removed deprecated routes**: Eliminated manual database setup routes (`/api/init-database`) and legacy schema fixes in favor of proper Drizzle migrations
+- **Cleaner codebase**: Removed duplicate middleware functions and consolidated authentication into a single, modern system
+- **Enhanced type safety**: Improved TypeScript usage throughout the authentication system
+- **Production-ready**: Authentication system now works seamlessly across development, Replit, and external deployment environments (like Render)
+
+**Earlier September 7, 2025:**
+- Fixed authentication for Render deployment - removed Replit OAuth dependency for non-Replit environments
+- Updated authentication system to work with Telegram WebApp authentication only on external platforms
+- Made REPLIT_DOMAINS environment variable optional for deployment flexibility
+- Added fallback authentication routes for non-Replit environments
+- Modified session management to work without OAuth tokens in production
+
 **September 5, 2025:**
 - Fixed authentication persistence - users no longer need to authenticate repeatedly
 - Automatic account creation on any bot interaction (not just /start command)  
