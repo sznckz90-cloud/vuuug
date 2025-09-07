@@ -34,6 +34,7 @@ export const users = pgTable("users", {
   lastName: text("last_name"),
   profileImageUrl: text("profile_image_url"),
   username: text("username"),
+  telegramId: text("telegram_id"),
   personalCode: text("personal_code"),
   balance: decimal("balance", { precision: 10, scale: 8 }).default('0'),
   withdrawBalance: decimal("withdraw_balance", { precision: 10, scale: 8 }),
@@ -97,6 +98,16 @@ export const referrals = pgTable("referrals", {
   uniqueReferral: unique().on(table.referrerId, table.referredId),
 }));
 
+// Referral commissions table to track 10% earnings from referred users
+export const referralCommissions = pgTable("referral_commissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
+  originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 10, scale: 8 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -154,6 +165,7 @@ export type Earning = typeof earnings.$inferSelect;
 export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type Referral = typeof referrals.$inferSelect;
+export type ReferralCommission = typeof referralCommissions.$inferSelect;
 export type PromoCode = typeof promoCodes.$inferSelect;
 export type InsertPromoCode = z.infer<typeof insertPromoCodeSchema>;
 export type PromoCodeUsage = typeof promoCodeUsage.$inferSelect;
