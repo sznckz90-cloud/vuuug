@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings } from "@shared/schema";
+import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings, referrals, referralCommissions } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
@@ -86,6 +86,7 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
           firstName: testUser.first_name,
           lastName: testUser.last_name,
           username: testUser.username,
+          telegramId: testUser.id.toString(),
           personalCode: testUser.username || testUser.id.toString(),
           withdrawBalance: '0',
           totalEarnings: '0',
@@ -122,6 +123,7 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
         username: telegramUser.username,
+        telegramId: telegramUser.id.toString(),
         personalCode: telegramUser.username || telegramUser.id.toString(),
         withdrawBalance: '0',
         totalEarnings: '0',
@@ -532,6 +534,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching withdrawals:", error);
       res.status(500).json({ message: "Failed to fetch withdrawals" });
+    }
+  });
+
+  // Affiliate stats endpoint
+  app.get('/api/affiliates/stats', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.telegramUser.id.toString();
+      
+      // Get total friends referred
+      const totalFriendsReferred = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(referrals)
+        .where(eq(referrals.referrerId, userId));
+
+      // Get total commission earned
+      const totalCommissionEarned = await db
+        .select({ total: sql<string>`COALESCE(SUM(${referralCommissions.commissionAmount}), '0')` })
+        .from(referralCommissions)
+        .where(eq(referralCommissions.referrerId, userId));
+
+      // Generate referral link based on user's telegram ID
+      const referralLink = `https://t.me/LightningSatsbot?start=${userId}`;
+
+      res.json({
+        totalFriendsReferred: totalFriendsReferred[0]?.count || 0,
+        totalCommissionEarned: totalCommissionEarned[0]?.total || '0.00000',
+        referralLink
+      });
+    } catch (error) {
+      console.error("Error fetching affiliate stats:", error);
+      res.status(500).json({ message: "Failed to fetch affiliate stats" });
     }
   });
 
