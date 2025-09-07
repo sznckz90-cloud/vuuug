@@ -69,6 +69,10 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
   
+  // Telegram user operations
+  getUserByTelegramId(telegramId: string): Promise<User | undefined>;
+  upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }>;
+  
   // Promo code operations
   createPromoCode(promoCode: InsertPromoCode): Promise<PromoCode>;
   getAllPromoCodes(): Promise<PromoCode[]>;
@@ -81,6 +85,11 @@ export class DatabaseStorage implements IStorage {
   // User operations (mandatory for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.telegramId, telegramId)).limit(1);
     return user;
   }
 
@@ -111,6 +120,44 @@ export class DatabaseStorage implements IStorage {
     }
     
     return { user, isNewUser };
+  }
+
+  async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
+    // Check if user already exists by Telegram ID
+    const existingUser = await this.getUserByTelegramId(telegramId);
+    const isNewUser = !existingUser;
+    
+    if (existingUser) {
+      // Update existing user
+      const [user] = await db
+        .update(users)
+        .set({
+          ...userData,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.telegramId, telegramId))
+        .returning();
+      
+      return { user, isNewUser };
+    } else {
+      // Create new user
+      const [user] = await db
+        .insert(users)
+        .values({
+          ...userData,
+          telegramId,
+        })
+        .returning();
+      
+      // Auto-generate referral code for new users
+      try {
+        await this.generateReferralCode(user.id);
+      } catch (error) {
+        console.error('Failed to generate referral code for new Telegram user:', error);
+      }
+      
+      return { user, isNewUser };
+    }
   }
 
   // Earnings operations

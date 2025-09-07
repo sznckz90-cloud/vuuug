@@ -243,8 +243,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 
     // Create/update user for ANY message (not just /start)
     // This ensures users are automatically registered when they interact with the bot
-    const { user: dbUser, isNewUser } = await storage.upsertUser({
-      id: chatId,
+    const { user: dbUser, isNewUser } = await storage.upsertTelegramUser(chatId, {
       email: user.username ? `${user.username}@telegram.user` : `${chatId}@telegram.user`,
       firstName: user.first_name,
       lastName: user.last_name,
@@ -270,12 +269,17 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       if (isNewUser && referralCode && referralCode !== chatId) {
         console.log(`🔄 Processing referral: referrerID=${referralCode}, newUser=${chatId}, isNewUser=${isNewUser}`);
         try {
-          // Find the referrer by user ID directly
-          const referrer = await storage.getUser(referralCode);
+          // Find the referrer by Telegram ID or regular user ID
+          let referrer = await storage.getUserByTelegramId(referralCode);
+          if (!referrer) {
+            // Fallback to regular user ID lookup for backward compatibility
+            referrer = await storage.getUser(referralCode);
+          }
+          
           if (referrer) {
             console.log(`👤 Found referrer: ${referrer.id} (${referrer.firstName || 'No name'})`);
-            await storage.createReferral(referrer.id, chatId);
-            console.log(`✅ Referral created successfully: ${referrer.id} -> ${chatId}`);
+            await storage.createReferral(referrer.id, dbUser.id);
+            console.log(`✅ Referral created successfully: ${referrer.id} -> ${dbUser.id}`);
           } else {
             console.log(`❌ Invalid referrer ID: ${referralCode} - no user found with this ID`);
           }
@@ -283,7 +287,8 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           console.error('❌ Referral processing failed:', error);
           console.error('Error details:', {
             referrerID: referralCode,
-            newUserId: chatId,
+            newUserTelegramId: chatId,
+            newUserDbId: dbUser.id,
             isNewUser,
             errorMessage: error instanceof Error ? error.message : String(error)
           });
