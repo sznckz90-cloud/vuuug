@@ -88,7 +88,7 @@ export const withdrawals = pgTable("withdrawals", {
 
 // Referrals table
 export const referrals = pgTable("referrals", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").defaultRandom().primaryKey(), // 🔥 FIXED
   referrerId: varchar("referrer_id").references(() => users.id).notNull(),
   referredId: varchar("referred_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 10, scale: 5 }).default('0.50'),
