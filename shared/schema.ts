@@ -11,12 +11,12 @@ import {
   text,
   serial,
   unique,
-  uuid,   // ✅ yeh add kiya
+  uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table (required for Replit Auth)
+// Session table
 export const sessions = pgTable(
   "sessions",
   {
@@ -27,24 +27,24 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table (required for Replit Auth)
+// Users table
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  telegramId: varchar("telegram_id"), // ✅ telegramId added
+  username: varchar("username"),
   email: text("email"),
   firstName: text("first_name"),
   lastName: text("last_name"),
   profileImageUrl: text("profile_image_url"),
-  username: text("username"),
-  telegramId: text("telegram_id"),
   personalCode: text("personal_code"),
-  balance: decimal("balance", { precision: 10, scale: 8 }).default('0'),
-  withdrawBalance: decimal("withdraw_balance", { precision: 10, scale: 8 }),
-  totalEarnings: decimal("total_earnings", { precision: 10, scale: 8 }),
-  totalEarned: decimal("total_earned", { precision: 10, scale: 8 }).default('0'),
+  balance: decimal("balance", { precision: 12, scale: 2 }).default("0"),
+  withdrawBalance: decimal("withdraw_balance", { precision: 12, scale: 2 }),
+  totalEarnings: decimal("total_earnings", { precision: 12, scale: 2 }),
+  totalEarned: decimal("total_earned", { precision: 12, scale: 2 }).default("0"),
   adsWatched: integer("ads_watched").default(0),
   dailyAdsWatched: integer("daily_ads_watched").default(0),
   adsWatchedToday: integer("ads_watched_today").default(0),
-  dailyEarnings: decimal("daily_earnings", { precision: 10, scale: 8 }),
+  dailyEarnings: decimal("daily_earnings", { precision: 12, scale: 2 }),
   lastAdWatch: timestamp("last_ad_watch"),
   lastAdDate: timestamp("last_ad_date"),
   currentStreak: integer("current_streak").default(0),
@@ -63,11 +63,11 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Earnings history table
+// Earnings table
 export const earnings = pgTable("earnings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 8 }).notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   source: varchar("source").notNull(),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -75,9 +75,9 @@ export const earnings = pgTable("earnings", {
 
 // Withdrawals table
 export const withdrawals = pgTable("withdrawals", {
-  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   status: varchar("status").default('pending'),
   method: varchar("method").notNull(),
   details: jsonb("details"),
@@ -89,11 +89,11 @@ export const withdrawals = pgTable("withdrawals", {
 
 // Referrals table
 export const referrals = pgTable("referrals", {
-  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
-  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
-  referredId: varchar("referred_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 5 }).default('0.50'),
-  status: varchar("status").default('pending'),
+  id: uuid("id").defaultRandom().primaryKey(),
+  referrerId: uuid("referrer_id").references(() => users.id).notNull(),
+  referredId: uuid("referred_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 5 }).default("0.50"),
+  status: varchar("status").default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   uniqueReferral: unique().on(table.referrerId, table.referredId),
@@ -101,20 +101,20 @@ export const referrals = pgTable("referrals", {
 
 // Referral commissions table
 export const referralCommissions = pgTable("referral_commissions", {
-  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
-  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
-  referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  referrerId: uuid("referrer_id").references(() => users.id).notNull(),
+  referredUserId: uuid("referred_user_id").references(() => users.id).notNull(),
   originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
-  commissionAmount: decimal("commission_amount", { precision: 10, scale: 8 }).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Promo codes table
 export const promoCodes = pgTable("promo_codes", {
-  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
+  id: uuid("id").defaultRandom().primaryKey(),
   code: varchar("code").unique().notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
-  rewardCurrency: varchar("reward_currency").default('USDT'),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 2 }).notNull(),
+  rewardCurrency: varchar("reward_currency").default("USDT"),
   usageLimit: integer("usage_limit"),
   usageCount: integer("usage_count").default(0),
   perUserLimit: integer("per_user_limit").default(1),
@@ -126,36 +126,18 @@ export const promoCodes = pgTable("promo_codes", {
 
 // Promo code usage tracking
 export const promoCodeUsage = pgTable("promo_code_usage", {
-  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
-  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  promoCodeId: uuid("promo_code_id").references(() => promoCodes.id).notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 2 }).notNull(),
   usedAt: timestamp("used_at").defaultNow(),
 });
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertEarningSchema = createInsertSchema(earnings).omit({
-  createdAt: true,
-});
-
-export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({
-  id: true,
-  usageCount: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
+export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, usageCount: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
