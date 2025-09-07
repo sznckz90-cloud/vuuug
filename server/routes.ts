@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings, referrals } from "@shared/schema";
+import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
@@ -258,13 +258,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ Database initialization failed:', error);
       res.status(500).json({ 
         success: false, 
-        error: (error as Error).message,
+        error: error.message,
         message: 'Failed to initialize database' 
       });
     }
   });
   
   // Telegram Bot Webhook endpoint - MUST be first to avoid Vite catch-all interference
+  app.post('/api/telegram/webhook', async (req: any, res) => {
+    try {
+      const update = req.body;
+      console.log('📨 Received Telegram update:', JSON.stringify(update, null, 2));
+      
+      // Verify the request is from Telegram (optional but recommended)
+      // You can add signature verification here if needed
+      
+      const handled = await handleTelegramMessage(update);
+      console.log('✅ Message handled:', handled);
+      
+      if (handled) {
+        res.status(200).json({ ok: true });
+      } else {
+        res.status(200).json({ ok: true, message: 'No action taken' });
+      }
+    } catch (error) {
+      console.error('❌ Telegram webhook error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   // Function to verify Telegram WebApp initData with HMAC-SHA256
   function verifyTelegramWebAppData(initData: string, botToken: string): { isValid: boolean; user?: any } {
@@ -568,62 +589,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Referral stats endpoint for dashboard/referral page
-  app.get('/api/referrals/info', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.telegramUser.id.toString();
-      const user = await db
-        .select({
-          referralCode: users.referralCode,
-          totalReferrals: users.totalReferrals,
-          referralEarnings: users.referralEarnings
-        })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      const referredUsers = await db
-        .select({ id: users.id, firstName: users.firstName, username: users.username, createdAt: users.createdAt })
-        .from(users)
-        .where(eq(users.referredBy, userId))
-        .orderBy(desc(users.createdAt));
-
-      const botUsername = process.env.TELEGRAM_BOT_USERNAME || "YourBotName";
-      const referralLink = `https://t.me/${botUsername}?start=${user[0]?.referralCode}`;
-
-      res.json({
-        referralCode: user[0]?.referralCode,
-        referralLink,
-        totalReferrals: user[0]?.totalReferrals,
-        referralEarnings: user[0]?.referralEarnings,
-        referredUsers,
-      });
-    } catch (error) {
-      console.error("Error fetching referral info:", error);
-      res.status(500).json({ message: "Failed to fetch referral info" });
-    }
-  });
-
-  // Admin endpoint to see all referrals
-  app.get('/api/admin/referrals', authenticateAdmin, async (req: any, res) => {
-    try {
-      const referralList = await db
-        .select({
-          referrerId: users.referredBy,
-          invitedUserId: users.id,
-          invitedUsername: users.username,
-          joined: users.createdAt
-        })
-        .from(users)
-        .where(sql`${users.referredBy} IS NOT NULL`)
-        .orderBy(desc(users.createdAt));
-      res.json({referrals: referralList});
-    } catch (error) {
-      console.error("Error fetching admin referrals:", error);
-      res.status(500).json({ message: "Failed to fetch admin referrals" });
-    }
-  });
-
   // Admin routes
   app.get('/api/admin/withdrawals', authenticateAdmin, async (req: any, res) => {
     try {
@@ -741,7 +706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Fix production DB error:', error);
       res.status(500).json({ 
         success: false, 
-        error: (error as Error).message,
+        error: error.message,
         message: 'Database fix failed. Check the logs for details.'
       });
     }
@@ -801,53 +766,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin stats endpoint
   app.get('/api/admin/stats', authenticateAdmin, async (req: any, res) => {
     try {
-      const now = new Date();
-      const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-
-      // Total users
-      const totalUsers = (await db.select({ c: sql`count(*)` }).from(users))[0].c;
-      // Users joined today
-      const todayUsers = (await db.select({ c: sql`count(*)` })
-        .from(users)
-        .where(gte(users.createdAt, todayStart)))[0].c;
-
-      // Total successful referrals
-      const totalReferrals = (await db.select({ c: sql`count(*)` })
-        .from(users)
-        .where(sql`${users.referredBy} IS NOT NULL`))[0].c;
-
-      // Referrals registered today
-      const todayReferrals = (await db.select({ c: sql`count(*)` })
-        .from(users)
-        .where(and(sql`${users.referredBy} IS NOT NULL`, gte(users.createdAt, todayStart))))[0].c;
-
-      // Total earnings sum
-      const totalEarnings = (await db.select({ total: sql`sum(amount)` }).from(earnings))[0].total;
-
-      // Today's earnings sum
-      const todayEarnings = (await db.select({ total: sql`sum(amount)` })
-        .from(earnings)
-        .where(gte(earnings.createdAt, todayStart)))[0].total;
-
-      // Total withdrawals sum
-      const totalWithdrawals = (await db.select({ total: sql`sum(amount)` }).from(withdrawals))[0].total;
-
-      // Pending withdrawals count and sum
-      const pending = (await db.select({
-          count: sql`count(*)`,
-          amount: sql`sum(amount)`
-        })
-        .from(withdrawals)
-        .where(eq(withdrawals.status, 'pending')))[0];
+      // Get various statistics for admin dashboard using drizzle
+      const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+      const totalEarningsSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
+      const totalWithdrawalsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(eq(withdrawals.status, 'completed'));
+      const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(eq(withdrawals.status, 'pending'));
+      const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
+      const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
 
       res.json({
-        users: { total: totalUsers, today: todayUsers },
-        referrals: { total: totalReferrals, today: todayReferrals },
-        earnings: { total: totalEarnings, today: todayEarnings },
-        withdrawals: {
-          total: totalWithdrawals,
-          pending: { count: pending.count, amount: pending.amount }
-        }
+        totalUsers: totalUsersCount[0]?.count || 0,
+        totalEarnings: totalEarningsSum[0]?.total || '0',
+        totalWithdrawals: totalWithdrawalsSum[0]?.total || '0',
+        pendingWithdrawals: pendingWithdrawalsCount[0]?.count || 0,
+        dailyActiveUsers: dailyActiveCount[0]?.count || 0,
+        totalAdsWatched: totalAdsSum[0]?.total || 0,
       });
     } catch (error) {
       console.error("Error fetching admin stats:", error);
@@ -855,29 +788,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin users endpoint with referral info
+  // Admin users endpoint
   app.get('/api/admin/users', authenticateAdmin, async (req: any, res) => {
     try {
-      const usersList = await db
-        .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          username: users.username,
-          email: users.email,
-          totalEarned: users.totalEarned,
-          balance: users.balance,
-          totalReferrals: users.totalReferrals,
-          referralEarnings: users.referralEarnings,
-          referralCode: users.referralCode,
-          referredBy: users.referredBy,
-          createdAt: users.createdAt,
-        })
-        .from(users)
-        .orderBy(desc(users.createdAt))
-        .limit(100); // paginate if needed
-
-      res.json({users: usersList});
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
     } catch (error) {
       console.error("Error fetching admin users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
@@ -1036,72 +951,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error setting up database:", error);
       res.status(500).json({ message: "Failed to setup database" });
-    }
-  });
-
-  // Get bot info endpoint
-  app.get('/api/telegram/bot-info', (req, res) => {
-    res.json({ 
-      username: process.env.TELEGRAM_BOT_USERNAME || 'LightningSatsbot'
-    });
-  });
-
-  // Debug endpoint for manual referral testing
-  app.post('/api/debug/test-referral', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.telegramUser.id.toString();
-      const { referrerId } = req.body;
-      
-      console.log(`🧪 DEBUG: Testing referral creation for user ${userId} with referrer ID ${referrerId}`);
-      
-      if (!referrerId) {
-        return res.status(400).json({ error: "Referrer ID required" });
-      }
-      
-      // Find referrer by user ID directly
-      const referrer = await storage.getUser(referrerId);
-      if (!referrer) {
-        console.log(`🧪 DEBUG: No referrer found with ID ${referrerId}`);
-        return res.status(404).json({ error: "Invalid referrer ID", referrerId });
-      }
-      
-      console.log(`🧪 DEBUG: Found referrer: ${referrer.id} (${referrer.firstName || 'No name'})`);
-      
-      // Check if referral already exists
-      const existingReferral = await db
-        .select()
-        .from(referrals)
-        .where(and(
-          eq(referrals.referrerId, referrer.id),
-          eq(referrals.referredId, userId)
-        ))
-        .limit(1);
-      
-      if (existingReferral.length > 0) {
-        console.log(`🧪 DEBUG: Referral already exists between ${referrer.id} -> ${userId}`);
-        return res.json({ 
-          success: false, 
-          message: 'Referral already exists',
-          existingReferral: existingReferral[0]
-        });
-      }
-      
-      // Create referral
-      const referral = await storage.createReferral(referrer.id, userId);
-      console.log(`🧪 DEBUG: Successfully created referral:`, referral);
-      
-      res.json({ 
-        success: true, 
-        referral,
-        referrer: { id: referrer.id, name: referrer.firstName },
-        message: `Referral created! ${referrer.firstName || referrer.id} will now get 10% of your ad earnings.`
-      });
-    } catch (error) {
-      console.error("🧪 DEBUG: Error testing referral:", error);
-      res.status(500).json({ 
-        error: "Failed to test referral",
-        details: error instanceof Error ? error.message : String(error)
-      });
     }
   });
 

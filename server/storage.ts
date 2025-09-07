@@ -63,9 +63,6 @@ export interface IStorage {
   generateReferralCode(userId: string): Promise<string>;
   getUserByReferralCode(referralCode: string): Promise<User | null>;
   
-  // Process referral relationship
-  processReferral(newUserId: string, referralCode: string): Promise<void>;
-  
   // Admin operations
   getAllUsers(): Promise<User[]>;
   updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
@@ -131,43 +128,6 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, earning.userId));
     
-    // Check for referrer and pay 10% commission (only for ad earnings)
-    if (earning.source === 'ad_reward' || earning.source === 'ad') {
-      try {
-        const referrerResult = await db
-          .select({ referrerId: referrals.referrerId })
-          .from(referrals)
-          .where(eq(referrals.referredId, earning.userId))
-          .limit(1);
-        
-        if (referrerResult.length > 0) {
-          const commissionAmount = (parseFloat(earning.amount) * 0.10).toFixed(8);
-          console.log(`💰 Paying 10% commission: ${commissionAmount} to referrer ${referrerResult[0].referrerId} for user ${earning.userId}'s earning of ${earning.amount}`);
-          
-          // Add commission earning to referrer (but don't trigger recursive commission)
-          const [commissionEarning] = await db.insert(earnings).values({
-            userId: referrerResult[0].referrerId,
-            amount: commissionAmount,
-            source: 'referral_commission',
-            description: `10% commission from referral earnings`,
-          }).returning();
-          
-          // Update referrer's balance
-          await db
-            .update(users)
-            .set({
-              balance: sql`${users.balance} + ${commissionAmount}`,
-              totalEarned: sql`${users.totalEarned} + ${commissionAmount}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, referrerResult[0].referrerId));
-        }
-      } catch (error) {
-        console.error('Error processing referral commission:', error);
-        // Don't fail the original earning if commission fails
-      }
-    }
-    
     return newEarning;
   }
 
@@ -187,9 +147,9 @@ export class DatabaseStorage implements IStorage {
     totalEarnings: string;
   }> {
     const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, now.getUTCDate()));
+    const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
 
     const [todayResult] = await db
       .select({
@@ -267,8 +227,8 @@ export class DatabaseStorage implements IStorage {
       throw new Error("User not found");
     }
 
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     const lastStreakDate = user.lastStreakDate;
     let newStreak = 1;
@@ -276,9 +236,9 @@ export class DatabaseStorage implements IStorage {
 
     if (lastStreakDate) {
       const lastDate = new Date(lastStreakDate);
-      const lastDateUTC = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
+      lastDate.setHours(0, 0, 0, 0);
       
-      const dayDiff = Math.floor((today.getTime() - lastDateUTC.getTime()) / (24 * 60 * 60 * 1000));
+      const dayDiff = Math.floor((today.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
       
       if (dayDiff === 1) {
         // Consecutive day
@@ -320,8 +280,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementAdsWatched(userId: string): Promise<void> {
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
@@ -332,9 +292,9 @@ export class DatabaseStorage implements IStorage {
     
     if (lastAdDate) {
       const lastDate = new Date(lastAdDate);
-      const lastDateUTC = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
+      lastDate.setHours(0, 0, 0, 0);
       
-      if (today.getTime() === lastDateUTC.getTime()) {
+      if (today.getTime() === lastDate.getTime()) {
         adsCount = (user.adsWatchedToday || 0) + 1;
       }
     }
@@ -363,17 +323,17 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) return false;
     
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     const lastAdDate = user.lastAdDate;
     let currentCount = 0;
     
     if (lastAdDate) {
       const lastDate = new Date(lastAdDate);
-      const lastDateUTC = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
+      lastDate.setHours(0, 0, 0, 0);
       
-      if (today.getTime() === lastDateUTC.getTime()) {
+      if (today.getTime() === lastDate.getTime()) {
         currentCount = user.adsWatchedToday || 0;
       }
     }
@@ -497,19 +457,24 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Referral relationship already exists');
     }
     
-    // Create the referral with 10% commission setup
+    // Create the referral
     const [referral] = await db
       .insert(referrals)
       .values({
         referrerId,
         referredId,
-        rewardAmount: "0.10", // 10% commission rate
+        rewardAmount: "0.50",
         status: 'completed',
       })
       .returning();
     
-    // No immediate bonus - commission will be paid when referred user earns
-    console.log(`📋 Referral relationship created: ${referrerId} will get 10% of ${referredId}'s earnings`);
+    // Add referral bonus to referrer
+    await this.addEarning({
+      userId: referrerId,
+      amount: "0.50",
+      source: 'referral',
+      description: 'Referral bonus',
+    });
     
     return referral;
   }
@@ -525,37 +490,6 @@ export class DatabaseStorage implements IStorage {
   async getUserByReferralCode(referralCode: string): Promise<User | null> {
     const [user] = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
     return user || null;
-  }
-
-  async processReferral(newUserId: string, referralCode: string): Promise<void> {
-    const referrer = await db
-      .select().from(users)
-      .where(eq(users.referralCode, referralCode)).limit(1);
-
-    // Do not allow self-referral or double linking
-    if (referrer && referrer[0] && referrer[0].id !== newUserId) {
-      // Link new user to referrer
-      await db.update(users)
-        .set({ referredBy: referrer[0].id })
-        .where(eq(users.id, newUserId));
-
-      // Give referrer bonus (optional; initial registration bonus)
-      const registrationBonus = "0.002";
-      await db.update(users)
-        .set({
-          totalReferrals: sql`${users.totalReferrals} + 1`,
-          referralEarnings: sql`${users.referralEarnings} + ${registrationBonus}`,
-        })
-        .where(eq(users.id, referrer[0].id));
-
-      // Record initial referral earning (optional)
-      await db.insert(earnings).values({
-        userId: referrer[0].id,
-        amount: registrationBonus,
-        source: "referral",
-        description: `Referral bonus for inviting user ${newUserId}`,
-      });
-    }
   }
 
   // Helper method to ensure all users have referral codes
@@ -583,9 +517,16 @@ export class DatabaseStorage implements IStorage {
       return user.referralCode;
     }
     
-    // Generates a random uppercase string, length 10
-    const crypto = await import('crypto');
-    const code = crypto.randomBytes(5).toString('hex').toUpperCase();
+    // Generate a referral code using user's username or Telegram ID for better tracking
+    let code = user?.username || userId;
+    
+    // If it's too long, truncate and add random suffix
+    if (code.length > 8) {
+      code = code.substring(0, 5) + Math.random().toString(36).substring(2, 5).toUpperCase();
+    }
+    
+    // Make sure it's uppercase
+    code = code.toUpperCase();
     
     await db
       .update(users)
