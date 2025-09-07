@@ -42,31 +42,6 @@ export default function Profile() {
     }
   };
 
-  const { data: referrals } = useQuery({
-    queryKey: ["/api/referrals"],
-    retry: false,
-  });
-
-  const generateReferralCodeMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/referrals/generate");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      toast({
-        title: "Success",
-        description: "Referral code generated successfully!",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to generate referral code",
-        variant: "destructive",
-      });
-    },
-  });
 
   const withdrawalMutation = useMutation({
     mutationFn: async (data: { amount: string; method: string; details: any }) => {
@@ -327,88 +302,6 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          {/* Referral Program */}
-          <Card className="shadow-sm border border-border mb-6">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Referral Program</h3>
-              
-              <div className="text-center mb-6">
-                <div className="bg-secondary/10 p-3 rounded-full inline-block mb-4">
-                  <i className="fas fa-users text-secondary text-2xl"></i>
-                </div>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Earn 10% from your friends' ad earnings when they watch ads
-                </p>
-                
-                {!(user as any)?.referralCode && (
-                  <Button
-                    onClick={() => generateReferralCodeMutation.mutate()}
-                    disabled={generateReferralCodeMutation.isPending}
-                    variant="outline"
-                    className="mb-4"
-                    data-testid="button-generate-referral-code"
-                  >
-                    {generateReferralCodeMutation.isPending ? (
-                      <>
-                        <i className="fas fa-spinner fa-spin mr-2"></i>
-                        Generating...
-                      </>
-                    ) : (
-                      'Generate Referral Code'
-                    )}
-                  </Button>
-                )}
-
-                {(user as any)?.referralCode && (
-                  <>
-                    <div className="bg-muted p-3 rounded-lg mb-4">
-                      <div className="text-sm text-muted-foreground mb-1">Your Referral Code</div>
-                      <div className="font-mono text-lg font-bold text-foreground" data-testid="text-referral-code">
-                        {(user as any).referralCode}
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      onClick={async () => {
-                        try {
-                          // Get bot username from backend
-                          const response = await fetch('/api/telegram/bot-info');
-                          const botInfo = await response.json();
-                          const botUsername = botInfo.username || 'LightningSatsbot'; // fallback
-                          
-                          // Use user ID directly instead of referral code
-                          const url = `https://t.me/${botUsername}?start=${(user as any).id}`;
-                          await navigator.clipboard.writeText(url);
-                          toast({
-                            title: "Link Copied!",
-                            description: `Share this link with your friends: https://t.me/${botUsername}`,
-                          });
-                        } catch (error) {
-                          console.error('Failed to copy referral link:', error);
-                          toast({
-                            title: "Error",
-                            description: "Failed to copy referral link",
-                            variant: "destructive"
-                          });
-                        }
-                      }}
-                      className="w-full bg-secondary hover:bg-secondary/90"
-                      data-testid="button-copy-referral-link"
-                    >
-                      📤 Copy Referral Link
-                    </Button>
-                  </>
-                )}
-              </div>
-
-              <div className="text-center">
-                <div className="text-2xl font-bold text-foreground" data-testid="text-referral-count">
-                  {(referrals as any)?.length || 0}
-                </div>
-                <div className="text-muted-foreground text-sm">Friends Referred</div>
-              </div>
-            </CardContent>
-          </Card>
 
         </div>
       </main>
