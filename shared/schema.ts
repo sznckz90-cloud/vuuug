@@ -50,8 +50,6 @@ export const users = pgTable("users", {
   level: integer("level").default(1),
   referredBy: varchar("referred_by"),
   referralCode: text("referral_code"),
-  totalReferrals: integer("total_referrals").default(0),
-  referralEarnings: decimal("referral_earnings", { precision: 10, scale: 8 }).default('0'),
   flagged: boolean("flagged").default(false),
   flagReason: text("flag_reason"),
   banned: boolean("banned").default(false),
