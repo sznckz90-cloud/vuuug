@@ -258,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ Database initialization failed:', error);
       res.status(500).json({ 
         success: false, 
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         message: 'Failed to initialize database' 
       });
     }
@@ -535,137 +535,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Referral endpoints
-  app.get('/api/referrals', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.telegramUser.id.toString();
-      const referrals = await storage.getUserReferrals(userId);
-      res.json(referrals);
-    } catch (error) {
-      console.error("Error fetching referrals:", error);
-      res.status(500).json({ message: "Failed to fetch referrals" });
-    }
-  });
-
-  // Generate referral code
-  app.post('/api/referrals/generate', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.telegramUser.id.toString();
-      const code = await storage.generateReferralCode(userId);
-      res.json({ code });
-    } catch (error) {
-      console.error("Error generating referral code:", error);
-      res.status(500).json({ message: "Failed to generate referral code" });
-    }
-  });
-
-  // Process referral signup
-  app.post('/api/referrals/process', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.telegramUser.id.toString();
-      const { referralCode } = req.body;
-      
-      if (!referralCode) {
-        return res.status(400).json({ message: "Referral code required" });
-      }
-      
-      // Find referrer by referral code (not user ID)
-      const referrer = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
-      if (!referrer[0]) {
-        return res.status(404).json({ message: "Invalid referral code" });
-      }
-      
-      // Create referral relationship
-      const referral = await storage.createReferral(referrer[0].id, userId);
-      
-      res.json({ 
-        success: true, 
-        referral,
-        message: 'Referral processed successfully' 
-      });
-    } catch (error) {
-      console.error("Error processing referral:", error);
-      res.status(500).json({ message: "Failed to process referral" });
-    }
-  });
 
   // Admin routes
-  app.get('/api/admin/withdrawals', authenticateAdmin, async (req: any, res) => {
-    try {
-      // Get all withdrawals for admin panel, not just pending
-      const withdrawals = await storage.getAllWithdrawals();
-      
-      // Get user details for each withdrawal
-      const withdrawalsWithUsers = await Promise.all(
-        withdrawals.map(async (withdrawal) => {
-          const user = await storage.getUser(withdrawal.userId);
-          return {
-            ...withdrawal,
-            user: user ? {
-              firstName: user.firstName,
-              lastName: user.lastName,
-              email: user.email
-            } : null
-          };
-        })
-      );
-      
-      res.json(withdrawalsWithUsers);
-    } catch (error) {
-      console.error("Error fetching admin withdrawals:", error);
-      res.status(500).json({ message: "Failed to fetch withdrawals" });
-    }
-  });
-
-  app.post('/api/admin/withdrawals/:id/update', authenticateAdmin, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const { status, transactionHash, adminNotes } = req.body;
-      
-      if (!['pending', 'processing', 'completed', 'failed'].includes(status)) {
-        return res.status(400).json({ message: "Invalid status" });
-      }
-      
-      // Get withdrawal and user info before updating
-      const withdrawal = await db.select().from(withdrawals).where(eq(withdrawals.id, id)).limit(1);
-      if (!withdrawal[0]) {
-        return res.status(404).json({ message: "Withdrawal not found" });
-      }
-      
-      const user = await storage.getUser(withdrawal[0].userId);
-      
-      // Update withdrawal status
-      const updatedWithdrawal = await storage.updateWithdrawalStatus(
-        id, 
-        status, 
-        transactionHash, 
-        adminNotes
-      );
-      
-      // Send notification to user if status changed to completed or failed
-      if ((status === 'completed' || status === 'failed') && user) {
-        const userNotification = formatUserNotification(
-          withdrawal[0].amount,
-          withdrawal[0].method,
-          status,
-          transactionHash
-        );
-        
-        sendUserTelegramNotification(withdrawal[0].userId, userNotification).catch(error => {
-          console.error('Failed to send user notification:', error);
-        });
-      }
-      
-      res.json({ 
-        success: true, 
-        withdrawal: updatedWithdrawal,
-        message: 'Withdrawal status updated successfully' 
-      });
-    } catch (error) {
-      console.error("Error updating withdrawal:", error);
-      res.status(500).json({ message: "Failed to update withdrawal" });
-    }
-  });
 
 
 
@@ -706,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Fix production DB error:', error);
       res.status(500).json({ 
         success: false, 
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         message: 'Database fix failed. Check the logs for details.'
       });
     }
@@ -817,98 +688,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Promo code management endpoints
-  app.post('/api/admin/promo-codes', authenticateAdmin, async (req: any, res) => {
-    try {
-      const { code, rewardAmount, rewardCurrency, usageLimit, perUserLimit, expiresAt } = req.body;
-      
-      if (!code || !rewardAmount) {
-        return res.status(400).json({ message: "Code and reward amount are required" });
-      }
-
-      // Check if code already exists
-      const existingCode = await storage.getPromoCode(code);
-      if (existingCode) {
-        return res.status(400).json({ message: "Promo code already exists" });
-      }
-
-      const promoCode = await storage.createPromoCode({
-        code: code.toUpperCase(),
-        rewardAmount,
-        rewardCurrency: rewardCurrency || 'USDT',
-        usageLimit,
-        perUserLimit: perUserLimit || 1,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-      });
-
-      res.json({
-        success: true,
-        promoCode,
-        message: 'Promo code created successfully'
-      });
-    } catch (error) {
-      console.error("Error creating promo code:", error);
-      res.status(500).json({ message: "Failed to create promo code" });
-    }
-  });
-
-  app.get('/api/admin/promo-codes', authenticateAdmin, async (req: any, res) => {
-    try {
-      const promoCodes = await storage.getAllPromoCodes();
-      res.json(promoCodes);
-    } catch (error) {
-      console.error("Error fetching promo codes:", error);
-      res.status(500).json({ message: "Failed to fetch promo codes" });
-    }
-  });
-
-  app.post('/api/admin/promo-codes/:id/toggle', authenticateAdmin, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const { isActive } = req.body;
-      
-      const promoCode = await storage.updatePromoCodeStatus(id, isActive);
-      
-      res.json({
-        success: true,
-        promoCode,
-        message: `Promo code ${isActive ? 'activated' : 'deactivated'} successfully`
-      });
-    } catch (error) {
-      console.error("Error updating promo code status:", error);
-      res.status(500).json({ message: "Failed to update promo code status" });
-    }
-  });
-
-  // User promo code redemption endpoint
-  app.post('/api/promo-codes/redeem', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.telegramUser.id.toString();
-      const { code } = req.body;
-      
-      if (!code) {
-        return res.status(400).json({ message: "Promo code is required" });
-      }
-
-      const result = await storage.usePromoCode(code.toUpperCase(), userId);
-      
-      if (result.success) {
-        res.json({
-          success: true,
-          message: result.message,
-          reward: result.reward
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: result.message
-        });
-      }
-    } catch (error) {
-      console.error("Error redeeming promo code:", error);
-      res.status(500).json({ message: "Failed to redeem promo code" });
-    }
-  });
 
   // Database setup endpoint for free plan deployments (call once after deployment)
   app.post('/api/setup-database', async (req: any, res) => {
@@ -931,8 +710,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           cwd: process.cwd()
         });
         
-        // Generate referral codes for existing users
-        await storage.ensureAllUsersHaveReferralCodes();
         
         console.log('✅ Database setup completed successfully');
         
