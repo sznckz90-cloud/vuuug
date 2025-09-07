@@ -17,7 +17,7 @@ import {
   type PromoCode,
   type InsertPromoCode,
   type PromoCodeUsage,
-} from "@shared/schema";
+} from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 
