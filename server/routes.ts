@@ -284,6 +284,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Fix production database schema - Add missing telegram_id column
+  app.post('/api/fix-telegram-schema', async (req: any, res) => {
+    try {
+      console.log('🔧 Adding missing telegram_id column to production database...');
+      
+      // Import database dependencies
+      const { pool } = await import('./db');
+      
+      // Add telegram_id column if it doesn't exist
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS telegram_id TEXT;
+      `);
+      
+      // Add any other missing columns from the schema
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS username TEXT,
+        ADD COLUMN IF NOT EXISTS personal_code TEXT,
+        ADD COLUMN IF NOT EXISTS withdraw_balance DECIMAL(10,8),
+        ADD COLUMN IF NOT EXISTS total_earnings DECIMAL(10,8),
+        ADD COLUMN IF NOT EXISTS daily_ads_watched INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS daily_earnings DECIMAL(10,8),
+        ADD COLUMN IF NOT EXISTS last_ad_watch TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS last_streak_date TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS referred_by VARCHAR,
+        ADD COLUMN IF NOT EXISTS referral_code TEXT,
+        ADD COLUMN IF NOT EXISTS flagged BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS flag_reason TEXT,
+        ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS last_login_ip TEXT,
+        ADD COLUMN IF NOT EXISTS last_login_device TEXT,
+        ADD COLUMN IF NOT EXISTS last_login_user_agent TEXT;
+      `);
+      
+      console.log('✅ Production database schema fixed successfully');
+      res.json({ 
+        success: true, 
+        message: 'telegram_id column and missing columns added successfully!',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Schema fix failed:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to fix database schema' 
+      });
+    }
+  });
   
   // Telegram Bot Webhook endpoint - MUST be first to avoid Vite catch-all interference
   app.post('/api/telegram/webhook', async (req: any, res) => {
