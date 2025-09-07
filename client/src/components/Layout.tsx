@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import GhostLogo from "./GhostLogo";
-import PromoCodeDialog from "./PromoCodeDialog";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,7 +7,6 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const [promoDialogOpen, setPromoDialogOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -25,12 +22,6 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </Link>
           <div className="flex items-center gap-2">
-            <button 
-              className="p-2 rounded-full bg-muted hover:bg-accent transition-colors"
-              onClick={() => setPromoDialogOpen(true)}
-            >
-              <i className="fas fa-ticket-alt text-muted-foreground"></i>
-            </button>
             <Link href="/profile">
               <button className="p-2 rounded-full bg-muted hover:bg-accent transition-colors">
                 <i className="fas fa-user text-muted-foreground"></i>
@@ -44,7 +35,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-        <div className="max-w-md mx-auto flex justify-center items-center py-3 gap-8">
+        <div className="max-w-md mx-auto flex justify-center items-center py-3 gap-6">
           <Link href="/">
             <button className={`flex flex-col items-center p-3 transition-colors ${
               location === "/" ? "text-primary" : "text-muted-foreground hover:text-primary"
@@ -61,18 +52,25 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs">Stats</span>
             </button>
           </Link>
-          <Link href="/profile">
+          <Link href="/affiliates">
             <button className={`flex flex-col items-center p-3 transition-colors ${
-              location === "/profile" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-profile">
-              <i className="fas fa-user-circle text-xl mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs">Profile</span>
+              location === "/affiliates" ? "text-primary" : "text-muted-foreground hover:text-primary"
+            }`} data-testid="link-affiliates">
+              <i className="fas fa-users text-xl mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <span className="text-xs">Affiliates</span>
+            </button>
+          </Link>
+          <Link href="/cashout">
+            <button className={`flex flex-col items-center p-3 transition-colors ${
+              location === "/cashout" ? "text-primary" : "text-muted-foreground hover:text-primary"
+            }`} data-testid="link-cashout">
+              <i className="fas fa-dollar-sign text-xl mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <span className="text-xs">Cashout</span>
             </button>
           </Link>
         </div>
       </nav>
 
-      <PromoCodeDialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen} />
     </div>
   );
 }
