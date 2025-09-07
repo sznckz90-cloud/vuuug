@@ -79,9 +79,12 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
           last_name: 'User'
         };
         
+        // Use a fixed UUID for the test user in development
+        const testUserId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+        
         // Ensure test user exists in database
         const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-          id: testUser.id.toString(),
+          id: testUserId,
           email: `${testUser.username}@telegram.user`,
           firstName: testUser.first_name,
           lastName: testUser.last_name,
@@ -98,7 +101,10 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
           banned: false,
         });
         
-        req.user = { telegramUser: testUser };
+        req.user = { 
+          telegramUser: { ...testUser, id: testUserId }, // Use the UUID for the ID
+          user: upsertedUser
+        };
         return next();
       }
       
@@ -116,9 +122,12 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
 
       const telegramUser = JSON.parse(userString);
       
-      // Ensure user exists in database
+      // Ensure user exists in database - generate UUID for new users, use existing for returning users
+      // First check if user exists by Telegram ID
+      const existingUser = await db.select().from(users).where(eq(users.telegramId, telegramUser.id.toString())).limit(1);
+      
       const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-        id: telegramUser.id.toString(),
+        id: existingUser[0]?.id, // Use existing UUID if available, let DB generate new one if not
         email: `${telegramUser.username || telegramUser.id}@telegram.user`,
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
@@ -140,7 +149,10 @@ const authenticateTelegram = async (req: any, res: any, next: any) => {
         await sendWelcomeMessage(telegramUser.id.toString());
       }
       
-      req.user = { telegramUser };
+      req.user = { 
+        telegramUser,
+        user: upsertedUser 
+      };
       next();
     } catch (parseError) {
       console.error("Failed to parse Telegram data:", parseError);
@@ -469,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id; // Use the database UUID, not Telegram ID
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -481,7 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Ad watching endpoint
   app.post('/api/ads/watch', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       const { adType } = req.body;
       
       // Add earning for watched ad
@@ -509,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Streak claim endpoint
   app.post('/api/streak/claim', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       
       const result = await storage.updateUserStreak(userId);
       
@@ -528,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User stats endpoint
   app.get('/api/user/stats', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       const stats = await storage.getUserStats(userId);
       res.json(stats);
     } catch (error) {
@@ -540,7 +552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Earnings history endpoint
   app.get('/api/earnings', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       const limit = parseInt(req.query.limit as string) || 20;
       const earnings = await storage.getUserEarnings(userId, limit);
       res.json(earnings);
@@ -553,7 +565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Withdrawal request endpoint
   app.post('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       const withdrawalData = insertWithdrawalSchema.parse({
         ...req.body,
         userId,
@@ -601,7 +613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user withdrawals
   app.get('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       const withdrawals = await storage.getUserWithdrawals(userId);
       res.json(withdrawals);
     } catch (error) {
@@ -613,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Affiliate stats endpoint
   app.get('/api/affiliates/stats', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.user.telegramUser.id.toString();
+      const userId = req.user.user.id;
       
       // Get total friends referred
       const totalFriendsReferred = await db
