@@ -11,6 +11,7 @@ import {
   text,
   serial,
   unique,
+  uuid,   // ✅ yeh add kiya
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -74,38 +75,62 @@ export const earnings = pgTable("earnings", {
 
 // Withdrawals table
 export const withdrawals = pgTable("withdrawals", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
   userId: varchar("user_id").references(() => users.id).notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status").default('pending'), // 'pending', 'processing', 'completed', 'failed'
-  method: varchar("method").notNull(), // 'usdt_polygon', 'litecoin'
-  details: jsonb("details"), // Store withdrawal method specific details
-  transactionHash: varchar("transaction_hash"), // Blockchain transaction hash proof
-  adminNotes: text("admin_notes"), // Admin notes for internal tracking
+  status: varchar("status").default('pending'),
+  method: varchar("method").notNull(),
+  details: jsonb("details"),
+  transactionHash: varchar("transaction_hash"),
+  adminNotes: text("admin_notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Referrals table
 export const referrals = pgTable("referrals", {
-  id: uuid("id").defaultRandom().primaryKey(), // 🔥 FIXED
+  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
   referrerId: varchar("referrer_id").references(() => users.id).notNull(),
   referredId: varchar("referred_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 10, scale: 5 }).default('0.50'),
-  status: varchar("status").default('pending'), // 'pending', 'completed'
+  status: varchar("status").default('pending'),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   uniqueReferral: unique().on(table.referrerId, table.referredId),
 }));
 
-// Referral commissions table to track 10% earnings from referred users
+// Referral commissions table
 export const referralCommissions = pgTable("referral_commissions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
   referrerId: varchar("referrer_id").references(() => users.id).notNull(),
   referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
   originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
   commissionAmount: decimal("commission_amount", { precision: 10, scale: 8 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Promo codes table
+export const promoCodes = pgTable("promo_codes", {
+  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
+  code: varchar("code").unique().notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  rewardCurrency: varchar("reward_currency").default('USDT'),
+  usageLimit: integer("usage_limit"),
+  usageCount: integer("usage_count").default(0),
+  perUserLimit: integer("per_user_limit").default(1),
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Promo code usage tracking
+export const promoCodeUsage = pgTable("promo_code_usage", {
+  id: uuid("id").defaultRandom().primaryKey(),  // ✅ Fixed
+  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  usedAt: timestamp("used_at").defaultNow(),
 });
 
 // Insert schemas
@@ -125,31 +150,6 @@ export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
   updatedAt: true,
 });
 
-// Promo codes table for admin-created promotional codes
-export const promoCodes = pgTable("promo_codes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: varchar("code").unique().notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
-  rewardCurrency: varchar("reward_currency").default('USDT'), // 'USDT', 'BTC', 'ETH'
-  usageLimit: integer("usage_limit"), // null for unlimited
-  usageCount: integer("usage_count").default(0),
-  perUserLimit: integer("per_user_limit").default(1), // How many times each user can use it
-  isActive: boolean("is_active").default(true),
-  expiresAt: timestamp("expires_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Promo code usage tracking
-export const promoCodeUsage = pgTable("promo_code_usage", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
-  usedAt: timestamp("used_at").defaultNow(),
-});
-
-// Insert schemas
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({
   id: true,
   usageCount: true,
