@@ -63,6 +63,9 @@ export interface IStorage {
   generateReferralCode(userId: string): Promise<string>;
   getUserByReferralCode(referralCode: string): Promise<User | null>;
   
+  // Process referral relationship
+  processReferral(newUserId: string, referralCode: string): Promise<void>;
+  
   // Admin operations
   getAllUsers(): Promise<User[]>;
   updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
@@ -184,9 +187,9 @@ export class DatabaseStorage implements IStorage {
     totalEarnings: string;
   }> {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    const monthAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, now.getUTCDate()));
 
     const [todayResult] = await db
       .select({
@@ -264,8 +267,8 @@ export class DatabaseStorage implements IStorage {
       throw new Error("User not found");
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     
     const lastStreakDate = user.lastStreakDate;
     let newStreak = 1;
@@ -273,9 +276,9 @@ export class DatabaseStorage implements IStorage {
 
     if (lastStreakDate) {
       const lastDate = new Date(lastStreakDate);
-      lastDate.setHours(0, 0, 0, 0);
+      const lastDateUTC = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
       
-      const dayDiff = Math.floor((today.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+      const dayDiff = Math.floor((today.getTime() - lastDateUTC.getTime()) / (24 * 60 * 60 * 1000));
       
       if (dayDiff === 1) {
         // Consecutive day
@@ -317,8 +320,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementAdsWatched(userId: string): Promise<void> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
@@ -329,9 +332,9 @@ export class DatabaseStorage implements IStorage {
     
     if (lastAdDate) {
       const lastDate = new Date(lastAdDate);
-      lastDate.setHours(0, 0, 0, 0);
+      const lastDateUTC = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
       
-      if (today.getTime() === lastDate.getTime()) {
+      if (today.getTime() === lastDateUTC.getTime()) {
         adsCount = (user.adsWatchedToday || 0) + 1;
       }
     }
@@ -360,17 +363,17 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) return false;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     
     const lastAdDate = user.lastAdDate;
     let currentCount = 0;
     
     if (lastAdDate) {
       const lastDate = new Date(lastAdDate);
-      lastDate.setHours(0, 0, 0, 0);
+      const lastDateUTC = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
       
-      if (today.getTime() === lastDate.getTime()) {
+      if (today.getTime() === lastDateUTC.getTime()) {
         currentCount = user.adsWatchedToday || 0;
       }
     }
@@ -524,6 +527,37 @@ export class DatabaseStorage implements IStorage {
     return user || null;
   }
 
+  async processReferral(newUserId: string, referralCode: string): Promise<void> {
+    const referrer = await db
+      .select().from(users)
+      .where(eq(users.referralCode, referralCode)).limit(1);
+
+    // Do not allow self-referral or double linking
+    if (referrer && referrer[0] && referrer[0].id !== newUserId) {
+      // Link new user to referrer
+      await db.update(users)
+        .set({ referredBy: referrer[0].id })
+        .where(eq(users.id, newUserId));
+
+      // Give referrer bonus (optional; initial registration bonus)
+      const registrationBonus = "0.002";
+      await db.update(users)
+        .set({
+          totalReferrals: sql`${users.totalReferrals} + 1`,
+          referralEarnings: sql`${users.referralEarnings} + ${registrationBonus}`,
+        })
+        .where(eq(users.id, referrer[0].id));
+
+      // Record initial referral earning (optional)
+      await db.insert(earnings).values({
+        userId: referrer[0].id,
+        amount: registrationBonus,
+        source: "referral",
+        description: `Referral bonus for inviting user ${newUserId}`,
+      });
+    }
+  }
+
   // Helper method to ensure all users have referral codes
   async ensureAllUsersHaveReferralCodes(): Promise<void> {
     const usersWithoutCodes = await db
@@ -549,16 +583,9 @@ export class DatabaseStorage implements IStorage {
       return user.referralCode;
     }
     
-    // Generate a referral code using user's username or Telegram ID for better tracking
-    let code = user?.username || userId;
-    
-    // If it's too long, truncate and add random suffix
-    if (code.length > 8) {
-      code = code.substring(0, 5) + Math.random().toString(36).substring(2, 5).toUpperCase();
-    }
-    
-    // Make sure it's uppercase
-    code = code.toUpperCase();
+    // Generates a random uppercase string, length 10
+    const crypto = await import('crypto');
+    const code = crypto.randomBytes(5).toString('hex').toUpperCase();
     
     await db
       .update(users)
