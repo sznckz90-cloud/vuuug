@@ -48,6 +48,17 @@ export async function ensureTelegramIdColumn(): Promise<void> {
       console.log('✅ [MIGRATION] telegram_id column already exists');
     }
     
+    // Fix username column to allow NULL values (for users without Telegram usernames)
+    try {
+      await db.execute(sql`
+        ALTER TABLE users ALTER COLUMN username DROP NOT NULL
+      `);
+      console.log('✅ [MIGRATION] Username column constraint fixed');
+    } catch (error) {
+      // Column might already be nullable, ignore the error
+      console.log('ℹ️ [MIGRATION] Username column already nullable or constraint doesn\'t exist');
+    }
+    
     // Also ensure all other essential tables exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS earnings (
