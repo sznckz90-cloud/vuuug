@@ -8,7 +8,15 @@ import { useQuery } from "@tanstack/react-query";
 interface AffiliateStats {
   totalFriendsReferred: number;
   totalCommissionEarned: string;
+  totalReferralBonus: string;
   referralLink: string;
+  referrals: Array<{
+    refereeId: string;
+    refereeName: string;
+    reward: string;
+    status: string;
+    createdAt: string;
+  }>;
 }
 
 async function fetchAffiliateStats(): Promise<AffiliateStats> {
@@ -120,11 +128,54 @@ export default function Affiliates() {
                   ${stats?.totalCommissionEarned || '0.00000'}
                 </div>
                 <div className="text-muted-foreground text-sm">
-                  Total Commission Earned
+                  Commission Earned (in Withdrawal Balance)
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Referral Bonus */}
+            <Card className="shadow-sm border border-border">
+              <CardContent className="p-6 text-center">
+                <div className="bg-blue-500/10 p-4 rounded-full inline-block mb-4">
+                  <i className="fas fa-gift text-blue-500 text-2xl"></i>
+                </div>
+                <div className="text-3xl font-bold text-foreground mb-2">
+                  ${stats?.totalReferralBonus || '0.00000'}
+                </div>
+                <div className="text-muted-foreground text-sm">
+                  Referral Bonuses (in Total Earned)
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Referred Friends List */}
+          {stats?.referrals && stats.referrals.length > 0 && (
+            <Card className="shadow-sm border border-border mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <i className="fas fa-users text-primary"></i>
+                  Your Referrals
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {stats.referrals.map((referral, index) => (
+                  <div key={referral.refereeId} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div>
+                      <p className="font-medium text-foreground">{referral.refereeName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(referral.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-green-600">${referral.reward}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{referral.status}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* How it Works */}
           <Card className="shadow-sm border border-border">
@@ -152,9 +203,9 @@ export default function Affiliates() {
                   <span className="text-primary font-bold text-sm">2</span>
                 </div>
                 <div>
-                  <p className="font-medium text-foreground mb-1">Friends Join</p>
+                  <p className="font-medium text-foreground mb-1">Friends Watch 10 Ads & Get Bonus</p>
                   <p className="text-muted-foreground text-sm">
-                    When friends use your link, they become your referrals
+                    You get $0.01 referral bonus when your friend watches at least 10 ads (anti-fraud protection)
                   </p>
                 </div>
               </div>
@@ -166,7 +217,7 @@ export default function Affiliates() {
                 <div>
                   <p className="font-medium text-foreground mb-1">Earn Commission</p>
                   <p className="text-muted-foreground text-sm">
-                    You automatically earn 10% of everything your friends earn
+                    You earn 10% of your friends' ad earnings ($0.000022 per ad they watch)
                   </p>
                 </div>
               </div>
