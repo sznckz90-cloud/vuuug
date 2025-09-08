@@ -213,6 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         level: 1,
         flagged: false,
         banned: false,
+        referralCode: '',
       });
       
       // Send welcome message to new users
@@ -237,7 +238,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.user.id; // Use the database UUID, not Telegram ID
       const user = await storage.getUser(userId);
-      res.json(user);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Ensure referralCode exists
+      if (!user.referralCode) {
+        await storage.generateReferralCode(userId);
+        const updatedUser = await storage.getUser(userId);
+        user.referralCode = updatedUser?.referralCode || '';
+      }
+      
+      // Add referral link with fallback bot username
+      const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
+      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+      
+      res.json({
+        ...user,
+        referralLink
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -393,8 +413,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(referralCommissions)
         .where(eq(referralCommissions.referrerId, userId));
 
-      // Generate referral link based on user's telegram ID
-      const referralLink = `https://t.me/LightningSatsbot?start=${userId}`;
+      // Get current user's referral code
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Ensure referralCode exists
+      if (!user.referralCode) {
+        await storage.generateReferralCode(userId);
+        const updatedUser = await storage.getUser(userId);
+        user.referralCode = updatedUser?.referralCode || '';
+      }
+      
+      // Generate referral link with fallback bot username
+      const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
+      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
       res.json({
         totalFriendsReferred: totalFriendsReferred[0]?.count || 0,
