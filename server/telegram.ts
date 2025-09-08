@@ -185,14 +185,20 @@ export async function sendUserTelegramNotification(userId: string, message: stri
   }
 }
 
-export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
+export function formatWelcomeMessage(referralCode?: string): { message: string; inlineKeyboard: any } {
+  const baseUrl = process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com";
+  const referralLink = referralCode ? `${baseUrl}/ref/${referralCode}` : null;
+  
   const message = `🔥 Welcome to the Future of Ad Earnings! 🔥
 
 😏 Forget those trash apps giving you $0.1 after a month.
 Here, every ad = real cash, fast payouts.
 
 🚀 Your time = Money. No excuses.
-💸 Watch. Earn. Withdraw. Repeat.
+💸 Watch. Earn. Withdraw. Repeat.${referralLink ? `
+
+🎁 Your referral link: ${referralLink}
+Share it and earn bonuses for every friend!` : ''}
 
 👉 Ready to turn your screen-time into income? Let's go!`;
 
@@ -220,8 +226,8 @@ const inlineKeyboard = {
   return { message, inlineKeyboard };
 }
 
-export async function sendWelcomeMessage(userId: string): Promise<boolean> {
-  const { message, inlineKeyboard } = formatWelcomeMessage();
+export async function sendWelcomeMessage(userId: string, referralCode?: string): Promise<boolean> {
+  const { message, inlineKeyboard } = formatWelcomeMessage(referralCode);
   return await sendUserTelegramNotification(userId, message, inlineKeyboard);
 }
 
@@ -259,7 +265,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       banned: false,
     });
 
-    console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegramId}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
+    console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegram_id}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
 
     // Handle /start command with referral processing
     if (text.startsWith('/start')) {
@@ -303,18 +309,46 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         }
       }
 
-      // Always send welcome message
+      // Always send welcome message with referral code
       console.log('📤 Sending welcome message to:', chatId);
-      const messageSent = await sendWelcomeMessage(chatId);
-      console.log('📧 Welcome message sent successfully:', messageSent);
+      
+      // Ensure referral code exists for this user
+      let finalUser = dbUser;
+      if (!dbUser.referralCode) {
+        console.log('🔄 Generating missing referral code for user:', dbUser.id);
+        try {
+          await storage.generateReferralCode(dbUser.id);
+          // Fetch updated user with referral code
+          finalUser = await storage.getUser(dbUser.id) || dbUser;
+        } catch (error) {
+          console.error('❌ Failed to generate referral code:', error);
+        }
+      }
+      
+      const messageSent = await sendWelcomeMessage(chatId, finalUser.referralCode || undefined);
+      console.log('📧 Welcome message sent successfully:', messageSent, 'with referral code:', finalUser.referralCode);
 
       return true;
     }
 
-    // For any other message, just send welcome message (no other commands supported)
+    // For any other message, just send welcome message with referral code (no other commands supported)
     console.log('📤 Sending welcome message for any interaction to:', chatId);
-    const messageSent = await sendWelcomeMessage(chatId);
-    console.log('📧 Welcome message sent successfully:', messageSent);
+    
+    // Ensure referral code exists for this user
+    let finalUser = dbUser;
+    if (!dbUser.referralCode) {
+      console.log('🔄 Generating missing referral code for user:', dbUser.id);
+      try {
+        await storage.generateReferralCode(dbUser.id);
+        // Fetch updated user with referral code
+        finalUser = await storage.getUser(dbUser.id) || dbUser;
+      } catch (error) {
+        console.error('❌ Failed to generate referral code:', error);
+      }
+    }
+    
+    const messageSent = await sendWelcomeMessage(chatId, finalUser.referralCode || undefined);
+    console.log('📧 Welcome message sent successfully:', messageSent, 'with referral code:', finalUser.referralCode);
     
     return true;
   } catch (error) {

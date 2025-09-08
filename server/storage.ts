@@ -162,7 +162,7 @@ export class DatabaseStorage implements IStorage {
     const isNewUser = !existingUser;
     
     if (existingUser) {
-      // For existing users, only update non-unique fields to avoid constraint violations
+      // For existing users, update fields and ensure referral code exists
       const result = await db.execute(sql`
         UPDATE users 
         SET first_name = ${userData.firstName}, 
@@ -173,6 +173,21 @@ export class DatabaseStorage implements IStorage {
         RETURNING *
       `);
       const user = result.rows[0] as User;
+      
+      // Ensure existing user has referral code
+      if (!user.referralCode) {
+        console.log('🔄 Generating missing referral code for existing user:', user.id);
+        try {
+          await this.generateReferralCode(user.id);
+          // Fetch updated user with referral code
+          const updatedUser = await this.getUser(user.id);
+          return { user: updatedUser || user, isNewUser };
+        } catch (error) {
+          console.error('Failed to generate referral code for existing user:', error);
+          return { user, isNewUser };
+        }
+      }
+      
       return { user, isNewUser };
     } else {
       // For new users, check if email already exists
@@ -190,11 +205,13 @@ export class DatabaseStorage implements IStorage {
         // Auto-generate referral code for new users
         try {
           await this.generateReferralCode(user.id);
+          // Fetch updated user with referral code
+          const updatedUser = await this.getUser(user.id);
+          return { user: updatedUser || user, isNewUser };
         } catch (error) {
           console.error('Failed to generate referral code for new Telegram user:', error);
+          return { user, isNewUser };
         }
-        
-        return { user, isNewUser };
       } catch (error: any) {
         // Handle unique constraint violations
         if (error.code === '23505') {
@@ -216,11 +233,13 @@ export class DatabaseStorage implements IStorage {
           // Auto-generate referral code for new users
           try {
             await this.generateReferralCode(user.id);
+            // Fetch updated user with referral code
+            const updatedUser = await this.getUser(user.id);
+            return { user: updatedUser || user, isNewUser };
           } catch (error) {
             console.error('Failed to generate referral code for new Telegram user:', error);
+            return { user, isNewUser };
           }
-          
-          return { user, isNewUser };
         } else {
           throw error;
         }

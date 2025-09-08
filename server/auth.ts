@@ -114,6 +114,11 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
         banned: false,
       });
       
+      // Ensure test user has referral code
+      if (!upsertedUser.referralCode) {
+        await storage.generateReferralCode(upsertedUser.id);
+      }
+      
       req.user = { 
         telegramUser: { ...testUser, id: testUserId },
         user: upsertedUser
@@ -158,11 +163,11 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       banned: false,
     });
     
-    // Send welcome message for new users
+    // Send welcome message for new users with referral code
     if (isNewUser) {
       try {
         const { sendWelcomeMessage } = await import('./telegram');
-        await sendWelcomeMessage(telegramUser.id.toString());
+        await sendWelcomeMessage(telegramUser.id.toString(), upsertedUser.referralCode || undefined);
       } catch (error) {
         console.error('❌ Failed to send welcome message:', error);
       }
