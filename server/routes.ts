@@ -431,10 +431,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
       const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
+      // Get detailed referrals list  
+      const referralsList = await storage.getUserReferrals(userId);
+      
       res.json({
         totalFriendsReferred: totalFriendsReferred[0]?.count || 0,
         totalCommissionEarned: totalCommissionEarned[0]?.total || '0.00000',
-        referralLink
+        referralLink,
+        referrals: referralsList.map(r => ({
+          refereeId: r.referredId,
+          reward: r.rewardAmount,
+          status: r.status,
+          createdAt: r.createdAt
+        }))
       });
     } catch (error) {
       console.error("Error fetching affiliate stats:", error);

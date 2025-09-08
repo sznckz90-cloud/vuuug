@@ -274,8 +274,32 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           
           if (referrer) {
             console.log(`👤 Found referrer: ${referrer.id} (${referrer.firstName || 'No name'}) via referral code: ${referralCode}`);
-            await storage.createReferral(referrer.id, dbUser.id);
-            console.log(`✅ Referral created successfully: ${referrer.id} -> ${dbUser.id}`);
+            
+            // Verify both users have valid IDs before creating referral
+            if (!referrer.id || !dbUser.id) {
+              console.error(`❌ Invalid user IDs: referrer.id=${referrer.id}, dbUser.id=${dbUser.id}`);
+              throw new Error('Invalid user IDs for referral creation');
+            }
+            
+            // Prevent self-referral by comparing user IDs
+            if (referrer.id === dbUser.id) {
+              console.log(`⚠️  Self-referral prevented: referrer.id=${referrer.id} === dbUser.id=${dbUser.id}`);
+            } else {
+              await storage.createReferral(referrer.id, dbUser.id);
+              console.log(`✅ Referral created successfully: ${referrer.id} -> ${dbUser.id}`);
+              
+              // Send notification to referrer about successful referral
+              try {
+                const referrerName = referrer.firstName || referrer.username || 'User';
+                const newUserName = dbUser.firstName || dbUser.username || 'User';
+                await sendUserTelegramNotification(
+                  referrer.telegram_id || '',
+                  `🎉 Great news! ${newUserName} joined using your referral link. You've earned $0.50!`
+                );
+              } catch (notificationError) {
+                console.error('❌ Failed to send referral notification:', notificationError);
+              }
+            }
           } else {
             console.log(`❌ Invalid referral code: ${referralCode} - no user found with this referral code`);
           }
@@ -285,8 +309,10 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             referralCode: referralCode,
             newUserTelegramId: chatId,
             newUserDbId: dbUser.id,
+            newUserRefCode: dbUser.referralCode,
             isNewUser,
-            errorMessage: error instanceof Error ? error.message : String(error)
+            errorMessage: error instanceof Error ? error.message : String(error),
+            errorStack: error instanceof Error ? error.stack : undefined
           });
         }
       } else {

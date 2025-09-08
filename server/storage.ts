@@ -295,12 +295,13 @@ export class DatabaseStorage implements IStorage {
       .values(earning)
       .returning();
     
-    // Update user totals
+    // Update user totals - use both totalEarned and totalEarnings for compatibility
     await db
       .update(users)
       .set({
-        balance: sql`${users.balance} + ${earning.amount}`,
-        totalEarned: sql`${users.totalEarned} + ${earning.amount}`,
+        withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
+        totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${earning.amount}`,
+        totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${earning.amount}`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, earning.userId));
@@ -621,9 +622,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReferral(referrerId: string, referredId: string): Promise<Referral> {
+    // Validate inputs
+    if (!referrerId || !referredId) {
+      throw new Error(`Invalid referral parameters: referrerId=${referrerId}, referredId=${referredId}`);
+    }
+    
     // Prevent self-referrals
     if (referrerId === referredId) {
       throw new Error('Users cannot refer themselves');
+    }
+    
+    // Verify both users exist
+    const referrer = await this.getUser(referrerId);
+    const referred = await this.getUser(referredId);
+    
+    if (!referrer) {
+      throw new Error(`Referrer user not found: ${referrerId}`);
+    }
+    
+    if (!referred) {
+      throw new Error(`Referred user not found: ${referredId}`);
     }
     
     // Check if referral already exists
