@@ -89,8 +89,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.telegramId, telegramId)).limit(1);
-    return user;
+    try {
+      console.log(`🔍 Looking for user with telegramId: ${telegramId}`);
+      // Use raw SQL to avoid Drizzle ORM issues
+      const result = await db.execute(sql`
+        SELECT * FROM users WHERE telegram_id = ${telegramId} LIMIT 1
+      `);
+      const user = result.rows[0] as User | undefined;
+      console.log(`✅ Found user:`, user ? `ID: ${user.id}` : 'Not found');
+      return user;
+    } catch (error) {
+      console.error('❌ Error in getUserByTelegramId:', error);
+      console.error('❌ SQL query failed for telegramId:', telegramId);
+      throw error;
+    }
   }
 
   async upsertUser(userData: UpsertUser): Promise<{ user: User; isNewUser: boolean }> {
@@ -128,26 +140,28 @@ export class DatabaseStorage implements IStorage {
     const isNewUser = !existingUser;
     
     if (existingUser) {
-      // Update existing user
-      const [user] = await db
-        .update(users)
-        .set({
-          ...userData,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.telegramId, telegramId))
-        .returning();
-      
+      // Update existing user using raw SQL
+      const result = await db.execute(sql`
+        UPDATE users 
+        SET email = ${userData.email}, 
+            first_name = ${userData.firstName}, 
+            last_name = ${userData.lastName}, 
+            username = ${userData.username},
+            personal_code = ${userData.personalCode},
+            updated_at = NOW()
+        WHERE telegram_id = ${telegramId}
+        RETURNING *
+      `);
+      const user = result.rows[0] as User;
       return { user, isNewUser };
     } else {
-      // Create new user
-      const [user] = await db
-        .insert(users)
-        .values({
-          ...userData,
-          telegramId,
-        })
-        .returning();
+      // Create new user using raw SQL
+      const result = await db.execute(sql`
+        INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
+        VALUES (${telegramId}, ${userData.email}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
+        RETURNING *
+      `);
+      const user = result.rows[0] as User;
       
       // Auto-generate referral code for new users
       try {
