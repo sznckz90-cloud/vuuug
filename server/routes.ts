@@ -9,14 +9,14 @@ import { sendTelegramMessage, formatWithdrawalNotification, sendUserTelegramNoti
 import { authenticateTelegram, requireAuth } from "./auth";
 
 // Check if user is admin
-const isAdmin = (telegramId: string): boolean => {
+const isAdmin = (telegram_id: string): boolean => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
   if (!adminId) {
     console.warn('⚠️ TELEGRAM_ADMIN_ID not set - admin access disabled');
     return false;
   }
   // Ensure both values are strings for comparison
-  return adminId.toString() === telegramId.toString();
+  return adminId.toString() === telegram_id.toString();
 };
 
 // Admin authentication middleware
