@@ -650,7 +650,7 @@ export class DatabaseStorage implements IStorage {
       .from(referrals)
       .where(and(
         eq(referrals.referrerId, referrerId),
-        eq(referrals.referredId, referredId)
+        eq(referrals.refereeId, referredId)
       ))
       .limit(1);
     
@@ -663,7 +663,7 @@ export class DatabaseStorage implements IStorage {
       .insert(referrals)
       .values({
         referrerId,
-        referredId,
+        refereeId: referredId,
         rewardAmount: "0.50",
         status: 'completed',
       })
@@ -862,7 +862,7 @@ export class DatabaseStorage implements IStorage {
       const [referralInfo] = await db
         .select({ referrerId: referrals.referrerId })
         .from(referrals)
-        .where(eq(referrals.referredId, userId))
+        .where(eq(referrals.refereeId, userId))
         .limit(1);
 
       if (!referralInfo) {
