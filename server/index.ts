@@ -4,6 +4,12 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
 import { ensureTelegramIdColumn } from "./migrate";
 
+// CRITICAL: Run database migrations before ANYTHING else
+// This ensures the telegram_id column exists before any database operations
+console.log('🚀 Starting CashWatch server...');
+await ensureTelegramIdColumn();
+console.log('✅ Database schema verified, starting server setup...');
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -61,8 +67,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Ensure telegram_id column exists (for production deployments)
-  await ensureTelegramIdColumn();
+  // Database migration already completed at module load time
   
   // Setup modern authentication system
   await setupAuth(app);

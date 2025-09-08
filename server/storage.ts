@@ -137,14 +137,12 @@ export class DatabaseStorage implements IStorage {
     const isNewUser = !existingUser;
     
     if (existingUser) {
-      // Update existing user using raw SQL
+      // For existing users, only update non-unique fields to avoid constraint violations
       const result = await db.execute(sql`
         UPDATE users 
-        SET email = ${userData.email}, 
-            first_name = ${userData.firstName}, 
+        SET first_name = ${userData.firstName}, 
             last_name = ${userData.lastName}, 
             username = ${userData.username},
-            personal_code = ${userData.personalCode},
             updated_at = NOW()
         WHERE telegram_id = ${telegramId}
         RETURNING *
@@ -152,22 +150,49 @@ export class DatabaseStorage implements IStorage {
       const user = result.rows[0] as User;
       return { user, isNewUser };
     } else {
-      // Create new user using raw SQL
-      const result = await db.execute(sql`
-        INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
-        VALUES (${telegramId}, ${userData.email}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
-        RETURNING *
-      `);
-      const user = result.rows[0] as User;
-      
-      // Auto-generate referral code for new users
+      // For new users, check if email already exists
+      // If it does, we'll create a unique email by appending the telegram ID
+      let finalEmail = userData.email;
       try {
-        await this.generateReferralCode(user.id);
-      } catch (error) {
-        console.error('Failed to generate referral code for new Telegram user:', error);
+        // Try to create with the provided email first
+        const result = await db.execute(sql`
+          INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
+          VALUES (${telegramId}, ${finalEmail}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
+          RETURNING *
+        `);
+        const user = result.rows[0] as User;
+        
+        // Auto-generate referral code for new users
+        try {
+          await this.generateReferralCode(user.id);
+        } catch (error) {
+          console.error('Failed to generate referral code for new Telegram user:', error);
+        }
+        
+        return { user, isNewUser };
+      } catch (error: any) {
+        // If email constraint violation, create unique email with telegram ID
+        if (error.code === '23505' && error.constraint === 'users_email_unique') {
+          finalEmail = `${telegramId}@telegram.user`;
+          const result = await db.execute(sql`
+            INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
+            VALUES (${telegramId}, ${finalEmail}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
+            RETURNING *
+          `);
+          const user = result.rows[0] as User;
+          
+          // Auto-generate referral code for new users
+          try {
+            await this.generateReferralCode(user.id);
+          } catch (error) {
+            console.error('Failed to generate referral code for new Telegram user:', error);
+          }
+          
+          return { user, isNewUser };
+        } else {
+          throw error;
+        }
       }
-      
-      return { user, isNewUser };
     }
   }
 

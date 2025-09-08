@@ -4,9 +4,24 @@ import { sql } from 'drizzle-orm';
 
 export async function ensureTelegramIdColumn(): Promise<void> {
   try {
-    console.log('🔄 Checking if telegram_id column exists...');
+    console.log('🔄 [MIGRATION] Checking if telegram_id column exists...');
     
-    // Check if column exists
+    // First ensure the users table exists
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR,
+        balance DECIMAL(10, 2) DEFAULT 0,
+        streak_count INTEGER DEFAULT 0,
+        streak_last_date DATE,
+        referral_code VARCHAR UNIQUE,
+        referred_by VARCHAR,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Check if telegram_id column exists
     const result = await db.execute(sql`
       SELECT column_name 
       FROM information_schema.columns 
@@ -15,7 +30,7 @@ export async function ensureTelegramIdColumn(): Promise<void> {
     `);
     
     if (result.rows.length === 0) {
-      console.log('➕ Adding telegram_id column to users table...');
+      console.log('➕ [MIGRATION] Adding telegram_id column to users table...');
       
       // Add the column safely
       await db.execute(sql`
@@ -28,13 +43,41 @@ export async function ensureTelegramIdColumn(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)
       `);
       
-      console.log('✅ telegram_id column added successfully');
+      console.log('✅ [MIGRATION] telegram_id column added successfully');
     } else {
-      console.log('✅ telegram_id column already exists');
+      console.log('✅ [MIGRATION] telegram_id column already exists');
     }
+    
+    // Also ensure all other essential tables exist
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS earnings (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL,
+        amount DECIMAL(10, 2) NOT NULL,
+        type VARCHAR NOT NULL,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL,
+        amount DECIMAL(10, 2) NOT NULL,
+        status VARCHAR DEFAULT 'pending',
+        payment_method VARCHAR NOT NULL,
+        payment_details JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    console.log('✅ [MIGRATION] All tables verified/created');
+    
   } catch (error) {
-    console.error('❌ Error ensuring telegram_id column:', error);
-    // Don't throw error to prevent server startup failure
-    // The column might already exist or there might be a permission issue
+    console.error('❌ [MIGRATION] Critical error ensuring database schema:', error);
+    // This IS critical - we need to throw to prevent startup with broken schema
+    throw new Error(`Database migration failed: ${error.message}`);
   }
 }
