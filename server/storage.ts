@@ -295,16 +295,30 @@ export class DatabaseStorage implements IStorage {
       .values(earning)
       .returning();
     
-    // Update user totals - use both totalEarned and totalEarnings for compatibility
-    await db
-      .update(users)
-      .set({
-        withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
-        totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${earning.amount}`,
-        totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${earning.amount}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, earning.userId));
+    // Update user balance - all positive earnings contribute to available balance
+    // This ensures affiliate earnings (both bonuses and commissions) show in balance
+    if (parseFloat(earning.amount) > 0) {
+      await db
+        .update(users)
+        .set({
+          balance: sql`COALESCE(${users.balance}, 0) + ${earning.amount}`,
+          withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
+          totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${earning.amount}`,
+          totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${earning.amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, earning.userId));
+    } else if (parseFloat(earning.amount) < 0) {
+      // Handle negative amounts (like withdrawals)
+      await db
+        .update(users)
+        .set({
+          balance: sql`COALESCE(${users.balance}, 0) + ${earning.amount}`,
+          withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, earning.userId));
+    }
     
     // Process referral commission (10% of user's earnings)
     // Only process commissions for non-referral earnings to avoid recursion
@@ -658,26 +672,68 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Referral relationship already exists');
     }
     
-    // Create the referral
+    // Create the referral relationship (initially pending)
     const [referral] = await db
       .insert(referrals)
       .values({
         referrerId,
         refereeId: referredId,
-        rewardAmount: "0.50",
-        status: 'completed',
+        rewardAmount: "0.01",
+        status: 'pending', // Pending until friend watches 10 ads
       })
       .returning();
     
-    // Add referral bonus to referrer
-    await this.addEarning({
-      userId: referrerId,
-      amount: "0.50",
-      source: 'referral',
-      description: 'Referral bonus',
-    });
-    
+    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}`);
     return referral;
+  }
+
+  // New method to check and activate referral bonus when friend reaches 10 ads
+  async checkAndActivateReferralBonus(userId: string): Promise<void> {
+    try {
+      // Count ads watched by this user
+      const [adCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(earnings)
+        .where(and(
+          eq(earnings.userId, userId),
+          eq(earnings.source, 'ad_watch')
+        ));
+
+      const adsWatched = adCount?.count || 0;
+      
+      // If user has watched 10+ ads, activate pending referral bonuses
+      if (adsWatched >= 10) {
+        // Find pending referrals where this user is the referee
+        const pendingReferrals = await db
+          .select()
+          .from(referrals)
+          .where(and(
+            eq(referrals.refereeId, userId),
+            eq(referrals.status, 'pending')
+          ));
+
+        // Activate each pending referral
+        for (const referral of pendingReferrals) {
+          // Update referral status to completed
+          await db
+            .update(referrals)
+            .set({ status: 'completed' })
+            .where(eq(referrals.id, referral.id));
+
+          // Award referral bonus to referrer
+          await this.addEarning({
+            userId: referral.referrerId,
+            amount: "0.01",
+            source: 'referral',
+            description: `Referral bonus - friend watched ${adsWatched} ads`,
+          });
+
+          console.log(`✅ Referral bonus activated: $0.01 awarded to ${referral.referrerId}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking referral bonus activation:', error);
+    }
   }
 
   async getUserReferrals(userId: string): Promise<Referral[]> {
@@ -858,19 +914,34 @@ export class DatabaseStorage implements IStorage {
   // Process referral commission (10% of user's earnings)
   async processReferralCommission(userId: string, originalEarningId: number, earningAmount: string): Promise<void> {
     try {
-      // Find who referred this user
-      const [referralInfo] = await db
-        .select({ referrerId: referrals.referrerId })
-        .from(referrals)
-        .where(eq(referrals.refereeId, userId))
+      // Only process commissions for ad watching earnings
+      const [earning] = await db
+        .select()
+        .from(earnings)
+        .where(eq(earnings.id, originalEarningId))
         .limit(1);
 
-      if (!referralInfo) {
-        // User was not referred by anyone, no commission to process
+      if (!earning || earning.source !== 'ad_watch') {
+        // Only ad earnings generate commissions
         return;
       }
 
-      // Calculate 10% commission
+      // Find who referred this user (must be completed referral)
+      const [referralInfo] = await db
+        .select({ referrerId: referrals.referrerId })
+        .from(referrals)
+        .where(and(
+          eq(referrals.refereeId, userId),
+          eq(referrals.status, 'completed') // Only completed referrals earn commissions
+        ))
+        .limit(1);
+
+      if (!referralInfo) {
+        // User was not referred by anyone or referral not activated
+        return;
+      }
+
+      // Calculate 10% commission on ad earnings only
       const commissionAmount = (parseFloat(earningAmount) * 0.1).toFixed(8);
       
       // Record the referral commission
@@ -886,10 +957,10 @@ export class DatabaseStorage implements IStorage {
         userId: referralInfo.referrerId,
         amount: commissionAmount,
         source: 'referral_commission',
-        description: `10% commission from referred user`,
+        description: `10% commission from referred user's ad earnings`,
       });
 
-      console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s earnings`);
+      console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process

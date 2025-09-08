@@ -270,16 +270,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.user.id;
       const { adType } = req.body;
       
-      // Add earning for watched ad
+      // Check if user can watch ad (daily limit)
+      const canWatch = await storage.canWatchAd(userId);
+      if (!canWatch) {
+        return res.status(429).json({ message: 'Daily ad limit reached (250 ads)' });
+      }
+      
+      // Add earning for watched ad with new rate
       const earning = await storage.addEarning({
         userId,
-        amount: "0.00021",
+        amount: "0.00022",
         source: 'ad_watch',
         description: 'Watched advertisement',
       });
       
       // Increment ads watched count
       await storage.incrementAdsWatched(userId);
+      
+      // Check and activate referral bonuses (anti-fraud: requires 10 ads)
+      await storage.checkAndActivateReferralBonus(userId);
       
       res.json({ 
         success: true, 
@@ -401,17 +410,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.user.id;
       
-      // Get total friends referred by counting referral earnings
+      // Get total friends referred by counting actual referrals table
       const totalFriendsReferred = await db
         .select({ count: sql<number>`count(*)` })
+        .from(referrals)
+        .where(eq(referrals.referrerId, userId));
+
+      // Get total commission earned from referral commissions (not referral bonuses)
+      const totalCommissionEarned = await db
+        .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
         .from(earnings)
         .where(and(
           eq(earnings.userId, userId),
-          eq(earnings.source, 'referral')
+          eq(earnings.source, 'referral_commission')
         ));
 
-      // Get total commission earned from referral earnings (since that's what's actually working)
-      const totalCommissionEarned = await db
+      // Get referral bonus earned (separate from commissions)
+      const totalReferralBonus = await db
         .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
         .from(earnings)
         .where(and(
@@ -437,29 +452,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
       const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
-      // Get detailed referrals list from earnings since that's what's working
+      // Get detailed referrals list from actual referrals table
       const referralsList = await db
         .select({
-          id: earnings.id,
-          amount: earnings.amount,
-          description: earnings.description,
-          createdAt: earnings.createdAt
+          refereeId: referrals.refereeId,
+          rewardAmount: referrals.rewardAmount,
+          status: referrals.status,
+          createdAt: referrals.createdAt,
+          user: {
+            firstName: users.firstName,
+            lastName: users.lastName,
+            username: users.username
+          }
         })
-        .from(earnings)
-        .where(and(
-          eq(earnings.userId, userId),
-          eq(earnings.source, 'referral')
-        ))
-        .orderBy(desc(earnings.createdAt));
+        .from(referrals)
+        .leftJoin(users, eq(referrals.refereeId, users.id))
+        .where(eq(referrals.referrerId, userId))
+        .orderBy(desc(referrals.createdAt));
       
       res.json({
         totalFriendsReferred: totalFriendsReferred[0]?.count || 0,
         totalCommissionEarned: totalCommissionEarned[0]?.total || '0.00000',
+        totalReferralBonus: totalReferralBonus[0]?.total || '0.00000',
         referralLink,
         referrals: referralsList.map(r => ({
-          refereeId: r.id.toString(),
-          reward: r.amount,
-          status: 'completed',
+          refereeId: r.refereeId,
+          refereeName: r.user?.firstName ? `${r.user.firstName} ${r.user.lastName || ''}`.trim() : r.user?.username || 'Anonymous',
+          reward: r.rewardAmount,
+          status: r.status,
           createdAt: r.createdAt
         }))
       });
