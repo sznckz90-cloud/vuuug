@@ -30,7 +30,7 @@ export const sessions = pgTable(
 // Users table
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
-  telegram_id: varchar("telegram_id", { length: 20 }).unique(), // ✅ Telegram ID for authentication
+  telegram_id: varchar("telegram_id", { length: 20 }).unique(), // ✅ Telegram ID for authentication (stored as string for compatibility)
   username: varchar("username"),
   email: text("email"),
   firstName: text("first_name"),
