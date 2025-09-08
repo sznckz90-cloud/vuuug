@@ -141,25 +141,21 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       return res.status(401).json({ message: "Invalid Telegram authentication data" });
     }
     
-    // Get or create user in database
-    const existingUser = await storage.getUserByTelegramId(telegramUser.id.toString());
-    
-    const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-      id: existingUser?.id, // Keep existing UUID if user exists
+    // Get or create user in database using Telegram-specific method
+    const { user: upsertedUser, isNewUser } = await storage.upsertTelegramUser(telegramUser.id.toString(), {
       email: `${telegramUser.username || telegramUser.id}@telegram.user`,
       firstName: telegramUser.first_name,
       lastName: telegramUser.last_name,
       username: telegramUser.username,
-      telegramId: telegramUser.id.toString(),
       personalCode: telegramUser.username || telegramUser.id.toString(),
-      withdrawBalance: existingUser?.withdrawBalance || '0',
-      totalEarnings: existingUser?.totalEarnings || '0',
-      adsWatched: existingUser?.adsWatched || 0,
-      dailyAdsWatched: existingUser?.dailyAdsWatched || 0,
-      dailyEarnings: existingUser?.dailyEarnings || '0',
-      level: existingUser?.level || 1,
-      flagged: existingUser?.flagged || false,
-      banned: existingUser?.banned || false,
+      withdrawBalance: '0',
+      totalEarnings: '0',
+      adsWatched: 0,
+      dailyAdsWatched: 0,
+      dailyEarnings: '0',
+      level: 1,
+      flagged: false,
+      banned: false,
     });
     
     // Send welcome message for new users
