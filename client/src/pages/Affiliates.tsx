@@ -34,8 +34,9 @@ export default function Affiliates() {
   });
 
   const handleCopyReferralLink = () => {
-    if (stats?.referralLink) {
-      navigator.clipboard.writeText(stats.referralLink);
+    const referralLink = (user as any)?.referralLink || stats?.referralLink;
+    if (referralLink) {
+      navigator.clipboard.writeText(referralLink);
       toast({
         title: "Copied!",
         description: "Referral link copied to clipboard",
@@ -78,13 +79,13 @@ export default function Affiliates() {
               </p>
               
               <div className="bg-muted/50 p-3 rounded-lg border text-sm font-mono break-all">
-                {stats?.referralLink || 'Loading...'}
+                {(user as any)?.referralLink || stats?.referralLink || 'Loading...'}
               </div>
               
               <Button 
                 onClick={handleCopyReferralLink}
                 className="w-full bg-primary hover:bg-primary/90"
-                disabled={!stats?.referralLink}
+                disabled={!(user as any)?.referralLink && !stats?.referralLink}
               >
                 <i className="fas fa-copy mr-2"></i>
                 Copy Referral Link
