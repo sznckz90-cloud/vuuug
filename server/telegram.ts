@@ -201,7 +201,7 @@ const inlineKeyboard = {
     [
       {
         text: "🚀 Start Earning",
-        web_app: { url: "https://lighting-sats-app.onrender.com" } // Telegram Mini App
+        web_app: { url: process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com" } // Telegram Mini App
       }
     ],
     [

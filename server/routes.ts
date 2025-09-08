@@ -198,22 +198,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Invalid Telegram authentication data' });
       }
       
-      // Check if user exists in database, create if not
+      // Check if user exists by Telegram ID first
+      const existingUser = await storage.getUserByTelegramId(telegramUser.id.toString());
+      
       const { user: upsertedUser, isNewUser } = await storage.upsertUser({
-        id: telegramUser.id.toString(),
+        id: existingUser?.id, // Keep existing UUID if user exists, let DB generate new one if not
         email: `${telegramUser.username || telegramUser.id}@telegram.user`,
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
         username: telegramUser.username,
+        telegramId: telegramUser.id.toString(), // This is the key fix - store Telegram ID properly
         personalCode: telegramUser.username || telegramUser.id.toString(),
-        withdrawBalance: '0',
-        totalEarnings: '0',
-        adsWatched: 0,
-        dailyAdsWatched: 0,
-        dailyEarnings: '0',
-        level: 1,
-        flagged: false,
-        banned: false,
+        withdrawBalance: existingUser?.withdrawBalance || '0',
+        totalEarnings: existingUser?.totalEarnings || '0',
+        adsWatched: existingUser?.adsWatched || 0,
+        dailyAdsWatched: existingUser?.dailyAdsWatched || 0,
+        dailyEarnings: existingUser?.dailyEarnings || '0',
+        level: existingUser?.level || 1,
+        flagged: existingUser?.flagged || false,
+        banned: existingUser?.banned || false,
       });
       
       // Send welcome message to new users

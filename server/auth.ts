@@ -83,8 +83,8 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
   try {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
-    // Development mode - allow test users
-    if (!telegramData && process.env.NODE_ENV === 'development') {
+    // Development mode - allow test users (only in development, not production)
+    if (!telegramData && (process.env.NODE_ENV === 'development' || process.env.REPL_ID)) {
       console.log('🔧 Development mode: Using test user authentication');
       
       const testUser = {
