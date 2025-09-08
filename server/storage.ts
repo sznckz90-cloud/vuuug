@@ -70,8 +70,8 @@ export interface IStorage {
   updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
   
   // Telegram user operations
-  getUserByTelegramId(telegram_id: string): Promise<User | undefined>;
-  upsertTelegramUser(telegram_id: string, userData: Omit<UpsertUser, 'id' | 'telegram_id'>): Promise<{ user: User; isNewUser: boolean }>;
+  getUserByTelegramId(telegramId: string): Promise<User | undefined>;
+  upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }>;
   
   // Promo code operations
   createPromoCode(promoCode: InsertPromoCode): Promise<PromoCode>;
@@ -88,8 +88,8 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByTelegramId(telegram_id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.telegram_id, telegram_id)).limit(1);
+  async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.telegramId, telegramId)).limit(1);
     return user;
   }
 
@@ -122,9 +122,9 @@ export class DatabaseStorage implements IStorage {
     return { user, isNewUser };
   }
 
-  async upsertTelegramUser(telegram_id: string, userData: Omit<UpsertUser, 'id' | 'telegram_id'>): Promise<{ user: User; isNewUser: boolean }> {
+  async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
     // Check if user already exists by Telegram ID
-    const existingUser = await this.getUserByTelegramId(telegram_id);
+    const existingUser = await this.getUserByTelegramId(telegramId);
     const isNewUser = !existingUser;
     
     if (existingUser) {
@@ -135,7 +135,7 @@ export class DatabaseStorage implements IStorage {
           ...userData,
           updatedAt: new Date(),
         })
-        .where(eq(users.telegram_id, telegram_id))
+        .where(eq(users.telegramId, telegramId))
         .returning();
       
       return { user, isNewUser };
@@ -145,7 +145,7 @@ export class DatabaseStorage implements IStorage {
         .insert(users)
         .values({
           ...userData,
-          telegram_id,
+          telegramId,
         })
         .returning();
       

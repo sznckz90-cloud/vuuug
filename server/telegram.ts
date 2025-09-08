@@ -1,9 +1,9 @@
 // Telegram Bot API integration for sending notifications
 import { storage } from './storage';
 
-const isAdmin = (telegram_id: string): boolean => {
+const isAdmin = (telegramId: string): boolean => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
-  return adminId === telegram_id;
+  return adminId === telegramId;
 };
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -259,7 +259,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       banned: false,
     });
 
-    console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegram_id}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
+    console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegramId}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
 
     // Handle /start command with referral processing
     if (text.startsWith('/start')) {
