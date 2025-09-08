@@ -51,7 +51,7 @@ export const users = pgTable("users", {
   lastStreakDate: timestamp("last_streak_date"),
   level: integer("level").default(1),
   referredBy: varchar("referred_by"),
-  referralCode: text("referral_code"),
+  referralCode: text("referral_code").notNull(),
   flagged: boolean("flagged").default(false),
   flagReason: text("flag_reason"),
   banned: boolean("banned").default(false),
