@@ -4,6 +4,14 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
+**September 8, 2025 (Referral System Fix):**
+- **Fixed referral system database errors**: Resolved "null value in column 'referee_id'" errors by improving input validation and error handling in createReferral function
+- **Enhanced referral creation logic**: Added comprehensive user verification, duplicate checking, and self-referral prevention
+- **Improved Telegram integration**: Updated webhook handler to properly process referral codes from /start commands for new users only
+- **Enhanced affiliates API**: Extended API to return detailed referral list including referee IDs, rewards, status, and creation dates
+- **Added referral notifications**: Implemented Telegram notifications to referrers when someone uses their referral link
+- **Production testing verified**: End-to-end testing confirmed referral system works correctly in production environment
+
 **September 7, 2025 (v2.0 - Code Modernization):**
 - **Complete code modernization**: Removed all legacy authentication patterns and outdated implementations
 - **Unified authentication system**: Consolidated all authentication logic into `server/auth.ts` for better organization and maintainability  
