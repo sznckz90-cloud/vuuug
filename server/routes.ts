@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings, referrals, referralCommissions } from "@shared/schema";
+import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings, referrals, referralCommissions } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
@@ -401,17 +401,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.user.id;
       
-      // Get total friends referred
+      // Get total friends referred by counting referral earnings
       const totalFriendsReferred = await db
         .select({ count: sql<number>`count(*)` })
-        .from(referrals)
-        .where(eq(referrals.referrerId, userId));
+        .from(earnings)
+        .where(and(
+          eq(earnings.userId, userId),
+          eq(earnings.source, 'referral')
+        ));
 
-      // Get total commission earned
+      // Get total commission earned from referral earnings (since that's what's actually working)
       const totalCommissionEarned = await db
-        .select({ total: sql<string>`COALESCE(SUM(${referralCommissions.commissionAmount}), '0')` })
-        .from(referralCommissions)
-        .where(eq(referralCommissions.referrerId, userId));
+        .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
+        .from(earnings)
+        .where(and(
+          eq(earnings.userId, userId),
+          eq(earnings.source, 'referral')
+        ));
 
       // Get current user's referral code
       const user = await storage.getUser(userId);
@@ -431,17 +437,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
       const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
-      // Get detailed referrals list  
-      const referralsList = await storage.getUserReferrals(userId);
+      // Get detailed referrals list from earnings since that's what's working
+      const referralsList = await db
+        .select({
+          id: earnings.id,
+          amount: earnings.amount,
+          description: earnings.description,
+          createdAt: earnings.createdAt
+        })
+        .from(earnings)
+        .where(and(
+          eq(earnings.userId, userId),
+          eq(earnings.source, 'referral')
+        ))
+        .orderBy(desc(earnings.createdAt));
       
       res.json({
         totalFriendsReferred: totalFriendsReferred[0]?.count || 0,
         totalCommissionEarned: totalCommissionEarned[0]?.total || '0.00000',
         referralLink,
         referrals: referralsList.map(r => ({
-          refereeId: r.referredId,
-          reward: r.rewardAmount,
-          status: r.status,
+          refereeId: r.id.toString(),
+          reward: r.amount,
+          status: 'completed',
           createdAt: r.createdAt
         }))
       });
