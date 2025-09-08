@@ -326,6 +326,11 @@ export class DatabaseStorage implements IStorage {
       await this.processReferralCommission(earning.userId, newEarning.id, earning.amount);
     }
     
+    // Check and activate referral bonuses after ad watch (critical for referral system)
+    if (earning.source === 'ad_watch') {
+      await this.checkAndActivateReferralBonus(earning.userId);
+    }
+    
     return newEarning;
   }
 

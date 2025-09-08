@@ -294,7 +294,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                 const newUserName = dbUser.firstName || dbUser.username || 'User';
                 await sendUserTelegramNotification(
                   referrer.telegram_id || '',
-                  `🎉 Great news! ${newUserName} joined using your referral link. You've earned $0.50!`
+                  `🎉 Great news! ${newUserName} joined using your referral link. You'll earn $0.01 when they watch 10 ads!`
                 );
               } catch (notificationError) {
                 console.error('❌ Failed to send referral notification:', notificationError);
