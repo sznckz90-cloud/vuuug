@@ -133,7 +133,32 @@ export class DatabaseStorage implements IStorage {
 
   async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
     // Check if user already exists by Telegram ID
-    const existingUser = await this.getUserByTelegramId(telegramId);
+    let existingUser = await this.getUserByTelegramId(telegramId);
+    
+    // If not found by telegram_id, check if user exists by personal_code (for migration scenarios)
+    if (!existingUser && userData.personalCode) {
+      const result = await db.execute(sql`
+        SELECT * FROM users WHERE personal_code = ${userData.personalCode} LIMIT 1
+      `);
+      const userByPersonalCode = result.rows[0] as User | undefined;
+      
+      if (userByPersonalCode) {
+        // User exists but doesn't have telegram_id set - update it
+        const updateResult = await db.execute(sql`
+          UPDATE users 
+          SET telegram_id = ${telegramId},
+              first_name = ${userData.firstName}, 
+              last_name = ${userData.lastName}, 
+              username = ${userData.username},
+              updated_at = NOW()
+          WHERE personal_code = ${userData.personalCode}
+          RETURNING *
+        `);
+        const user = updateResult.rows[0] as User;
+        return { user, isNewUser: false };
+      }
+    }
+    
     const isNewUser = !existingUser;
     
     if (existingUser) {
@@ -171,9 +196,16 @@ export class DatabaseStorage implements IStorage {
         
         return { user, isNewUser };
       } catch (error: any) {
-        // If email constraint violation, create unique email with telegram ID
-        if (error.code === '23505' && error.constraint === 'users_email_unique') {
-          finalEmail = `${telegramId}@telegram.user`;
+        // Handle unique constraint violations
+        if (error.code === '23505') {
+          if (error.constraint === 'users_email_unique') {
+            finalEmail = `${telegramId}@telegram.user`;
+          } else if (error.constraint === 'users_personal_code_unique') {
+            // If personal_code conflict, use telegram ID as personal code
+            userData.personalCode = `tg_${telegramId}`;
+          }
+          
+          // Try again with modified data
           const result = await db.execute(sql`
             INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
             VALUES (${telegramId}, ${finalEmail}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
