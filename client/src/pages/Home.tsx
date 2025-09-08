@@ -39,22 +39,49 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-20">
-        {/* Telegram Authentication Test Button */}
-        {!user && (
-          <div className="mb-4 p-4 bg-primary/10 rounded-lg">
-            <h3 className="font-semibold mb-2">Telegram Authentication</h3>
-            <Button 
-              onClick={authenticateWithTelegramWebApp}
-              disabled={isTelegramAuthenticating}
-              className="w-full"
-            >
-              {isTelegramAuthenticating ? "Authenticating..." : "Login with Telegram"}
-            </Button>
+        {/* Authentication Status */}
+        {!user ? (
+          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 mb-2">
+              <i className="fas fa-info-circle text-blue-600 dark:text-blue-400"></i>
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100">Telegram Mini App</h3>
+            </div>
+            <p className="text-blue-800 dark:text-blue-200 text-sm mb-3">
+              This app is designed to work as a Telegram Mini App. For full functionality, access it through your Telegram bot.
+            </p>
+            {typeof window !== 'undefined' && window.Telegram?.WebApp ? (
+              <Button 
+                onClick={authenticateWithTelegramWebApp}
+                disabled={isTelegramAuthenticating}
+                className="w-full"
+              >
+                {isTelegramAuthenticating ? "Authenticating..." : "Login with Telegram"}
+              </Button>
+            ) : (
+              <div className="text-blue-700 dark:text-blue-300 text-sm">
+                <p className="mb-2">Currently running in browser mode for development.</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  💡 To test: Open via Telegram → Your Bot → Web App
+                </p>
+              </div>
+            )}
             {telegramAuthError && (
-              <p className="text-red-500 text-sm mt-2">
+              <p className="text-red-600 dark:text-red-400 text-sm mt-2">
                 Error: {telegramAuthError.message}
               </p>
             )}
+          </div>
+        ) : null}
+
+        {/* Development Mode Notice - only show in actual development */}
+        {user && typeof window !== 'undefined' && !window.Telegram?.WebApp && window.location.hostname.includes('replit') && (
+          <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <div className="flex items-center gap-2">
+              <i className="fas fa-flask text-yellow-600 dark:text-yellow-400 text-sm"></i>
+              <span className="text-yellow-800 dark:text-yellow-200 text-sm font-medium">
+                Development Mode - Test Account Active
+              </span>
+            </div>
           </div>
         )}
 
@@ -72,7 +99,7 @@ export default function Home() {
           <Card className="shadow-sm border border-border">
             <CardContent className="p-3 text-center">
               <div className="text-xl font-bold text-foreground" data-testid="text-today-earnings">
-                ${statsLoading ? "..." : (parseFloat(stats?.todayEarnings || "0")).toFixed(5)}
+                ${statsLoading ? "..." : (parseFloat((stats as any)?.todayEarnings || "0")).toFixed(5)}
               </div>
               <div className="text-muted-foreground text-xs">Today</div>
             </CardContent>
@@ -80,7 +107,7 @@ export default function Home() {
           <Card className="shadow-sm border border-border">
             <CardContent className="p-3 text-center">
               <div className="text-xl font-bold text-foreground" data-testid="text-week-earnings">
-                ${statsLoading ? "..." : (parseFloat(stats?.weekEarnings || "0")).toFixed(5)}
+                ${statsLoading ? "..." : (parseFloat((stats as any)?.weekEarnings || "0")).toFixed(5)}
               </div>
               <div className="text-muted-foreground text-xs">This Week</div>
             </CardContent>
@@ -96,7 +123,7 @@ export default function Home() {
               <div className="text-center py-4">
                 <div className="text-muted-foreground">Loading activity...</div>
               </div>
-            ) : !earnings || earnings.length === 0 ? (
+            ) : !earnings || (earnings as any[])?.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-muted-foreground mb-2">No activity yet</div>
                 <div className="text-muted-foreground text-sm">
@@ -105,7 +132,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-3">
-                {earnings.slice(0, 5).map((earning: any) => (
+                {(earnings as any[])?.slice(0, 5).map((earning: any) => (
                   <div key={earning.id} className="flex justify-between items-center py-3 border-b border-border last:border-b-0">
                     <div className="flex items-center gap-3">
                       <div className="bg-primary/10 p-2 rounded-lg">
