@@ -132,13 +132,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
+    // Sanitize user data to prevent SQL issues
+    const sanitizedData = {
+      ...userData,
+      firstName: userData.firstName || '',
+      lastName: userData.lastName || '',
+      username: userData.username || null,
+      personalCode: userData.personalCode || telegramId,
+      withdrawBalance: userData.withdrawBalance || '0',
+      totalEarnings: userData.totalEarnings || '0',
+      adsWatched: userData.adsWatched || 0,
+      dailyAdsWatched: userData.dailyAdsWatched || 0,
+      dailyEarnings: userData.dailyEarnings || '0',
+      level: userData.level || 1,
+      flagged: userData.flagged || false,
+      banned: userData.banned || false
+    };
+    
     // Check if user already exists by Telegram ID
     let existingUser = await this.getUserByTelegramId(telegramId);
     
     // If not found by telegram_id, check if user exists by personal_code (for migration scenarios)
-    if (!existingUser && userData.personalCode) {
+    if (!existingUser && sanitizedData.personalCode) {
       const result = await db.execute(sql`
-        SELECT * FROM users WHERE personal_code = ${userData.personalCode} LIMIT 1
+        SELECT * FROM users WHERE personal_code = ${sanitizedData.personalCode} LIMIT 1
       `);
       const userByPersonalCode = result.rows[0] as User | undefined;
       
@@ -147,11 +164,11 @@ export class DatabaseStorage implements IStorage {
         const updateResult = await db.execute(sql`
           UPDATE users 
           SET telegram_id = ${telegramId},
-              first_name = ${userData.firstName}, 
-              last_name = ${userData.lastName}, 
-              username = ${userData.username},
+              first_name = ${sanitizedData.firstName}, 
+              last_name = ${sanitizedData.lastName}, 
+              username = ${sanitizedData.username},
               updated_at = NOW()
-          WHERE personal_code = ${userData.personalCode}
+          WHERE personal_code = ${sanitizedData.personalCode}
           RETURNING *
         `);
         const user = updateResult.rows[0] as User;
@@ -165,9 +182,9 @@ export class DatabaseStorage implements IStorage {
       // For existing users, update fields and ensure referral code exists
       const result = await db.execute(sql`
         UPDATE users 
-        SET first_name = ${userData.firstName}, 
-            last_name = ${userData.lastName}, 
-            username = ${userData.username},
+        SET first_name = ${sanitizedData.firstName}, 
+            last_name = ${sanitizedData.lastName}, 
+            username = ${sanitizedData.username},
             updated_at = NOW()
         WHERE telegram_id = ${telegramId}
         RETURNING *
@@ -196,8 +213,18 @@ export class DatabaseStorage implements IStorage {
       try {
         // Try to create with the provided email first
         const result = await db.execute(sql`
-          INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
-          VALUES (${telegramId}, ${finalEmail}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
+          INSERT INTO users (
+            telegram_id, email, first_name, last_name, username, personal_code, 
+            withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
+            daily_earnings, level, flagged, banned
+          )
+          VALUES (
+            ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
+            ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
+            ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
+            ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
+            ${sanitizedData.banned}
+          )
           RETURNING *
         `);
         const user = result.rows[0] as User;
@@ -219,13 +246,23 @@ export class DatabaseStorage implements IStorage {
             finalEmail = `${telegramId}@telegram.user`;
           } else if (error.constraint === 'users_personal_code_unique') {
             // If personal_code conflict, use telegram ID as personal code
-            userData.personalCode = `tg_${telegramId}`;
+            sanitizedData.personalCode = `tg_${telegramId}`;
           }
           
           // Try again with modified data
           const result = await db.execute(sql`
-            INSERT INTO users (telegram_id, email, first_name, last_name, username, personal_code, withdraw_balance, total_earnings, ads_watched, daily_ads_watched, daily_earnings, level, flagged, banned)
-            VALUES (${telegramId}, ${finalEmail}, ${userData.firstName}, ${userData.lastName}, ${userData.username}, ${userData.personalCode}, ${userData.withdrawBalance || '0'}, ${userData.totalEarnings || '0'}, ${userData.adsWatched || 0}, ${userData.dailyAdsWatched || 0}, ${userData.dailyEarnings || '0'}, ${userData.level || 1}, ${userData.flagged || false}, ${userData.banned || false})
+            INSERT INTO users (
+              telegram_id, email, first_name, last_name, username, personal_code, 
+              withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
+              daily_earnings, level, flagged, banned
+            )
+            VALUES (
+              ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
+              ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
+              ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
+              ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
+              ${sanitizedData.banned}
+            )
             RETURNING *
           `);
           const user = result.rows[0] as User;
