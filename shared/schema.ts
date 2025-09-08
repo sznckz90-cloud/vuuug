@@ -92,7 +92,7 @@ export const referrals = pgTable("referrals", {
   id: uuid("id").defaultRandom().primaryKey(),
   referrerId: uuid("referrer_id").references(() => users.id).notNull(),
   refereeId: uuid("referee_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 5 }).default("0.50"),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 5 }).default("0.01"),
   status: varchar("status").default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
