@@ -490,6 +490,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // Debug endpoint for referral issues
+  app.get('/api/debug/referrals', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Get user info
+      const user = await storage.getUser(userId);
+      
+      // Get all earnings for this user
+      const userEarnings = await db
+        .select()
+        .from(earnings)
+        .where(eq(earnings.userId, userId))
+        .orderBy(desc(earnings.createdAt));
+      
+      // Get referrals where user is referrer
+      const myReferrals = await db
+        .select()
+        .from(referrals)
+        .where(eq(referrals.referrerId, userId));
+      
+      // Get referrals where user is referee  
+      const referredBy = await db
+        .select()
+        .from(referrals)
+        .where(eq(referrals.refereeId, userId));
+      
+      res.json({
+        user: {
+          id: user?.id,
+          referralCode: user?.referralCode,
+          balance: user?.balance,
+          totalEarned: user?.totalEarned
+        },
+        earnings: userEarnings,
+        myReferrals: myReferrals,
+        referredBy: referredBy,
+        counts: {
+          totalEarnings: userEarnings.length,
+          referralEarnings: userEarnings.filter(e => e.source === 'referral').length,
+          commissionEarnings: userEarnings.filter(e => e.source === 'referral_commission').length,
+          adEarnings: userEarnings.filter(e => e.source === 'ad_watch').length
+        }
+      });
+    } catch (error) {
+      console.error("Debug referrals error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // Production database fix endpoint - run once to fix referrals
+  app.post('/api/fix-production-referrals', async (req: any, res) => {
+    try {
+      console.log('🔧 Fixing production referral system...');
+      
+      // 1. Update existing referral bonuses from $0.50 to $0.01
+      console.log('📝 Updating referral bonus amounts...');
+      await db.execute(sql`
+        UPDATE ${earnings} 
+        SET amount = '0.01', 
+            description = REPLACE(description, '$0.50', '$0.01')
+        WHERE source = 'referral' 
+        AND amount = '0.50'
+      `);
+      
+      // 2. Ensure referrals table has correct default
+      console.log('🔧 Updating referrals table...');
+      await db.execute(sql`
+        ALTER TABLE ${referrals} 
+        ALTER COLUMN reward_amount SET DEFAULT 0.01
+      `);
+      
+      // 3. Update existing pending referrals to new amount
+      await db.execute(sql`
+        UPDATE ${referrals} 
+        SET reward_amount = '0.01' 
+        WHERE reward_amount = '0.50'
+      `);
+      
+      // 4. Generate referral codes for users who don't have them
+      console.log('🔑 Generating missing referral codes...');
+      const usersWithoutCodes = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`${users.referralCode} IS NULL OR ${users.referralCode} = ''`);
+      
+      for (const user of usersWithoutCodes) {
+        const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await db
+          .update(users)
+          .set({ referralCode })
+          .where(eq(users.id, user.id));
+      }
+      
+      // 5. Get stats for response
+      const totalReferralEarnings = await db
+        .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
+        .from(earnings)
+        .where(eq(earnings.source, 'referral'));
+      
+      const totalReferrals = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(referrals);
+      
+      console.log('✅ Production referral system fixed successfully!');
+      
+      res.json({
+        success: true,
+        message: 'Production referral system fixed successfully!',
+        changes: {
+          updatedReferralBonuses: 'Changed from $0.50 to $0.01',
+          totalReferralEarnings: totalReferralEarnings[0]?.total || '0',
+          totalReferrals: totalReferrals[0]?.count || 0,
+          generatedReferralCodes: usersWithoutCodes.length
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fixing production referrals:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Admin routes
 
 
