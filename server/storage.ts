@@ -90,17 +90,14 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
     try {
-      console.log(`🔍 Looking for user with telegramId: ${telegramId}`);
       // Use raw SQL to avoid Drizzle ORM issues
       const result = await db.execute(sql`
         SELECT * FROM users WHERE telegram_id = ${telegramId} LIMIT 1
       `);
       const user = result.rows[0] as User | undefined;
-      console.log(`✅ Found user:`, user ? `ID: ${user.id}` : 'Not found');
       return user;
     } catch (error) {
-      console.error('❌ Error in getUserByTelegramId:', error);
-      console.error('❌ SQL query failed for telegramId:', telegramId);
+      console.error('Error in getUserByTelegramId:', error);
       throw error;
     }
   }
