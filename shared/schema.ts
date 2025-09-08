@@ -91,12 +91,12 @@ export const withdrawals = pgTable("withdrawals", {
 export const referrals = pgTable("referrals", {
   id: uuid("id").defaultRandom().primaryKey(),
   referrerId: uuid("referrer_id").references(() => users.id).notNull(),
-  referredId: uuid("referred_id").references(() => users.id).notNull(),
+  refereeId: uuid("referee_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 12, scale: 5 }).default("0.50"),
   status: varchar("status").default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
-  uniqueReferral: unique().on(table.referrerId, table.referredId),
+  uniqueReferral: unique().on(table.referrerId, table.refereeId),
 }));
 
 // Referral commissions table
