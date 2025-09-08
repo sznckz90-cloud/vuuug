@@ -185,20 +185,11 @@ export async function sendUserTelegramNotification(userId: string, message: stri
   }
 }
 
-export function formatWelcomeMessage(referralCode?: string): { message: string; inlineKeyboard: any } {
-  const baseUrl = process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com";
-  const referralLink = referralCode ? `${baseUrl}/ref/${referralCode}` : null;
-  
-  const message = `🔥 Welcome to the Future of Ad Earnings! 🔥
-
-😏 Forget those trash apps giving you $0.1 after a month.
-Here, every ad = real cash, fast payouts.
+export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
+  const message = `Welcome to Lightning Sats Bot! You are authenticated ✅
 
 🚀 Your time = Money. No excuses.
-💸 Watch. Earn. Withdraw. Repeat.${referralLink ? `
-
-🎁 Your referral link: ${referralLink}
-Share it and earn bonuses for every friend!` : ''}
+💸 Watch. Earn. Withdraw. Repeat.
 
 👉 Ready to turn your screen-time into income? Let's go!`;
 
@@ -226,8 +217,8 @@ const inlineKeyboard = {
   return { message, inlineKeyboard };
 }
 
-export async function sendWelcomeMessage(userId: string, referralCode?: string): Promise<boolean> {
-  const { message, inlineKeyboard } = formatWelcomeMessage(referralCode);
+export async function sendWelcomeMessage(userId: string): Promise<boolean> {
+  const { message, inlineKeyboard } = formatWelcomeMessage();
   return await sendUserTelegramNotification(userId, message, inlineKeyboard);
 }
 
@@ -263,6 +254,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       level: 1,
       flagged: false,
       banned: false,
+      referralCode: '', // This will be overridden by crypto generation in upsertTelegramUser
     });
 
     console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegram_id}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
@@ -325,8 +317,8 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         }
       }
       
-      const messageSent = await sendWelcomeMessage(chatId, finalUser.referralCode || undefined);
-      console.log('📧 Welcome message sent successfully:', messageSent, 'with referral code:', finalUser.referralCode);
+      const messageSent = await sendWelcomeMessage(chatId);
+      console.log('📧 Welcome message sent successfully:', messageSent);
 
       return true;
     }
@@ -347,8 +339,8 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       }
     }
     
-    const messageSent = await sendWelcomeMessage(chatId, finalUser.referralCode || undefined);
-    console.log('📧 Welcome message sent successfully:', messageSent, 'with referral code:', finalUser.referralCode);
+    const messageSent = await sendWelcomeMessage(chatId);
+    console.log('📧 Welcome message sent successfully:', messageSent);
     
     return true;
   } catch (error) {

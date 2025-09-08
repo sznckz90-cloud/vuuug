@@ -102,7 +102,7 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
         firstName: testUser.first_name,
         lastName: testUser.last_name,
         username: testUser.username,
-        telegramId: testUser.id.toString(),
+        telegram_id: testUser.id.toString(),
         personalCode: testUser.username || testUser.id.toString(),
         withdrawBalance: '0',
         totalEarnings: '0',
@@ -112,6 +112,7 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
         level: 1,
         flagged: false,
         banned: false,
+        referralCode: 'ff0269235650', // Use migrated test user code
       });
       
       // Ensure test user has referral code
@@ -161,13 +162,14 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       level: 1,
       flagged: false,
       banned: false,
+      referralCode: '', // This will be overridden by crypto generation in upsertTelegramUser
     });
     
     // Send welcome message for new users with referral code
     if (isNewUser) {
       try {
         const { sendWelcomeMessage } = await import('./telegram');
-        await sendWelcomeMessage(telegramUser.id.toString(), upsertedUser.referralCode || undefined);
+        await sendWelcomeMessage(telegramUser.id.toString());
       } catch (error) {
         console.error('❌ Failed to send welcome message:', error);
       }

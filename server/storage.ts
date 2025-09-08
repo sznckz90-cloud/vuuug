@@ -20,6 +20,7 @@ import {
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
+import crypto from "crypto";
 
 // Interface for storage operations
 export interface IStorage {
@@ -132,7 +133,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
-    // Sanitize user data to prevent SQL issues
+    // Sanitize user data to prevent SQL issues and generate secure referral code
+    const referralCode = crypto.randomBytes(6).toString('hex');
+    
     const sanitizedData = {
       ...userData,
       firstName: userData.firstName || '',
@@ -146,7 +149,8 @@ export class DatabaseStorage implements IStorage {
       dailyEarnings: userData.dailyEarnings || '0',
       level: userData.level || 1,
       flagged: userData.flagged || false,
-      banned: userData.banned || false
+      banned: userData.banned || false,
+      referralCode: referralCode // Always generate new secure referral code
     };
     
     // Check if user already exists by Telegram ID
@@ -216,14 +220,14 @@ export class DatabaseStorage implements IStorage {
           INSERT INTO users (
             telegram_id, email, first_name, last_name, username, personal_code, 
             withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
-            daily_earnings, level, flagged, banned
+            daily_earnings, level, flagged, banned, referral_code
           )
           VALUES (
             ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
             ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
             ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
             ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-            ${sanitizedData.banned}
+            ${sanitizedData.banned}, ${sanitizedData.referralCode}
           )
           RETURNING *
         `);
@@ -254,14 +258,14 @@ export class DatabaseStorage implements IStorage {
             INSERT INTO users (
               telegram_id, email, first_name, last_name, username, personal_code, 
               withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
-              daily_earnings, level, flagged, banned
+              daily_earnings, level, flagged, banned, referral_code
             )
             VALUES (
               ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
               ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
               ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
               ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-              ${sanitizedData.banned}
+              ${sanitizedData.banned}, ${sanitizedData.referralCode}
             )
             RETURNING *
           `);
@@ -696,16 +700,8 @@ export class DatabaseStorage implements IStorage {
       return user.referralCode;
     }
     
-    // Generate a referral code using user's username or Telegram ID for better tracking
-    let code = user?.username || userId;
-    
-    // If it's too long, truncate and add random suffix
-    if (code.length > 8) {
-      code = code.substring(0, 5) + Math.random().toString(36).substring(2, 5).toUpperCase();
-    }
-    
-    // Make sure it's uppercase
-    code = code.toUpperCase();
+    // Generate a secure random referral code using crypto
+    const code = crypto.randomBytes(6).toString('hex'); // 12-character hex code
     
     await db
       .update(users)
