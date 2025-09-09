@@ -762,9 +762,6 @@ export class DatabaseStorage implements IStorage {
     return user || null;
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users);
-  }
 
   async getReferralByUsers(referrerId: string, refereeId: string): Promise<Referral | null> {
     const [referral] = await db
@@ -1063,6 +1060,137 @@ export class DatabaseStorage implements IStorage {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
     }
+  }
+
+  async getUserReferralEarnings(userId: string): Promise<string> {
+    const [result] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
+      .from(earnings)
+      .where(and(
+        eq(earnings.userId, userId),
+        sql`${earnings.source} IN ('referral_commission', 'referral')`
+      ));
+
+    return result.total;
+  }
+
+  async setUserWallet(userId: string, walletAddress: string): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        walletAddress: walletAddress,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async createPayoutRequest(userId: string, amount: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Get user data
+      const user = await this.getUser(userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      // Check balance
+      const userBalance = parseFloat(user.balance || '0');
+      const payoutAmount = parseFloat(amount);
+      
+      if (userBalance < payoutAmount) {
+        return { success: false, message: 'Insufficient balance' };
+      }
+
+      // Check wallet address
+      if (!user.walletAddress) {
+        return { success: false, message: 'No wallet address set' };
+      }
+
+      // Deduct amount from user balance
+      await db
+        .update(users)
+        .set({
+          balance: sql`COALESCE(${users.balance}, 0) - ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      // Add withdrawal record as earnings (negative amount)
+      await this.addEarning({
+        userId: userId,
+        amount: `-${amount}`,
+        source: 'payout',
+        description: `Payout request: $${amount}`,
+      });
+
+      return { success: true, message: 'Payout request created successfully' };
+    } catch (error) {
+      console.error('Error creating payout request:', error);
+      return { success: false, message: 'Error processing payout request' };
+    }
+  }
+
+  async getAppStats(): Promise<{
+    totalUsers: number;
+    activeUsersToday: number;
+    totalInvites: number;
+    totalEarnings: string;
+    totalReferralEarnings: string;
+    totalPayouts: string;
+    newUsersLast24h: number;
+  }> {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+
+    // Total users
+    const [totalUsersResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users);
+
+    // Active users today (users who earned something today)
+    const [activeUsersResult] = await db
+      .select({ count: sql<number>`count(DISTINCT ${earnings.userId})` })
+      .from(earnings)
+      .where(gte(earnings.createdAt, today));
+
+    // Total invites
+    const [totalInvitesResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(referrals);
+
+    // Total earnings (positive amounts only)
+    const [totalEarningsResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
+      .from(earnings)
+      .where(sql`${earnings.amount} > 0`);
+
+    // Total referral earnings
+    const [totalReferralEarningsResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
+      .from(earnings)
+      .where(sql`${earnings.source} IN ('referral_commission', 'referral')`);
+
+    // Total payouts (negative amounts)
+    const [totalPayoutsResult] = await db
+      .select({ total: sql<string>`COALESCE(ABS(SUM(${earnings.amount})), '0')` })
+      .from(earnings)
+      .where(eq(earnings.source, 'payout'));
+
+    // New users in last 24h
+    const [newUsersResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(gte(users.createdAt, yesterday));
+
+    return {
+      totalUsers: totalUsersResult.count || 0,
+      activeUsersToday: activeUsersResult.count || 0,
+      totalInvites: totalInvitesResult.count || 0,
+      totalEarnings: totalEarningsResult.total || '0',
+      totalReferralEarnings: totalReferralEarningsResult.total || '0',
+      totalPayouts: totalPayoutsResult.total || '0',
+      newUsersLast24h: newUsersResult.count || 0,
+    };
   }
 }
 
