@@ -12,24 +12,10 @@ export default function Profile() {
   const { isAdmin } = useAdmin();
   const { toast } = useToast();
 
-  // Fetch referral link for affiliates section
-  const { data: affiliateStats } = useQuery({
-    queryKey: ['affiliateStats'],
-    queryFn: async () => {
-      const response = await fetch('/api/affiliates/stats', {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch affiliate stats');
-      }
-      return response.json();
-    },
-    enabled: !!user,
-  });
-
   const handleCopyReferralLink = () => {
-    if (affiliateStats?.referralLink) {
-      navigator.clipboard.writeText(affiliateStats.referralLink);
+    const referralLink = (user as any)?.referralLink;
+    if (referralLink) {
+      navigator.clipboard.writeText(referralLink);
       toast({
         title: "Copied!",
         description: "Referral link copied to clipboard",
@@ -115,10 +101,10 @@ export default function Profile() {
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Affiliates</h3>
               
-              {affiliateStats?.referralLink ? (
+              {(user as any)?.referralLink ? (
                 <div className="space-y-3">
                   <div className="p-3 bg-muted rounded-lg break-all text-sm font-mono">
-                    {affiliateStats.referralLink}
+                    {(user as any).referralLink}
                   </div>
                   <Button 
                     onClick={handleCopyReferralLink}
@@ -130,7 +116,7 @@ export default function Profile() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <div className="text-muted-foreground">Loading referral link...</div>
+                  <div className="text-muted-foreground">Referral link not available</div>
                 </div>
               )}
             </CardContent>
