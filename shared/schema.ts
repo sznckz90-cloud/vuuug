@@ -29,7 +29,7 @@ export const sessions = pgTable(
 
 // Users table
 export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   telegram_id: varchar("telegram_id", { length: 20 }).unique(), // ✅ Telegram ID for authentication (stored as string for compatibility)
   username: varchar("username"),
   email: text("email"),
@@ -66,7 +66,7 @@ export const users = pgTable("users", {
 // Earnings table
 export const earnings = pgTable("earnings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: uuid("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
   amount: decimal("amount", { precision: 12, scale: 8 }).notNull(),
   source: varchar("source").notNull(),
   description: text("description"),
@@ -75,8 +75,8 @@ export const earnings = pgTable("earnings", {
 
 // Withdrawals table
 export const withdrawals = pgTable("withdrawals", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => users.id).notNull(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
   amount: decimal("amount", { precision: 12, scale: 8 }).notNull(),
   status: varchar("status").default('pending'),
   method: varchar("method").notNull(),
@@ -89,9 +89,9 @@ export const withdrawals = pgTable("withdrawals", {
 
 // Referrals table
 export const referrals = pgTable("referrals", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  referrerId: uuid("referrer_id").references(() => users.id).notNull(),
-  refereeId: uuid("referee_id").references(() => users.id).notNull(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  refereeId: varchar("referee_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 12, scale: 5 }).default("0.01"),
   status: varchar("status").default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -101,9 +101,9 @@ export const referrals = pgTable("referrals", {
 
 // Referral commissions table
 export const referralCommissions = pgTable("referral_commissions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  referrerId: uuid("referrer_id").references(() => users.id).notNull(),
-  referredUserId: uuid("referred_user_id").references(() => users.id).notNull(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
   originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
   commissionAmount: decimal("commission_amount", { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -111,7 +111,7 @@ export const referralCommissions = pgTable("referral_commissions", {
 
 // Promo codes table
 export const promoCodes = pgTable("promo_codes", {
-  id: uuid("id").defaultRandom().primaryKey(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   code: varchar("code").unique().notNull(),
   rewardAmount: decimal("reward_amount", { precision: 12, scale: 2 }).notNull(),
   rewardCurrency: varchar("reward_currency").default("USDT"),
@@ -126,9 +126,9 @@ export const promoCodes = pgTable("promo_codes", {
 
 // Promo code usage tracking
 export const promoCodeUsage = pgTable("promo_code_usage", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  promoCodeId: uuid("promo_code_id").references(() => promoCodes.id).notNull(),
-  userId: uuid("user_id").references(() => users.id).notNull(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 12, scale: 2 }).notNull(),
   usedAt: timestamp("used_at").defaultNow(),
 });
