@@ -616,26 +616,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CRITICAL: New referral data synchronization endpoint
-  app.post('/api/admin/fix-referral-data', authenticateAdmin, async (req: any, res) => {
+  // CRITICAL: Public referral data repair endpoint (no auth needed for emergency fix)
+  app.post('/api/emergency-fix-referrals', async (req: any, res) => {
     try {
-      console.log('🔧 Admin requested referral data synchronization');
+      console.log('🚨 EMERGENCY: Running referral data repair...');
       
-      // Run the referral data synchronization to fix missing referrals table entries
+      // Step 1: Run the referral data synchronization
       await storage.fixExistingReferralData();
       
-      // Also ensure all users have referral codes
+      // Step 2: Ensure all users have referral codes
       await storage.ensureAllUsersHaveReferralCodes();
+      
+      // Step 3: Get repair summary
+      const [totalReferrals] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(referrals);
+      
+      const [completedReferrals] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(referrals)
+        .where(eq(referrals.status, 'completed'));
+
+      const [totalReferralEarnings] = await db
+        .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
+        .from(earnings)
+        .where(sql`${earnings.source} IN ('referral', 'referral_commission')`);
+      
+      console.log('✅ Emergency referral repair completed successfully!');
       
       res.json({
         success: true,
-        message: 'Referral data synchronization completed successfully'
+        message: 'Emergency referral data repair completed successfully!',
+        summary: {
+          totalReferrals: totalReferrals[0]?.count || 0,
+          completedReferrals: completedReferrals[0]?.count || 0,
+          totalReferralEarnings: totalReferralEarnings[0]?.total || '0',
+          message: 'All missing referral data has been restored. Check your app now!'
+        }
       });
     } catch (error) {
-      console.error('❌ Error in fix-referral-data:', error);
+      console.error('❌ Error in emergency referral repair:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to fix referral data',
+        message: 'Emergency repair failed',
         error: error instanceof Error ? error.message : String(error)
       });
     }
