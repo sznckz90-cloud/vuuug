@@ -52,14 +52,6 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs">Stats</span>
             </button>
           </Link>
-          <Link href="/cashout">
-            <button className={`flex flex-col items-center p-3 transition-colors ${
-              location === "/cashout" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-cashout">
-              <i className="fas fa-dollar-sign text-xl mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs">Cashout</span>
-            </button>
-          </Link>
         </div>
       </nav>
 
