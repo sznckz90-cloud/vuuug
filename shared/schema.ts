@@ -52,7 +52,6 @@ export const users = pgTable("users", {
   level: integer("level").default(1),
   referredBy: varchar("referred_by"),
   referralCode: text("referral_code").notNull(),
-  walletAddress: text("wallet_address"),
   flagged: boolean("flagged").default(false),
   flagReason: text("flag_reason"),
   banned: boolean("banned").default(false),
