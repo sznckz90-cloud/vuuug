@@ -143,7 +143,7 @@ export default function Affiliates() {
                   ${stats?.totalReferralEarnings || '0.00000'}
                 </div>
                 <div className="text-muted-foreground text-sm">
-                  Total Referral Earnings (withdrawable)
+                  Total Referral Earnings (fully withdrawable)
                 </div>
               </CardContent>
             </Card>
