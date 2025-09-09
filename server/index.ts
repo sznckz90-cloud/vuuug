@@ -30,6 +30,36 @@ app.post('/api/telegram/webhook', async (req: any, res) => {
   }
 });
 
+// CRITICAL: Emergency referral fix endpoint - MUST be before other middleware
+app.post('/api/emergency-fix-referrals', async (req: any, res) => {
+  try {
+    console.log('🚨 EMERGENCY: Running referral data repair...');
+    
+    const { storage } = await import('./storage');
+    
+    // Step 1: Run the referral data synchronization
+    await storage.fixExistingReferralData();
+    
+    // Step 2: Ensure all users have referral codes
+    await storage.ensureAllUsersHaveReferralCodes();
+    
+    console.log('✅ Emergency referral repair completed successfully!');
+    
+    res.json({
+      success: true,
+      message: 'Emergency referral data repair completed successfully!',
+      instructions: 'All missing referral data has been restored. Refresh your app to see the updated referral count and balance!'
+    });
+  } catch (error) {
+    console.error('❌ Error in emergency referral repair:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Emergency repair failed',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 // Test endpoint
 app.get('/api/test-direct', (req: any, res) => {
   console.log('✅ Direct test route called!');
