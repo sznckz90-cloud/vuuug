@@ -416,22 +416,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(referrals)
         .where(eq(referrals.referrerId, userId));
 
-      // Get total commission earned from referral commissions (not referral bonuses)
-      const totalCommissionEarned = await db
-        .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
-        .from(earnings)
+      // Get count of successful referrals (those who watched ≥10 ads)
+      const successfulReferrals = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(referrals)
         .where(and(
-          eq(earnings.userId, userId),
-          eq(earnings.source, 'referral_commission')
+          eq(referrals.referrerId, userId),
+          eq(referrals.status, 'completed')
         ));
 
-      // Get referral bonus earned (separate from commissions)
-      const totalReferralBonus = await db
+      // Get total referral earnings (both commissions and bonuses) - all go to main balance
+      const totalReferralEarnings = await db
         .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
         .from(earnings)
         .where(and(
           eq(earnings.userId, userId),
-          eq(earnings.source, 'referral')
+          sql`${earnings.source} IN ('referral_commission', 'referral')`
         ));
 
       // Get current user's referral code
@@ -472,8 +472,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         totalFriendsReferred: totalFriendsReferred[0]?.count || 0,
-        totalCommissionEarned: totalCommissionEarned[0]?.total || '0.00000',
-        totalReferralBonus: totalReferralBonus[0]?.total || '0.00000',
+        successfulReferrals: successfulReferrals[0]?.count || 0,
+        totalReferralEarnings: totalReferralEarnings[0]?.total || '0.00000',
         referralLink,
         referrals: referralsList.map(r => ({
           refereeId: r.refereeId,
