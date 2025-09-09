@@ -274,6 +274,8 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           
           if (referrer) {
             console.log(`👤 Found referrer: ${referrer.id} (${referrer.firstName || 'No name'}) via referral code: ${referralCode}`);
+            console.log(`🔍 Referrer details: ID=${referrer.id}, TelegramID=${referrer.telegram_id}, RefCode=${referrer.referralCode}`);
+            console.log(`🔍 New user details: ID=${dbUser.id}, TelegramID=${dbUser.telegram_id}, RefCode=${dbUser.referralCode}`);
             
             // Verify both users have valid IDs before creating referral
             if (!referrer.id || !dbUser.id) {
@@ -285,8 +287,23 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             if (referrer.id === dbUser.id) {
               console.log(`⚠️  Self-referral prevented: referrer.id=${referrer.id} === dbUser.id=${dbUser.id}`);
             } else {
-              await storage.createReferral(referrer.id, dbUser.id);
-              console.log(`✅ Referral created successfully: ${referrer.id} -> ${dbUser.id}`);
+              console.log(`💾 Creating referral relationship: ${referrer.id} -> ${dbUser.id}`);
+              const createdReferral = await storage.createReferral(referrer.id, dbUser.id);
+              console.log(`✅ Referral created successfully in database:`, {
+                referralId: createdReferral.id,
+                referrerId: createdReferral.referrerId,
+                refereeId: createdReferral.refereeId,
+                status: createdReferral.status,
+                rewardAmount: createdReferral.rewardAmount
+              });
+              
+              // Verify the referral was saved by querying it back
+              const verifyReferral = await storage.getReferralByUsers(referrer.id, dbUser.id);
+              if (verifyReferral) {
+                console.log(`✅ Referral verification successful - found in database`);
+              } else {
+                console.error(`❌ Referral verification failed - not found in database after creation`);
+              }
               
               // Send notification to referrer about successful referral
               try {
@@ -296,12 +313,24 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                   referrer.telegram_id || '',
                   `🎉 Great news! ${newUserName} joined using your referral link. You'll earn $0.01 when they watch 10 ads!`
                 );
+                console.log(`📧 Referral notification sent to referrer: ${referrer.telegram_id}`);
               } catch (notificationError) {
                 console.error('❌ Failed to send referral notification:', notificationError);
               }
             }
           } else {
             console.log(`❌ Invalid referral code: ${referralCode} - no user found with this referral code`);
+            // Let's also check what referral codes exist in the database
+            console.log(`🔍 Debugging: Let's check existing referral codes...`);
+            try {
+              const allUsers = await storage.getAllUsers(); // We'll need to implement this
+              console.log(`📋 Total users in database: ${allUsers.length}`);
+              allUsers.forEach(user => {
+                console.log(`  - User ${user.id}: RefCode="${user.referralCode}", TelegramID=${user.telegram_id}`);
+              });
+            } catch (debugError) {
+              console.error('❌ Failed to fetch users for debugging:', debugError);
+            }
           }
         } catch (error) {
           console.error('❌ Referral processing failed:', error);

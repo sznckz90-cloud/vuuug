@@ -490,6 +490,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // Sync referral data endpoint - fixes referral tracking issues
+  app.post('/api/admin/sync-referrals', async (req: any, res) => {
+    try {
+      console.log('🔄 Starting manual referral data synchronization...');
+      
+      // Step 1: Ensure all users have referral codes
+      await storage.ensureAllUsersHaveReferralCodes();
+      console.log('✅ Step 1: All users now have referral codes');
+      
+      // Step 2: Sync existing referral data 
+      await storage.fixExistingReferralData();
+      console.log('✅ Step 2: Existing referral data synchronized');
+      
+      // Step 3: Get current stats
+      const totalUsers = await db.select({ count: sql<number>`count(*)` }).from(users);
+      const totalReferrals = await db.select({ count: sql<number>`count(*)` }).from(referrals);
+      
+      console.log(`✅ Referral sync complete: ${totalUsers[0]?.count || 0} users, ${totalReferrals[0]?.count || 0} referrals`);
+      
+      res.json({
+        success: true,
+        message: 'Referral data synchronization completed',
+        stats: {
+          totalUsers: totalUsers[0]?.count || 0,
+          totalReferrals: totalReferrals[0]?.count || 0
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error syncing referral data:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to sync referral data',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Debug endpoint for referral issues
   app.get('/api/debug/referrals', authenticateTelegram, async (req: any, res) => {
     try {

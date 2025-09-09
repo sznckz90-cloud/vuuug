@@ -133,9 +133,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
-    // Sanitize user data to prevent SQL issues and generate secure referral code
-    const referralCode = crypto.randomBytes(6).toString('hex');
-    
+    // Sanitize user data to prevent SQL issues
     const sanitizedData = {
       ...userData,
       firstName: userData.firstName || '',
@@ -149,8 +147,8 @@ export class DatabaseStorage implements IStorage {
       dailyEarnings: userData.dailyEarnings || '0',
       level: userData.level || 1,
       flagged: userData.flagged || false,
-      banned: userData.banned || false,
-      referralCode: referralCode // Always generate new secure referral code
+      banned: userData.banned || false
+      // NOTE: Don't generate referral code here - it will be handled separately for new users only
     };
     
     // Check if user already exists by Telegram ID
@@ -220,14 +218,14 @@ export class DatabaseStorage implements IStorage {
           INSERT INTO users (
             telegram_id, email, first_name, last_name, username, personal_code, 
             withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
-            daily_earnings, level, flagged, banned, referral_code
+            daily_earnings, level, flagged, banned
           )
           VALUES (
             ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
             ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
             ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
             ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-            ${sanitizedData.banned}, ${sanitizedData.referralCode}
+            ${sanitizedData.banned}
           )
           RETURNING *
         `);
@@ -258,14 +256,14 @@ export class DatabaseStorage implements IStorage {
             INSERT INTO users (
               telegram_id, email, first_name, last_name, username, personal_code, 
               withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
-              daily_earnings, level, flagged, banned, referral_code
+              daily_earnings, level, flagged, banned
             )
             VALUES (
               ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
               ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
               ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
               ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-              ${sanitizedData.banned}, ${sanitizedData.referralCode}
+              ${sanitizedData.banned}
             )
             RETURNING *
           `);
@@ -762,6 +760,22 @@ export class DatabaseStorage implements IStorage {
   async getUserByReferralCode(referralCode: string): Promise<User | null> {
     const [user] = await db.select().from(users).where(eq(users.referralCode, referralCode)).limit(1);
     return user || null;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async getReferralByUsers(referrerId: string, refereeId: string): Promise<Referral | null> {
+    const [referral] = await db
+      .select()
+      .from(referrals)
+      .where(and(
+        eq(referrals.referrerId, referrerId),
+        eq(referrals.refereeId, refereeId)
+      ))
+      .limit(1);
+    return referral || null;
   }
 
   // Helper method to ensure all users have referral codes
