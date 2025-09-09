@@ -22,6 +22,28 @@ interface TelegramMessage {
   };
 }
 
+// Simple in-memory state management for payout flow
+const userPayoutStates = new Map();
+
+interface PayoutState {
+  step: 'awaiting_details' | 'awaiting_confirmation';
+  paymentSystem: any;
+  amount: string;
+  paymentDetails?: string;
+}
+
+function setUserPayoutState(chatId: string, state: PayoutState) {
+  userPayoutStates.set(chatId, state);
+}
+
+function getUserPayoutState(chatId: string): PayoutState | null {
+  return userPayoutStates.get(chatId) || null;
+}
+
+function clearUserPayoutState(chatId: string) {
+  userPayoutStates.delete(chatId);
+}
+
 export async function sendTelegramMessage(message: string): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_ID) {
     console.error('Telegram bot token or admin ID not configured');
@@ -57,87 +79,6 @@ export async function sendTelegramMessage(message: string): Promise<boolean> {
   }
 }
 
-export function formatWithdrawalNotification(
-  userId: string,
-  amount: string,
-  method: string,
-  details: any,
-  userName?: string
-): string {
-  const displayName = userName || `User ${userId}`;
-  const methodName = method === 'usdt_polygon' ? 'Tether (Polygon POS)' : 'Litecoin (LTC)';
-  
-  let address = '';
-  if (details.usdt_polygon) {
-    address = details.usdt_polygon;
-  } else if (details.litecoin) {
-    address = details.litecoin;
-  }
-
-  // Calculate commission and net amount
-  const withdrawalAmount = parseFloat(amount);
-  const commissionAmount = method === 'usdt_polygon' ? 0.02 : 0.05; // Based on your payment methods
-  const netAmount = withdrawalAmount - commissionAmount;
-
-  return `
-🔔 <b>New Withdrawal Request</b>
-
-👤 <b>User:</b> ${displayName}
-🆔 <b>Telegram ID:</b> ${userId}
-💰 <b>Withdrawal Amount:</b> $${amount}
-💳 <b>Commission:</b> $${commissionAmount.toFixed(2)}
-🎯 <b>Send to User:</b> $${netAmount.toFixed(2)}
-🏦 <b>Method:</b> ${methodName}
-📍 <b>Address:</b> <code>${address}</code>
-
-⏰ <b>Time:</b> ${new Date().toLocaleString()}
-
-<i>⚠️ Send $${netAmount.toFixed(2)} to the address above (after commission deduction)</i>
-  `.trim();
-}
-
-export function formatUserNotification(
-  amount: string,
-  method: string,
-  status: string,
-  transactionHash?: string
-): string {
-  const methodName = method === 'usdt_polygon' ? 'Tether (Polygon POS)' : 'Litecoin (LTC)';
-  
-  const statusEmoji = {
-    completed: '✅',
-    failed: '❌',
-    processing: '⏳'
-  }[status] || '⏳';
-
-  const statusText = {
-    completed: 'Completed',
-    failed: 'Failed',
-    processing: 'Processing'
-  }[status] || 'Processing';
-
-  let message = `
-${statusEmoji} <b>Withdrawal ${statusText}</b>
-
-💰 <b>Amount:</b> $${amount}
-🏦 <b>Method:</b> ${methodName}
-📊 <b>Status:</b> ${statusText}
-⏰ <b>Updated:</b> ${new Date().toLocaleString()}`;
-
-  if (status === 'completed' && transactionHash) {
-    message += `\n🔗 <b>Transaction:</b> <code>${transactionHash}</code>`;
-  }
-
-  if (status === 'completed') {
-    message += `\n\n🎉 <i>Your payment has been sent successfully!</i>`;
-  } else if (status === 'failed') {
-    message += `\n\n😞 <i>Payment failed. Please contact support.</i>`;
-  } else {
-    message += `\n\n⏳ <i>Your withdrawal is being processed...</i>`;
-  }
-
-  return message.trim();
-}
 
 export async function sendUserTelegramNotification(userId: string, message: string, replyMarkup?: any): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -219,7 +160,15 @@ const inlineKeyboard = {
 
 export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   const { message, inlineKeyboard } = formatWelcomeMessage();
-  return await sendUserTelegramNotification(userId, message, inlineKeyboard);
+  const keyboard = createBotKeyboard();
+  
+  // Combine inline keyboard and reply keyboard
+  const replyMarkup = {
+    ...inlineKeyboard,
+    reply_markup: keyboard
+  };
+  
+  return await sendUserTelegramNotification(userId, message, replyMarkup);
 }
 
 // Admin broadcast functionality
@@ -317,6 +266,224 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         }
       }
       
+      // Handle payment system selection
+      if (data && data.startsWith('payout_')) {
+        const paymentSystemId = data.replace('payout_', '');
+        
+        try {
+          // Get user from database  
+          const dbUser = await storage.getUser(chatId);
+          if (!dbUser) {
+            console.error('❌ User not found for payout callback');
+            return true;
+          }
+          
+          // Import payment systems
+          const { PAYMENT_SYSTEMS } = await import('./storage');
+          const selectedSystem = PAYMENT_SYSTEMS.find(system => system.id === paymentSystemId);
+          
+          if (!selectedSystem) {
+            console.error('❌ Invalid payment system selected:', paymentSystemId);
+            return true;
+          }
+          
+          const userBalance = parseFloat(dbUser.balance || '0');
+          
+          // Check if balance meets minimum for selected payment system
+          if (userBalance < selectedSystem.minWithdrawal) {
+            const insufficientMessage = `Your balance is not enough for ${selectedSystem.name}. Minimum withdrawal is $${selectedSystem.minWithdrawal.toFixed(2)}.`;
+            
+            // Answer callback query first
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: insufficientMessage,
+                show_alert: true
+              })
+            });
+            return true;
+          }
+          
+          // Set user state for payout flow
+          setUserPayoutState(chatId, {
+            step: 'awaiting_details',
+            paymentSystem: selectedSystem,
+            amount: userBalance.toString()
+          });
+          
+          // Ask for payment details based on system
+          let detailsMessage = '';
+          let instructionText = '';
+          
+          switch (selectedSystem.id) {
+            case 'telegram_stars':
+              detailsMessage = `💫 Telegram Stars Payout\n\nAmount: $${userBalance.toFixed(2)}\nMinimum: $${selectedSystem.minWithdrawal.toFixed(2)}\n\n📝 Please enter your Telegram username (without @):`;
+              instructionText = 'Please provide your Telegram username';
+              break;
+            case 'tether_polygon':
+              detailsMessage = `🔶 Tether (Polygon) Payout\n\nAmount: $${userBalance.toFixed(2)}\nMinimum: $${selectedSystem.minWithdrawal.toFixed(2)}\n\n📝 Please enter your Polygon wallet address:`;
+              instructionText = 'Please provide your Polygon wallet address';
+              break;
+            case 'ton_coin':
+              detailsMessage = `💎 TON Coin Payout\n\nAmount: $${userBalance.toFixed(2)}\nMinimum: $${selectedSystem.minWithdrawal.toFixed(2)}\n\n📝 Please enter your TON wallet address:`;
+              instructionText = 'Please provide your TON wallet address';
+              break;
+            case 'litecoin':
+              detailsMessage = `🪙 Litecoin Payout\n\nAmount: $${userBalance.toFixed(2)}\nMinimum: $${selectedSystem.minWithdrawal.toFixed(2)}\n\n📝 Please enter your Litecoin wallet address:`;
+              instructionText = 'Please provide your Litecoin wallet address';
+              break;
+            default:
+              detailsMessage = `Payment details required for ${selectedSystem.name}`;
+              instructionText = 'Please provide your payment details';
+          }
+          
+          // Answer callback query
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: instructionText
+            })
+          });
+          
+          // Edit original message to ask for payment details
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              message_id: callbackQuery.message.message_id,
+              text: detailsMessage
+            })
+          });
+          
+        } catch (error) {
+          console.error('❌ Error processing payout callback:', error);
+          
+          // Answer callback query with error
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Failed to process payout request. Please try again.',
+              show_alert: true
+            })
+          });
+        }
+      }
+      
+      // Handle payout confirmation
+      if (data && data.startsWith('confirm_payout_')) {
+        const confirmationData = JSON.parse(data.replace('confirm_payout_', ''));
+        
+        try {
+          const dbUser = await storage.getUser(chatId);
+          if (!dbUser) {
+            console.error('❌ User not found for payout confirmation');
+            return true;
+          }
+          
+          // Process the payout with collected details
+          const payoutResult = await storage.createPayoutRequest(
+            dbUser.id, 
+            confirmationData.amount, 
+            confirmationData.paymentSystemId,
+            confirmationData.paymentDetails
+          );
+          
+          if (payoutResult.success) {
+            const successMessage = `✅ Payout Request Confirmed\n\nYour ${confirmationData.paymentSystemName} withdrawal request has been submitted successfully and will be processed within 1 hour.\n\n📧 You'll receive a notification once processed.`;
+            
+            // Answer callback query
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callback_query_id: callbackQuery.id })
+            });
+            
+            // Edit message with success
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id,
+                text: successMessage
+              })
+            });
+            
+            // Clear user state
+            clearUserPayoutState(chatId);
+            
+            // Send admin notification with payment details
+            const userName = dbUser.firstName || dbUser.username || 'User';
+            const adminMessage = `💰 New Payout Request\n\n👤 User: ${userName}\n🆔 Telegram ID: ${dbUser.telegram_id}\n💰 Amount: $${parseFloat(confirmationData.amount).toFixed(2)}\n💳 Payment System: ${confirmationData.paymentSystemName}\n📋 Payment Details: ${confirmationData.paymentDetails}\n⏰ Time: ${new Date().toLocaleString()}`;
+            
+            if (TELEGRAM_ADMIN_ID) {
+              await sendUserTelegramNotification(TELEGRAM_ADMIN_ID, adminMessage);
+            }
+          } else {
+            // Answer callback query with error
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: payoutResult.message,
+                show_alert: true
+              })
+            });
+            
+            // Clear user state on error
+            clearUserPayoutState(chatId);
+          }
+        } catch (error) {
+          console.error('❌ Error confirming payout:', error);
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Failed to confirm payout. Please try again.',
+              show_alert: true
+            })
+          });
+          
+          clearUserPayoutState(chatId);
+        }
+      }
+      
+      // Handle payout cancellation
+      if (data === 'cancel_payout') {
+        clearUserPayoutState(chatId);
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            callback_query_id: callbackQuery.id,
+            text: 'Payout request cancelled'
+          })
+        });
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            message_id: callbackQuery.message.message_id,
+            text: '❌ Payout request cancelled. You can request a new withdrawal anytime by using /payout or the 💰 Request Payout button.'
+          })
+        });
+        
+        return true;
+      }
+      
       return true;
     }
     
@@ -385,90 +552,34 @@ ${referralLink}
       return true;
     }
     
-    // Handle /wallet command
-    if (text.startsWith('/wallet')) {
-      console.log('💳 Processing /wallet command...');
-      
-      const args = text.split(' ');
-      
-      if (args.length === 1) {
-        // Show current wallet or prompt to set one
-        if (dbUser.walletAddress) {
-          const walletMessage = `💳 Your current wallet address:\n\n${dbUser.walletAddress}\n\nTo change your wallet, send: /wallet [new_address]`;
-          await sendUserTelegramNotification(chatId, walletMessage);
-        } else {
-          const promptMessage = '💳 You haven\'t set a wallet address yet.\n\nTo set your wallet, send: /wallet [your_wallet_address]';
-          await sendUserTelegramNotification(chatId, promptMessage);
-        }
-        return true;
-      }
-      
-      // Set new wallet address
-      const walletAddress = args.slice(1).join(' ').trim();
-      
-      if (!walletAddress) {
-        const errorMessage = '❌ Please provide a valid wallet address.\n\nExample: /wallet 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';
-        await sendUserTelegramNotification(chatId, errorMessage);
-        return true;
-      }
-      
-      try {
-        await storage.setUserWallet(dbUser.id, walletAddress);
-        const successMessage = '✅ Your wallet has been set successfully. You can now request a payout.';
-        await sendUserTelegramNotification(chatId, successMessage);
-      } catch (error) {
-        console.error('❌ Error setting wallet:', error);
-        const errorMessage = '❌ Failed to set wallet address. Please try again.';
-        await sendUserTelegramNotification(chatId, errorMessage);
-      }
-      
-      return true;
-    }
     
     // Handle /payout command
     if (text === '/payout') {
       console.log('💰 Processing /payout command...');
       
-      // Check minimum balance
+      // Check overall minimum balance (lowest across all payment systems)
       const userBalance = parseFloat(dbUser.balance || '0');
+      const { PAYMENT_SYSTEMS } = await import('./storage');
+      const minOverallBalance = Math.min(...PAYMENT_SYSTEMS.map(p => p.minWithdrawal));
       
-      if (userBalance < 0.5) {
-        const insufficientMessage = '❌ There are not enough funds on your balance. The minimum amount to withdraw is $0.5';
+      if (userBalance < minOverallBalance) {
+        const insufficientMessage = `❌ There are not enough funds on your balance. The minimum amount to withdraw is $${minOverallBalance.toFixed(2)}`;
         await sendUserTelegramNotification(chatId, insufficientMessage);
         return true;
       }
       
-      // Check if wallet is set
-      if (!dbUser.walletAddress) {
-        const noWalletMessage = '❌ Please set your wallet first using /wallet';
-        await sendUserTelegramNotification(chatId, noWalletMessage);
-        return true;
-      }
-      
-      try {
-        // Create payout request
-        const payoutResult = await storage.createPayoutRequest(dbUser.id, userBalance.toString());
-        
-        if (payoutResult.success) {
-          // Send success message to user
-          const successMessage = '✅ The payout request has been successfully created and will be processed within an hour';
-          await sendUserTelegramNotification(chatId, successMessage);
-          
-          // Send notification to admin
-          const userName = dbUser.firstName || dbUser.username || 'User';
-          const adminMessage = `💰 New Payout Request\n\n👤 User: ${userName}\n🆔 Telegram ID: ${dbUser.telegram_id}\n💰 Amount: $${userBalance.toFixed(2)}\n💳 Wallet: ${dbUser.walletAddress}\n⏰ Time: ${new Date().toLocaleString()}`;
-          
-          if (TELEGRAM_ADMIN_ID) {
-            await sendUserTelegramNotification(TELEGRAM_ADMIN_ID, adminMessage);
+      // Show payment system selection keyboard
+      const paymentKeyboard = {
+        inline_keyboard: PAYMENT_SYSTEMS.map(system => [
+          { 
+            text: `${system.emoji} ${system.name}`, 
+            callback_data: `payout_${system.id}` 
           }
-        } else {
-          await sendUserTelegramNotification(chatId, payoutResult.message);
-        }
-      } catch (error) {
-        console.error('❌ Error processing payout:', error);
-        const errorMessage = '❌ Failed to process payout request. Please try again.';
-        await sendUserTelegramNotification(chatId, errorMessage);
-      }
+        ])
+      };
+      
+      const payoutMessage = `Select Payment System:\n\nYour balance: $${userBalance.toFixed(2)}`;
+      await sendUserTelegramNotification(chatId, payoutMessage, paymentKeyboard);
       
       return true;
     }
@@ -697,11 +808,130 @@ ${referralLink}
       return true;
     }
 
-    // For any other message, respond with "Please use /start"
+    // Handle keyboard button presses
+    if (text === '👤 Account') {
+      console.log('⌨️ Processing Account button press -> /profile');
+      // Redirect to /profile command handling  
+      return await handleTelegramMessage({ message: { ...update.message, text: '/profile' } });
+    }
+    
+    if (text === '👥 Invite Friends') {
+      console.log('⌨️ Processing Invite Friends button press -> /affiliates');
+      // Redirect to /affiliates command handling
+      return await handleTelegramMessage({ message: { ...update.message, text: '/affiliates' } });
+    }
+    
+    if (text === '💰 Request Payout') {
+      console.log('⌨️ Processing Request Payout button press -> /payout');
+      // Redirect to /payout command handling
+      return await handleTelegramMessage({ message: { ...update.message, text: '/payout' } });
+    }
+    
+    if (text === '🏠 Start Earning') {
+      console.log('⌨️ Processing Start Earning button press');
+      // Send welcome message with web app link
+      const keyboard = createBotKeyboard();
+      const { message } = formatWelcomeMessage();
+      const messageSent = await sendUserTelegramNotification(chatId, message, { reply_markup: keyboard });
+      console.log('📧 Start Earning message sent successfully:', messageSent);
+      return true;
+    }
+
+    // Handle payment detail collection
+    const payoutState = getUserPayoutState(chatId);
+    if (payoutState && payoutState.step === 'awaiting_details') {
+      console.log('💳 Processing payment details from user:', chatId);
+      
+      const paymentDetails = text.trim();
+      
+      // Validate payment details based on system
+      let isValid = false;
+      let errorMessage = '';
+      
+      switch (payoutState.paymentSystem.id) {
+        case 'telegram_stars':
+          // Validate Telegram username (should not start with @)
+          if (paymentDetails && !paymentDetails.startsWith('@') && paymentDetails.length > 0) {
+            isValid = true;
+          } else {
+            errorMessage = '❌ Please enter a valid Telegram username without the @ symbol.';
+          }
+          break;
+        case 'tether_polygon':
+          // Basic wallet address validation (starts with 0x and is 42 characters)
+          if (paymentDetails.startsWith('0x') && paymentDetails.length === 42) {
+            isValid = true;
+          } else {
+            errorMessage = '❌ Please enter a valid Polygon wallet address (starts with 0x and is 42 characters long).';
+          }
+          break;
+        case 'ton_coin':
+          // Basic TON address validation (starts with EQ or UQ and has proper length)
+          if ((paymentDetails.startsWith('EQ') || paymentDetails.startsWith('UQ')) && paymentDetails.length === 48) {
+            isValid = true;
+          } else {
+            errorMessage = '❌ Please enter a valid TON wallet address (starts with EQ or UQ and is 48 characters long).';
+          }
+          break;
+        case 'litecoin':
+          // Basic Litecoin address validation (starts with L or M and proper length)
+          if ((paymentDetails.startsWith('L') || paymentDetails.startsWith('M')) && paymentDetails.length >= 26 && paymentDetails.length <= 35) {
+            isValid = true;
+          } else {
+            errorMessage = '❌ Please enter a valid Litecoin address (starts with L or M and is 26-35 characters long).';
+          }
+          break;
+        default:
+          isValid = paymentDetails.length > 0;
+      }
+      
+      if (!isValid) {
+        await sendUserTelegramNotification(chatId, errorMessage);
+        return true;
+      }
+      
+      // Update state with payment details
+      setUserPayoutState(chatId, {
+        ...payoutState,
+        step: 'awaiting_confirmation',
+        paymentDetails: paymentDetails
+      });
+      
+      // Show confirmation message
+      const confirmationMessage = `✅ Please Confirm Your Withdrawal\n\n${payoutState.paymentSystem.emoji} Payment System: ${payoutState.paymentSystem.name}\n💰 Amount: $${parseFloat(payoutState.amount).toFixed(2)}\n📋 Payment Details: ${paymentDetails}\n\n⚠️ Please verify all details are correct before confirming.`;
+      
+      const confirmationKeyboard = {
+        inline_keyboard: [
+          [
+            { 
+              text: '✅ Confirm Withdrawal', 
+              callback_data: `confirm_payout_${JSON.stringify({
+                paymentSystemId: payoutState.paymentSystem.id,
+                paymentSystemName: payoutState.paymentSystem.name,
+                amount: payoutState.amount,
+                paymentDetails: paymentDetails
+              })}` 
+            }
+          ],
+          [
+            { 
+              text: '❌ Cancel', 
+              callback_data: 'cancel_payout' 
+            }
+          ]
+        ]
+      };
+      
+      await sendUserTelegramNotification(chatId, confirmationMessage, confirmationKeyboard);
+      return true;
+    }
+
+    // For any other message, respond with "Please use /start" and show keyboard
     console.log('❓ Unknown command or message, sending /start instruction to:', chatId);
     
-    const instructionMessage = 'Please use /start';
-    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage);
+    const instructionMessage = 'Please use /start to begin earning or use the buttons below:';
+    const keyboard = createBotKeyboard();
+    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
     console.log('📧 Instruction message sent successfully:', messageSent);
     
     return true;
@@ -709,6 +939,63 @@ ${referralLink}
     console.error('Error handling Telegram message:', error);
     return false;
   }
+}
+
+// Set up bot commands menu
+export async function setupBotCommands(): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('Telegram bot token not configured');
+    return false;
+  }
+
+  try {
+    const commands = [
+      { command: 'start', description: 'Start using CashWatch Bot' },
+      { command: 'profile', description: 'View your account profile and earnings' },
+      { command: 'affiliates', description: 'Get your referral link to invite friends' },
+      { command: 'payout', description: 'Request withdrawal of your earnings' }
+    ];
+
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setMyCommands`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        commands: commands
+      }),
+    });
+
+    if (response.ok) {
+      console.log('Bot commands menu set successfully');
+      return true;
+    } else {
+      const errorData = await response.text();
+      console.error('Failed to set bot commands menu:', errorData);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error setting up bot commands menu:', error);
+    return false;
+  }
+}
+
+// Create reply keyboard with command buttons
+export function createBotKeyboard() {
+  return {
+    keyboard: [
+      [
+        { text: '👤 Account' },
+        { text: '👥 Invite Friends' }
+      ],
+      [
+        { text: '💰 Request Payout' },
+        { text: '🏠 Start Earning' }
+      ]
+    ],
+    resize_keyboard: true,
+    persistent: true
+  };
 }
 
 // Set up webhook (this should be called once to register the webhook with Telegram)
@@ -726,12 +1013,14 @@ export async function setupTelegramWebhook(webhookUrl: string): Promise<boolean>
       },
       body: JSON.stringify({
         url: webhookUrl,
-        allowed_updates: ['message'],
+        allowed_updates: ['message', 'callback_query'],
       }),
     });
 
     if (response.ok) {
       console.log('Telegram webhook set successfully');
+      // Also set up bot commands
+      await setupBotCommands();
       return true;
     } else {
       const errorData = await response.text();

@@ -1,7 +1,6 @@
 import {
   users,
   earnings,
-  withdrawals,
   referrals,
   referralCommissions,
   promoCodes,
@@ -10,8 +9,6 @@ import {
   type UpsertUser,
   type InsertEarning,
   type Earning,
-  type InsertWithdrawal,
-  type Withdrawal,
   type Referral,
   type ReferralCommission,
   type PromoCode,
@@ -21,6 +18,21 @@ import {
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 import crypto from "crypto";
+
+// Payment system configuration
+export interface PaymentSystem {
+  id: string;
+  name: string;
+  emoji: string;
+  minWithdrawal: number;
+}
+
+export const PAYMENT_SYSTEMS: PaymentSystem[] = [
+  { id: 'telegram_stars', name: 'Telegram Stars', emoji: '⭐', minWithdrawal: 1.00 },
+  { id: 'tether_polygon', name: 'Tether (Polygon POS)', emoji: '🌐', minWithdrawal: 0.10 },
+  { id: 'ton_coin', name: 'Ton Coin', emoji: '💎', minWithdrawal: 0.35 },
+  { id: 'litecoin', name: 'Litecoin', emoji: '⏺', minWithdrawal: 0.35 }
+];
 
 // Interface for storage operations
 export interface IStorage {
@@ -542,101 +554,6 @@ export class DatabaseStorage implements IStorage {
     return currentCount < 250; // Daily limit of 250 ads
   }
 
-  async createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal> {
-    const [newWithdrawal] = await db
-      .insert(withdrawals)
-      .values(withdrawal)
-      .returning();
-    
-    // Only create withdrawal request - don't deduct balance yet
-    // Balance will be deducted when admin marks as completed
-    
-    return newWithdrawal;
-  }
-
-  async getUserWithdrawals(userId: string): Promise<Withdrawal[]> {
-    return db
-      .select()
-      .from(withdrawals)
-      .where(eq(withdrawals.userId, userId))
-      .orderBy(desc(withdrawals.createdAt));
-  }
-
-  // Admin withdrawal operations
-  async getAllPendingWithdrawals(): Promise<Withdrawal[]> {
-    return db
-      .select()
-      .from(withdrawals)
-      .where(eq(withdrawals.status, 'pending'))
-      .orderBy(desc(withdrawals.createdAt));
-  }
-
-  async getAllWithdrawals(): Promise<Withdrawal[]> {
-    return db
-      .select()
-      .from(withdrawals)
-      .orderBy(desc(withdrawals.createdAt));
-  }
-
-  async updateWithdrawalStatus(
-    withdrawalId: string, 
-    status: string, 
-    transactionHash?: string, 
-    adminNotes?: string
-  ): Promise<Withdrawal> {
-    // Get current withdrawal info
-    const [currentWithdrawal] = await db
-      .select()
-      .from(withdrawals)
-      .where(eq(withdrawals.id, withdrawalId));
-    
-    if (!currentWithdrawal) {
-      throw new Error('Withdrawal not found');
-    }
-    
-    // Update withdrawal status
-    const [updatedWithdrawal] = await db
-      .update(withdrawals)
-      .set({
-        status,
-        transactionHash,
-        adminNotes,
-        updatedAt: new Date(),
-      })
-      .where(eq(withdrawals.id, withdrawalId))
-      .returning();
-    
-    // Handle balance changes based on status
-    if (status === 'completed' && currentWithdrawal.status === 'pending') {
-      // Deduct balance when payment is completed
-      await db
-        .update(users)
-        .set({
-          balance: sql`${users.balance} - ${currentWithdrawal.amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, currentWithdrawal.userId));
-      
-      // Add withdrawal record to earnings (negative amount)
-      await this.addEarning({
-        userId: currentWithdrawal.userId,
-        amount: `-${currentWithdrawal.amount}`,
-        source: 'withdrawal',
-        description: `Withdrawal via ${currentWithdrawal.method} - Completed`,
-      });
-    } else if (status === 'failed' && currentWithdrawal.status !== 'failed') {
-      // Don't deduct balance for failed withdrawals - balance stays as is
-      // Add a note to earnings for tracking
-      await this.addEarning({
-        userId: currentWithdrawal.userId,
-        amount: `0`,
-        source: 'withdrawal_failed',
-        description: `Withdrawal via ${currentWithdrawal.method} - Failed`,
-      });
-    }
-    
-    return updatedWithdrawal;
-  }
 
   async createReferral(referrerId: string, referredId: string): Promise<Referral> {
     // Validate inputs
@@ -1074,17 +991,8 @@ export class DatabaseStorage implements IStorage {
     return result.total;
   }
 
-  async setUserWallet(userId: string, walletAddress: string): Promise<void> {
-    await db
-      .update(users)
-      .set({
-        walletAddress: walletAddress,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
-  }
 
-  async createPayoutRequest(userId: string, amount: string): Promise<{ success: boolean; message: string }> {
+  async createPayoutRequest(userId: string, amount: string, paymentSystemId: string, paymentDetails?: string): Promise<{ success: boolean; message: string }> {
     try {
       // Get user data
       const user = await this.getUser(userId);
@@ -1100,10 +1008,6 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Insufficient balance' };
       }
 
-      // Check wallet address
-      if (!user.walletAddress) {
-        return { success: false, message: 'No wallet address set' };
-      }
 
       // Deduct amount from user balance
       await db
@@ -1114,12 +1018,20 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(users.id, userId));
 
+      // Find payment system
+      const paymentSystem = PAYMENT_SYSTEMS.find(p => p.id === paymentSystemId);
+      const paymentSystemName = paymentSystem ? paymentSystem.name : paymentSystemId;
+
       // Add withdrawal record as earnings (negative amount)
+      const description = paymentDetails 
+        ? `Payout request: $${amount} via ${paymentSystemName} to ${paymentDetails}`
+        : `Payout request: $${amount} via ${paymentSystemName}`;
+
       await this.addEarning({
         userId: userId,
         amount: `-${amount}`,
         source: 'payout',
-        description: `Payout request: $${amount}`,
+        description: description,
       });
 
       return { success: true, message: 'Payout request created successfully' };

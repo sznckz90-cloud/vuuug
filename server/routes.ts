@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, insertWithdrawalSchema, withdrawals, users, earnings, referrals, referralCommissions } from "../shared/schema";
+import { insertEarningSchema, users, earnings, referrals, referralCommissions } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
-import { sendTelegramMessage, formatWithdrawalNotification, sendUserTelegramNotification, formatUserNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook } from "./telegram";
+import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook } from "./telegram";
 import { authenticateTelegram, requireAuth } from "./auth";
 
 // Check if user is admin
@@ -279,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add earning for watched ad with new rate
       const earning = await storage.addEarning({
         userId,
-        amount: "0.00022",
+        amount: "0.00025",
         source: 'ad_watch',
         description: 'Watched advertisement',
       });
@@ -345,65 +345,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Withdrawal request endpoint
-  app.post('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const withdrawalData = insertWithdrawalSchema.parse({
-        ...req.body,
-        userId,
-      });
-      
-      // Check if user has sufficient balance
-      const user = await storage.getUser(userId);
-      if (!user || parseFloat(user.balance || "0") < parseFloat(withdrawalData.amount)) {
-        return res.status(400).json({ message: "Insufficient balance" });
-      }
-      
-      const withdrawal = await storage.createWithdrawal(withdrawalData);
-      
-      // Send Telegram notification to admin
-      const userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}`
-        : user.firstName || user.lastName || `User ${userId}`;
-      
-      const notificationMessage = formatWithdrawalNotification(
-        userId,
-        withdrawalData.amount,
-        withdrawalData.method,
-        withdrawalData.details,
-        userName
-      );
-      
-      // Send notification (don't wait for it to complete)
-      if (notificationMessage) {
-        sendTelegramMessage(notificationMessage).catch(error => {
-          console.error('Failed to send withdrawal notification:', error);
-        });
-      }
-      
-      res.json({ 
-        success: true, 
-        withdrawal,
-        message: 'Withdrawal request created successfully' 
-      });
-    } catch (error) {
-      console.error("Error creating withdrawal:", error);
-      res.status(500).json({ message: "Failed to create withdrawal request" });
-    }
-  });
-
-  // Get user withdrawals
-  app.get('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const withdrawals = await storage.getUserWithdrawals(userId);
-      res.json(withdrawals);
-    } catch (error) {
-      console.error("Error fetching withdrawals:", error);
-      res.status(500).json({ message: "Failed to fetch withdrawals" });
-    }
-  });
 
   // Affiliate stats endpoint
   app.get('/api/affiliates/stats', authenticateTelegram, async (req: any, res) => {
