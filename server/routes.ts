@@ -616,6 +616,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CRITICAL: New referral data synchronization endpoint
+  app.post('/api/admin/fix-referral-data', authenticateAdmin, async (req: any, res) => {
+    try {
+      console.log('🔧 Admin requested referral data synchronization');
+      
+      // Run the referral data synchronization to fix missing referrals table entries
+      await storage.fixExistingReferralData();
+      
+      // Also ensure all users have referral codes
+      await storage.ensureAllUsersHaveReferralCodes();
+      
+      res.json({
+        success: true,
+        message: 'Referral data synchronization completed successfully'
+      });
+    } catch (error) {
+      console.error('❌ Error in fix-referral-data:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fix referral data',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Admin routes
 
 

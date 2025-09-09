@@ -688,7 +688,17 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     
-    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}`);
+    // CRITICAL: Also update the referred user's referred_by field with the referrer's referral code
+    // This ensures both the referrals table and the user's referred_by field are synchronized
+    await db
+      .update(users)
+      .set({
+        referredBy: referrer.referralCode, // Store the referrer's referral code, not their ID
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, referredId));
+    
+    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}, referred_by updated to: ${referrer.referralCode}`);
     return referral;
   }
 
@@ -768,6 +778,75 @@ export class DatabaseStorage implements IStorage {
       } catch (error) {
         console.error(`Failed to generate referral code for user ${user.id}:`, error);
       }
+    }
+  }
+
+  // CRITICAL: Fix existing referral data by synchronizing referrals table with referred_by fields
+  async fixExistingReferralData(): Promise<void> {
+    try {
+      console.log('🔄 Starting referral data synchronization...');
+      
+      // Find all users who have referred_by but no entry in referrals table
+      const usersWithReferredBy = await db
+        .select({
+          userId: users.id,
+          referredBy: users.referredBy,
+          referralCode: users.referralCode
+        })
+        .from(users)
+        .where(and(
+          sql`${users.referredBy} IS NOT NULL`,
+          sql`${users.referredBy} != ''`
+        ));
+
+      console.log(`Found ${usersWithReferredBy.length} users with referred_by field set`);
+
+      for (const user of usersWithReferredBy) {
+        try {
+          // Skip if referredBy is null or empty
+          if (!user.referredBy) continue;
+          
+          // Find the referrer by their referral code
+          const referrer = await this.getUserByReferralCode(user.referredBy);
+          
+          if (referrer) {
+            // Check if referral relationship already exists
+            const existingReferral = await db
+              .select()
+              .from(referrals)
+              .where(and(
+                eq(referrals.referrerId, referrer.id),
+                eq(referrals.refereeId, user.userId)
+              ))
+              .limit(1);
+
+            if (existingReferral.length === 0) {
+              // Create the missing referral relationship
+              await db
+                .insert(referrals)
+                .values({
+                  referrerId: referrer.id,
+                  refereeId: user.userId,
+                  rewardAmount: "0.01",
+                  status: 'pending', // Will be updated by checkAndActivateReferralBonus if user has 10+ ads
+                });
+              
+              console.log(`✅ Created missing referral: ${referrer.id} -> ${user.userId}`);
+              
+              // Check if this user should have activated referral bonus
+              await this.checkAndActivateReferralBonus(user.userId);
+            }
+          } else {
+            console.log(`⚠️  Referrer not found for referral code: ${user.referredBy}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing user ${user.userId}:`, error);
+        }
+      }
+      
+      console.log('✅ Referral data synchronization completed');
+    } catch (error) {
+      console.error('❌ Error in fixExistingReferralData:', error);
     }
   }
 
