@@ -546,7 +546,8 @@ ${referralLink}
 💵 Get $0.01 for every friend who joins!
 🚀 Share now and start building your earnings instantly.`;
       
-      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage);
+      const keyboard = createBotKeyboard();
+      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, { reply_markup: keyboard });
       console.log('📧 Affiliates message sent successfully:', messageSent);
       
       return true;
@@ -564,7 +565,8 @@ ${referralLink}
       
       if (userBalance < minOverallBalance) {
         const insufficientMessage = `❌ There are not enough funds on your balance. The minimum amount to withdraw is $${minOverallBalance.toFixed(2)}`;
-        await sendUserTelegramNotification(chatId, insufficientMessage);
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, insufficientMessage, { reply_markup: keyboard });
         return true;
       }
       
@@ -603,7 +605,8 @@ ${referralLink}
       } catch (error) {
         console.error('❌ Error fetching stats:', error);
         const errorMessage = '❌ Failed to fetch application stats. Please try again.';
-        await sendUserTelegramNotification(chatId, errorMessage);
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
       }
       
       return true;
@@ -644,14 +647,16 @@ ${referralLink}
 
 🚀 Keep sharing your invite link daily and multiply your earnings!`;
         
-        const messageSent = await sendUserTelegramNotification(chatId, profileMessage);
+        const keyboard = createBotKeyboard();
+        const messageSent = await sendUserTelegramNotification(chatId, profileMessage, { reply_markup: keyboard });
         console.log('📧 Profile message sent successfully:', messageSent);
         
         return true;
       } catch (error) {
         console.error('❌ Error fetching profile data:', error);
         const errorMessage = '❌ Sorry, there was an error fetching your profile data. Please try again later.';
-        await sendUserTelegramNotification(chatId, errorMessage);
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
         return true;
       }
     }
@@ -664,12 +669,14 @@ ${referralLink}
       
       if (!broadcastMessage.trim()) {
         const errorMessage = '❌ Please provide a message to broadcast.\nExample: /broadcast Hello everyone!';
-        await sendUserTelegramNotification(chatId, errorMessage);
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
         return true;
       }
       
       const confirmMessage = `📢 Are you sure you want to send this broadcast message to all users?\n\n"${broadcastMessage}"\n\nReply with "CONFIRM BROADCAST" to proceed.`;
-      await sendUserTelegramNotification(chatId, confirmMessage);
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, confirmMessage, { reply_markup: keyboard });
       
       return true;
     }
@@ -679,7 +686,8 @@ ${referralLink}
       console.log('📢 Processing broadcast confirmation...');
       
       const processingMessage = '📢 Broadcasting message to all users... This may take a few minutes.';
-      await sendUserTelegramNotification(chatId, processingMessage);
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, processingMessage, { reply_markup: keyboard });
       
       // Note: In a real implementation, you'd want to store the pending broadcast message
       // For now, we'll send a sample message or require the admin to use the full command again
@@ -821,8 +829,8 @@ ${referralLink}
       return await handleTelegramMessage({ message: { ...update.message, text: '/affiliates' } });
     }
     
-    if (text === '💰 Request Payout') {
-      console.log('⌨️ Processing Request Payout button press -> /payout');
+    if (text === '💰 Payout') {
+      console.log('⌨️ Processing Payout button press -> /payout');
       // Redirect to /payout command handling
       return await handleTelegramMessage({ message: { ...update.message, text: '/payout' } });
     }
@@ -886,7 +894,8 @@ ${referralLink}
       }
       
       if (!isValid) {
-        await sendUserTelegramNotification(chatId, errorMessage);
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
         return true;
       }
       
@@ -989,8 +998,7 @@ export function createBotKeyboard() {
         { text: '👥 Invite Friends' }
       ],
       [
-        { text: '💰 Request Payout' },
-        { text: '🏠 Start Earning' }
+        { text: '💰 Payout' }
       ]
     ],
     resize_keyboard: true,

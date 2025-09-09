@@ -29,7 +29,7 @@ export interface PaymentSystem {
 
 export const PAYMENT_SYSTEMS: PaymentSystem[] = [
   { id: 'telegram_stars', name: 'Telegram Stars', emoji: '⭐', minWithdrawal: 1.00 },
-  { id: 'tether_polygon', name: 'Tether (Polygon POS)', emoji: '🌐', minWithdrawal: 0.10 },
+  { id: 'tether_polygon', name: 'Tether (Polygon POS)', emoji: '🌐', minWithdrawal: 0.01 },
   { id: 'ton_coin', name: 'Ton Coin', emoji: '💎', minWithdrawal: 0.35 },
   { id: 'litecoin', name: 'Litecoin', emoji: '⏺', minWithdrawal: 0.35 }
 ];
