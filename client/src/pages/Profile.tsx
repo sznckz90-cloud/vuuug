@@ -4,10 +4,38 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
   const { user, isLoading } = useAuth();
   const { isAdmin } = useAdmin();
+  const { toast } = useToast();
+
+  // Fetch referral link for affiliates section
+  const { data: affiliateStats } = useQuery({
+    queryKey: ['affiliateStats'],
+    queryFn: async () => {
+      const response = await fetch('/api/affiliates/stats', {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch affiliate stats');
+      }
+      return response.json();
+    },
+    enabled: !!user,
+  });
+
+  const handleCopyReferralLink = () => {
+    if (affiliateStats?.referralLink) {
+      navigator.clipboard.writeText(affiliateStats.referralLink);
+      toast({
+        title: "Copied!",
+        description: "Referral link copied to clipboard",
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -68,24 +96,43 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          {/* Balance & Quick Withdraw Access */}
+          {/* Balance */}
           <Card className="shadow-sm border border-border mb-6">
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Account Balance</h3>
               
-              <div className="text-center mb-6">
+              <div className="text-center">
                 <div className="text-3xl font-bold text-primary mb-2" data-testid="text-user-balance">
                   ${(user as any) ? Math.max(0, parseFloat((user as any).balance || "0")).toFixed(5) : "0.00000"}
                 </div>
                 <div className="text-muted-foreground text-sm">Available Balance</div>
               </div>
+            </CardContent>
+          </Card>
 
-              <Link href="/cashout">
-                <Button className="w-full bg-primary hover:bg-primary/90" data-testid="button-go-to-cashout">
-                  <i className="fas fa-dollar-sign mr-2"></i>
-                  Withdraw Earnings
-                </Button>
-              </Link>
+          {/* Affiliates Section */}
+          <Card className="shadow-sm border border-border mb-6">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Affiliates</h3>
+              
+              {affiliateStats?.referralLink ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-muted rounded-lg break-all text-sm font-mono">
+                    {affiliateStats.referralLink}
+                  </div>
+                  <Button 
+                    onClick={handleCopyReferralLink}
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
+                    <i className="fas fa-copy mr-2"></i>
+                    Copy Referral Link
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="text-muted-foreground">Loading referral link...</div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
