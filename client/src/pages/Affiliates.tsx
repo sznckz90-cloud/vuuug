@@ -7,8 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 
 interface AffiliateStats {
   totalFriendsReferred: number;
-  totalCommissionEarned: string;
-  totalReferralBonus: string;
+  successfulReferrals: number;
+  totalReferralEarnings: string;
   referralLink: string;
   referrals: Array<{
     refereeId: string;
@@ -118,32 +118,32 @@ export default function Affiliates() {
               </CardContent>
             </Card>
 
-            {/* Total Commission Earned */}
+            {/* Successful Referrals */}
+            <Card className="shadow-sm border border-border">
+              <CardContent className="p-6 text-center">
+                <div className="bg-green-500/10 p-4 rounded-full inline-block mb-4">
+                  <i className="fas fa-check-circle text-green-500 text-2xl"></i>
+                </div>
+                <div className="text-3xl font-bold text-foreground mb-2">
+                  {stats?.successfulReferrals || 0}
+                </div>
+                <div className="text-muted-foreground text-sm">
+                  Successful Referrals (10+ ads)
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Referral Earnings */}
             <Card className="shadow-sm border border-border">
               <CardContent className="p-6 text-center">
                 <div className="bg-green-500/10 p-4 rounded-full inline-block mb-4">
                   <i className="fas fa-dollar-sign text-green-500 text-2xl"></i>
                 </div>
                 <div className="text-3xl font-bold text-foreground mb-2">
-                  ${stats?.totalCommissionEarned || '0.00000'}
+                  ${stats?.totalReferralEarnings || '0.00000'}
                 </div>
                 <div className="text-muted-foreground text-sm">
-                  Commission Earned (in Withdrawal Balance)
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total Referral Bonus */}
-            <Card className="shadow-sm border border-border">
-              <CardContent className="p-6 text-center">
-                <div className="bg-blue-500/10 p-4 rounded-full inline-block mb-4">
-                  <i className="fas fa-gift text-blue-500 text-2xl"></i>
-                </div>
-                <div className="text-3xl font-bold text-foreground mb-2">
-                  ${stats?.totalReferralBonus || '0.00000'}
-                </div>
-                <div className="text-muted-foreground text-sm">
-                  Referral Bonuses (in Total Earned)
+                  Total Referral Earnings (withdrawable)
                 </div>
               </CardContent>
             </Card>
@@ -203,9 +203,9 @@ export default function Affiliates() {
                   <span className="text-primary font-bold text-sm">2</span>
                 </div>
                 <div>
-                  <p className="font-medium text-foreground mb-1">Friends Watch 10 Ads & Get Bonus</p>
+                  <p className="font-medium text-foreground mb-1">Friend Watches 10 Ads → Get Bonus</p>
                   <p className="text-muted-foreground text-sm">
-                    You get $0.01 referral bonus when your friend watches at least 10 ads (anti-fraud protection)
+                    You get $0.01 referral bonus when your friend watches at least 10 ads (anti-fraud protection). This goes directly to your main balance and is fully withdrawable.
                   </p>
                 </div>
               </div>
@@ -215,9 +215,9 @@ export default function Affiliates() {
                   <span className="text-primary font-bold text-sm">3</span>
                 </div>
                 <div>
-                  <p className="font-medium text-foreground mb-1">Earn Commission</p>
+                  <p className="font-medium text-foreground mb-1">Earn Ongoing Commissions</p>
                   <p className="text-muted-foreground text-sm">
-                    You earn 10% of your friends' ad earnings ($0.000022 per ad they watch)
+                    You earn 10% commission on all your friends' ad earnings ($0.000022 per ad they watch). All commissions go to your main balance and are fully withdrawable.
                   </p>
                 </div>
               </div>
