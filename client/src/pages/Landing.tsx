@@ -28,7 +28,7 @@ export default function Landing() {
               </div>
               <h3 className="text-base font-semibold text-foreground mb-2">Instant Rewards</h3>
               <p className="text-muted-foreground text-xs">
-                Earn $0.00021 for every ad you watch. Payments are instant and secure.
+                Earn $0.00025 for every ad you watch. Payments are instant and secure.
               </p>
             </CardContent>
           </Card>
