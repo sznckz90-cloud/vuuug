@@ -1178,10 +1178,6 @@ export class DatabaseStorage implements IStorage {
 
   async getAllActivePromotions(): Promise<Promotion[]> {
     return db.select().from(promotions)
-      .where(and(
-        eq(promotions.isActive, true),
-        sql`${promotions.completedCount} < ${promotions.totalSlots}`
-      ))
       .orderBy(desc(promotions.createdAt));
   }
 
@@ -1192,14 +1188,10 @@ export class DatabaseStorage implements IStorage {
 
   async completeTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
     try {
-      // Check if promotion exists and is active
+      // Check if promotion exists
       const promotion = await this.getPromotion(promotionId);
       if (!promotion) {
         return { success: false, message: 'Promotion not found' };
-      }
-
-      if (!promotion.isActive || (promotion.completedCount || 0) >= (promotion.totalSlots || 1000)) {
-        return { success: false, message: 'Promotion is no longer active' };
       }
 
       // Check if user already completed this task
@@ -1218,9 +1210,6 @@ export class DatabaseStorage implements IStorage {
 
       // Add reward to user's earnings balance
       await this.addEarningsBalance(userId, rewardAmount);
-
-      // Update promotion completed count
-      await this.updatePromotionCompletedCount(promotionId);
 
       // Add earning record
       await this.addEarning({
@@ -1246,25 +1235,15 @@ export class DatabaseStorage implements IStorage {
     return !!completion;
   }
 
+  // Simplified methods for the new schema - no complex tracking needed
   async updatePromotionCompletedCount(promotionId: string): Promise<void> {
-    await db.update(promotions)
-      .set({
-        completedCount: sql`${promotions.completedCount} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(promotions.id, promotionId));
-
-    // Check if promotion should be deactivated
-    await this.deactivateCompletedPromotions();
+    // No-op since we removed complex tracking
+    return;
   }
 
   async deactivateCompletedPromotions(): Promise<void> {
-    await db.update(promotions)
-      .set({
-        isActive: false,
-        updatedAt: new Date(),
-      })
-      .where(sql`${promotions.completedCount} >= ${promotions.totalSlots}`);
+    // No-op since we removed complex tracking  
+    return;
   }
 
   // User balance operations for promotions
