@@ -35,20 +35,28 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-        <div className="max-w-md mx-auto flex justify-center items-center py-3 gap-6">
+        <div className="max-w-md mx-auto flex justify-center items-center py-3 gap-4">
           <Link href="/">
-            <button className={`flex flex-col items-center p-3 transition-colors ${
+            <button className={`flex flex-col items-center p-2 transition-colors ${
               location === "/" ? "text-primary" : "text-muted-foreground hover:text-primary"
             }`} data-testid="link-home">
-              <i className="fas fa-home text-xl mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <i className="fas fa-home text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
               <span className="text-xs font-medium">Home</span>
             </button>
           </Link>
+          <Link href="/tasks">
+            <button className={`flex flex-col items-center p-2 transition-colors ${
+              location === "/tasks" ? "text-primary" : "text-muted-foreground hover:text-primary"
+            }`} data-testid="link-tasks">
+              <i className="fas fa-tasks text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <span className="text-xs font-medium">Tasks</span>
+            </button>
+          </Link>
           <Link href="/stats">
-            <button className={`flex flex-col items-center p-3 transition-colors ${
+            <button className={`flex flex-col items-center p-2 transition-colors ${
               location === "/stats" ? "text-primary" : "text-muted-foreground hover:text-primary"
             }`} data-testid="link-stats">
-              <i className="fas fa-chart-bar text-xl mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <i className="fas fa-chart-bar text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
               <span className="text-xs">Stats</span>
             </button>
           </Link>
