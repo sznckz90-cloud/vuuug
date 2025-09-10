@@ -94,26 +94,6 @@ export default function Home() {
         {/* Streak Section */}
         <StreakCard user={user} />
 
-        {/* Stats Section */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Card className="shadow-sm border border-border">
-            <CardContent className="p-3 text-center">
-              <div className="text-xl font-bold text-foreground" data-testid="text-today-earnings">
-                ${statsLoading ? "..." : (parseFloat((stats as any)?.todayEarnings || "0")).toFixed(5)}
-              </div>
-              <div className="text-muted-foreground text-xs">Today</div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border border-border">
-            <CardContent className="p-3 text-center">
-              <div className="text-xl font-bold text-foreground" data-testid="text-week-earnings">
-                ${statsLoading ? "..." : (parseFloat((stats as any)?.weekEarnings || "0")).toFixed(5)}
-              </div>
-              <div className="text-muted-foreground text-xs">This Week</div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Recent Activity */}
         <Card className="rounded-xl shadow-sm border border-border mt-4">
           <CardContent className="p-4">
