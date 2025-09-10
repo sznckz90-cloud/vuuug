@@ -5,6 +5,10 @@ import {
   referralCommissions,
   promoCodes,
   promoCodeUsage,
+  withdrawals,
+  promotions,
+  taskCompletions,
+  userBalances,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -14,6 +18,14 @@ import {
   type PromoCode,
   type InsertPromoCode,
   type PromoCodeUsage,
+  type Withdrawal,
+  type InsertWithdrawal,
+  type Promotion,
+  type InsertPromotion,
+  type TaskCompletion,
+  type InsertTaskCompletion,
+  type UserBalance,
+  type InsertUserBalance,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
@@ -92,6 +104,32 @@ export interface IStorage {
   getPromoCode(code: string): Promise<PromoCode | undefined>;
   updatePromoCodeStatus(id: string, isActive: boolean): Promise<PromoCode>;
   usePromoCode(code: string, userId: string): Promise<{ success: boolean; message: string; reward?: string }>;
+  
+  // Task/Promotion operations
+  createPromotion(promotion: InsertPromotion): Promise<Promotion>;
+  getAllActivePromotions(): Promise<Promotion[]>;
+  getPromotion(id: string): Promise<Promotion | undefined>;
+  completeTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }>;
+  hasUserCompletedTask(promotionId: string, userId: string): Promise<boolean>;
+  updatePromotionCompletedCount(promotionId: string): Promise<void>;
+  deactivateCompletedPromotions(): Promise<void>;
+  
+  // User balance operations for promotions
+  getUserBalance(userId: string): Promise<UserBalance | undefined>;
+  createOrUpdateUserBalance(userId: string, mainBalance?: string, earningsBalance?: string): Promise<UserBalance>;
+  deductMainBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }>;
+  addEarningsBalance(userId: string, amount: string): Promise<void>;
+  
+  // Admin/Statistics operations
+  getAppStats(): Promise<{
+    totalUsers: number;
+    activeUsersToday: number;
+    totalInvites: number;
+    totalEarnings: string;
+    totalReferralEarnings: string;
+    totalPayouts: string;
+    newUsersLast24h: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1103,6 +1141,202 @@ export class DatabaseStorage implements IStorage {
       totalPayouts: totalPayoutsResult.total || '0',
       newUsersLast24h: newUsersResult.count || 0,
     };
+  }
+
+  // Withdrawal operations (missing implementations)
+  async createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal> {
+    const [result] = await db.insert(withdrawals).values(withdrawal).returning();
+    return result;
+  }
+
+  async getUserWithdrawals(userId: string): Promise<Withdrawal[]> {
+    return db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).orderBy(desc(withdrawals.createdAt));
+  }
+
+  async getAllPendingWithdrawals(): Promise<Withdrawal[]> {
+    return db.select().from(withdrawals).where(eq(withdrawals.status, 'pending')).orderBy(desc(withdrawals.createdAt));
+  }
+
+  async getAllWithdrawals(): Promise<Withdrawal[]> {
+    return db.select().from(withdrawals).orderBy(desc(withdrawals.createdAt));
+  }
+
+  async updateWithdrawalStatus(withdrawalId: string, status: string, transactionHash?: string, adminNotes?: string): Promise<Withdrawal> {
+    const updateData: any = { status, updatedAt: new Date() };
+    if (transactionHash) updateData.transactionHash = transactionHash;
+    if (adminNotes) updateData.adminNotes = adminNotes;
+    
+    const [result] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
+    return result;
+  }
+
+  // Task/Promotion operations (new implementations)
+  async createPromotion(promotion: InsertPromotion): Promise<Promotion> {
+    const [result] = await db.insert(promotions).values(promotion).returning();
+    return result;
+  }
+
+  async getAllActivePromotions(): Promise<Promotion[]> {
+    return db.select().from(promotions)
+      .where(and(
+        eq(promotions.isActive, true),
+        sql`${promotions.completedCount} < ${promotions.totalSlots}`
+      ))
+      .orderBy(desc(promotions.createdAt));
+  }
+
+  async getPromotion(id: string): Promise<Promotion | undefined> {
+    const [promotion] = await db.select().from(promotions).where(eq(promotions.id, id));
+    return promotion;
+  }
+
+  async completeTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if promotion exists and is active
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Promotion not found' };
+      }
+
+      if (!promotion.isActive || (promotion.completedCount || 0) >= (promotion.totalSlots || 1000)) {
+        return { success: false, message: 'Promotion is no longer active' };
+      }
+
+      // Check if user already completed this task
+      const hasCompleted = await this.hasUserCompletedTask(promotionId, userId);
+      if (hasCompleted) {
+        return { success: false, message: 'You have already completed this task' };
+      }
+
+      // Record task completion
+      await db.insert(taskCompletions).values({
+        promotionId,
+        userId,
+        rewardAmount,
+        verified: true,
+      });
+
+      // Add reward to user's earnings balance
+      await this.addEarningsBalance(userId, rewardAmount);
+
+      // Update promotion completed count
+      await this.updatePromotionCompletedCount(promotionId);
+
+      // Add earning record
+      await this.addEarning({
+        userId,
+        amount: rewardAmount,
+        source: 'task_completion',
+        description: `Task completed: ${promotion.title}`,
+      });
+
+      return { success: true, message: 'Task completed successfully' };
+    } catch (error) {
+      console.error('Error completing task:', error);
+      return { success: false, message: 'Error completing task' };
+    }
+  }
+
+  async hasUserCompletedTask(promotionId: string, userId: string): Promise<boolean> {
+    const [completion] = await db.select().from(taskCompletions)
+      .where(and(
+        eq(taskCompletions.promotionId, promotionId),
+        eq(taskCompletions.userId, userId)
+      ));
+    return !!completion;
+  }
+
+  async updatePromotionCompletedCount(promotionId: string): Promise<void> {
+    await db.update(promotions)
+      .set({
+        completedCount: sql`${promotions.completedCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(promotions.id, promotionId));
+
+    // Check if promotion should be deactivated
+    await this.deactivateCompletedPromotions();
+  }
+
+  async deactivateCompletedPromotions(): Promise<void> {
+    await db.update(promotions)
+      .set({
+        isActive: false,
+        updatedAt: new Date(),
+      })
+      .where(sql`${promotions.completedCount} >= ${promotions.totalSlots}`);
+  }
+
+  // User balance operations for promotions
+  async getUserBalance(userId: string): Promise<UserBalance | undefined> {
+    const [balance] = await db.select().from(userBalances).where(eq(userBalances.userId, userId));
+    return balance;
+  }
+
+  async createOrUpdateUserBalance(userId: string, mainBalance?: string, earningsBalance?: string): Promise<UserBalance> {
+    const existingBalance = await this.getUserBalance(userId);
+    
+    if (existingBalance) {
+      const updateData: any = { updatedAt: new Date() };
+      if (mainBalance !== undefined) updateData.mainBalance = mainBalance;
+      if (earningsBalance !== undefined) updateData.earningsBalance = earningsBalance;
+      
+      const [result] = await db.update(userBalances)
+        .set(updateData)
+        .where(eq(userBalances.userId, userId))
+        .returning();
+      return result;
+    } else {
+      const [result] = await db.insert(userBalances).values({
+        userId,
+        mainBalance: mainBalance || '0',
+        earningsBalance: earningsBalance || '0',
+      }).returning();
+      return result;
+    }
+  }
+
+  async deductMainBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const balance = await this.getUserBalance(userId);
+      if (!balance) {
+        return { success: false, message: 'User balance not found' };
+      }
+
+      const currentBalance = parseFloat(balance.mainBalance || '0');
+      const deductAmount = parseFloat(amount);
+
+      if (currentBalance < deductAmount) {
+        return { success: false, message: 'Insufficient main balance' };
+      }
+
+      await db.update(userBalances)
+        .set({
+          mainBalance: sql`${userBalances.mainBalance} - ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userBalances.userId, userId));
+
+      return { success: true, message: 'Balance deducted successfully' };
+    } catch (error) {
+      console.error('Error deducting main balance:', error);
+      return { success: false, message: 'Error deducting balance' };
+    }
+  }
+
+  async addEarningsBalance(userId: string, amount: string): Promise<void> {
+    // First ensure the user has a balance record
+    const existingBalance = await this.getUserBalance(userId);
+    if (!existingBalance) {
+      await this.createOrUpdateUserBalance(userId, '0', amount);
+    } else {
+      await db.update(userBalances)
+        .set({
+          earningsBalance: sql`${userBalances.earningsBalance} + ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userBalances.userId, userId));
+    }
   }
 }
 

@@ -1,7 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEarningSchema, users, earnings, referrals, referralCommissions } from "../shared/schema";
+import { 
+  insertEarningSchema, 
+  insertPromotionSchema,
+  users, 
+  earnings, 
+  referrals, 
+  referralCommissions,
+  withdrawals,
+  promotions,
+  taskCompletions,
+  userBalances
+} from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
@@ -834,6 +845,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error setting up database:", error);
       res.status(500).json({ message: "Failed to setup database" });
+    }
+  });
+
+  // Task/Promotion API routes
+  
+  // Get all active promotions/tasks
+  app.get('/api/tasks', authenticateTelegram, async (req: any, res) => {
+    try {
+      const promotions = await storage.getAllActivePromotions();
+      res.json(promotions);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Complete a task
+  app.post('/api/tasks/:promotionId/complete', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      
+      const result = await storage.completeTask(promotionId, userId, "0.00045");
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error completing task:", error);
+      res.status(500).json({ message: "Failed to complete task" });
+    }
+  });
+
+  // Check if user has completed a task
+  app.get('/api/tasks/:promotionId/status', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      
+      const hasCompleted = await storage.hasUserCompletedTask(promotionId, userId);
+      res.json({ completed: hasCompleted });
+    } catch (error) {
+      console.error("Error checking task status:", error);
+      res.status(500).json({ message: "Failed to check task status" });
+    }
+  });
+
+  // Create promotion (via Telegram bot only - internal endpoint)
+  app.post('/api/internal/promotions', async (req: any, res) => {
+    try {
+      const promotionData = insertPromotionSchema.parse(req.body);
+      const promotion = await storage.createPromotion(promotionData);
+      res.json(promotion);
+    } catch (error) {
+      console.error("Error creating promotion:", error);
+      res.status(500).json({ message: "Failed to create promotion" });
+    }
+  });
+
+  // Get user balance
+  app.get('/api/user/balance', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const balance = await storage.getUserBalance(userId);
+      
+      if (!balance) {
+        // Create initial balance if doesn't exist
+        const newBalance = await storage.createOrUpdateUserBalance(userId, '0', '0');
+        res.json(newBalance);
+      } else {
+        res.json(balance);
+      }
+    } catch (error) {
+      console.error("Error fetching user balance:", error);
+      res.status(500).json({ message: "Failed to fetch balance" });
+    }
+  });
+
+  // Add funds to main balance (via bot only - internal endpoint)
+  app.post('/api/internal/add-funds', async (req: any, res) => {
+    try {
+      const { userId, amount } = req.body;
+      
+      if (!userId || !amount) {
+        return res.status(400).json({ message: "userId and amount are required" });
+      }
+
+      const balance = await storage.createOrUpdateUserBalance(userId, amount);
+      res.json({ success: true, balance });
+    } catch (error) {
+      console.error("Error adding funds:", error);
+      res.status(500).json({ message: "Failed to add funds" });
+    }
+  });
+
+  // Deduct main balance for promotion creation (internal endpoint)
+  app.post('/api/internal/deduct-balance', async (req: any, res) => {
+    try {
+      const { userId, amount } = req.body;
+      
+      if (!userId || !amount) {
+        return res.status(400).json({ message: "userId and amount are required" });
+      }
+
+      const result = await storage.deductMainBalance(userId, amount);
+      res.json(result);
+    } catch (error) {
+      console.error("Error deducting balance:", error);
+      res.status(500).json({ message: "Failed to deduct balance" });
     }
   });
 
