@@ -173,12 +173,11 @@ export const promotionClaims = pgTable("promotion_claims", {
   uniqueClaim: unique().on(table.promotionId, table.userId),
 }));
 
-// User balances table for main balance tracking (for creating promotions)
+// User balances table - separate balance tracking  
 export const userBalances = pgTable("user_balances", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull().unique(),
-  mainBalance: decimal("main_balance", { precision: 12, scale: 8 }).default("0"), // For creating promotions
-  earningsBalance: decimal("earnings_balance", { precision: 12, scale: 8 }).default("0"), // From completing tasks
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").unique().notNull().references(() => users.id),
+  balance: decimal("balance", { precision: 20, scale: 8 }).default("0"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
