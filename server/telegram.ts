@@ -183,7 +183,18 @@ export async function sendUserTelegramNotification(userId: string, message: stri
     };
 
     if (replyMarkup) {
-      telegramMessage.reply_markup = replyMarkup;
+      // Handle ReplyKeyboardMarkup properly
+      if (replyMarkup.keyboard) {
+        // This is a reply keyboard - format correctly
+        telegramMessage.reply_markup = {
+          keyboard: replyMarkup.keyboard,
+          resize_keyboard: replyMarkup.resize_keyboard || true,
+          one_time_keyboard: replyMarkup.one_time_keyboard || false
+        };
+      } else {
+        // This is an inline keyboard or other markup
+        telegramMessage.reply_markup = replyMarkup;
+      }
     }
 
     console.log('📡 Request payload:', JSON.stringify(telegramMessage, null, 2));
@@ -249,13 +260,14 @@ export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   const { message, inlineKeyboard } = formatWelcomeMessage();
   const keyboard = createBotKeyboard();
   
-  // Combine inline keyboard and reply keyboard
-  const replyMarkup = {
-    ...inlineKeyboard,
-    reply_markup: keyboard
-  };
+  // Send welcome message with inline keyboard first
+  const welcomeSent = await sendUserTelegramNotification(userId, message, inlineKeyboard);
   
-  return await sendUserTelegramNotification(userId, message, replyMarkup);
+  // Then send the reply keyboard in a separate message
+  const keyboardMessage = 'Please use the buttons below:';
+  const keyboardSent = await sendUserTelegramNotification(userId, keyboardMessage, keyboard);
+  
+  return welcomeSent && keyboardSent;
 }
 
 // Admin broadcast functionality
@@ -1331,7 +1343,7 @@ After 1000/1000 completed, task auto ends.`;
       
       const cancelMessage = '❌ Operation cancelled.';
       const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, cancelMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, cancelMessage, keyboard);
       return true;
     }
 
@@ -1340,7 +1352,7 @@ After 1000/1000 completed, task auto ends.`;
     
     const instructionMessage = 'Please use the buttons below:';
     const keyboard = createBotKeyboard();
-    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
+    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, keyboard);
     console.log('📧 Main menu message sent successfully:', messageSent);
     
     return true;
@@ -1370,7 +1382,7 @@ export function createBotKeyboard() {
       ]
     ],
     resize_keyboard: true,
-    persistent: true
+    one_time_keyboard: false  // This makes the keyboard persistent
   };
 }
 
