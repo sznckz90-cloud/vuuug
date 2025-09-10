@@ -48,24 +48,16 @@ function clearUserPayoutState(chatId: string) {
 const userPromotionStates = new Map();
 
 interface PromotionState {
-  step: 'awaiting_channel_url' | 'awaiting_bot_url';
+  step: 'awaiting_channel_url' | 'awaiting_bot_url' | 'awaiting_forwarded_message';
   type: 'channel' | 'bot';
   adCost: string;
   rewardAmount: string;
   totalSlots: number;
   url?: string;
+  forwardedBotUsername?: string;
 }
 
-// Simple in-memory state management for claim flow
-const userClaimStates = new Map();
-
-interface ClaimState {
-  promotionId: string;
-  promotionType: 'channel' | 'bot';
-  sponsorUrl: string;
-  rewardAmount: string;
-  step: 'awaiting_verification' | 'awaiting_forwarded_message';
-}
+// Claim states removed - all task claiming happens in the App only
 
 function setUserPromotionState(chatId: string, state: PromotionState) {
   userPromotionStates.set(chatId, state);
@@ -79,17 +71,7 @@ function clearUserPromotionState(chatId: string) {
   userPromotionStates.delete(chatId);
 }
 
-function setUserClaimState(chatId: string, state: ClaimState) {
-  userClaimStates.set(chatId, state);
-}
-
-function getUserClaimState(chatId: string): ClaimState | null {
-  return userClaimStates.get(chatId) || null;
-}
-
-function clearUserClaimState(chatId: string) {
-  userClaimStates.delete(chatId);
-}
+// All claim state functions removed
 
 // Verify channel membership via bot admin status
 async function verifyChannelMembership(userId: string, channelUrl: string): Promise<boolean> {
@@ -155,44 +137,25 @@ function extractBotUsernameFromUrl(url: string): string | null {
   }
 }
 
-// Process claim reward after successful verification
-async function processClaimReward(chatId: string, claimState: ClaimState, dbUser: any): Promise<void> {
+// All claim reward processing moved to the App only
+
+// Send task completion notification to user
+export async function sendTaskCompletionNotification(userId: string, rewardAmount: string): Promise<boolean> {
   try {
-    // Create promotion claim record
-    await storage.createPromotionClaim({
-      promotionId: claimState.promotionId,
-      userId: dbUser.id,
-      rewardAmount: claimState.rewardAmount
-    });
-    
-    // Increment claimed count in promotions
-    await storage.incrementPromotionClaimedCount(claimState.promotionId);
-    
-    // Update user balance
-    await storage.addEarningsBalance(dbUser.id, claimState.rewardAmount);
-    
-    // Get updated balance
-    const updatedUser = await storage.getUser(dbUser.id);
-    const newBalance = parseFloat(updatedUser?.balance || '0');
-    
-    // Clear claim state
-    clearUserClaimState(chatId);
-    
-    // Send success message
-    const successMessage = `🎉 Task Completed!
-✅ You earned $${claimState.rewardAmount} 💎
-New balance: ${newBalance.toFixed(4)}`;
-    
-    const keyboard = createBotKeyboard();
-    await sendUserTelegramNotification(chatId, successMessage, keyboard);
-    
+    const user = await storage.getUser(userId);
+    if (!user || !user.telegram_id) {
+      console.log('❌ User not found or no telegram_id for task completion notification');
+      return false;
+    }
+
+    const notificationMessage = `🎉 Task Completed! ✅ You earned $${parseFloat(rewardAmount).toFixed(2)} 💎`;
+
+    const success = await sendUserTelegramNotification(user.telegram_id, notificationMessage);
+    console.log(`✅ Task completion notification sent to user ${userId}:`, success);
+    return success;
   } catch (error) {
-    console.error('❌ Error processing claim reward:', error);
-    clearUserClaimState(chatId);
-    
-    const errorMessage = '❌ Error processing reward. Please try again.';
-    const keyboard = createBotKeyboard();
-    await sendUserTelegramNotification(chatId, errorMessage, keyboard);
+    console.error('❌ Error sending task completion notification:', error);
+    return false;
   }
 }
 
@@ -204,22 +167,19 @@ export async function postPromotionToChannel(promotion: any): Promise<string | n
   }
   
   try {
-    const channelMessage = `🌍 World's Biggest Free Crypto Drop! 🌍
+    const channelMessage = `⭐World's Biggest Free Crypto Drop!⭐
 💎 $${promotion.reward_per_user} Crypto → ${promotion.limit} Winners 🔥
-🤯 Imagine… ${promotion.limit} people flexing FREE crypto – why not YOU?
-✨ Sponsored by 👉 ${promotion.url}
-🚀 Claim in 1 tap – before it's over!
-👉 Grab Your Free Crypto Now 👈`;
+🚀 Claim in 1 tap – before it's over!`;
 
-    // Generate claim link for the promotion with task parameter
+    // Generate web app link to task section
     const botUsername = process.env.BOT_USERNAME || "lightningsatsbot";
-    const claimLink = `https://t.me/${botUsername}?start=task_${promotion.id}`;
+    const webAppUrl = `https://t.me/${botUsername}?startapp=tasks`;
     
     const keyboard = {
       inline_keyboard: [[
         { 
-          text: '👉 Grab Your Free Crypto Now 👈', 
-          url: claimLink 
+          text: '👉 Open in App 👈', 
+          url: webAppUrl 
         }
       ]]
     };
@@ -973,28 +933,14 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 💎 Fast, simple, and rewarding – don't miss out!`;
             inlineButton.text = 'Join the channel';
             
-            // Set state for channel verification
-            setUserClaimState(chatId, {
-              promotionId: promotionId,
-              promotionType: 'channel',
-              sponsorUrl: promotion.url,
-              rewardAmount: promotion.rewardPerUser || '0.00025',
-              step: 'awaiting_verification'
-            });
+            // All task claiming now happens in the App only
           } else if (promotion.type === 'bot') {
             taskMessage = `🤖 Bot Task
 ⚡ Complete Your Task via Bot & Earn!
 💥 Easy, instant rewards – just a few taps!`;
             inlineButton.text = 'Start bot';
             
-            // Set state for bot verification
-            setUserClaimState(chatId, {
-              promotionId: promotionId,
-              promotionType: 'bot',
-              sponsorUrl: promotion.url,
-              rewardAmount: promotion.rewardPerUser || '0.00025',
-              step: 'awaiting_forwarded_message'
-            });
+            // All task claiming now happens in the App only
           }
           
           const inlineKeyboard = {
@@ -1160,7 +1106,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         const username = dbUser.username ? `@${dbUser.username}` : dbUser.firstName || 'User';
         
         // Format join date
-        const joinDate = dbUser.createdAt ? new Date(dbUser.createdAt).toLocaleDateString('en-GB', {
+        const joinDate = dbUser.createdAt ? new Date(dbUser.createdAt.toString()).toLocaleDateString('en-GB', {
           day: '2-digit',
           month: 'short',
           year: 'numeric'
@@ -1309,7 +1255,7 @@ Choose promotion type:`;
       
       // Get user's current main balance
       const userBalance = await storage.getUserBalance(dbUser.id);
-      const mainBalance = parseFloat(userBalance?.mainBalance || '0');
+      const mainBalance = parseFloat(userBalance?.balance || '0');
       
       const addFundsMessage = `💵 Add Funds
 
@@ -1350,12 +1296,10 @@ Your current main balance: $${mainBalance.toFixed(2)}`;
     if (text === '📢 Channel') {
       console.log('⌨️ Processing Channel promotion type');
       
-      const channelMessage = `📈 Promotion
-→ 📝 Creation of an ad campaign
-Type: Telegram: subscribe to the channel / join the chat
-Add @lightningsatsbot → Instant Verify ⚡
-💰 Ad Cost: $0.01
-📝 Enter the URL:`;
+      const channelMessage = `📈 Create Ad Campaign Telegram — Subscribe / Join
+⚠️ Make the bot admin in your channel for easy join & verification.
+💰 Ad Cost: $0.01 (1000 users)
+📝 Channel URL:`;
       
       // Set user state to awaiting channel URL
       setUserPromotionState(chatId, {
@@ -1369,8 +1313,7 @@ Add @lightningsatsbot → Instant Verify ⚡
       const keyboard = {
         keyboard: [
           [
-            '⬅️ Back',
-            '❌ Cancel'
+            '⬅️ Back'
           ]
         ],
         resize_keyboard: true,
@@ -1384,15 +1327,12 @@ Add @lightningsatsbot → Instant Verify ⚡
     if (text === '🤖 Bot') {
       console.log('⌨️ Processing Bot promotion type');
       
-      const botMessage = `📈 Promotion
-→ 📝 Creation of an ad campaign
-Type: Telegram: launch the bot
-💰 Ad Cost: $0.01
-📝 Enter the URL:`;
+      const botMessage = `📈 Create Ad Campaign Telegram: launch the bot
+🔎 FORWARD a message from the bot`;
       
-      // Set user state to awaiting bot URL
+      // Set user state to awaiting forwarded message
       setUserPromotionState(chatId, {
-        step: 'awaiting_bot_url',
+        step: 'awaiting_forwarded_message',
         type: 'bot',
         adCost: '0.01',
         rewardAmount: '0.00025',
@@ -1402,8 +1342,7 @@ Type: Telegram: launch the bot
       const keyboard = {
         keyboard: [
           [
-            '⬅️ Back',
-            '❌ Cancel'
+            '⬅️ Back'
           ]
         ],
         resize_keyboard: true,
@@ -1457,7 +1396,6 @@ Type: Telegram: launch the bot
       console.log('⌨️ Processing Cancel button');
       
       const promotionState = getUserPromotionState(chatId);
-      const claimState = getUserClaimState(chatId);
       
       if (promotionState) {
         clearUserPromotionState(chatId);
@@ -1468,30 +1406,6 @@ Type: Telegram: launch the bot
         return true;
       }
       
-      if (claimState) {
-        clearUserClaimState(chatId);
-        
-        const promotionMessage = `📈 Promotion
-→ 📝 Creation of an ad campaign`;
-        
-        const promotionKeyboard = {
-          keyboard: [
-            [
-              '📢 Channel',
-              '🤖 Bot'
-            ],
-            [
-              '⬅️ Back'
-            ]
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true
-        };
-        
-        await sendUserTelegramNotification(chatId, promotionMessage, promotionKeyboard);
-        return true;
-      }
-      
       // Default back to main menu if not in any state
       const keyboard = createBotKeyboard();
       const backMessage = 'Back to main menu.';
@@ -1499,97 +1413,50 @@ Type: Telegram: launch the bot
       return true;
     }
 
-    // Handle Done button for claim verification
-    if (text === '✅ Done') {
-      console.log('⌨️ Processing Done button for claim verification');
-      
-      const claimState = getUserClaimState(chatId);
-      if (claimState) {
-        try {
-          let verificationResult = false;
-          
-          if (claimState.promotionType === 'channel') {
-            // Verify channel membership
-            verificationResult = await verifyChannelMembership(chatId, claimState.sponsorUrl);
-          } else if (claimState.promotionType === 'bot') {
-            // For bot verification, ask for forwarded message
-            const botMessage = `🤖 Bot Verification Required
+    // ✅ Done button removed - all task claiming happens in the App only
 
-Please forward a message from the bot "${claimState.sponsorUrl}" to verify you started it.
-
-Forward any message from that bot and I'll verify it automatically.`;
-            
-            setUserClaimState(chatId, {
-              ...claimState,
-              step: 'awaiting_forwarded_message'
-            });
-            
-            const keyboard = {
-              keyboard: [
-                ['❌ Cancel']
-              ],
-              resize_keyboard: true,
-              one_time_keyboard: true
-            };
-            
-            await sendUserTelegramNotification(chatId, botMessage, keyboard);
-            return true;
-          }
-          
-          if (verificationResult) {
-            // Verification successful, reward user
-            await processClaimReward(chatId, claimState, dbUser);
-          } else {
-            const failedMessage = claimState.promotionType === 'channel' 
-              ? '❌ Channel membership verification failed. Please join the channel first.'
-              : '❌ Bot verification failed. Please start the bot first.';
-            
-            const keyboard = {
-              keyboard: [
-                [
-                  '✅ Done',
-                  '❌ Cancel'
-                ]
-              ],
-              resize_keyboard: true,
-              one_time_keyboard: true
-            };
-            
-            await sendUserTelegramNotification(chatId, failedMessage, keyboard);
-          }
-          
-        } catch (error) {
-          console.error('❌ Error processing claim verification:', error);
-          clearUserClaimState(chatId);
-          
-          const errorMessage = '❌ Verification error. Please try again.';
-          const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-        }
+    // Handle forwarded message for bot promotion creation
+    if (update.message && update.message.forward_from) {
+      const promotionState = getUserPromotionState(chatId);
+      if (promotionState && promotionState.step === 'awaiting_forwarded_message' && promotionState.type === 'bot') {
+        console.log('📨 Processing forwarded message for bot promotion');
         
-        return true;
-      }
-    }
-
-    // Handle forwarded message verification for bot tasks
-    const claimState = getUserClaimState(chatId);
-    if (claimState && claimState.step === 'awaiting_forwarded_message') {
-      if (message.forward_from && message.forward_from.is_bot) {
-        const forwardedBotUsername = message.forward_from.username;
-        
-        // Extract bot username from sponsor URL
-        const sponsorBotUsername = extractBotUsernameFromUrl(claimState.sponsorUrl);
-        
-        if (forwardedBotUsername && sponsorBotUsername && forwardedBotUsername.toLowerCase() === sponsorBotUsername.toLowerCase()) {
-          // Bot verification successful
-          await processClaimReward(chatId, claimState, dbUser);
-          return true;
-        } else {
-          const errorMessage = `❌ The forwarded message is not from the expected bot "${sponsorBotUsername}". Please forward a message from the correct bot.`;
+        // Extract bot username from forwarded message
+        const forwardedFrom = update.message.forward_from;
+        if (forwardedFrom.is_bot && forwardedFrom.username) {
+          const botUsername = forwardedFrom.username;
+          
+          // Update state with forwarded bot username and ask for bot link
+          setUserPromotionState(chatId, {
+            ...promotionState,
+            step: 'awaiting_bot_url',
+            forwardedBotUsername: botUsername
+          });
+          
+          const botLinkMessage = `🔗 Send the bot LINK
+ℹ️ It can be your referral link or any bot link
+⚠️ Must start with https://t.me/${botUsername}`;
           
           const keyboard = {
             keyboard: [
-              [{ text: '❌ Cancel' }]
+              [
+                '⬅️ Back'
+              ]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          };
+          
+          await sendUserTelegramNotification(chatId, botLinkMessage, keyboard);
+          return true;
+        } else {
+          const errorMessage = '❌ Please forward a message from a bot, not a regular user.';
+          
+          const keyboard = {
+            keyboard: [
+              [
+                '⬅️ Back'
+              ]
             ],
             resize_keyboard: true,
             one_time_keyboard: true
@@ -1598,28 +1465,10 @@ Forward any message from that bot and I'll verify it automatically.`;
           await sendUserTelegramNotification(chatId, errorMessage, keyboard);
           return true;
         }
-      } else {
-        const instructionMessage = `❌ Please forward a message from the bot, not a regular message.
-
-To forward a message:
-1. Go to the bot "${claimState.sponsorUrl}"
-2. Send any message to the bot (like /start)
-3. Tap and hold the bot's response
-4. Select "Forward"
-5. Forward it to me`;
-        
-        const keyboard = {
-          keyboard: [
-            [{ text: '❌ Cancel' }]
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true
-        };
-        
-        await sendUserTelegramNotification(chatId, instructionMessage, keyboard);
-        return true;
       }
     }
+
+    // All claim verification removed - tasks can only be completed in the App
 
     // Handle promotion URL collection
     const promotionState = getUserPromotionState(chatId);
@@ -1636,8 +1485,7 @@ To forward a message:
           const keyboard = {
             keyboard: [
               [
-                '⬅️ Back',
-                { text: '❌ Cancel' }
+                '⬅️ Back'
               ]
             ],
             resize_keyboard: true,
@@ -1647,14 +1495,31 @@ To forward a message:
           return true;
         }
       } else if (promotionState.step === 'awaiting_bot_url') {
-        // Validate bot link
-        if (!url.includes('bot')) {
-          const errorMessage = '❌ Please enter a valid bot link (should contain "bot")';
+        // Validate bot link - must start with https://t.me/ and match forwarded bot username
+        const expectedBotUsername = promotionState.forwardedBotUsername;
+        if (!expectedBotUsername) {
+          const errorMessage = '❌ Bot username not found. Please restart the bot promotion process.';
           const keyboard = {
             keyboard: [
               [
                 '⬅️ Back',
-                { text: '❌ Cancel' }
+                '❌ Cancel'
+              ]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          };
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
+          return true;
+        }
+        
+        if (!url.startsWith(`https://t.me/${expectedBotUsername}`)) {
+          const errorMessage = `❌ Please enter a valid bot link that starts with https://t.me/${expectedBotUsername}`;
+          const keyboard = {
+            keyboard: [
+              [
+                '⬅️ Back',
+                '❌ Cancel'
               ]
             ],
             resize_keyboard: true,
@@ -1669,7 +1534,7 @@ To forward a message:
       // Note: Admins have unlimited balance
       const isAdmin = dbUser.telegram_id === process.env.TELEGRAM_ADMIN_ID;
       const userBalance = await storage.getUserBalance(dbUser.id);
-      const currentMainBalance = parseFloat(userBalance?.mainBalance || '0');
+      const currentMainBalance = parseFloat(userBalance?.balance || '0');
       const adCost = parseFloat(promotionState.adCost);
       
       if (!isAdmin && currentMainBalance < adCost) {
@@ -1684,6 +1549,17 @@ To forward a message:
       
       // Create the promotion
       try {
+        // Server-side validation for channel promotion costs
+        if (promotionState.type === 'channel') {
+          if (promotionState.adCost !== '0.01' || promotionState.totalSlots !== 1000) {
+            const errorMessage = '❌ Channel promotion must cost exactly $0.01 for 1000 users.';
+            const keyboard = createBotKeyboard();
+            await sendUserTelegramNotification(chatId, errorMessage, keyboard);
+            clearUserPromotionState(chatId);
+            return true;
+          }
+        }
+        
         const title = promotionState.type === 'channel' 
           ? 'Telegram: subscribe to the channel / join the chat'
           : 'Telegram: launch the bot';
@@ -1696,12 +1572,12 @@ To forward a message:
           url: url,
           rewardPerUser: promotionState.rewardAmount,
           cost: promotionState.adCost,
-          totalSlots: promotionState.totalSlots,
-          isActive: true
+          limit: promotionState.totalSlots,
+          status: 'active'
         });
         
         // Deduct the ad cost from user's balance
-        await storage.deductMainBalance(dbUser.id, promotionState.adCost);
+        await storage.deductBalance(dbUser.id, promotionState.adCost);
         
         // Post to channel automatically
         await postPromotionToChannel(promotion);
@@ -1909,7 +1785,7 @@ To forward a message:
           requestsList += `💰 Amount: $${parseFloat(withdrawal.amount).toFixed(2)}\n`;
           requestsList += `💳 Method: ${withdrawal.method}\n`;
           requestsList += `📋 Details: ${details?.paymentDetails || 'N/A'}\n`;
-          requestsList += `⏰ Requested: ${new Date(withdrawal.createdAt).toLocaleString()}\n`;
+          requestsList += `⏰ Requested: ${withdrawal.createdAt ? new Date(withdrawal.createdAt.toString()).toLocaleString() : 'Unknown'}\n`;
           requestsList += `📝 ID: ${withdrawal.id}\n\n`;
         }
         
@@ -1919,7 +1795,7 @@ To forward a message:
           const userName = user ? (user.firstName || user.username || 'Unknown User') : 'Unknown User';
           const details = withdrawal.details as any;
           
-          const adminMessage = `💵 Withdraw request from user ${userName} (ID: ${user?.telegram_id || 'N/A'})\nAmount: $${parseFloat(withdrawal.amount).toFixed(2)}\nPayment System: ${withdrawal.method}\nPayment Details: ${details?.paymentDetails || 'N/A'}\nTime: ${new Date(withdrawal.createdAt).toLocaleString()}`;
+          const adminMessage = `💵 Withdraw request from user ${userName} (ID: ${user?.telegram_id || 'N/A'})\nAmount: $${parseFloat(withdrawal.amount).toFixed(2)}\nPayment System: ${withdrawal.method}\nPayment Details: ${details?.paymentDetails || 'N/A'}\nTime: ${withdrawal.createdAt ? new Date(withdrawal.createdAt.toString()).toLocaleString() : 'Unknown'}`;
           
           const adminKeyboard = {
             inline_keyboard: [
@@ -1949,7 +1825,6 @@ To forward a message:
       // Clear any active states
       clearUserPayoutState(chatId);
       clearUserPromotionState(chatId);
-      clearUserClaimState(chatId);
       
       const backMessage = 'Back to main menu:';
       const keyboard = createBotKeyboard();

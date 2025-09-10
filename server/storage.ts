@@ -117,11 +117,11 @@ export interface IStorage {
   updatePromotionCompletedCount(promotionId: string): Promise<void>;
   deactivateCompletedPromotions(): Promise<void>;
   
-  // User balance operations for promotions
+  // User balance operations
   getUserBalance(userId: string): Promise<UserBalance | undefined>;
-  createOrUpdateUserBalance(userId: string, mainBalance?: string, earningsBalance?: string): Promise<UserBalance>;
-  deductMainBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }>;
-  addEarningsBalance(userId: string, amount: string): Promise<void>;
+  createOrUpdateUserBalance(userId: string, balance?: string): Promise<UserBalance>;
+  deductBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }>;
+  addBalance(userId: string, amount: string): Promise<void>;
   
   // Admin/Statistics operations
   getAppStats(): Promise<{
@@ -1293,7 +1293,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       // Add reward to user's earnings balance
-      await this.addEarningsBalance(userId, rewardAmount);
+      await this.addBalance(userId, rewardAmount);
 
       // Add earning record
       await this.addEarning({
@@ -1302,6 +1302,15 @@ export class DatabaseStorage implements IStorage {
         source: 'task_completion',
         description: `Task completed: ${promotion.title}`,
       });
+
+      // Send task completion notification to user via Telegram
+      try {
+        const { sendTaskCompletionNotification } = await import('./telegram');
+        await sendTaskCompletionNotification(userId, rewardAmount);
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+        // Don't fail the task completion if notification fails
+      }
 
       return { success: true, message: 'Task completed successfully' };
     } catch (error) {
@@ -1336,36 +1345,45 @@ export class DatabaseStorage implements IStorage {
     return;
   }
 
-  // User balance operations for promotions
+  // User balance operations
   async getUserBalance(userId: string): Promise<UserBalance | undefined> {
-    const [balance] = await db.select().from(userBalances).where(eq(userBalances.userId, userId));
-    return balance;
-  }
-
-  async createOrUpdateUserBalance(userId: string, mainBalance?: string, earningsBalance?: string): Promise<UserBalance> {
-    const existingBalance = await this.getUserBalance(userId);
-    
-    if (existingBalance) {
-      const updateData: any = { updatedAt: new Date() };
-      if (mainBalance !== undefined) updateData.mainBalance = mainBalance;
-      if (earningsBalance !== undefined) updateData.earningsBalance = earningsBalance;
-      
-      const [result] = await db.update(userBalances)
-        .set(updateData)
-        .where(eq(userBalances.userId, userId))
-        .returning();
-      return result;
-    } else {
-      const [result] = await db.insert(userBalances).values({
-        userId,
-        mainBalance: mainBalance || '0',
-        earningsBalance: earningsBalance || '0',
-      }).returning();
-      return result;
+    try {
+      const [balance] = await db.select().from(userBalances).where(eq(userBalances.userId, userId));
+      return balance;
+    } catch (error) {
+      console.error('Error getting user balance:', error);
+      return undefined;
     }
   }
 
-  async deductMainBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }> {
+  async createOrUpdateUserBalance(userId: string, balance?: string): Promise<UserBalance> {
+    try {
+      const existingBalance = await this.getUserBalance(userId);
+      
+      if (existingBalance) {
+        const [result] = await db.update(userBalances)
+          .set({
+            balance: balance || existingBalance.balance,
+            updatedAt: new Date()
+          })
+          .where(eq(userBalances.userId, userId))
+          .returning();
+        return result;
+      } else {
+        // Create new balance record with default 0 if user not found
+        const [result] = await db.insert(userBalances).values({
+          userId,
+          balance: balance || '0',
+        }).returning();
+        return result;
+      }
+    } catch (error) {
+      console.error('Error creating/updating user balance:', error);
+      throw error;
+    }
+  }
+
+  async deductBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }> {
     try {
       // Check if user is admin - admins have unlimited balance
       const user = await this.getUser(userId);
@@ -1376,44 +1394,52 @@ export class DatabaseStorage implements IStorage {
         return { success: true, message: 'Balance deducted successfully (admin unlimited)' };
       }
 
-      const balance = await this.getUserBalance(userId);
+      let balance = await this.getUserBalance(userId);
       if (!balance) {
-        return { success: false, message: 'User balance not found' };
+        // Create balance record with 0 if user not found
+        balance = await this.createOrUpdateUserBalance(userId, '0');
       }
 
-      const currentBalance = parseFloat(balance.mainBalance || '0');
+      const currentBalance = parseFloat(balance.balance || '0');
       const deductAmount = parseFloat(amount);
 
       if (currentBalance < deductAmount) {
-        return { success: false, message: 'Insufficient main balance' };
+        return { success: false, message: 'Insufficient balance' };
       }
 
       await db.update(userBalances)
         .set({
-          mainBalance: sql`${userBalances.mainBalance} - ${amount}`,
+          balance: sql`${userBalances.balance} - ${amount}`,
           updatedAt: new Date(),
         })
         .where(eq(userBalances.userId, userId));
 
       return { success: true, message: 'Balance deducted successfully' };
     } catch (error) {
-      console.error('Error deducting main balance:', error);
+      console.error('Error deducting balance:', error);
       return { success: false, message: 'Error deducting balance' };
     }
   }
 
-  async addEarningsBalance(userId: string, amount: string): Promise<void> {
-    // First ensure the user has a balance record
-    const existingBalance = await this.getUserBalance(userId);
-    if (!existingBalance) {
-      await this.createOrUpdateUserBalance(userId, '0', amount);
-    } else {
-      await db.update(userBalances)
-        .set({
-          earningsBalance: sql`${userBalances.earningsBalance} + ${amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(userBalances.userId, userId));
+  async addBalance(userId: string, amount: string): Promise<void> {
+    try {
+      // First ensure the user has a balance record
+      let existingBalance = await this.getUserBalance(userId);
+      if (!existingBalance) {
+        // Create new balance record with the amount if user not found
+        await this.createOrUpdateUserBalance(userId, amount);
+      } else {
+        // Add to existing balance
+        await db.update(userBalances)
+          .set({
+            balance: sql`${userBalances.balance} + ${amount}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(userBalances.userId, userId));
+      }
+    } catch (error) {
+      console.error('Error adding balance:', error);
+      throw error;
     }
   }
 
