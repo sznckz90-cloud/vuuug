@@ -184,7 +184,7 @@ async function processClaimReward(chatId: string, claimState: ClaimState, dbUser
 New balance: ${newBalance.toFixed(4)}`;
     
     const keyboard = createBotKeyboard();
-    await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
+    await sendUserTelegramNotification(chatId, successMessage, keyboard);
     
   } catch (error) {
     console.error('❌ Error processing claim reward:', error);
@@ -192,7 +192,7 @@ New balance: ${newBalance.toFixed(4)}`;
     
     const errorMessage = '❌ Error processing reward. Please try again.';
     const keyboard = createBotKeyboard();
-    await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+    await sendUserTelegramNotification(chatId, errorMessage, keyboard);
   }
 }
 
@@ -755,7 +755,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         if (userBalance < system.minWithdrawal) {
           const minMessage = `❌ Minimum withdrawal for ${system.name} is $${system.minWithdrawal.toFixed(2)}.\n\nYour balance: $${userBalance.toFixed(2)}`;
           const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, minMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, minMessage, keyboard);
           return true;
         }
         
@@ -772,7 +772,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           resize_keyboard: true,
           one_time_keyboard: false
         };
-        await sendUserTelegramNotification(chatId, detailsMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, detailsMessage, keyboard);
         return true;
       }
     }
@@ -796,7 +796,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           if (!promotion) {
             const errorMessage = '❌ This promotion no longer exists.';
             const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, errorMessage, keyboard);
             return true;
           }
           
@@ -804,7 +804,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           if ((promotion.claimedCount || 0) >= (promotion.limit || 1000)) {
             const limitMessage = '❌ This task is fully claimed, better luck next time.';
             const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, limitMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, limitMessage, keyboard);
             return true;
           }
           
@@ -813,7 +813,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           if (hasClaimed) {
             const alreadyClaimedMessage = '❌ You already claimed this task.';
             const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, alreadyClaimedMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, alreadyClaimedMessage, keyboard);
             return true;
           }
           
@@ -867,18 +867,18 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           };
           
           // Send message with inline button
-          await sendUserTelegramNotification(chatId, taskMessage, { reply_markup: inlineKeyboard });
+          await sendUserTelegramNotification(chatId, taskMessage, inlineKeyboard);
           
           // Send follow-up message with reply keyboard
           const followUpMessage = 'Click "✅ Done" when you have completed the task, or "❌ Cancel" to exit.';
-          await sendUserTelegramNotification(chatId, followUpMessage, { reply_markup: replyKeyboard });
+          await sendUserTelegramNotification(chatId, followUpMessage, replyKeyboard);
           return true;
           
         } catch (error) {
           console.error('❌ Error processing promotion task claim:', error);
           const errorMessage = '❌ Error processing your claim. Please try again.';
           const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
           return true;
         }
       }
@@ -1034,7 +1034,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 🚀 Keep sharing your invite link daily and multiply your earnings!`;
         
         const keyboard = createBotKeyboard();
-        const messageSent = await sendUserTelegramNotification(chatId, profileMessage, { reply_markup: keyboard });
+        const messageSent = await sendUserTelegramNotification(chatId, profileMessage, keyboard);
         console.log('📧 Profile message sent successfully:', messageSent);
         
         return true;
@@ -1042,7 +1042,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         console.error('❌ Error fetching profile data:', error);
         const errorMessage = '❌ Sorry, there was an error fetching your profile data. Please try again later.';
         const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
         return true;
       }
     }
@@ -1057,7 +1057,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       if (userBalance <= 0) {
         const noBalanceMessage = `💰 Your current balance is $${userBalance.toFixed(2)}.\n\n🚀 Complete tasks or refer friends to earn money!`;
         const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, noBalanceMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, noBalanceMessage, keyboard);
         return true;
       }
       
@@ -1072,7 +1072,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       };
       
       const payoutMessage = `Select Payment System:\n\nYour balance: $${userBalance.toFixed(2)}`;
-      await sendUserTelegramNotification(chatId, payoutMessage, { reply_markup: paymentKeyboard });
+      await sendUserTelegramNotification(chatId, payoutMessage, paymentKeyboard);
       
       return true;
     }
@@ -1103,7 +1103,7 @@ ${referralLink}
 🚀 Share now and start building your earnings instantly.`;
       
       const keyboard = createBotKeyboard();
-      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, { reply_markup: keyboard });
+      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, keyboard);
       console.log('📧 Affiliates message sent successfully:', messageSent);
       
       return true;
@@ -1131,7 +1131,7 @@ Choose promotion type:`;
         one_time_keyboard: false
       };
       
-      await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
+      await sendUserTelegramNotification(chatId, promotionMessage, promotionKeyboard);
       return true;
     }
     
@@ -1154,7 +1154,7 @@ Choose promotion type:`;
 🚀 Start by visiting the web app and completing available tasks!`;
       
       const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, howToMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, howToMessage, keyboard);
       return true;
     }
     
@@ -1176,7 +1176,7 @@ To add funds to your main balance for creating promotions, please contact our su
 Your current main balance: $${mainBalance.toFixed(2)}`;
       
       const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, addFundsMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, addFundsMessage, keyboard);
       return true;
     }
     
@@ -1185,7 +1185,7 @@ Your current main balance: $${mainBalance.toFixed(2)}`;
       // Send welcome message with web app link
       const keyboard = createBotKeyboard();
       const { message } = formatWelcomeMessage();
-      const messageSent = await sendUserTelegramNotification(chatId, message, { reply_markup: keyboard });
+      const messageSent = await sendUserTelegramNotification(chatId, message, keyboard);
       console.log('📧 Start Earning message sent successfully:', messageSent);
       return true;
     }
@@ -1197,7 +1197,7 @@ Your current main balance: $${mainBalance.toFixed(2)}`;
       
       const welcomeMessage = 'Welcome back to the main menu!';
       const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, welcomeMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, welcomeMessage, keyboard);
       return true;
     }
     
@@ -1231,7 +1231,7 @@ Add @lightningsatsbot → Instant Verify ⚡
         one_time_keyboard: true
       };
       
-      await sendUserTelegramNotification(chatId, channelMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, channelMessage, keyboard);
       return true;
     }
     
@@ -1264,7 +1264,7 @@ Type: Telegram: launch the bot
         one_time_keyboard: true
       };
       
-      await sendUserTelegramNotification(chatId, botMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, botMessage, keyboard);
       return true;
     }
     
@@ -1295,14 +1295,14 @@ Type: Telegram: launch the bot
           one_time_keyboard: true
         };
         
-        await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
+        await sendUserTelegramNotification(chatId, promotionMessage, promotionKeyboard);
         return true;
       }
       
       // Default back to main menu
       const keyboard = createBotKeyboard();
       const backMessage = 'Back to main menu.';
-      await sendUserTelegramNotification(chatId, backMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, backMessage, keyboard);
       return true;
     }
     
@@ -1318,7 +1318,7 @@ Type: Telegram: launch the bot
         
         const keyboard = createBotKeyboard();
         const cancelMessage = '❌ Promotion creation cancelled.';
-        await sendUserTelegramNotification(chatId, cancelMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, cancelMessage, keyboard);
         return true;
       }
       
@@ -1342,14 +1342,14 @@ Type: Telegram: launch the bot
           one_time_keyboard: true
         };
         
-        await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
+        await sendUserTelegramNotification(chatId, promotionMessage, promotionKeyboard);
         return true;
       }
       
       // Default back to main menu if not in any state
       const keyboard = createBotKeyboard();
       const backMessage = 'Back to main menu.';
-      await sendUserTelegramNotification(chatId, backMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, backMessage, keyboard);
       return true;
     }
 
@@ -1386,7 +1386,7 @@ Forward any message from that bot and I'll verify it automatically.`;
               one_time_keyboard: true
             };
             
-            await sendUserTelegramNotification(chatId, botMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, botMessage, keyboard);
             return true;
           }
           
@@ -1409,7 +1409,7 @@ Forward any message from that bot and I'll verify it automatically.`;
               one_time_keyboard: true
             };
             
-            await sendUserTelegramNotification(chatId, failedMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, failedMessage, keyboard);
           }
           
         } catch (error) {
@@ -1418,7 +1418,7 @@ Forward any message from that bot and I'll verify it automatically.`;
           
           const errorMessage = '❌ Verification error. Please try again.';
           const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
         }
         
         return true;
@@ -1449,7 +1449,7 @@ Forward any message from that bot and I'll verify it automatically.`;
             one_time_keyboard: true
           };
           
-          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
           return true;
         }
       } else {
@@ -1470,7 +1470,7 @@ To forward a message:
           one_time_keyboard: true
         };
         
-        await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, instructionMessage, keyboard);
         return true;
       }
     }
@@ -1497,7 +1497,7 @@ To forward a message:
             resize_keyboard: true,
             one_time_keyboard: true
           };
-          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
           return true;
         }
       } else if (promotionState.step === 'awaiting_bot_url') {
@@ -1514,7 +1514,7 @@ To forward a message:
             resize_keyboard: true,
             one_time_keyboard: true
           };
-          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
           return true;
         }
       }
@@ -1529,7 +1529,7 @@ To forward a message:
         const insufficientBalanceMessage = `❌ You don't have enough balance to advertise. ⭐ Use /deposit to add more balance.`;
         
         const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, insufficientBalanceMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, insufficientBalanceMessage, keyboard);
         return true;
       }
       
@@ -1563,7 +1563,7 @@ To forward a message:
         const successMessage = `📈 Ad campaign ${title} (${url}) successfully created.`;
         
         const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, successMessage, keyboard);
         return true;
         
       } catch (error) {
@@ -1572,7 +1572,7 @@ To forward a message:
         
         const errorMessage = '❌ Failed to create promotion. Please try again.';
         const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
         return true;
       }
     }
@@ -1627,7 +1627,7 @@ To forward a message:
       
       if (!isValid) {
         const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
         return true;
       }
       
@@ -1662,7 +1662,7 @@ To forward a message:
         one_time_keyboard: true
       };
       
-      await sendUserTelegramNotification(chatId, confirmationMessage, { reply_markup: confirmationKeyboard });
+      await sendUserTelegramNotification(chatId, confirmationMessage, confirmationKeyboard);
       return true;
     }
 
@@ -1686,7 +1686,7 @@ To forward a message:
             clearUserPayoutState(chatId);
             
             const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, successMessage, keyboard);
             
             // Send admin notification
             const userName = dbUser.firstName || dbUser.username || 'User';
@@ -1698,14 +1698,14 @@ To forward a message:
           } else {
             const errorMessage = `❌ ${payoutResult.message}`;
             const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, errorMessage, keyboard);
             clearUserPayoutState(chatId);
           }
         } catch (error) {
           console.error('❌ Error processing payout:', error);
           const errorMessage = '❌ Error processing your payout. Please try again later.';
           const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
           clearUserPayoutState(chatId);
         }
         return true;
@@ -1734,7 +1734,7 @@ To forward a message:
       
       const backMessage = 'Back to main menu:';
       const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, backMessage, { reply_markup: keyboard });
+      await sendUserTelegramNotification(chatId, backMessage, keyboard);
       return true;
     }
 
@@ -1763,7 +1763,7 @@ Please enter your channel URL (e.g., https://t.me/yourchannel):`;
         one_time_keyboard: false
       };
       
-      await sendUserTelegramNotification(chatId, channelMessage, { reply_markup: channelKeyboard });
+      await sendUserTelegramNotification(chatId, channelMessage, channelKeyboard);
       return true;
     }
 
@@ -1792,7 +1792,7 @@ Please enter your bot URL (e.g., https://t.me/yourbot):`;
         one_time_keyboard: false
       };
       
-      await sendUserTelegramNotification(chatId, botMessage, { reply_markup: botKeyboard });
+      await sendUserTelegramNotification(chatId, botMessage, botKeyboard);
       return true;
     }
 
@@ -1820,7 +1820,7 @@ Please enter your USDT wallet address (TRC20/Polygon):`;
         amount: dbUser.balance || '0'
       });
       
-      await sendUserTelegramNotification(chatId, usdtMessage, { reply_markup: usdtKeyboard });
+      await sendUserTelegramNotification(chatId, usdtMessage, usdtKeyboard);
       return true;
     }
 
@@ -1848,7 +1848,7 @@ Please enter your TON wallet address:`;
         amount: dbUser.balance || '0'
       });
       
-      await sendUserTelegramNotification(chatId, tonMessage, { reply_markup: tonKeyboard });
+      await sendUserTelegramNotification(chatId, tonMessage, tonKeyboard);
       return true;
     }
 
@@ -1857,7 +1857,7 @@ Please enter your TON wallet address:`;
     
     const instructionMessage = 'Please use the buttons below:';
     const keyboard = createBotKeyboard();
-    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
+    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, keyboard);
     console.log('📧 Main menu message sent successfully:', messageSent);
     
     return true;
