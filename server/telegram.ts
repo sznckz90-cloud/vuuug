@@ -1,5 +1,5 @@
 // Telegram Bot API integration for sending notifications
-import { storage } from './storage';
+import { storage, PAYMENT_SYSTEMS } from './storage';
 
 const isAdmin = (telegramId: string): boolean => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
@@ -42,6 +42,93 @@ function getUserPayoutState(chatId: string): PayoutState | null {
 
 function clearUserPayoutState(chatId: string) {
   userPayoutStates.delete(chatId);
+}
+
+// Simple in-memory state management for promotion creation flow
+const userPromotionStates = new Map();
+
+interface PromotionState {
+  step: 'awaiting_channel_url' | 'awaiting_bot_url';
+  type: 'subscribe' | 'bot';
+  adCost: string;
+  rewardAmount: string;
+  totalSlots: number;
+  url?: string;
+}
+
+function setUserPromotionState(chatId: string, state: PromotionState) {
+  userPromotionStates.set(chatId, state);
+}
+
+function getUserPromotionState(chatId: string): PromotionState | null {
+  return userPromotionStates.get(chatId) || null;
+}
+
+function clearUserPromotionState(chatId: string) {
+  userPromotionStates.delete(chatId);
+}
+
+// Post promotion to PaidAdsNews channel
+async function postPromotionToChannel(promotion: any): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
+    console.error('Missing Telegram bot token or channel ID for posting promotion');
+    return;
+  }
+  
+  try {
+    const rewardInCents = Math.round(parseFloat(promotion.rewardAmount) * 100000); // Convert to show like $0.25
+    const rewardDisplay = (rewardInCents / 100).toFixed(2);
+    
+    const channelMessage = `🌍 World's Biggest Free Crypto Drop! 🌍
+💎 $${rewardDisplay} Crypto each → 1000 Winners 🔥
+
+🤯 Imagine… 1000 people flexing FREE crypto – why not YOU?
+
+✨ Sponsored by 👉 ${promotion.url}
+#Crypto #Giveaway #Airdrop
+
+🚀 Claim in 1 tap – before it's over!`;
+
+    // Generate claim link for the promotion
+    const botUsername = process.env.BOT_USERNAME || "CashWatchBot";
+    const claimLink = `https://t.me/${botUsername}?start=claim_${promotion.id}`;
+    
+    const keyboard = {
+      inline_keyboard: [[
+        { 
+          text: '🔘 Grab Your Free Crypto Now', 
+          url: claimLink 
+        }
+      ]]
+    };
+
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHANNEL_ID,
+        text: channelMessage,
+        parse_mode: 'HTML',
+        reply_markup: keyboard
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Promotion posted to channel successfully:', result.result.message_id);
+      
+      // Update promotion with channel message ID for tracking
+      if (result.result.message_id) {
+        // Note: This would require a method to update the promotion with channel message ID
+        // await storage.updatePromotionChannelMessageId(promotion.id, result.result.message_id.toString());
+      }
+    } else {
+      const errorData = await response.text();
+      console.error('❌ Failed to post promotion to channel:', errorData);
+    }
+  } catch (error) {
+    console.error('❌ Error posting promotion to channel:', error);
+  }
 }
 
 export async function sendTelegramMessage(message: string): Promise<boolean> {
@@ -520,188 +607,122 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 
     console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegram_id}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
 
-    // Handle /affiliates command
-    if (text === '/affiliates') {
-      console.log('🔗 Processing /affiliates command...');
+    // Handle payment system selection
+    for (const system of PAYMENT_SYSTEMS) {
+      if (text === `${system.emoji} ${system.name}`) {
+        console.log(`💳 Processing payment system selection: ${system.name}`);
+        
+        const userBalance = parseFloat(dbUser.withdrawBalance || '0');
+        
+        if (userBalance < system.minWithdrawal) {
+          const minMessage = `❌ Minimum withdrawal for ${system.name} is $${system.minWithdrawal.toFixed(2)}.\n\nYour balance: $${userBalance.toFixed(2)}`;
+          const keyboard = createBotKeyboard();
+          await sendUserTelegramNotification(chatId, minMessage, { reply_markup: keyboard });
+          return true;
+        }
+        
+        // Set payout state
+        setUserPayoutState(chatId, {
+          step: 'awaiting_details',
+          paymentSystem: system,
+          amount: userBalance.toFixed(2)
+        });
+        
+        const detailsMessage = `📋 Enter your ${system.name} details:\n\nAmount: $${userBalance.toFixed(2)}`;
+        const keyboard = {
+          keyboard: [[{ text: '🔙 Back to Menu' }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        };
+        await sendUserTelegramNotification(chatId, detailsMessage, { reply_markup: keyboard });
+        return true;
+      }
+    }
+
+    
+    
+    // Handle /start command with referral processing and promotion claims
+    if (text.startsWith('/start')) {
+      console.log('🚀 Processing /start command...');
+      // Extract parameter if present (e.g., /start REF123 or /start claim_promotionId)
+      const parameter = text.split(' ')[1];
       
-      // Ensure referral code exists for this user
-      let finalUser = dbUser;
-      if (!dbUser.referralCode) {
-        console.log('🔄 Generating missing referral code for user:', dbUser.id);
+      // Handle promotion claim
+      if (parameter && parameter.startsWith('claim_')) {
+        const promotionId = parameter.replace('claim_', '');
+        console.log('🎁 Processing promotion claim for:', promotionId);
+        
         try {
-          await storage.generateReferralCode(dbUser.id);
-          finalUser = await storage.getUser(dbUser.id) || dbUser;
+          // Get the promotion details
+          const promotion = await storage.getPromotion(promotionId);
+          if (!promotion) {
+            const errorMessage = '❌ This promotion no longer exists.';
+            const keyboard = createBotKeyboard();
+            await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+            return true;
+          }
+          
+          // Check if promotion is still active and has slots
+          if (!promotion.isActive || (promotion.completedCount || 0) >= (promotion.totalSlots || 1000)) {
+            const expiredMessage = '⚡ This task has expired.';
+            const keyboard = createBotKeyboard();
+            await sendUserTelegramNotification(chatId, expiredMessage, { reply_markup: keyboard });
+            return true;
+          }
+          
+          // Check if user already completed this promotion
+          const hasCompleted = await storage.hasUserCompletedTask(promotionId, dbUser.id);
+          if (hasCompleted) {
+            const alreadyClaimedMessage = '❌ You have already claimed this promotion.';
+            const keyboard = createBotKeyboard();
+            await sendUserTelegramNotification(chatId, alreadyClaimedMessage, { reply_markup: keyboard });
+            return true;
+          }
+          
+          // Ask user to complete the task
+          const taskMessage = promotion.type === 'subscribe' 
+            ? `🔗 To claim your reward, please join the channel/chat:
+${promotion.url}
+
+After joining, you will be automatically verified in 3 seconds and receive your reward!`
+            : `🤖 To claim your reward, please start the bot:
+${promotion.url}
+
+After starting the bot, you will be automatically verified in 3 seconds and receive your reward!`;
+          
+          // Set a verification timer (simulate 3 second verification)
+          setTimeout(async () => {
+            try {
+              const result = await storage.completeTask(promotionId, dbUser.id, promotion.rewardAmount || '0.00025');
+              if (result.success) {
+                const rewardMessage = `Reward $${promotion.rewardAmount} has been added to your balance ✅`;
+                const keyboard = createBotKeyboard();
+                await sendUserTelegramNotification(chatId, rewardMessage, { reply_markup: keyboard });
+              } else {
+                const errorMessage = `❌ ${result.message}`;
+                const keyboard = createBotKeyboard();
+                await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+              }
+            } catch (error) {
+              console.error('❌ Error completing task:', error);
+            }
+          }, 3000);
+          
+          const keyboard = createBotKeyboard();
+          await sendUserTelegramNotification(chatId, taskMessage, { reply_markup: keyboard });
+          return true;
+          
         } catch (error) {
-          console.error('❌ Failed to generate referral code:', error);
+          console.error('❌ Error processing promotion claim:', error);
+          const errorMessage = '❌ Error processing your claim. Please try again.';
+          const keyboard = createBotKeyboard();
+          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          return true;
         }
       }
       
-      // Generate referral link
-      const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
-      const referralLink = `https://t.me/${botUsername}?start=${finalUser.referralCode}`;
-      
-      const affiliatesMessage = `🔗 Your Personal Invite Link:
-${referralLink}
-
-💵 Get $0.01 for every friend who joins!
-🚀 Share now and start building your earnings instantly.`;
-      
-      const keyboard = createBotKeyboard();
-      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, { reply_markup: keyboard });
-      console.log('📧 Affiliates message sent successfully:', messageSent);
-      
-      return true;
-    }
-    
-    
-    // Handle /payout command
-    if (text === '/payout') {
-      console.log('💰 Processing /payout command...');
-      
-      // Check overall minimum balance (lowest across all payment systems)
-      const userBalance = parseFloat(dbUser.balance || '0');
-      const { PAYMENT_SYSTEMS } = await import('./storage');
-      const minOverallBalance = Math.min(...PAYMENT_SYSTEMS.map(p => p.minWithdrawal));
-      
-      if (userBalance < minOverallBalance) {
-        const insufficientMessage = `❌ There are not enough funds on your balance. The minimum amount to withdraw is $${minOverallBalance.toFixed(2)}`;
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, insufficientMessage, { reply_markup: keyboard });
-        return true;
-      }
-      
-      // Show payment system selection keyboard
-      const paymentKeyboard = {
-        inline_keyboard: PAYMENT_SYSTEMS.map(system => [
-          { 
-            text: `${system.emoji} ${system.name}`, 
-            callback_data: `payout_${system.id}` 
-          }
-        ])
-      };
-      
-      const payoutMessage = `Select Payment System:\n\nYour balance: $${userBalance.toFixed(2)}`;
-      await sendUserTelegramNotification(chatId, payoutMessage, paymentKeyboard);
-      
-      return true;
-    }
-    
-    // Handle /stats command (admin only)
-    if (text === '/stats' && isAdmin(chatId)) {
-      console.log('📊 Processing admin /stats command...');
-      
-      try {
-        const stats = await storage.getAppStats();
-        
-        const statsMessage = `📊 Application Stats\n\n👥 Total Registered Users: ${stats.totalUsers.toLocaleString()}\n👤 Active Users Today: ${stats.activeUsersToday}\n🔗 Total Friends Invited: ${stats.totalInvites.toLocaleString()}\n\n💰 Total Earnings (All Users): $${parseFloat(stats.totalEarnings).toFixed(2)}\n💎 Total Referral Earnings: $${parseFloat(stats.totalReferralEarnings).toFixed(2)}\n🏦 Total Payouts: $${parseFloat(stats.totalPayouts).toFixed(2)}\n\n🚀 Growth (Last 24h): +${stats.newUsersLast24h} new users`;
-        
-        const refreshButton = {
-          inline_keyboard: [[
-            { text: "🔃 Refresh 🔄", callback_data: "refresh_stats" }
-          ]]
-        };
-        
-        await sendUserTelegramNotification(chatId, statsMessage, refreshButton);
-      } catch (error) {
-        console.error('❌ Error fetching stats:', error);
-        const errorMessage = '❌ Failed to fetch application stats. Please try again.';
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
-      }
-      
-      return true;
-    }
-    
-    // Handle /profile command
-    if (text === '/profile') {
-      console.log('📊 Processing /profile command...');
-      
-      try {
-        // Get user stats from database
-        // const userStats = await storage.getUserStats(dbUser.id);
-        const referralStats = await storage.getUserReferrals(dbUser.id);
-        
-        // Calculate referral earnings
-        const referralEarnings = await storage.getUserReferralEarnings(dbUser.id);
-        
-        // Format username
-        const username = dbUser.username ? `@${dbUser.username}` : dbUser.firstName || 'User';
-        
-        // Format join date
-        const joinDate = dbUser.createdAt ? new Date(dbUser.createdAt).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric'
-        }) : 'Unknown';
-        
-        const profileMessage = `📊 Your Earnings Dashboard
-
-👤 Username: ${username}
-🆔 User ID: ${dbUser.telegram_id}
-
-👥 Total Friends Invited: ${referralStats?.length || 0}
-💰 Total Earnings: $${parseFloat(dbUser.totalEarned || '0').toFixed(2)}
-💎 Current Balance: $${parseFloat(dbUser.balance || '0').toFixed(2)}
-🎁 Earnings from Referrals: $${parseFloat(referralEarnings || '0').toFixed(2)}
-📅 Joined On: ${joinDate}
-
-🚀 Keep sharing your invite link daily and multiply your earnings!`;
-        
-        const keyboard = createBotKeyboard();
-        const messageSent = await sendUserTelegramNotification(chatId, profileMessage, { reply_markup: keyboard });
-        console.log('📧 Profile message sent successfully:', messageSent);
-        
-        return true;
-      } catch (error) {
-        console.error('❌ Error fetching profile data:', error);
-        const errorMessage = '❌ Sorry, there was an error fetching your profile data. Please try again later.';
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
-        return true;
-      }
-    }
-    
-    // Handle admin broadcast command
-    if (text.startsWith('/broadcast ') && isAdmin(chatId)) {
-      console.log('📢 Processing admin broadcast command...');
-      
-      const broadcastMessage = text.substring(11); // Remove '/broadcast ' prefix
-      
-      if (!broadcastMessage.trim()) {
-        const errorMessage = '❌ Please provide a message to broadcast.\nExample: /broadcast Hello everyone!';
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
-        return true;
-      }
-      
-      const confirmMessage = `📢 Are you sure you want to send this broadcast message to all users?\n\n"${broadcastMessage}"\n\nReply with "CONFIRM BROADCAST" to proceed.`;
-      const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, confirmMessage, { reply_markup: keyboard });
-      
-      return true;
-    }
-    
-    // Handle broadcast confirmation
-    if (text === 'CONFIRM BROADCAST' && isAdmin(chatId)) {
-      console.log('📢 Processing broadcast confirmation...');
-      
-      const processingMessage = '📢 Broadcasting message to all users... This may take a few minutes.';
-      const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, processingMessage, { reply_markup: keyboard });
-      
-      // Note: In a real implementation, you'd want to store the pending broadcast message
-      // For now, we'll send a sample message or require the admin to use the full command again
-      const sampleMessage = '📢 Important announcement from Lightning Sats Bot!\n\n👋 Thank you for using our service. Keep earning!';
-      await sendBroadcastMessage(sampleMessage, chatId);
-      
-      return true;
-    }
-    
-    // Handle /start command with referral processing
-    if (text.startsWith('/start')) {
-      console.log('🚀 Processing /start command...');
       // Extract referral code if present (e.g., /start REF123)
-      const referralCode = text.split(' ')[1];
+      const referralCode = parameter;
       
       // Process referral if referral code was provided (only for new users)
       if (isNewUser && referralCode && referralCode !== chatId) {
@@ -818,21 +839,181 @@ ${referralLink}
 
     // Handle keyboard button presses
     if (text === '👤 Account') {
-      console.log('⌨️ Processing Account button press -> /profile');
-      // Redirect to /profile command handling  
-      return await handleTelegramMessage({ message: { ...update.message, text: '/profile' } });
+      console.log('⌨️ Processing Account button press');
+      
+      try {
+        // Get user stats from database
+        const referralStats = await storage.getUserReferrals(dbUser.id);
+        
+        // Calculate referral earnings
+        const referralEarnings = await storage.getUserReferralEarnings(dbUser.id);
+        
+        // Format username
+        const username = dbUser.username ? `@${dbUser.username}` : dbUser.firstName || 'User';
+        
+        // Format join date
+        const joinDate = dbUser.createdAt ? new Date(dbUser.createdAt).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }) : 'Unknown';
+        
+        const profileMessage = `📊 Your Earnings Dashboard
+
+👤 Username: ${username}
+🆔 User ID: ${dbUser.telegram_id}
+
+👥 Total Friends Invited: ${referralStats?.length || 0}
+💰 Total Earnings: $${parseFloat(dbUser.totalEarned || '0').toFixed(2)}
+💎 Current Balance: $${parseFloat(dbUser.balance || '0').toFixed(2)}
+🎁 Earnings from Referrals: $${parseFloat(referralEarnings || '0').toFixed(2)}
+📅 Joined On: ${joinDate}
+
+🚀 Keep sharing your invite link daily and multiply your earnings!`;
+        
+        const keyboard = createBotKeyboard();
+        const messageSent = await sendUserTelegramNotification(chatId, profileMessage, { reply_markup: keyboard });
+        console.log('📧 Profile message sent successfully:', messageSent);
+        
+        return true;
+      } catch (error) {
+        console.error('❌ Error fetching profile data:', error);
+        const errorMessage = '❌ Sorry, there was an error fetching your profile data. Please try again later.';
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        return true;
+      }
     }
     
-    if (text === '👥 Invite Friends') {
-      console.log('⌨️ Processing Invite Friends button press -> /affiliates');
-      // Redirect to /affiliates command handling
-      return await handleTelegramMessage({ message: { ...update.message, text: '/affiliates' } });
+    if (text === '🏦 Cashout') {
+      console.log('⌨️ Processing Cashout button press');
+      
+      // Get current user balance
+      const currentBalance = parseFloat(dbUser.balance || '0');
+      const userBalance = parseFloat(dbUser.withdrawBalance || '0');
+      
+      if (userBalance <= 0) {
+        const noBalanceMessage = `💰 Your current balance is $${userBalance.toFixed(2)}.\n\n🚀 Complete tasks or refer friends to earn money!`;
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, noBalanceMessage, { reply_markup: keyboard });
+        return true;
+      }
+      
+      const paymentKeyboard = {
+        keyboard: PAYMENT_SYSTEMS.map(system => [
+          { text: `${system.emoji} ${system.name}` }
+        ]).concat([[{ text: '🔙 Back to Menu' }]]),
+        resize_keyboard: true,
+        one_time_keyboard: true
+      };
+      
+      const payoutMessage = `Select Payment System:\n\nYour balance: $${userBalance.toFixed(2)}`;
+      await sendUserTelegramNotification(chatId, payoutMessage, { reply_markup: paymentKeyboard });
+      
+      return true;
     }
     
-    if (text === '💰 Payout') {
-      console.log('⌨️ Processing Payout button press -> /payout');
-      // Redirect to /payout command handling
-      return await handleTelegramMessage({ message: { ...update.message, text: '/payout' } });
+    if (text === '👥 Affiliates') {
+      console.log('⌨️ Processing Affiliates button press');
+      
+      // Ensure referral code exists for this user
+      let finalUser = dbUser;
+      if (!dbUser.referralCode) {
+        console.log('🔄 Generating missing referral code for user:', dbUser.id);
+        try {
+          await storage.generateReferralCode(dbUser.id);
+          finalUser = await storage.getUser(dbUser.id) || dbUser;
+        } catch (error) {
+          console.error('❌ Failed to generate referral code:', error);
+        }
+      }
+      
+      // Generate referral link
+      const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
+      const referralLink = `https://t.me/${botUsername}?start=${finalUser.referralCode}`;
+      
+      const affiliatesMessage = `🔗 Your Personal Invite Link:
+${referralLink}
+
+💵 Get $0.01 for every friend who joins!
+🚀 Share now and start building your earnings instantly.`;
+      
+      const keyboard = createBotKeyboard();
+      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, { reply_markup: keyboard });
+      console.log('📧 Affiliates message sent successfully:', messageSent);
+      
+      return true;
+    }
+    
+    if (text === '📈 Promotion') {
+      console.log('⌨️ Processing Promotion button press');
+      
+      const promotionMessage = `📈 Promotion
+→ 📝 Creation of an ad campaign
+
+Choose promotion type:`;
+      
+      const promotionKeyboard = {
+        keyboard: [
+          [
+            { text: '📢 Channel members' },
+            { text: '🤖 Bot' }
+          ],
+          [
+            { text: '🔙 Back to Menu' }
+          ]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      };
+      
+      await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
+      return true;
+    }
+    
+    if (text === '⁉️ How-to') {
+      console.log('⌨️ Processing How-to button press');
+      
+      const howToMessage = `⁉️ How to Use CashWatch Bot
+
+🔸 **Account** - View your profile and earnings
+🔸 **Cashout** - Withdraw your earnings
+🔸 **Affiliates** - Get your referral link to invite friends
+🔸 **Promotion** - Create ad campaigns to promote your channels/bots
+🔸 **Add funds** - Add balance to create promotions
+
+💰 **How to Earn:**
+• Complete tasks in the app
+• Refer friends with your link
+• Create promotions for others to complete
+
+🚀 Start by visiting the web app and completing available tasks!`;
+      
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, howToMessage, { reply_markup: keyboard });
+      return true;
+    }
+    
+    if (text === '💵 Add funds') {
+      console.log('⌨️ Processing Add funds button press');
+      
+      // Get user's current main balance
+      const userBalance = await storage.getUserBalance(dbUser.id);
+      const mainBalance = parseFloat(userBalance?.mainBalance || '0');
+      
+      const addFundsMessage = `💵 Add Funds
+
+To add funds to your main balance for creating promotions, please contact our support team.
+
+📧 Support: @CashWatchSupport
+💰 Minimum deposit: $1.00
+⚡ Funds are added within 24 hours
+
+Your current main balance: $${mainBalance.toFixed(2)}`;
+      
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, addFundsMessage, { reply_markup: keyboard });
+      return true;
     }
     
     if (text === '🏠 Start Earning') {
@@ -843,6 +1024,169 @@ ${referralLink}
       const messageSent = await sendUserTelegramNotification(chatId, message, { reply_markup: keyboard });
       console.log('📧 Start Earning message sent successfully:', messageSent);
       return true;
+    }
+    
+    if (text === '🔙 Back to Menu') {
+      console.log('⌨️ Processing Back to Menu button press');
+      // Clear any promotion state and return to main menu
+      clearUserPromotionState(chatId);
+      
+      const welcomeMessage = 'Welcome back to the main menu!';
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, welcomeMessage, { reply_markup: keyboard });
+      return true;
+    }
+    
+    if (text === '📢 Channel members') {
+      console.log('⌨️ Processing Channel members promotion type');
+      
+      const channelMessage = `📈 Promotion
+Type: Telegram: subscribe to the channel / join the chat
+Add @lightningsatsbot → Instant Verify ⚡
+
+💰 Ad Cost: $0.01
+
+📝 Enter the URL:`;
+      
+      // Set user state to awaiting channel URL
+      setUserPromotionState(chatId, {
+        step: 'awaiting_channel_url',
+        type: 'subscribe',
+        adCost: '0.01',
+        rewardAmount: '0.00025',
+        totalSlots: 1000
+      });
+      
+      const keyboard = {
+        keyboard: [
+          [{ text: '🔙 Back to Menu' }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      };
+      
+      await sendUserTelegramNotification(chatId, channelMessage, { reply_markup: keyboard });
+      return true;
+    }
+    
+    if (text === '🤖 Bot') {
+      console.log('⌨️ Processing Bot promotion type');
+      
+      const botMessage = `📈 Promotion
+Type: Telegram: launch the bot
+
+💰 Ad Cost: $0.01
+
+📝 Enter the URL:`;
+      
+      // Set user state to awaiting bot URL
+      setUserPromotionState(chatId, {
+        step: 'awaiting_bot_url',
+        type: 'bot',
+        adCost: '0.01',
+        rewardAmount: '0.00035',
+        totalSlots: 1000
+      });
+      
+      const keyboard = {
+        keyboard: [
+          [{ text: '🔙 Back to Menu' }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      };
+      
+      await sendUserTelegramNotification(chatId, botMessage, { reply_markup: keyboard });
+      return true;
+    }
+
+    // Handle promotion URL collection
+    const promotionState = getUserPromotionState(chatId);
+    if (promotionState && (promotionState.step === 'awaiting_channel_url' || promotionState.step === 'awaiting_bot_url')) {
+      console.log('📝 Processing promotion URL from user:', chatId);
+      
+      const url = text.trim();
+      
+      // Basic URL validation
+      if (!url.startsWith('https://t.me/') && !url.startsWith('http://t.me/')) {
+        const errorMessage = '❌ Please enter a valid Telegram URL (should start with https://t.me/)';
+        const keyboard = {
+          keyboard: [
+            [{ text: '🔙 Back to Menu' }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        };
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        return true;
+      }
+      
+      // Check user's main balance
+      const userBalance = await storage.getUserBalance(dbUser.id);
+      const mainBalance = parseFloat(userBalance?.mainBalance || '0');
+      const adCost = parseFloat(promotionState.adCost);
+      
+      if (mainBalance < adCost) {
+        clearUserPromotionState(chatId);
+        
+        const insufficientBalanceMessage = `❌ You don't have enough balance to advertise
+⭐ Use /deposit to add more balance to your balance
+
+Current balance: $${mainBalance.toFixed(2)}
+Required: $${adCost.toFixed(2)}`;
+        
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, insufficientBalanceMessage, { reply_markup: keyboard });
+        return true;
+      }
+      
+      // Create the promotion
+      try {
+        const title = promotionState.type === 'subscribe' 
+          ? 'Telegram: subscribe to the channel / join the chat'
+          : 'Telegram: launch the bot';
+        
+        const promotion = await storage.createPromotion({
+          creatorId: dbUser.id,
+          type: promotionState.type,
+          title: title,
+          description: `${title} (${url})`,
+          url: url,
+          rewardAmount: promotionState.rewardAmount,
+          adCost: promotionState.adCost,
+          totalSlots: promotionState.totalSlots,
+          isActive: true
+        });
+        
+        // Deduct the ad cost from user's main balance
+        await storage.deductMainBalance(dbUser.id, promotionState.adCost);
+        
+        // Post to channel automatically
+        await postPromotionToChannel(promotion);
+        
+        // Clear state
+        clearUserPromotionState(chatId);
+        
+        const successMessage = `📈 Ad campaign ${title}
+(${url}) successfully created ✅
+
+Task appears in the App with a 1000 user limit.
+Each valid user gets $${promotionState.rewardAmount} reward.
+After 1000/1000 completed, task auto ends.`;
+        
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Error creating promotion:', error);
+        clearUserPromotionState(chatId);
+        
+        const errorMessage = '❌ Failed to create promotion. Please try again.';
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        return true;
+      }
     }
 
     // Handle payment detail collection
@@ -906,42 +1250,98 @@ ${referralLink}
         paymentDetails: paymentDetails
       });
       
-      // Show confirmation message
-      const confirmationMessage = `✅ Please Confirm Your Withdrawal\n\n${payoutState.paymentSystem.emoji} Payment System: ${payoutState.paymentSystem.name}\n💰 Amount: $${parseFloat(payoutState.amount).toFixed(2)}\n📋 Payment Details: ${paymentDetails}\n\n⚠️ Please verify all details are correct before confirming.`;
+      // Show confirmation message with keyboard buttons
+      const confirmationMessage = `✅ Please Confirm Your Withdrawal\n\n${payoutState.paymentSystem.emoji} Payment System: ${payoutState.paymentSystem.name}\n💰 Amount: $${parseFloat(payoutState.amount).toFixed(2)}\n📋 Payment Details: ${paymentDetails}\n\n⚠️ Please verify all details are correct before confirming.\n\nType "CONFIRM" to proceed or "CANCEL" to cancel.`;
+      
+      // Update state with payment details
+      setUserPayoutState(chatId, {
+        ...payoutState,
+        step: 'awaiting_confirmation',
+        paymentDetails: paymentDetails
+      });
       
       const confirmationKeyboard = {
-        inline_keyboard: [
+        keyboard: [
           [
-            { 
-              text: '✅ Confirm Withdrawal', 
-              callback_data: `confirm_payout_${JSON.stringify({
-                paymentSystemId: payoutState.paymentSystem.id,
-                paymentSystemName: payoutState.paymentSystem.name,
-                amount: payoutState.amount,
-                paymentDetails: paymentDetails
-              })}` 
-            }
+            { text: '✅ CONFIRM' },
+            { text: '❌ CANCEL' }
           ],
           [
-            { 
-              text: '❌ Cancel', 
-              callback_data: 'cancel_payout' 
-            }
+            { text: '🔙 Back to Menu' }
           ]
-        ]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
       };
       
-      await sendUserTelegramNotification(chatId, confirmationMessage, confirmationKeyboard);
+      await sendUserTelegramNotification(chatId, confirmationMessage, { reply_markup: confirmationKeyboard });
       return true;
     }
 
-    // For any other message, respond with "Please use /start" and show keyboard
-    console.log('❓ Unknown command or message, sending /start instruction to:', chatId);
+    // Handle confirmation buttons
+    if (text === '✅ CONFIRM') {
+      const payoutState = getUserPayoutState(chatId);
+      if (payoutState && payoutState.step === 'awaiting_confirmation' && payoutState.paymentDetails) {
+        console.log('✅ Processing payout confirmation');
+        
+        try {
+          const payoutResult = await storage.createPayoutRequest(
+            dbUser.id, 
+            payoutState.amount, 
+            payoutState.paymentSystem.id,
+            payoutState.paymentDetails
+          );
+          
+          if (payoutResult.success) {
+            const successMessage = `✅ Payout Request Confirmed\n\nYour ${payoutState.paymentSystem.name} withdrawal request has been submitted successfully and will be processed within 1 hour.\n\n📧 You'll receive a notification once processed.`;
+            
+            clearUserPayoutState(chatId);
+            
+            const keyboard = createBotKeyboard();
+            await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
+            
+            // Send admin notification
+            const userName = dbUser.firstName || dbUser.username || 'User';
+            const adminMessage = `💰 New Payout Request\n\n👤 User: ${userName}\n🆔 Telegram ID: ${dbUser.telegram_id}\n💰 Amount: $${parseFloat(payoutState.amount).toFixed(2)}\n💳 Payment System: ${payoutState.paymentSystem.name}\n📋 Payment Details: ${payoutState.paymentDetails}\n⏰ Time: ${new Date().toLocaleString()}`;
+            
+            if (TELEGRAM_ADMIN_ID) {
+              await sendUserTelegramNotification(TELEGRAM_ADMIN_ID, adminMessage);
+            }
+          } else {
+            const errorMessage = `❌ ${payoutResult.message}`;
+            const keyboard = createBotKeyboard();
+            await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+            clearUserPayoutState(chatId);
+          }
+        } catch (error) {
+          console.error('❌ Error processing payout:', error);
+          const errorMessage = '❌ Error processing your payout. Please try again later.';
+          const keyboard = createBotKeyboard();
+          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          clearUserPayoutState(chatId);
+        }
+        return true;
+      }
+    }
     
-    const instructionMessage = 'Please use /start to begin earning or use the buttons below:';
+    if (text === '❌ CANCEL') {
+      console.log('❌ Processing payout cancellation');
+      clearUserPayoutState(chatId);
+      clearUserPromotionState(chatId);
+      
+      const cancelMessage = '❌ Operation cancelled.';
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, cancelMessage, { reply_markup: keyboard });
+      return true;
+    }
+
+    // For any other message, show the main keyboard
+    console.log('❓ Unknown message, showing main menu to:', chatId);
+    
+    const instructionMessage = 'Please use the buttons below:';
     const keyboard = createBotKeyboard();
     const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
-    console.log('📧 Instruction message sent successfully:', messageSent);
+    console.log('📧 Main menu message sent successfully:', messageSent);
     
     return true;
   } catch (error) {
@@ -950,44 +1350,7 @@ ${referralLink}
   }
 }
 
-// Set up bot commands menu
-export async function setupBotCommands(): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
-    console.error('Telegram bot token not configured');
-    return false;
-  }
-
-  try {
-    const commands = [
-      { command: 'start', description: 'Start using CashWatch Bot' },
-      { command: 'profile', description: 'View your account profile and earnings' },
-      { command: 'affiliates', description: 'Get your referral link to invite friends' },
-      { command: 'payout', description: 'Request withdrawal of your earnings' }
-    ];
-
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setMyCommands`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        commands: commands
-      }),
-    });
-
-    if (response.ok) {
-      console.log('Bot commands menu set successfully');
-      return true;
-    } else {
-      const errorData = await response.text();
-      console.error('Failed to set bot commands menu:', errorData);
-      return false;
-    }
-  } catch (error) {
-    console.error('Error setting up bot commands menu:', error);
-    return false;
-  }
-}
+// No slash commands - using keyboard buttons only
 
 // Create reply keyboard with command buttons
 export function createBotKeyboard() {
@@ -995,10 +1358,15 @@ export function createBotKeyboard() {
     keyboard: [
       [
         { text: '👤 Account' },
-        { text: '👥 Invite Friends' }
+        { text: '🏦 Cashout' }
       ],
       [
-        { text: '💰 Payout' }
+        { text: '👥 Affiliates' },
+        { text: '📈 Promotion' }
+      ],
+      [
+        { text: '⁉️ How-to' },
+        { text: '💵 Add funds' }
       ]
     ],
     resize_keyboard: true,
@@ -1027,8 +1395,6 @@ export async function setupTelegramWebhook(webhookUrl: string): Promise<boolean>
 
     if (response.ok) {
       console.log('Telegram webhook set successfully');
-      // Also set up bot commands
-      await setupBotCommands();
       return true;
     } else {
       const errorData = await response.text();
