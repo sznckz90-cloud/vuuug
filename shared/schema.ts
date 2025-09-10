@@ -133,11 +133,54 @@ export const promoCodeUsage = pgTable("promo_code_usage", {
   usedAt: timestamp("used_at").defaultNow(),
 });
 
+// Promotions/Tasks table
+export const promotions = pgTable("promotions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id").references(() => users.id).notNull(),
+  type: varchar("type").notNull(), // 'subscribe' or 'bot'
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).default("0.00045"),
+  adCost: decimal("ad_cost", { precision: 12, scale: 8 }).default("0.01"),
+  totalSlots: integer("total_slots").default(1000),
+  completedCount: integer("completed_count").default(0),
+  isActive: boolean("is_active").default(true),
+  channelMessageId: text("channel_message_id"), // For tracking posted messages in PaidAdsNews
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Task completions tracking
+export const taskCompletions = pgTable("task_completions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
+  verified: boolean("verified").default(false),
+  completedAt: timestamp("completed_at").defaultNow(),
+}, (table) => ({
+  uniqueTaskCompletion: unique().on(table.promotionId, table.userId),
+}));
+
+// User balances table for main balance tracking (for creating promotions)
+export const userBalances = pgTable("user_balances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  mainBalance: decimal("main_balance", { precision: 12, scale: 8 }).default("0"), // For creating promotions
+  earningsBalance: decimal("earnings_balance", { precision: 12, scale: 8 }).default("0"), // From completing tasks
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, usageCount: true, createdAt: true, updatedAt: true });
+export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, completedCount: true, createdAt: true, updatedAt: true });
+export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
+export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -151,3 +194,9 @@ export type ReferralCommission = typeof referralCommissions.$inferSelect;
 export type PromoCode = typeof promoCodes.$inferSelect;
 export type InsertPromoCode = z.infer<typeof insertPromoCodeSchema>;
 export type PromoCodeUsage = typeof promoCodeUsage.$inferSelect;
+export type Promotion = typeof promotions.$inferSelect;
+export type InsertPromotion = z.infer<typeof insertPromotionSchema>;
+export type TaskCompletion = typeof taskCompletions.$inferSelect;
+export type InsertTaskCompletion = z.infer<typeof insertTaskCompletionSchema>;
+export type UserBalance = typeof userBalances.$inferSelect;
+export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
