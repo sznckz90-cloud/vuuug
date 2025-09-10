@@ -7,6 +7,7 @@ import {
   promoCodeUsage,
   withdrawals,
   promotions,
+  promotionClaims,
   taskCompletions,
   userBalances,
   type User,
@@ -22,6 +23,8 @@ import {
   type InsertWithdrawal,
   type Promotion,
   type InsertPromotion,
+  type PromotionClaim,
+  type InsertPromotionClaim,
   type TaskCompletion,
   type InsertTaskCompletion,
   type UserBalance,
@@ -1316,6 +1319,29 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(userBalances.userId, userId));
     }
+  }
+
+  // Promotion claims methods
+  async hasUserClaimedPromotion(promotionId: string, userId: string): Promise<boolean> {
+    const [claim] = await db.select().from(promotionClaims)
+      .where(and(
+        eq(promotionClaims.promotionId, promotionId),
+        eq(promotionClaims.userId, userId)
+      ));
+    return !!claim;
+  }
+
+  async createPromotionClaim(claim: InsertPromotionClaim): Promise<PromotionClaim> {
+    const [result] = await db.insert(promotionClaims).values(claim).returning();
+    return result;
+  }
+
+  async incrementPromotionClaimedCount(promotionId: string): Promise<void> {
+    await db.update(promotions)
+      .set({
+        claimedCount: sql`${promotions.claimedCount} + 1`,
+      })
+      .where(eq(promotions.id, promotionId));
   }
 }
 

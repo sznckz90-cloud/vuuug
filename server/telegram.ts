@@ -49,11 +49,22 @@ const userPromotionStates = new Map();
 
 interface PromotionState {
   step: 'awaiting_channel_url' | 'awaiting_bot_url';
-  type: 'subscribe' | 'bot';
+  type: 'channel' | 'bot';
   adCost: string;
   rewardAmount: string;
   totalSlots: number;
   url?: string;
+}
+
+// Simple in-memory state management for claim flow
+const userClaimStates = new Map();
+
+interface ClaimState {
+  promotionId: string;
+  promotionType: 'channel' | 'bot';
+  sponsorUrl: string;
+  rewardAmount: string;
+  step: 'awaiting_verification' | 'awaiting_forwarded_message';
 }
 
 function setUserPromotionState(chatId: string, state: PromotionState) {
@@ -68,6 +79,123 @@ function clearUserPromotionState(chatId: string) {
   userPromotionStates.delete(chatId);
 }
 
+function setUserClaimState(chatId: string, state: ClaimState) {
+  userClaimStates.set(chatId, state);
+}
+
+function getUserClaimState(chatId: string): ClaimState | null {
+  return userClaimStates.get(chatId) || null;
+}
+
+function clearUserClaimState(chatId: string) {
+  userClaimStates.delete(chatId);
+}
+
+// Verify channel membership via bot admin status
+async function verifyChannelMembership(userId: string, channelUrl: string): Promise<boolean> {
+  try {
+    // Extract channel username from URL
+    const channelUsername = channelUrl.replace('https://t.me/', '').replace('@', '');
+    
+    // Check if user is a member of the channel
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMember`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: `@${channelUsername}`,
+        user_id: userId
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      if (result.ok) {
+        const memberStatus = result.result.status;
+        // User is considered a member if they are member, administrator, or creator
+        return ['member', 'administrator', 'creator'].includes(memberStatus);
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('❌ Error verifying channel membership:', error);
+    return false;
+  }
+}
+
+// Extract bot username from URL
+function extractBotUsernameFromUrl(url: string): string | null {
+  try {
+    // Handle various URL formats:
+    // https://t.me/botname
+    // https://t.me/botname?start=xxx
+    // @botname
+    
+    let username = url;
+    
+    // Remove https://t.me/ prefix if present
+    if (username.startsWith('https://t.me/')) {
+      username = username.replace('https://t.me/', '');
+    }
+    
+    // Remove @ prefix if present
+    if (username.startsWith('@')) {
+      username = username.substring(1);
+    }
+    
+    // Remove query parameters (everything after ?)
+    if (username.includes('?')) {
+      username = username.split('?')[0];
+    }
+    
+    return username || null;
+  } catch (error) {
+    console.error('❌ Error extracting bot username from URL:', error);
+    return null;
+  }
+}
+
+// Process claim reward after successful verification
+async function processClaimReward(chatId: string, claimState: ClaimState, dbUser: any): Promise<void> {
+  try {
+    // Create promotion claim record
+    await storage.createPromotionClaim({
+      promotionId: claimState.promotionId,
+      userId: dbUser.id,
+      rewardAmount: claimState.rewardAmount
+    });
+    
+    // Increment claimed count in promotions
+    await storage.incrementPromotionClaimedCount(claimState.promotionId);
+    
+    // Update user balance
+    await storage.addEarningsBalance(dbUser.id, claimState.rewardAmount);
+    
+    // Get updated balance
+    const updatedUser = await storage.getUser(dbUser.id);
+    const newBalance = parseFloat(updatedUser.balance || '0');
+    
+    // Clear claim state
+    clearUserClaimState(chatId);
+    
+    // Send success message
+    const successMessage = `🎉 Task Completed!
+✅ You earned $${claimState.rewardAmount} 💎
+New balance: ${newBalance.toFixed(4)}`;
+    
+    const keyboard = createBotKeyboard();
+    await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
+    
+  } catch (error) {
+    console.error('❌ Error processing claim reward:', error);
+    clearUserClaimState(chatId);
+    
+    const errorMessage = '❌ Error processing reward. Please try again.';
+    const keyboard = createBotKeyboard();
+    await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+  }
+}
+
 // Post promotion to PaidAdsNews channel
 async function postPromotionToChannel(promotion: any): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
@@ -76,27 +204,21 @@ async function postPromotionToChannel(promotion: any): Promise<void> {
   }
   
   try {
-    const rewardInCents = Math.round(parseFloat(promotion.rewardAmount) * 100000); // Convert to show like $0.25
-    const rewardDisplay = (rewardInCents / 100).toFixed(2);
-    
     const channelMessage = `🌍 World's Biggest Free Crypto Drop! 🌍
-💎 $${rewardDisplay} Crypto each → 1000 Winners 🔥
-
+💎 $0.25 Crypto → 1000 Winners 🔥
 🤯 Imagine… 1000 people flexing FREE crypto – why not YOU?
-
 ✨ Sponsored by 👉 ${promotion.url}
-#Crypto #Giveaway #Airdrop
+🚀 Claim in 1 tap – before it's over!
+👉 Grab Your Free Crypto Now 👈`;
 
-🚀 Claim in 1 tap – before it's over!`;
-
-    // Generate claim link for the promotion
-    const botUsername = process.env.BOT_USERNAME || "CashWatchBot";
-    const claimLink = `https://t.me/${botUsername}?start=claim_${promotion.id}`;
+    // Generate claim link for the promotion with task parameter
+    const botUsername = process.env.BOT_USERNAME || "lightningsatsbot";
+    const claimLink = `https://t.me/${botUsername}?start=task_${promotion.id}`;
     
     const keyboard = {
       inline_keyboard: [[
         { 
-          text: '🔘 Grab Your Free Crypto Now', 
+          text: '👉 Grab Your Free Crypto Now 👈', 
           url: claimLink 
         }
       ]]
@@ -190,7 +312,7 @@ export async function sendUserTelegramNotification(userId: string, message: stri
           keyboard: replyMarkup.keyboard,
           resize_keyboard: replyMarkup.resize_keyboard || true,
           one_time_keyboard: replyMarkup.one_time_keyboard || false
-        };
+        } as any;
       } else {
         // This is an inline keyboard or other markup
         telegramMessage.reply_markup = replyMarkup;
@@ -659,10 +781,10 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       // Extract parameter if present (e.g., /start REF123 or /start claim_promotionId)
       const parameter = text.split(' ')[1];
       
-      // Handle promotion claim
-      if (parameter && parameter.startsWith('claim_')) {
-        const promotionId = parameter.replace('claim_', '');
-        console.log('🎁 Processing promotion claim for:', promotionId);
+      // Handle promotion task claim
+      if (parameter && parameter.startsWith('task_')) {
+        const promotionId = parameter.replace('task_', '');
+        console.log('🎁 Processing promotion task claim for:', promotionId);
         
         try {
           // Get the promotion details
@@ -674,58 +796,82 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             return true;
           }
           
-          // Check if promotion is still active and has slots
-          if (!promotion.isActive || (promotion.completedCount || 0) >= (promotion.totalSlots || 1000)) {
-            const expiredMessage = '⚡ This task has expired.';
+          // Check if promotion limit reached
+          if ((promotion.claimedCount || 0) >= (promotion.limit || 1000)) {
+            const limitMessage = '❌ This task is fully claimed, better luck next time.';
             const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, expiredMessage, { reply_markup: keyboard });
+            await sendUserTelegramNotification(chatId, limitMessage, { reply_markup: keyboard });
             return true;
           }
           
-          // Check if user already completed this promotion
-          const hasCompleted = await storage.hasUserCompletedTask(promotionId, dbUser.id);
-          if (hasCompleted) {
-            const alreadyClaimedMessage = '❌ You have already claimed this promotion.';
+          // Check if user already claimed this task
+          const hasClaimed = await storage.hasUserClaimedPromotion(promotionId, dbUser.id);
+          if (hasClaimed) {
+            const alreadyClaimedMessage = '❌ You already claimed this task.';
             const keyboard = createBotKeyboard();
             await sendUserTelegramNotification(chatId, alreadyClaimedMessage, { reply_markup: keyboard });
             return true;
           }
           
-          // Ask user to complete the task
-          const taskMessage = promotion.type === 'subscribe' 
-            ? `🔗 To claim your reward, please join the channel/chat:
-${promotion.url}
-
-After joining, you will be automatically verified in 3 seconds and receive your reward!`
-            : `🤖 To claim your reward, please start the bot:
-${promotion.url}
-
-After starting the bot, you will be automatically verified in 3 seconds and receive your reward!`;
+          // Send task instructions based on promotion type
+          let taskMessage = '';
+          let inlineButton = { text: '', url: promotion.url };
           
-          // Set a verification timer (simulate 3 second verification)
-          setTimeout(async () => {
-            try {
-              const result = await storage.completeTask(promotionId, dbUser.id, promotion.rewardAmount || '0.00025');
-              if (result.success) {
-                const rewardMessage = `Reward $${promotion.rewardAmount} has been added to your balance ✅`;
-                const keyboard = createBotKeyboard();
-                await sendUserTelegramNotification(chatId, rewardMessage, { reply_markup: keyboard });
-              } else {
-                const errorMessage = `❌ ${result.message}`;
-                const keyboard = createBotKeyboard();
-                await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
-              }
-            } catch (error) {
-              console.error('❌ Error completing task:', error);
-            }
-          }, 3000);
+          if (promotion.type === 'channel') {
+            taskMessage = `📢 Channel Task
+🚀 Join the Channel & Complete Your Task!
+💎 Fast, simple, and rewarding – don't miss out!`;
+            inlineButton.text = 'Join the channel';
+            
+            // Set state for channel verification
+            setUserClaimState(chatId, {
+              promotionId: promotionId,
+              promotionType: 'channel',
+              sponsorUrl: promotion.url,
+              rewardAmount: promotion.rewardPerUser || '0.00025',
+              step: 'awaiting_verification'
+            });
+          } else if (promotion.type === 'bot') {
+            taskMessage = `🤖 Bot Task
+⚡ Complete Your Task via Bot & Earn!
+💥 Easy, instant rewards – just a few taps!`;
+            inlineButton.text = 'Start bot';
+            
+            // Set state for bot verification
+            setUserClaimState(chatId, {
+              promotionId: promotionId,
+              promotionType: 'bot',
+              sponsorUrl: promotion.url,
+              rewardAmount: promotion.rewardPerUser || '0.00025',
+              step: 'awaiting_forwarded_message'
+            });
+          }
           
-          const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, taskMessage, { reply_markup: keyboard });
+          const inlineKeyboard = {
+            inline_keyboard: [[inlineButton]]
+          };
+          
+          const replyKeyboard = {
+            keyboard: [
+              [
+                { text: '✅ Done' },
+                { text: '❌ Cancel' }
+              ]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          };
+          
+          // Send message with inline button
+          await sendUserTelegramNotification(chatId, taskMessage, { reply_markup: inlineKeyboard });
+          
+          // Send follow-up message with reply keyboard
+          const followUpMessage = 'Click "✅ Done" when you have completed the task, or "❌ Cancel" to exit.';
+          await sendUserTelegramNotification(chatId, followUpMessage, { reply_markup: replyKeyboard });
           return true;
           
         } catch (error) {
-          console.error('❌ Error processing promotion claim:', error);
+          console.error('❌ Error processing promotion task claim:', error);
           const errorMessage = '❌ Error processing your claim. Please try again.';
           const keyboard = createBotKeyboard();
           await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
@@ -968,11 +1114,11 @@ Choose promotion type:`;
       const promotionKeyboard = {
         keyboard: [
           [
-            { text: '📢 Channel members' },
+            { text: '📢 Channel' },
             { text: '🤖 Bot' }
           ],
           [
-            { text: '🔙 Back to Menu' }
+            { text: '⬅️ Back' }
           ]
         ],
         resize_keyboard: true,
@@ -1049,21 +1195,20 @@ Your current main balance: $${mainBalance.toFixed(2)}`;
       return true;
     }
     
-    if (text === '📢 Channel members') {
-      console.log('⌨️ Processing Channel members promotion type');
+    if (text === '📢 Channel') {
+      console.log('⌨️ Processing Channel promotion type');
       
       const channelMessage = `📈 Promotion
+→ 📝 Creation of an ad campaign
 Type: Telegram: subscribe to the channel / join the chat
 Add @lightningsatsbot → Instant Verify ⚡
-
 💰 Ad Cost: $0.01
-
 📝 Enter the URL:`;
       
       // Set user state to awaiting channel URL
       setUserPromotionState(chatId, {
         step: 'awaiting_channel_url',
-        type: 'subscribe',
+        type: 'channel',
         adCost: '0.01',
         rewardAmount: '0.00025',
         totalSlots: 1000
@@ -1071,7 +1216,10 @@ Add @lightningsatsbot → Instant Verify ⚡
       
       const keyboard = {
         keyboard: [
-          [{ text: '🔙 Back to Menu' }]
+          [
+            { text: '⬅️ Back' },
+            { text: '❌ Cancel' }
+          ]
         ],
         resize_keyboard: true,
         one_time_keyboard: true
@@ -1085,10 +1233,9 @@ Add @lightningsatsbot → Instant Verify ⚡
       console.log('⌨️ Processing Bot promotion type');
       
       const botMessage = `📈 Promotion
+→ 📝 Creation of an ad campaign
 Type: Telegram: launch the bot
-
 💰 Ad Cost: $0.01
-
 📝 Enter the URL:`;
       
       // Set user state to awaiting bot URL
@@ -1096,13 +1243,16 @@ Type: Telegram: launch the bot
         step: 'awaiting_bot_url',
         type: 'bot',
         adCost: '0.01',
-        rewardAmount: '0.00035',
+        rewardAmount: '0.00025',
         totalSlots: 1000
       });
       
       const keyboard = {
         keyboard: [
-          [{ text: '🔙 Back to Menu' }]
+          [
+            { text: '⬅️ Back' },
+            { text: '❌ Cancel' }
+          ]
         ],
         resize_keyboard: true,
         one_time_keyboard: true
@@ -1110,6 +1260,213 @@ Type: Telegram: launch the bot
       
       await sendUserTelegramNotification(chatId, botMessage, { reply_markup: keyboard });
       return true;
+    }
+    
+    // Handle Back button in promotion flow
+    if (text === '⬅️ Back') {
+      console.log('⌨️ Processing Back button');
+      
+      // Check if user is in promotion state
+      const promotionState = getUserPromotionState(chatId);
+      if (promotionState) {
+        clearUserPromotionState(chatId);
+        
+        // Go back to promotion menu
+        const promotionMessage = `📈 Promotion
+→ 📝 Creation of an ad campaign`;
+        
+        const promotionKeyboard = {
+          keyboard: [
+            [
+              { text: '📢 Channel' },
+              { text: '🤖 Bot' }
+            ],
+            [
+              { text: '⬅️ Back' }
+            ]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        };
+        
+        await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
+        return true;
+      }
+      
+      // Default back to main menu
+      const keyboard = createBotKeyboard();
+      const backMessage = 'Back to main menu.';
+      await sendUserTelegramNotification(chatId, backMessage, { reply_markup: keyboard });
+      return true;
+    }
+    
+    // Handle Cancel button in promotion flow
+    if (text === '❌ Cancel') {
+      console.log('⌨️ Processing Cancel button');
+      
+      const promotionState = getUserPromotionState(chatId);
+      const claimState = getUserClaimState(chatId);
+      
+      if (promotionState) {
+        clearUserPromotionState(chatId);
+        
+        const keyboard = createBotKeyboard();
+        const cancelMessage = '❌ Promotion creation cancelled.';
+        await sendUserTelegramNotification(chatId, cancelMessage, { reply_markup: keyboard });
+        return true;
+      }
+      
+      if (claimState) {
+        clearUserClaimState(chatId);
+        
+        const promotionMessage = `📈 Promotion
+→ 📝 Creation of an ad campaign`;
+        
+        const promotionKeyboard = {
+          keyboard: [
+            [
+              { text: '📢 Channel' },
+              { text: '🤖 Bot' }
+            ],
+            [
+              { text: '⬅️ Back' }
+            ]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        };
+        
+        await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
+        return true;
+      }
+      
+      // Default back to main menu if not in any state
+      const keyboard = createBotKeyboard();
+      const backMessage = 'Back to main menu.';
+      await sendUserTelegramNotification(chatId, backMessage, { reply_markup: keyboard });
+      return true;
+    }
+
+    // Handle Done button for claim verification
+    if (text === '✅ Done') {
+      console.log('⌨️ Processing Done button for claim verification');
+      
+      const claimState = getUserClaimState(chatId);
+      if (claimState) {
+        try {
+          let verificationResult = false;
+          
+          if (claimState.promotionType === 'channel') {
+            // Verify channel membership
+            verificationResult = await verifyChannelMembership(chatId, claimState.sponsorUrl);
+          } else if (claimState.promotionType === 'bot') {
+            // For bot verification, ask for forwarded message
+            const botMessage = `🤖 Bot Verification Required
+
+Please forward a message from the bot "${claimState.sponsorUrl}" to verify you started it.
+
+Forward any message from that bot and I'll verify it automatically.`;
+            
+            setUserClaimState(chatId, {
+              ...claimState,
+              step: 'awaiting_forwarded_message'
+            });
+            
+            const keyboard = {
+              keyboard: [
+                [{ text: '❌ Cancel' }]
+              ],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            };
+            
+            await sendUserTelegramNotification(chatId, botMessage, { reply_markup: keyboard });
+            return true;
+          }
+          
+          if (verificationResult) {
+            // Verification successful, reward user
+            await processClaimReward(chatId, claimState, dbUser);
+          } else {
+            const failedMessage = claimState.promotionType === 'channel' 
+              ? '❌ Channel membership verification failed. Please join the channel first.'
+              : '❌ Bot verification failed. Please start the bot first.';
+            
+            const keyboard = {
+              keyboard: [
+                [
+                  { text: '✅ Done' },
+                  { text: '❌ Cancel' }
+                ]
+              ],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            };
+            
+            await sendUserTelegramNotification(chatId, failedMessage, { reply_markup: keyboard });
+          }
+          
+        } catch (error) {
+          console.error('❌ Error processing claim verification:', error);
+          clearUserClaimState(chatId);
+          
+          const errorMessage = '❌ Verification error. Please try again.';
+          const keyboard = createBotKeyboard();
+          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+        }
+        
+        return true;
+      }
+    }
+
+    // Handle forwarded message verification for bot tasks
+    const claimState = getUserClaimState(chatId);
+    if (claimState && claimState.step === 'awaiting_forwarded_message') {
+      if (message.forward_from && message.forward_from.is_bot) {
+        const forwardedBotUsername = message.forward_from.username;
+        
+        // Extract bot username from sponsor URL
+        const sponsorBotUsername = extractBotUsernameFromUrl(claimState.sponsorUrl);
+        
+        if (forwardedBotUsername && sponsorBotUsername && forwardedBotUsername.toLowerCase() === sponsorBotUsername.toLowerCase()) {
+          // Bot verification successful
+          await processClaimReward(chatId, claimState, dbUser);
+          return true;
+        } else {
+          const errorMessage = `❌ The forwarded message is not from the expected bot "${sponsorBotUsername}". Please forward a message from the correct bot.`;
+          
+          const keyboard = {
+            keyboard: [
+              [{ text: '❌ Cancel' }]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          };
+          
+          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          return true;
+        }
+      } else {
+        const instructionMessage = `❌ Please forward a message from the bot, not a regular message.
+
+To forward a message:
+1. Go to the bot "${claimState.sponsorUrl}"
+2. Send any message to the bot (like /start)
+3. Tap and hold the bot's response
+4. Select "Forward"
+5. Forward it to me`;
+        
+        const keyboard = {
+          keyboard: [
+            [{ text: '❌ Cancel' }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        };
+        
+        await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
+        return true;
+      }
     }
 
     // Handle promotion URL collection
@@ -1119,33 +1476,51 @@ Type: Telegram: launch the bot
       
       const url = text.trim();
       
-      // Basic URL validation
-      if (!url.startsWith('https://t.me/') && !url.startsWith('http://t.me/')) {
-        const errorMessage = '❌ Please enter a valid Telegram URL (should start with https://t.me/)';
-        const keyboard = {
-          keyboard: [
-            [{ text: '🔙 Back to Menu' }]
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true
-        };
-        await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
-        return true;
+      // URL validation based on promotion type
+      if (promotionState.step === 'awaiting_channel_url') {
+        // Validate channel link
+        if (!url.startsWith('https://t.me/')) {
+          const errorMessage = '❌ Please enter a valid channel link (should start with https://t.me/)';
+          const keyboard = {
+            keyboard: [
+              [
+                { text: '⬅️ Back' },
+                { text: '❌ Cancel' }
+              ]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          };
+          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          return true;
+        }
+      } else if (promotionState.step === 'awaiting_bot_url') {
+        // Validate bot link
+        if (!url.includes('bot')) {
+          const errorMessage = '❌ Please enter a valid bot link (should contain "bot")';
+          const keyboard = {
+            keyboard: [
+              [
+                { text: '⬅️ Back' },
+                { text: '❌ Cancel' }
+              ]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          };
+          await sendUserTelegramNotification(chatId, errorMessage, { reply_markup: keyboard });
+          return true;
+        }
       }
       
-      // Check user's main balance
-      const userBalance = await storage.getUserBalance(dbUser.id);
-      const mainBalance = parseFloat(userBalance?.mainBalance || '0');
+      // Check user's balance
+      const currentBalance = parseFloat(dbUser.balance || '0');
       const adCost = parseFloat(promotionState.adCost);
       
-      if (mainBalance < adCost) {
+      if (currentBalance < adCost) {
         clearUserPromotionState(chatId);
         
-        const insufficientBalanceMessage = `❌ You don't have enough balance to advertise
-⭐ Use /deposit to add more balance to your balance
-
-Current balance: $${mainBalance.toFixed(2)}
-Required: $${adCost.toFixed(2)}`;
+        const insufficientBalanceMessage = `❌ You don't have enough balance to advertise. ⭐ Use /deposit to add more balance.`;
         
         const keyboard = createBotKeyboard();
         await sendUserTelegramNotification(chatId, insufficientBalanceMessage, { reply_markup: keyboard });
@@ -1154,23 +1529,23 @@ Required: $${adCost.toFixed(2)}`;
       
       // Create the promotion
       try {
-        const title = promotionState.type === 'subscribe' 
+        const title = promotionState.type === 'channel' 
           ? 'Telegram: subscribe to the channel / join the chat'
           : 'Telegram: launch the bot';
         
         const promotion = await storage.createPromotion({
-          creatorId: dbUser.id,
+          ownerId: dbUser.id,
           type: promotionState.type,
           title: title,
           description: `${title} (${url})`,
           url: url,
-          rewardAmount: promotionState.rewardAmount,
+          rewardPerUser: promotionState.rewardAmount,
           adCost: promotionState.adCost,
           totalSlots: promotionState.totalSlots,
           isActive: true
         });
         
-        // Deduct the ad cost from user's main balance
+        // Deduct the ad cost from user's balance
         await storage.deductMainBalance(dbUser.id, promotionState.adCost);
         
         // Post to channel automatically
@@ -1179,12 +1554,7 @@ Required: $${adCost.toFixed(2)}`;
         // Clear state
         clearUserPromotionState(chatId);
         
-        const successMessage = `📈 Ad campaign ${title}
-(${url}) successfully created ✅
-
-Task appears in the App with a 1000 user limit.
-Each valid user gets $${promotionState.rewardAmount} reward.
-After 1000/1000 completed, task auto ends.`;
+        const successMessage = `📈 Ad campaign ${title} (${url}) successfully created.`;
         
         const keyboard = createBotKeyboard();
         await sendUserTelegramNotification(chatId, successMessage, { reply_markup: keyboard });
