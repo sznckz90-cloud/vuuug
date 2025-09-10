@@ -1369,8 +1369,8 @@ Add @lightningsatsbot → Instant Verify ⚡
       const keyboard = {
         keyboard: [
           [
-            { text: '⬅️ Back' },
-            { text: '❌ Cancel' }
+            '⬅️ Back',
+            '❌ Cancel'
           ]
         ],
         resize_keyboard: true,
@@ -1402,8 +1402,8 @@ Type: Telegram: launch the bot
       const keyboard = {
         keyboard: [
           [
-            { text: '⬅️ Back' },
-            { text: '❌ Cancel' }
+            '⬅️ Back',
+            '❌ Cancel'
           ]
         ],
         resize_keyboard: true,
@@ -1430,11 +1430,11 @@ Type: Telegram: launch the bot
         const promotionKeyboard = {
           keyboard: [
             [
-              { text: '📢 Channel' },
-              { text: '🤖 Bot' }
+              '📢 Channel',
+              '🤖 Bot'
             ],
             [
-              { text: '⬅️ Back' }
+              '⬅️ Back'
             ]
           ],
           resize_keyboard: true,
@@ -1477,11 +1477,11 @@ Type: Telegram: launch the bot
         const promotionKeyboard = {
           keyboard: [
             [
-              { text: '📢 Channel' },
-              { text: '🤖 Bot' }
+              '📢 Channel',
+              '🤖 Bot'
             ],
             [
-              { text: '⬅️ Back' }
+              '⬅️ Back'
             ]
           ],
           resize_keyboard: true,
@@ -1526,7 +1526,7 @@ Forward any message from that bot and I'll verify it automatically.`;
             
             const keyboard = {
               keyboard: [
-                [{ text: '❌ Cancel' }]
+                ['❌ Cancel']
               ],
               resize_keyboard: true,
               one_time_keyboard: true
@@ -1547,8 +1547,8 @@ Forward any message from that bot and I'll verify it automatically.`;
             const keyboard = {
               keyboard: [
                 [
-                  { text: '✅ Done' },
-                  { text: '❌ Cancel' }
+                  '✅ Done',
+                  '❌ Cancel'
                 ]
               ],
               resize_keyboard: true,
@@ -1636,7 +1636,7 @@ To forward a message:
           const keyboard = {
             keyboard: [
               [
-                { text: '⬅️ Back' },
+                '⬅️ Back',
                 { text: '❌ Cancel' }
               ]
             ],
@@ -1653,7 +1653,7 @@ To forward a message:
           const keyboard = {
             keyboard: [
               [
-                { text: '⬅️ Back' },
+                '⬅️ Back',
                 { text: '❌ Cancel' }
               ]
             ],
@@ -1800,11 +1800,11 @@ To forward a message:
       const confirmationKeyboard = {
         keyboard: [
           [
-            { text: '✅ CONFIRM' },
-            { text: '❌ CANCEL' }
+            '✅ CONFIRM',
+            '❌ CANCEL'
           ],
           [
-            { text: '🔙 Back to Menu' }
+            '🔙 Back to Menu'
           ]
         ],
         resize_keyboard: true,

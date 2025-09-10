@@ -677,7 +677,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           claimedCount: promotions.claimedCount,
           title: promotions.title,
           description: promotions.description,
-          messageId: sql<string>`${promotions.message_id}`,
           createdAt: promotions.createdAt
         })
         .from(promotions)
@@ -700,9 +699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(task => !completedIds.has(task.id))
         .map(task => ({
           ...task,
-          channelPostUrl: task.messageId ? 
-            `https://t.me/${process.env.TELEGRAM_CHANNEL_USERNAME}/${task.messageId}` : 
-            null,
+          channelPostUrl: null, // Will be set if needed later
           claimUrl: `https://t.me/${process.env.BOT_USERNAME}?start=task_${task.id}`
         }));
       
