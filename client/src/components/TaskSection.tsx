@@ -31,10 +31,12 @@ export default function TaskSection() {
   const [activeTab, setActiveTab] = useState<'subscribe' | 'bot'>('subscribe');
 
   // Fetch all active tasks
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Promotion[]>({
+  const { data: tasksResponse, isLoading: tasksLoading } = useQuery<{success: boolean, tasks: Promotion[]}>({
     queryKey: ['/api/tasks'],
     retry: false,
   });
+  
+  const tasks = tasksResponse?.tasks || [];
 
   // Filter tasks by category
   const subscribeTasks = tasks.filter(task => task.type === 'subscribe');
@@ -112,9 +114,6 @@ export default function TaskSection() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="text-base font-semibold text-foreground">{task.title}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground mt-1">
-                {task.description}
-              </CardDescription>
             </div>
             <Badge variant={isCompleted ? "default" : "secondary"} className="ml-2">
               ${task.reward}
@@ -173,81 +172,67 @@ export default function TaskSection() {
 
   if (tasksLoading) {
     return (
-      <Card className="shadow-sm border border-border mt-4">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold text-foreground">Tasks</CardTitle>
-          <CardDescription>Complete tasks to earn rewards</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <div className="animate-spin text-primary text-xl mb-2">
-              <i className="fas fa-spinner"></i>
-            </div>
-            <div className="text-muted-foreground">Loading tasks...</div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="text-center py-8">
+        <div className="animate-spin text-primary text-xl mb-2">
+          <i className="fas fa-spinner"></i>
+        </div>
+        <div className="text-muted-foreground">Loading tasks...</div>
+      </div>
     );
   }
 
   return (
-    <Card className="shadow-sm border border-border mt-4" data-testid="card-task-section">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-foreground">Tasks</CardTitle>
-        <CardDescription>Complete tasks to earn rewards</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subscribe' | 'bot')}>
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="subscribe" data-testid="tab-subscribe">
-              <i className="fas fa-users mr-2"></i>
-              Subscribe ({subscribeTasks.length})
-            </TabsTrigger>
-            <TabsTrigger value="bot" data-testid="tab-bot">
-              <i className="fas fa-robot mr-2"></i>
-              Bot ({botTasks.length})
-            </TabsTrigger>
-          </TabsList>
+    <div data-testid="card-task-section">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subscribe' | 'bot')}>
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="subscribe" data-testid="tab-subscribe">
+            <i className="fas fa-users mr-2"></i>
+            Subscribe ({subscribeTasks.length})
+          </TabsTrigger>
+          <TabsTrigger value="bot" data-testid="tab-bot">
+            <i className="fas fa-robot mr-2"></i>
+            Bot ({botTasks.length})
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="subscribe" className="space-y-3">
-            {subscribeTasks.length > 0 ? (
-              subscribeTasks.map((task) => (
-                <TaskCard key={task.id} task={task} />
-              ))
-            ) : (
-              <div className="text-center py-8" data-testid="text-no-subscribe-tasks">
-                <i className="fas fa-users text-3xl text-muted-foreground mb-3"></i>
-                <div className="text-muted-foreground">No subscription tasks available</div>
-                <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="bot" className="space-y-3">
-            {botTasks.length > 0 ? (
-              botTasks.map((task) => (
-                <TaskCard key={task.id} task={task} />
-              ))
-            ) : (
-              <div className="text-center py-8" data-testid="text-no-bot-tasks">
-                <i className="fas fa-robot text-3xl text-muted-foreground mb-3"></i>
-                <div className="text-muted-foreground">No bot tasks available</div>
-                <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {tasks.length === 0 && (
-          <div className="text-center py-8" data-testid="text-no-tasks">
-            <i className="fas fa-tasks text-3xl text-muted-foreground mb-3"></i>
-            <div className="text-muted-foreground font-medium">No tasks available</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Tasks are created through the Telegram bot and will sync automatically
+        <TabsContent value="subscribe" className="space-y-3">
+          {subscribeTasks.length > 0 ? (
+            subscribeTasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))
+          ) : (
+            <div className="text-center py-8" data-testid="text-no-subscribe-tasks">
+              <i className="fas fa-users text-3xl text-muted-foreground mb-3"></i>
+              <div className="text-muted-foreground">No subscription tasks available</div>
+              <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="bot" className="space-y-3">
+          {botTasks.length > 0 ? (
+            botTasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))
+          ) : (
+            <div className="text-center py-8" data-testid="text-no-bot-tasks">
+              <i className="fas fa-robot text-3xl text-muted-foreground mb-3"></i>
+              <div className="text-muted-foreground">No bot tasks available</div>
+              <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {tasks.length === 0 && (
+        <div className="text-center py-8" data-testid="text-no-tasks">
+          <i className="fas fa-tasks text-3xl text-muted-foreground mb-3"></i>
+          <div className="text-muted-foreground font-medium">No tasks available</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Tasks are created through the Telegram bot and will sync automatically
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </div>
   );
 }
