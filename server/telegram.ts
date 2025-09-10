@@ -196,17 +196,17 @@ New balance: ${newBalance.toFixed(4)}`;
   }
 }
 
-// Post promotion to PaidAdsNews channel
-async function postPromotionToChannel(promotion: any): Promise<void> {
+// Post promotion to Telegram channel and return message_id
+export async function postPromotionToChannel(promotion: any): Promise<string | null> {
   if (!TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
     console.error('Missing Telegram bot token or channel ID for posting promotion');
-    return;
+    return null;
   }
   
   try {
     const channelMessage = `🌍 World's Biggest Free Crypto Drop! 🌍
-💎 $0.25 Crypto → 1000 Winners 🔥
-🤯 Imagine… 1000 people flexing FREE crypto – why not YOU?
+💎 $${promotion.reward_per_user} Crypto → ${promotion.limit} Winners 🔥
+🤯 Imagine… ${promotion.limit} people flexing FREE crypto – why not YOU?
 ✨ Sponsored by 👉 ${promotion.url}
 🚀 Claim in 1 tap – before it's over!
 👉 Grab Your Free Crypto Now 👈`;
@@ -237,19 +237,23 @@ async function postPromotionToChannel(promotion: any): Promise<void> {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Promotion posted to channel successfully:', result.result.message_id);
+      const messageId = result.result.message_id.toString();
+      console.log('✅ Promotion posted to channel successfully:', messageId);
       
       // Update promotion with channel message ID for tracking
-      if (result.result.message_id) {
-        // Note: This would require a method to update the promotion with channel message ID
-        // await storage.updatePromotionChannelMessageId(promotion.id, result.result.message_id.toString());
+      if (messageId) {
+        await storage.updatePromotionMessageId(promotion.id, messageId);
       }
+      
+      return messageId;
     } else {
       const errorData = await response.text();
       console.error('❌ Failed to post promotion to channel:', errorData);
+      return null;
     }
   } catch (error) {
     console.error('❌ Error posting promotion to channel:', error);
+    return null;
   }
 }
 
@@ -764,9 +768,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         
         const detailsMessage = `📋 Enter your ${system.name} details:\n\nAmount: $${userBalance.toFixed(2)}`;
         const keyboard = {
-          keyboard: [[{ text: '🔙 Back to Menu' }]],
+          keyboard: [['🔙 Back to Menu']],
           resize_keyboard: true,
-          one_time_keyboard: true
+          one_time_keyboard: false
         };
         await sendUserTelegramNotification(chatId, detailsMessage, { reply_markup: keyboard });
         return true;
@@ -1058,11 +1062,13 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       }
       
       const paymentKeyboard = {
-        keyboard: PAYMENT_SYSTEMS.map(system => [
-          { text: `${system.emoji} ${system.name}` }
-        ]).concat([[{ text: '🔙 Back to Menu' }]]),
+        keyboard: [
+          ['💳 USDT'],
+          ['💎 TON'],
+          ['⬅️ Back']
+        ],
         resize_keyboard: true,
-        one_time_keyboard: true
+        one_time_keyboard: false
       };
       
       const payoutMessage = `Select Payment System:\n\nYour balance: $${userBalance.toFixed(2)}`;
@@ -1114,15 +1120,15 @@ Choose promotion type:`;
       const promotionKeyboard = {
         keyboard: [
           [
-            { text: '📢 Channel' },
-            { text: '🤖 Bot' }
+            '📢 Channel',
+            '🤖 Bot'
           ],
           [
-            { text: '⬅️ Back' }
+            '⬅️ Back'
           ]
         ],
         resize_keyboard: true,
-        one_time_keyboard: true
+        one_time_keyboard: false
       };
       
       await sendUserTelegramNotification(chatId, promotionMessage, { reply_markup: promotionKeyboard });
@@ -1717,12 +1723,141 @@ To forward a message:
       return true;
     }
 
+    // Handle Back button navigation
+    if (text === '⬅️ Back' || text === '🔙 Back to Menu') {
+      console.log('⌨️ Processing Back button press');
+      
+      // Clear any active states
+      clearUserPayoutState(chatId);
+      clearUserPromotionState(chatId);
+      clearUserClaimState(chatId);
+      
+      const backMessage = 'Back to main menu:';
+      const keyboard = createBotKeyboard();
+      await sendUserTelegramNotification(chatId, backMessage, { reply_markup: keyboard });
+      return true;
+    }
+
+    // Handle Channel promotion type selection
+    if (text === '📢 Channel') {
+      console.log('⌨️ Processing Channel promotion type');
+      
+      setUserPromotionState(chatId, {
+        step: 'awaiting_channel_url',
+        type: 'channel',
+        adCost: '0.01',
+        rewardAmount: '0.00025',
+        totalSlots: 1000
+      });
+      
+      const channelMessage = `📢 Channel Promotion
+
+Please enter your channel URL (e.g., https://t.me/yourchannel):`;
+      
+      const channelKeyboard = {
+        keyboard: [
+          ['❌ Cancel'],
+          ['⬅️ Back']
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      };
+      
+      await sendUserTelegramNotification(chatId, channelMessage, { reply_markup: channelKeyboard });
+      return true;
+    }
+
+    // Handle Bot promotion type selection  
+    if (text === '🤖 Bot') {
+      console.log('⌨️ Processing Bot promotion type');
+      
+      setUserPromotionState(chatId, {
+        step: 'awaiting_bot_url',
+        type: 'bot',
+        adCost: '0.01',
+        rewardAmount: '0.00025',
+        totalSlots: 1000
+      });
+      
+      const botMessage = `🤖 Bot Promotion
+
+Please enter your bot URL (e.g., https://t.me/yourbot):`;
+      
+      const botKeyboard = {
+        keyboard: [
+          ['❌ Cancel'],
+          ['⬅️ Back']
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      };
+      
+      await sendUserTelegramNotification(chatId, botMessage, { reply_markup: botKeyboard });
+      return true;
+    }
+
+    // Handle USDT payment method
+    if (text === '💳 USDT') {
+      console.log('⌨️ Processing USDT payment method');
+      
+      const usdtMessage = `💳 USDT Withdrawal
+
+Please enter your USDT wallet address (TRC20/Polygon):`;
+      
+      const usdtKeyboard = {
+        keyboard: [
+          ['❌ Cancel'],
+          ['⬅️ Back']
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      };
+      
+      // Set user state for USDT withdrawal
+      setUserPayoutState(chatId, {
+        step: 'awaiting_details',
+        paymentSystem: { id: 'usdt', name: 'USDT', emoji: '💳', minWithdrawal: 0.01 },
+        amount: dbUser.balance || '0'
+      });
+      
+      await sendUserTelegramNotification(chatId, usdtMessage, { reply_markup: usdtKeyboard });
+      return true;
+    }
+
+    // Handle TON payment method
+    if (text === '💎 TON') {
+      console.log('⌨️ Processing TON payment method');
+      
+      const tonMessage = `💎 TON Withdrawal
+
+Please enter your TON wallet address:`;
+      
+      const tonKeyboard = {
+        keyboard: [
+          ['❌ Cancel'],
+          ['⬅️ Back']
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      };
+      
+      // Set user state for TON withdrawal
+      setUserPayoutState(chatId, {
+        step: 'awaiting_details',
+        paymentSystem: { id: 'ton', name: 'TON', emoji: '💎', minWithdrawal: 0.35 },
+        amount: dbUser.balance || '0'
+      });
+      
+      await sendUserTelegramNotification(chatId, tonMessage, { reply_markup: tonKeyboard });
+      return true;
+    }
+
     // For any other message, show the main keyboard
     console.log('❓ Unknown message, showing main menu to:', chatId);
     
     const instructionMessage = 'Please use the buttons below:';
     const keyboard = createBotKeyboard();
-    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, keyboard);
+    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, { reply_markup: keyboard });
     console.log('📧 Main menu message sent successfully:', messageSent);
     
     return true;
@@ -1739,16 +1874,16 @@ export function createBotKeyboard() {
   return {
     keyboard: [
       [
-        { text: '👤 Account' },
-        { text: '🏦 Cashout' }
+        '👤 Account',
+        '🏦 Cashout'
       ],
       [
-        { text: '👥 Affiliates' },
-        { text: '📈 Promotion' }
+        '👥 Affiliates',
+        '📈 Promotion'
       ],
       [
-        { text: '⁉️ How-to' },
-        { text: '💵 Add funds' }
+        '⁉️ How-to',
+        '💵 Add funds'
       ]
     ],
     resize_keyboard: true,

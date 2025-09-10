@@ -605,6 +605,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Telegram Promotion System API endpoints
+  
+  // Create promotion and auto-post to Telegram channel
+  app.post('/api/promotions/create', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { type, url, cost, rewardPerUser, limit, title, description } = req.body;
+      
+      // Validate required fields
+      if (!type || !url || !cost || !rewardPerUser || !limit) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing required fields: type, url, cost, rewardPerUser, limit' 
+        });
+      }
+      
+      // Create promotion in database
+      const promotion = await storage.createPromotion({
+        ownerId: userId,
+        type,
+        url,
+        cost: cost.toString(),
+        rewardPerUser: rewardPerUser.toString(),
+        limit,
+        title,
+        description,
+        status: 'active'
+      });
+      
+      // Auto-post to Telegram channel and get message_id
+      const { postPromotionToChannel } = await import('./telegram');
+      const messageId = await postPromotionToChannel(promotion);
+      
+      if (messageId) {
+        console.log(`✅ Promotion ${promotion.id} posted to channel with message_id: ${messageId}`);
+      } else {
+        console.warn(`⚠️ Promotion ${promotion.id} created but failed to post to channel`);
+      }
+      
+      res.json({
+        success: true,
+        promotion: {
+          ...promotion,
+          messageId,
+          channelPostUrl: messageId ? `https://t.me/${process.env.TELEGRAM_CHANNEL_USERNAME}/${messageId}` : null
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error creating promotion:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to create promotion' 
+      });
+    }
+  });
+  
+  // Get tasks/promotions with Open button links to Telegram channel posts
+  app.get('/api/tasks', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Get active promotions that user hasn't completed
+      const activeTasks = await db
+        .select({
+          id: promotions.id,
+          type: promotions.type,
+          url: promotions.url,
+          rewardPerUser: promotions.rewardPerUser,
+          limit: promotions.limit,
+          claimedCount: promotions.claimedCount,
+          title: promotions.title,
+          description: promotions.description,
+          messageId: sql<string>`${promotions.message_id}`,
+          createdAt: promotions.createdAt
+        })
+        .from(promotions)
+        .where(and(
+          eq(promotions.status, 'active'),
+          sql`${promotions.claimedCount} < ${promotions.limit}`
+        ))
+        .orderBy(desc(promotions.createdAt));
+      
+      // Check which tasks user has already completed
+      const completedTaskIds = await db
+        .select({ promotionId: taskCompletions.promotionId })
+        .from(taskCompletions)
+        .where(eq(taskCompletions.userId, userId));
+      
+      const completedIds = new Set(completedTaskIds.map(c => c.promotionId));
+      
+      // Filter out completed tasks and add channel post URLs
+      const availableTasks = activeTasks
+        .filter(task => !completedIds.has(task.id))
+        .map(task => ({
+          ...task,
+          channelPostUrl: task.messageId ? 
+            `https://t.me/${process.env.TELEGRAM_CHANNEL_USERNAME}/${task.messageId}` : 
+            null,
+          claimUrl: `https://t.me/${process.env.BOT_USERNAME}?start=task_${task.id}`
+        }));
+      
+      res.json({
+        success: true,
+        tasks: availableTasks,
+        total: availableTasks.length
+      });
+    } catch (error) {
+      console.error('❌ Error fetching tasks:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch tasks' 
+      });
+    }
+  });
+
   // CRITICAL: Public referral data repair endpoint (no auth needed for emergency fix)
   app.post('/api/emergency-fix-referrals', async (req: any, res) => {
     try {

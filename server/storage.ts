@@ -1244,6 +1244,15 @@ export class DatabaseStorage implements IStorage {
     return;
   }
 
+  async updatePromotionMessageId(promotionId: string, messageId: string): Promise<void> {
+    await db
+      .update(promotions)
+      .set({ 
+        message_id: messageId 
+      })
+      .where(eq(promotions.id, promotionId));
+  }
+
   async deactivateCompletedPromotions(): Promise<void> {
     // No-op since we removed complex tracking  
     return;
