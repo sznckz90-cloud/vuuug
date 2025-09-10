@@ -1033,7 +1033,7 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  async createPayoutRequest(userId: string, amount: string, paymentSystemId: string, paymentDetails?: string): Promise<{ success: boolean; message: string }> {
+  async createPayoutRequest(userId: string, amount: string, paymentSystemId: string, paymentDetails?: string): Promise<{ success: boolean; message: string; withdrawalId?: string }> {
     try {
       // Get user data
       const user = await this.getUser(userId);
@@ -1041,41 +1041,40 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'User not found' };
       }
 
-      // Check balance
+      // Check balance (but don't deduct yet - wait for admin approval)
+      // Note: Admins have unlimited balance, so skip balance check for them
+      const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
       const userBalance = parseFloat(user.balance || '0');
       const payoutAmount = parseFloat(amount);
       
-      if (userBalance < payoutAmount) {
+      if (!isAdmin && userBalance < payoutAmount) {
         return { success: false, message: 'Insufficient balance' };
       }
-
-
-      // Deduct amount from user balance
-      await db
-        .update(users)
-        .set({
-          balance: sql`COALESCE(${users.balance}, 0) - ${amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId));
 
       // Find payment system
       const paymentSystem = PAYMENT_SYSTEMS.find(p => p.id === paymentSystemId);
       const paymentSystemName = paymentSystem ? paymentSystem.name : paymentSystemId;
 
-      // Add withdrawal record as earnings (negative amount)
-      const description = paymentDetails 
-        ? `Payout request: $${amount} via ${paymentSystemName} to ${paymentDetails}`
-        : `Payout request: $${amount} via ${paymentSystemName}`;
+      // Create pending withdrawal record (DO NOT deduct balance yet)
+      const withdrawalDetails = {
+        paymentSystem: paymentSystemName,
+        paymentDetails: paymentDetails,
+        paymentSystemId: paymentSystemId
+      };
 
-      await this.addEarning({
+      const [withdrawal] = await db.insert(withdrawals).values({
         userId: userId,
-        amount: `-${amount}`,
-        source: 'payout',
-        description: description,
-      });
+        amount: amount,
+        status: 'pending',
+        method: paymentSystemName,
+        details: withdrawalDetails
+      }).returning();
 
-      return { success: true, message: 'Payout request created successfully' };
+      return { 
+        success: true, 
+        message: 'Payout request created successfully and is pending admin approval',
+        withdrawalId: withdrawal.id
+      };
     } catch (error) {
       console.error('Error creating payout request:', error);
       return { success: false, message: 'Error processing payout request' };
@@ -1173,6 +1172,88 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async approveWithdrawal(withdrawalId: string, adminNotes?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+    try {
+      // Get withdrawal details
+      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
+      if (!withdrawal) {
+        return { success: false, message: 'Withdrawal not found' };
+      }
+      
+      if (withdrawal.status !== 'pending') {
+        return { success: false, message: 'Withdrawal is not pending' };
+      }
+
+      // Get user and check balance again
+      const user = await this.getUser(withdrawal.userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const userBalance = parseFloat(user.balance || '0');
+      const withdrawalAmount = parseFloat(withdrawal.amount);
+      
+      if (userBalance < withdrawalAmount) {
+        return { success: false, message: 'User has insufficient balance' };
+      }
+
+      // Deduct balance and update withdrawal status
+      await db
+        .update(users)
+        .set({
+          balance: sql`COALESCE(${users.balance}, 0) - ${withdrawal.amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, withdrawal.userId));
+
+      // Add withdrawal record as earnings (negative amount)
+      const paymentSystemName = withdrawal.method;
+      const description = `Payout completed: $${withdrawal.amount} via ${paymentSystemName}`;
+
+      await this.addEarning({
+        userId: withdrawal.userId,
+        amount: `-${withdrawal.amount}`,
+        source: 'payout',
+        description: description,
+      });
+
+      // Update withdrawal status to paid
+      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'paid', undefined, adminNotes);
+      
+      return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
+    } catch (error) {
+      console.error('Error approving withdrawal:', error);
+      return { success: false, message: 'Error processing withdrawal approval' };
+    }
+  }
+
+  async rejectWithdrawal(withdrawalId: string, adminNotes?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+    try {
+      // Get withdrawal details
+      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
+      if (!withdrawal) {
+        return { success: false, message: 'Withdrawal not found' };
+      }
+      
+      if (withdrawal.status !== 'pending') {
+        return { success: false, message: 'Withdrawal is not pending' };
+      }
+
+      // Update withdrawal status to rejected (balance remains unchanged)
+      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'rejected', undefined, adminNotes);
+      
+      return { success: true, message: 'Withdrawal rejected', withdrawal: updatedWithdrawal };
+    } catch (error) {
+      console.error('Error rejecting withdrawal:', error);
+      return { success: false, message: 'Error processing withdrawal rejection' };
+    }
+  }
+
+  async getWithdrawal(withdrawalId: string): Promise<Withdrawal | undefined> {
+    const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
+    return withdrawal;
+  }
+
   // Task/Promotion operations (new implementations)
   async createPromotion(promotion: InsertPromotion): Promise<Promotion> {
     const [result] = await db.insert(promotions).values(promotion).returning();
@@ -1245,12 +1326,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePromotionMessageId(promotionId: string, messageId: string): Promise<void> {
-    await db
-      .update(promotions)
-      .set({ 
-        message_id: messageId 
-      })
-      .where(eq(promotions.id, promotionId));
+    // Note: message_id field doesn't exist in promotions schema
+    // This could be tracked separately if needed in the future
+    console.log(`📌 Promotion ${promotionId} posted with message ID: ${messageId}`);
   }
 
   async deactivateCompletedPromotions(): Promise<void> {
@@ -1289,6 +1367,15 @@ export class DatabaseStorage implements IStorage {
 
   async deductMainBalance(userId: string, amount: string): Promise<{ success: boolean; message: string }> {
     try {
+      // Check if user is admin - admins have unlimited balance
+      const user = await this.getUser(userId);
+      const isAdmin = user?.telegram_id === process.env.TELEGRAM_ADMIN_ID;
+      
+      if (isAdmin) {
+        console.log('🔑 Admin has unlimited balance - allowing deduction');
+        return { success: true, message: 'Balance deducted successfully (admin unlimited)' };
+      }
+
       const balance = await this.getUserBalance(userId);
       if (!balance) {
         return { success: false, message: 'User balance not found' };

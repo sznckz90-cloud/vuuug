@@ -173,7 +173,7 @@ async function processClaimReward(chatId: string, claimState: ClaimState, dbUser
     
     // Get updated balance
     const updatedUser = await storage.getUser(dbUser.id);
-    const newBalance = parseFloat(updatedUser.balance || '0');
+    const newBalance = parseFloat(updatedUser?.balance || '0');
     
     // Clear claim state
     clearUserClaimState(chatId);
@@ -489,6 +489,152 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         } catch (error) {
           console.error('❌ Error refreshing stats:', error);
         }
+      }
+      
+      // Handle admin withdrawal approval
+      if (data && data.startsWith('withdraw_paid_')) {
+        const withdrawalId = data.replace('withdraw_paid_', '');
+        
+        if (!isAdmin(chatId)) {
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Unauthorized access',
+              show_alert: true
+            })
+          });
+          return true;
+        }
+        
+        try {
+          const result = await storage.approveWithdrawal(withdrawalId, `Approved by admin ${chatId}`);
+          
+          if (result.success && result.withdrawal) {
+            // Get user to send notification
+            const user = await storage.getUser(result.withdrawal.userId);
+            if (user && user.telegram_id) {
+              const userMessage = `✅ Withdrawal Approved!\n\nYour withdrawal of $${parseFloat(result.withdrawal.amount).toFixed(2)} via ${result.withdrawal.method} has been approved and processed.\n\n💰 Amount has been deducted from your balance.`;
+              await sendUserTelegramNotification(user.telegram_id, userMessage);
+            }
+            
+            // Update admin message
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id,
+                text: `✅ APPROVED\n\n${callbackQuery.message.text}\n\nStatus: Paid and processed by admin\nTime: ${new Date().toLocaleString()}`
+              })
+            });
+            
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'Withdrawal approved successfully'
+              })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: result.message,
+                show_alert: true
+              })
+            });
+          }
+        } catch (error) {
+          console.error('Error approving withdrawal:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error processing approval',
+              show_alert: true
+            })
+          });
+        }
+        return true;
+      }
+      
+      // Handle admin withdrawal rejection
+      if (data && data.startsWith('withdraw_reject_')) {
+        const withdrawalId = data.replace('withdraw_reject_', '');
+        
+        if (!isAdmin(chatId)) {
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Unauthorized access',
+              show_alert: true
+            })
+          });
+          return true;
+        }
+        
+        try {
+          const result = await storage.rejectWithdrawal(withdrawalId, `Rejected by admin ${chatId}`);
+          
+          if (result.success && result.withdrawal) {
+            // Get user to send notification
+            const user = await storage.getUser(result.withdrawal.userId);
+            if (user && user.telegram_id) {
+              const userMessage = `❌ Withdrawal Rejected\n\nYour withdrawal request of $${parseFloat(result.withdrawal.amount).toFixed(2)} via ${result.withdrawal.method} has been rejected by the admin.\n\n💰 Your balance remains unchanged.`;
+              await sendUserTelegramNotification(user.telegram_id, userMessage);
+            }
+            
+            // Update admin message
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id,
+                text: `❌ REJECTED\n\n${callbackQuery.message.text}\n\nStatus: Rejected by admin\nTime: ${new Date().toLocaleString()}`
+              })
+            });
+            
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'Withdrawal rejected'
+              })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: result.message,
+                show_alert: true
+              })
+            });
+          }
+        } catch (error) {
+          console.error('Error rejecting withdrawal:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error processing rejection',
+              show_alert: true
+            })
+          });
+        }
+        return true;
       }
       
       // Handle payment system selection
@@ -1519,11 +1665,14 @@ To forward a message:
         }
       }
       
-      // Check user's balance
-      const currentBalance = parseFloat(dbUser.balance || '0');
+      // Check user's main balance (for promotion costs)
+      // Note: Admins have unlimited balance
+      const isAdmin = dbUser.telegram_id === process.env.TELEGRAM_ADMIN_ID;
+      const userBalance = await storage.getUserBalance(dbUser.id);
+      const currentMainBalance = parseFloat(userBalance?.mainBalance || '0');
       const adCost = parseFloat(promotionState.adCost);
       
-      if (currentBalance < adCost) {
+      if (!isAdmin && currentMainBalance < adCost) {
         clearUserPromotionState(chatId);
         
         const insufficientBalanceMessage = `❌ You don't have enough balance to advertise. ⭐ Use /deposit to add more balance.`;
@@ -1546,7 +1695,7 @@ To forward a message:
           description: `${title} (${url})`,
           url: url,
           rewardPerUser: promotionState.rewardAmount,
-          adCost: promotionState.adCost,
+          cost: promotionState.adCost,
           totalSlots: promotionState.totalSlots,
           isActive: true
         });
@@ -1681,19 +1830,28 @@ To forward a message:
           );
           
           if (payoutResult.success) {
-            const successMessage = `✅ Payout Request Confirmed\n\nYour ${payoutState.paymentSystem.name} withdrawal request has been submitted successfully and will be processed within 1 hour.\n\n📧 You'll receive a notification once processed.`;
+            const successMessage = `✅ Payout Request Confirmed\n\nYour ${payoutState.paymentSystem.name} withdrawal request has been submitted successfully and is pending admin approval.\n\n📧 You'll receive a notification once processed.`;
             
             clearUserPayoutState(chatId);
             
             const keyboard = createBotKeyboard();
             await sendUserTelegramNotification(chatId, successMessage, keyboard);
             
-            // Send admin notification
+            // Send admin notification with inline buttons
             const userName = dbUser.firstName || dbUser.username || 'User';
-            const adminMessage = `💰 New Payout Request\n\n👤 User: ${userName}\n🆔 Telegram ID: ${dbUser.telegram_id}\n💰 Amount: $${parseFloat(payoutState.amount).toFixed(2)}\n💳 Payment System: ${payoutState.paymentSystem.name}\n📋 Payment Details: ${payoutState.paymentDetails}\n⏰ Time: ${new Date().toLocaleString()}`;
+            const adminMessage = `💵 Withdraw request from user ${userName} (ID: ${dbUser.telegram_id})\nAmount: $${parseFloat(payoutState.amount).toFixed(2)}\nPayment System: ${payoutState.paymentSystem.name}\nPayment Details: ${payoutState.paymentDetails}\nTime: ${new Date().toLocaleString()}`;
+            
+            const adminKeyboard = {
+              inline_keyboard: [
+                [
+                  { text: "✅ Paid", callback_data: `withdraw_paid_${payoutResult.withdrawalId}` },
+                  { text: "❌ Reject", callback_data: `withdraw_reject_${payoutResult.withdrawalId}` }
+                ]
+              ]
+            };
             
             if (TELEGRAM_ADMIN_ID) {
-              await sendUserTelegramNotification(TELEGRAM_ADMIN_ID, adminMessage);
+              await sendUserTelegramNotification(TELEGRAM_ADMIN_ID, adminMessage, adminKeyboard);
             }
           } else {
             const errorMessage = `❌ ${payoutResult.message}`;
@@ -1721,6 +1879,67 @@ To forward a message:
       const keyboard = createBotKeyboard();
       await sendUserTelegramNotification(chatId, cancelMessage, keyboard);
       return true;
+    }
+
+    // Admin command to list pending withdrawal requests
+    if (text === '/payouts' || text === '/withdrawals') {
+      if (!isAdmin(chatId)) {
+        return true; // Ignore command for non-admins
+      }
+      
+      console.log('💰 Processing admin payouts list command');
+      
+      try {
+        const pendingWithdrawals = await storage.getAllPendingWithdrawals();
+        
+        if (pendingWithdrawals.length === 0) {
+          const noRequestsMessage = '📋 No pending withdrawal requests found.';
+          await sendUserTelegramNotification(chatId, noRequestsMessage);
+          return true;
+        }
+        
+        let requestsList = '💵 Pending Withdrawal Requests:\n\n';
+        
+        for (const withdrawal of pendingWithdrawals) {
+          const user = await storage.getUser(withdrawal.userId);
+          const userName = user ? (user.firstName || user.username || 'Unknown User') : 'Unknown User';
+          const details = withdrawal.details as any;
+          
+          requestsList += `👤 User: ${userName} (ID: ${user?.telegram_id || 'N/A'})\n`;
+          requestsList += `💰 Amount: $${parseFloat(withdrawal.amount).toFixed(2)}\n`;
+          requestsList += `💳 Method: ${withdrawal.method}\n`;
+          requestsList += `📋 Details: ${details?.paymentDetails || 'N/A'}\n`;
+          requestsList += `⏰ Requested: ${new Date(withdrawal.createdAt).toLocaleString()}\n`;
+          requestsList += `📝 ID: ${withdrawal.id}\n\n`;
+        }
+        
+        // Send admin notification with inline buttons for each withdrawal
+        for (const withdrawal of pendingWithdrawals) {
+          const user = await storage.getUser(withdrawal.userId);
+          const userName = user ? (user.firstName || user.username || 'Unknown User') : 'Unknown User';
+          const details = withdrawal.details as any;
+          
+          const adminMessage = `💵 Withdraw request from user ${userName} (ID: ${user?.telegram_id || 'N/A'})\nAmount: $${parseFloat(withdrawal.amount).toFixed(2)}\nPayment System: ${withdrawal.method}\nPayment Details: ${details?.paymentDetails || 'N/A'}\nTime: ${new Date(withdrawal.createdAt).toLocaleString()}`;
+          
+          const adminKeyboard = {
+            inline_keyboard: [
+              [
+                { text: "✅ Paid", callback_data: `withdraw_paid_${withdrawal.id}` },
+                { text: "❌ Reject", callback_data: `withdraw_reject_${withdrawal.id}` }
+              ]
+            ]
+          };
+          
+          await sendUserTelegramNotification(chatId, adminMessage, adminKeyboard);
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('❌ Error fetching pending withdrawals:', error);
+        const errorMessage = '❌ Error fetching withdrawal requests.';
+        await sendUserTelegramNotification(chatId, errorMessage);
+        return true;
+      }
     }
 
     // Handle Back button navigation
