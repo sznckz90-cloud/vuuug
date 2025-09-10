@@ -133,12 +133,20 @@ export const promoCodeUsage = pgTable("promo_code_usage", {
   usedAt: timestamp("used_at").defaultNow(),
 });
 
-// Promotions/Tasks table - Simplified structure
+// Promotions/Tasks table - Enhanced for Telegram bot promotion campaigns
 export const promotions = pgTable("promotions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), // Keep existing ID structure for safety
-  title: varchar("title", { length: 255 }).notNull(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id").references(() => users.id).notNull(), // User who created the promotion
+  type: varchar("type").notNull(), // "channel" or "bot"
+  url: text("url").notNull(), // Channel or bot link
+  cost: decimal("cost", { precision: 12, scale: 8 }).notNull().default("0.01"), // Ad cost
+  rewardPerUser: decimal("reward_per_user", { precision: 12, scale: 8 }).notNull().default("0.00025"), // Reward per completion
+  limit: integer("limit").notNull().default(1000), // Max number of users who can claim
+  claimedCount: integer("claimed_count").notNull().default(0), // Current number of claims
+  status: varchar("status").notNull().default("active"), // "active", "paused", "completed"
+  title: varchar("title", { length: 255 }),
   description: text("description"),
-  reward: integer("reward").notNull().default(0),
+  reward: integer("reward").default(0), // Keep for backward compatibility
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -152,6 +160,17 @@ export const taskCompletions = pgTable("task_completions", {
   completedAt: timestamp("completed_at").defaultNow(),
 }, (table) => ({
   uniqueTaskCompletion: unique().on(table.promotionId, table.userId),
+}));
+
+// Promotion claims tracking for user claim verification
+export const promotionClaims = pgTable("promotion_claims", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
+  claimedAt: timestamp("claimed_at").defaultNow(),
+}, (table) => ({
+  uniqueClaim: unique().on(table.promotionId, table.userId),
 }));
 
 // User balances table for main balance tracking (for creating promotions)
@@ -170,6 +189,7 @@ export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, usageCount: true, createdAt: true, updatedAt: true });
 export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, createdAt: true });
+export const insertPromotionClaimSchema = createInsertSchema(promotionClaims).omit({ id: true, claimedAt: true });
 export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -187,6 +207,8 @@ export type InsertPromoCode = z.infer<typeof insertPromoCodeSchema>;
 export type PromoCodeUsage = typeof promoCodeUsage.$inferSelect;
 export type Promotion = typeof promotions.$inferSelect;
 export type InsertPromotion = z.infer<typeof insertPromotionSchema>;
+export type PromotionClaim = typeof promotionClaims.$inferSelect;
+export type InsertPromotionClaim = z.infer<typeof insertPromotionClaimSchema>;
 export type TaskCompletion = typeof taskCompletions.$inferSelect;
 export type InsertTaskCompletion = z.infer<typeof insertTaskCompletionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
