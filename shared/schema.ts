@@ -133,22 +133,13 @@ export const promoCodeUsage = pgTable("promo_code_usage", {
   usedAt: timestamp("used_at").defaultNow(),
 });
 
-// Promotions/Tasks table
+// Promotions/Tasks table - Simplified structure
 export const promotions = pgTable("promotions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  creatorId: varchar("creator_id").references(() => users.id).notNull(),
-  type: varchar("type").notNull(), // 'subscribe' or 'bot'
-  title: text("title").notNull(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), // Keep existing ID structure for safety
+  title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  url: text("url").notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).default("0.00045"),
-  adCost: decimal("ad_cost", { precision: 12, scale: 8 }).default("0.01"),
-  totalSlots: integer("total_slots").default(1000),
-  completedCount: integer("completed_count").default(0),
-  isActive: boolean("is_active").default(true),
-  channelMessageId: text("channel_message_id"), // For tracking posted messages in PaidAdsNews
+  reward: integer("reward").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Task completions tracking
@@ -178,7 +169,7 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, usageCount: true, createdAt: true, updatedAt: true });
-export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, completedCount: true, createdAt: true, updatedAt: true });
+export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, createdAt: true });
 export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
 
