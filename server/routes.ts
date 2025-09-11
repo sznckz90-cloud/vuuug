@@ -17,7 +17,7 @@ import {
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
-import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook } from "./telegram";
+import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership } from "./telegram";
 import { authenticateTelegram, requireAuth } from "./auth";
 
 // Store WebSocket connections for real-time updates
@@ -1268,7 +1268,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (taskType === 'subscribe' && channelUsername) {
         // Verify channel membership using Telegram Bot API
-        const { verifyChannelMembership } = await import('./telegram');
         isVerified = await verifyChannelMembership(telegramUserId, `https://t.me/${channelUsername}`);
         verificationMessage = isVerified 
           ? 'Channel membership verified successfully' 
@@ -1281,7 +1280,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (taskType === 'daily') {
         // Daily tasks require channel membership if channelUsername is provided
         if (channelUsername) {
-          const { verifyChannelMembership } = await import('./telegram');
           isVerified = await verifyChannelMembership(telegramUserId, `https://t.me/${channelUsername}`);
           verificationMessage = isVerified 
             ? 'Daily task verification successful' 
