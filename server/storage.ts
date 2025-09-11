@@ -182,6 +182,16 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
+    // Auto-create balance record for new users
+    if (isNewUser) {
+      try {
+        await this.createOrUpdateUserBalance(user.id, '0');
+        console.log(`✅ Created balance record for new user: ${user.id}`);
+      } catch (error) {
+        console.error('Failed to create balance record for new user:', error);
+      }
+    }
+    
     return { user, isNewUser };
   }
 
@@ -287,13 +297,21 @@ export class DatabaseStorage implements IStorage {
         // Auto-generate referral code for new users
         try {
           await this.generateReferralCode(user.id);
-          // Fetch updated user with referral code
-          const updatedUser = await this.getUser(user.id);
-          return { user: updatedUser || user, isNewUser };
         } catch (error) {
           console.error('Failed to generate referral code for new Telegram user:', error);
-          return { user, isNewUser };
         }
+        
+        // Auto-create balance record for new users
+        try {
+          await this.createOrUpdateUserBalance(user.id, '0');
+          console.log(`✅ Created balance record for new Telegram user: ${user.id}`);
+        } catch (error) {
+          console.error('Failed to create balance record for new Telegram user:', error);
+        }
+        
+        // Fetch updated user with referral code
+        const updatedUser = await this.getUser(user.id);
+        return { user: updatedUser || user, isNewUser };
       } catch (error: any) {
         // Handle unique constraint violations
         if (error.code === '23505') {
@@ -325,13 +343,21 @@ export class DatabaseStorage implements IStorage {
           // Auto-generate referral code for new users
           try {
             await this.generateReferralCode(user.id);
-            // Fetch updated user with referral code
-            const updatedUser = await this.getUser(user.id);
-            return { user: updatedUser || user, isNewUser };
           } catch (error) {
             console.error('Failed to generate referral code for new Telegram user:', error);
-            return { user, isNewUser };
           }
+          
+          // Auto-create balance record for new users
+          try {
+            await this.createOrUpdateUserBalance(user.id, '0');
+            console.log(`✅ Created balance record for new Telegram user: ${user.id}`);
+          } catch (error) {
+            console.error('Failed to create balance record for new Telegram user:', error);
+          }
+          
+          // Fetch updated user with referral code
+          const updatedUser = await this.getUser(user.id);
+          return { user: updatedUser || user, isNewUser };
         } else {
           throw error;
         }
@@ -346,9 +372,22 @@ export class DatabaseStorage implements IStorage {
       .values(earning)
       .returning();
     
-    // Update user balance - all positive earnings contribute to available balance
-    // This ensures affiliate earnings (both bonuses and commissions) show in balance
-    if (parseFloat(earning.amount) > 0) {
+    // Update canonical user_balances table and keep users table in sync
+    // All earnings contribute to available balance
+    if (parseFloat(earning.amount) !== 0) {
+      // Ensure user has a balance record first
+      await this.createOrUpdateUserBalance(earning.userId);
+      
+      // Update canonical user_balances table
+      await db
+        .update(userBalances)
+        .set({
+          balance: sql`COALESCE(${userBalances.balance}, 0) + ${earning.amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userBalances.userId, earning.userId));
+      
+      // Keep users table in sync for compatibility
       await db
         .update(users)
         .set({
@@ -356,16 +395,6 @@ export class DatabaseStorage implements IStorage {
           withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
           totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${earning.amount}`,
           totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${earning.amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, earning.userId));
-    } else if (parseFloat(earning.amount) < 0) {
-      // Handle negative amounts (like withdrawals)
-      await db
-        .update(users)
-        .set({
-          balance: sql`COALESCE(${users.balance}, 0) + ${earning.amount}`,
-          withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
           updatedAt: new Date(),
         })
         .where(eq(users.id, earning.userId));
@@ -465,13 +494,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUserBalance(userId: string, amount: string): Promise<void> {
+    // Ensure user has a balance record first
+    await this.createOrUpdateUserBalance(userId);
+    
+    // Update the canonical user_balances table
     await db
-      .update(users)
+      .update(userBalances)
       .set({
-        balance: sql`${users.balance} + ${amount}`,
+        balance: sql`${userBalances.balance} + ${amount}`,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, userId));
+      .where(eq(userBalances.userId, userId));
   }
 
   async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string }> {

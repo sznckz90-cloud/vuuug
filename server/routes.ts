@@ -717,6 +717,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's created promotions/tasks  
+  app.get('/api/user/promotions', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Get user's promotions
+      const userPromotions = await db
+        .select({
+          id: promotions.id,
+          type: promotions.type,
+          url: promotions.url,
+          cost: promotions.cost,
+          rewardPerUser: promotions.rewardPerUser,
+          limit: promotions.limit,
+          claimedCount: promotions.claimedCount,
+          title: promotions.title,
+          description: promotions.description,
+          status: promotions.status,
+          createdAt: promotions.createdAt
+        })
+        .from(promotions)
+        .where(eq(promotions.ownerId, userId))
+        .orderBy(desc(promotions.createdAt));
+      
+      res.json({
+        success: true,
+        promotions: userPromotions
+      });
+    } catch (error) {
+      console.error('❌ Error fetching user promotions:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch promotions' 
+      });
+    }
+  });
+
   // CRITICAL: Public referral data repair endpoint (no auth needed for emergency fix)
   app.post('/api/emergency-fix-referrals', async (req: any, res) => {
     try {
