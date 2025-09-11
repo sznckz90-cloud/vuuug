@@ -13,6 +13,7 @@ import Admin from "@/pages/Admin";
 import CreateTask from "@/pages/CreateTask";
 import MyPromotions from "@/pages/MyPromotions";
 import Wallet from "@/pages/Wallet";
+import Affiliates from "@/pages/Affiliates";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/my-promotions" component={MyPromotions} />
       <Route path="/wallet" component={Wallet} />
       <Route path="/stats" component={Stats} />
+      <Route path="/affiliates" component={Affiliates} />
       <Route path="/profile" component={Profile} />
       <Route path="/promote" component={Promote} />
       <Route path="/admin" component={Admin} />
