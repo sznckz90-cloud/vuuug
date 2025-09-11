@@ -52,36 +52,11 @@ function clearUserPromotionState(chatId: string) {
 
 // All claim state functions removed
 
-// Verify channel membership via bot admin status
-async function verifyChannelMembership(userId: string, channelUrl: string): Promise<boolean> {
-  try {
-    // Extract channel username from URL
-    const channelUsername = channelUrl.replace('https://t.me/', '').replace('@', '');
-    
-    // Check if user is a member of the channel
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMember`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: `@${channelUsername}`,
-        user_id: userId
-      })
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      if (result.ok) {
-        const memberStatus = result.result.status;
-        // User is considered a member if they are member, administrator, or creator
-        return ['member', 'administrator', 'creator'].includes(memberStatus);
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('❌ Error verifying channel membership:', error);
-    return false;
-  }
+export async function verifyChannelMembership(userId: number, channelUsername: string, botToken: string) {
+    const TelegramBot = require('node-telegram-bot-api');
+    const bot = new TelegramBot(botToken);
+    const member = await bot.getChatMember(channelUsername, userId);
+    return member.status !== 'left';
 }
 
 // Extract bot username from URL

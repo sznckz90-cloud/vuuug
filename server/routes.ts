@@ -1268,7 +1268,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (taskType === 'subscribe' && channelUsername) {
         // Verify channel membership using Telegram Bot API
-        isVerified = await verifyChannelMembership(telegramUserId, `https://t.me/${channelUsername}`);
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+          console.log('⚠️ TELEGRAM_BOT_TOKEN not configured, skipping channel verification');
+          isVerified = false;
+        } else {
+          isVerified = await verifyChannelMembership(parseInt(telegramUserId), `@${channelUsername}`, botToken);
+        }
         verificationMessage = isVerified 
           ? 'Channel membership verified successfully' 
           : `Please join the channel @${channelUsername} first to complete this task`;
@@ -1280,7 +1286,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (taskType === 'daily') {
         // Daily tasks require channel membership if channelUsername is provided
         if (channelUsername) {
-          isVerified = await verifyChannelMembership(telegramUserId, `https://t.me/${channelUsername}`);
+          const botToken = process.env.TELEGRAM_BOT_TOKEN;
+          if (!botToken) {
+            console.log('⚠️ TELEGRAM_BOT_TOKEN not configured, skipping channel verification');
+            isVerified = false;
+          } else {
+            isVerified = await verifyChannelMembership(parseInt(telegramUserId), `@${channelUsername}`, botToken);
+          }
           verificationMessage = isVerified 
             ? 'Daily task verification successful' 
             : `Please join the channel @${channelUsername} first to complete this task`;
