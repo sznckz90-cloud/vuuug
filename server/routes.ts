@@ -1273,7 +1273,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('⚠️ TELEGRAM_BOT_TOKEN not configured, skipping channel verification');
           isVerified = false;
         } else {
-          isVerified = await verifyChannelMembership(parseInt(telegramUserId), `@${channelUsername}`, botToken);
+          const isMember = await verifyChannelMembership(parseInt(telegramUserId), `@${channelUsername}`, process.env.BOT_TOKEN || botToken);
+          isVerified = isMember;
         }
         verificationMessage = isVerified 
           ? 'Channel membership verified successfully' 
@@ -1291,7 +1292,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log('⚠️ TELEGRAM_BOT_TOKEN not configured, skipping channel verification');
             isVerified = false;
           } else {
-            isVerified = await verifyChannelMembership(parseInt(telegramUserId), `@${channelUsername}`, botToken);
+            const isMember = await verifyChannelMembership(parseInt(telegramUserId), `@${channelUsername}`, process.env.BOT_TOKEN || botToken);
+            isVerified = isMember;
           }
           verificationMessage = isVerified 
             ? 'Daily task verification successful' 

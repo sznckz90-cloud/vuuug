@@ -1,4 +1,5 @@
 // Telegram Bot API integration for sending notifications
+import TelegramBot from 'node-telegram-bot-api';
 import { storage } from './storage';
 
 const isAdmin = (telegramId: string): boolean => {
@@ -53,7 +54,6 @@ function clearUserPromotionState(chatId: string) {
 // All claim state functions removed
 
 export async function verifyChannelMembership(userId: number, channelUsername: string, botToken: string) {
-    const TelegramBot = require('node-telegram-bot-api');
     const bot = new TelegramBot(botToken);
     const member = await bot.getChatMember(channelUsername, userId);
     return member.status !== 'left';
