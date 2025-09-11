@@ -9,12 +9,18 @@ import Tasks from "@/pages/Tasks";
 import Stats from "@/pages/Stats";
 import Profile from "@/pages/Profile";
 import Admin from "@/pages/Admin";
+import CreateTask from "@/pages/CreateTask";
+import MyPromotions from "@/pages/MyPromotions";
+import Wallet from "@/pages/Wallet";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/tasks" component={Tasks} />
+      <Route path="/create-task" component={CreateTask} />
+      <Route path="/my-promotions" component={MyPromotions} />
+      <Route path="/wallet" component={Wallet} />
       <Route path="/stats" component={Stats} />
       <Route path="/profile" component={Profile} />
       <Route path="/admin" component={Admin} />
