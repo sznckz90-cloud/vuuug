@@ -224,15 +224,6 @@ export default function TaskSection() {
         </TabsContent>
       </Tabs>
 
-      {tasks.length === 0 && (
-        <div className="text-center py-8" data-testid="text-no-tasks">
-          <i className="fas fa-tasks text-3xl text-muted-foreground mb-3"></i>
-          <div className="text-muted-foreground font-medium">No tasks available</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Tasks are created through the Telegram bot and will sync automatically
-          </div>
-        </div>
-      )}
     </div>
   );
 }

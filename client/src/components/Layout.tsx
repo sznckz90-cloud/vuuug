@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import GhostLogo from "./GhostLogo";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,6 +8,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { isConnected } = useWebSocket(); // Initialize WebSocket connection
 
   return (
     <div className="min-h-screen bg-background">
@@ -14,7 +16,24 @@ export default function Layout({ children }: LayoutProps) {
       <header className="bg-card border-b border-border sticky top-0 z-50 backdrop-blur-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer">
+            <div 
+              className="flex items-center gap-3 cursor-pointer"
+              onClick={(e) => {
+                // Secret admin access - click 5 times quickly
+                const clickCount = (window as any).adminClickCount || 0;
+                (window as any).adminClickCount = clickCount + 1;
+                
+                setTimeout(() => {
+                  (window as any).adminClickCount = 0;
+                }, 3000); // Reset after 3 seconds
+                
+                if ((window as any).adminClickCount >= 5) {
+                  e.preventDefault();
+                  window.location.href = '/admin';
+                  (window as any).adminClickCount = 0;
+                }
+              }}
+            >
               <GhostLogo />
               <div>
                 <p className="text-muted-foreground text-xs">Watch ads and earn crypto</p>
@@ -22,9 +41,9 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </Link>
           <div className="flex items-center gap-2">
-            <Link href="/profile">
+            <Link href="/promote">
               <button className="p-2 rounded-full bg-muted hover:bg-accent transition-colors">
-                <i className="fas fa-user text-muted-foreground"></i>
+                <i className="fas fa-bullhorn text-muted-foreground"></i>
               </button>
             </Link>
           </div>
