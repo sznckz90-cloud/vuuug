@@ -131,7 +131,7 @@ export default function TaskSection() {
                   {' '}of {task.totalSlots}
                 </>
               ) : (
-                <span className="text-red-600 dark:text-red-400 font-medium">Task Full</span>
+                <span className="text-red-600 dark:text-red-400 font-medium">$0.00025</span>
               )}
             </div>
             <Button
@@ -146,7 +146,7 @@ export default function TaskSection() {
                 : isCompleted 
                   ? "Completed ✓" 
                   : isTaskFull 
-                    ? "Full" 
+                    ? "$0.00025" 
                     : "Complete"
               }
             </Button>

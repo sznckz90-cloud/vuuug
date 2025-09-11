@@ -52,6 +52,14 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs font-medium">Tasks</span>
             </button>
           </Link>
+          <Link href="/wallet">
+            <button className={`flex flex-col items-center p-2 transition-colors ${
+              location === "/wallet" ? "text-primary" : "text-muted-foreground hover:text-primary"
+            }`} data-testid="link-wallet">
+              <i className="fas fa-wallet text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <span className="text-xs font-medium">Wallet</span>
+            </button>
+          </Link>
           <Link href="/stats">
             <button className={`flex flex-col items-center p-2 transition-colors ${
               location === "/stats" ? "text-primary" : "text-muted-foreground hover:text-primary"
