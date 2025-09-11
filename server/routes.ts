@@ -1249,12 +1249,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/tasks/:promotionId/complete', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
+      const telegramUserId = req.user.telegramUser.id.toString();
       const { promotionId } = req.params;
+      const { taskType, channelUsername, botUsername } = req.body;
       
+      console.log(`📋 Task completion attempt:`, {
+        userId,
+        telegramUserId,
+        promotionId,
+        taskType,
+        channelUsername,
+        botUsername
+      });
+      
+      // Perform Telegram verification based on task type
+      let isVerified = false;
+      let verificationMessage = '';
+      
+      if (taskType === 'subscribe' && channelUsername) {
+        // Verify channel membership using Telegram Bot API
+        const { verifyChannelMembership } = await import('./telegram');
+        isVerified = await verifyChannelMembership(telegramUserId, `https://t.me/${channelUsername}`);
+        verificationMessage = isVerified 
+          ? 'Channel membership verified successfully' 
+          : `Please join the channel @${channelUsername} first to complete this task`;
+      } else if (taskType === 'bot' && botUsername) {
+        // For bot tasks, we'll consider them verified if the user is in the WebApp
+        // (since they would need to interact with the bot to access the WebApp)
+        isVerified = true;
+        verificationMessage = 'Bot interaction verified';
+      } else if (taskType === 'daily') {
+        // Daily tasks require channel membership if channelUsername is provided
+        if (channelUsername) {
+          const { verifyChannelMembership } = await import('./telegram');
+          isVerified = await verifyChannelMembership(telegramUserId, `https://t.me/${channelUsername}`);
+          verificationMessage = isVerified 
+            ? 'Daily task verification successful' 
+            : `Please join the channel @${channelUsername} first to complete this task`;
+        } else {
+          isVerified = true;
+          verificationMessage = 'Daily task completed';
+        }
+      } else {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid task type or missing required parameters' 
+        });
+      }
+      
+      if (!isVerified) {
+        console.log(`❌ Task verification failed for user ${userId}:`, verificationMessage);
+        return res.status(400).json({ 
+          success: false, 
+          message: verificationMessage 
+        });
+      }
+      
+      console.log(`✅ Task verification successful for user ${userId}:`, verificationMessage);
+      
+      // Complete the task if verification passed
       const result = await storage.completeTask(promotionId, userId, "0.00045");
       
       if (result.success) {
-        res.json(result);
+        res.json({ 
+          ...result, 
+          verificationMessage,
+          rewardAmount: "0.00045"
+        });
       } else {
         res.status(400).json(result);
       }
