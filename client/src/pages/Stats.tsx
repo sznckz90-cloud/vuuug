@@ -3,10 +3,25 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 
+// Define types for stats data
+interface StatsData {
+  totalEarnings: string;
+  todayEarnings: string;
+  weekEarnings: string;
+  monthEarnings: string;
+}
+
+// Define types for user data with required properties
+interface UserData {
+  balance?: string;
+  adsWatchedToday?: number;
+  currentStreak?: number;
+}
+
 export default function Stats() {
   const { user, isLoading } = useAuth();
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery<StatsData>({
     queryKey: ["/api/user/stats"],
     retry: false,
   });
@@ -47,7 +62,7 @@ export default function Stats() {
             <Card className="shadow-sm border border-border">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-foreground" data-testid="text-current-balance">
-                  ${user ? Math.max(0, parseFloat(user.balance || "0")).toFixed(5) : "0.00000"}
+                  ${user ? Math.max(0, parseFloat((user as UserData).balance || "0")).toFixed(5) : "0.00000"}
                 </div>
                 <div className="text-muted-foreground text-sm">Current Balance</div>
               </CardContent>
@@ -89,14 +104,14 @@ export default function Stats() {
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Ads Watched Today</span>
                   <span className="font-semibold text-foreground" data-testid="text-ads-watched">
-                    {user?.adsWatchedToday || 0}
+                    {(user as UserData)?.adsWatchedToday || 0}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Current Streak</span>
                   <span className="font-semibold text-foreground flex items-center gap-1" data-testid="text-current-streak">
-                    {user?.currentStreak || 0} days
-                    {(user?.currentStreak || 0) > 0 && (
+                    {(user as UserData)?.currentStreak || 0} days
+                    {((user as UserData)?.currentStreak || 0) > 0 && (
                       <i className="fas fa-fire text-secondary"></i>
                     )}
                   </span>

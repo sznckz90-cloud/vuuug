@@ -8,6 +8,15 @@ import RewardNotification from "@/components/RewardNotification";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
+import React from "react";
+
+// Type definition for user object
+interface User {
+  id?: string;
+  telegramId?: string;
+  balance?: string;
+  [key: string]: any;
+}
 
 export default function Home() {
   const { toast } = useToast();
@@ -36,7 +45,7 @@ export default function Home() {
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-20">
         {/* Authentication Status */}
-        {!user ? (
+        {!(user as User) && (
           <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
             <div className="flex items-center gap-2 mb-2">
               <i className="fas fa-info-circle text-blue-600 dark:text-blue-400"></i>
@@ -67,10 +76,10 @@ export default function Home() {
               </p>
             )}
           </div>
-        ) : null}
+        )}
 
         {/* Development Mode Notice - only show in actual development */}
-        {user && typeof window !== 'undefined' && !window.Telegram?.WebApp && window.location.hostname.includes('replit') && (
+        {(user as User) && typeof window !== 'undefined' && !window.Telegram?.WebApp && window.location.hostname.includes('replit') && (
           <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
             <div className="flex items-center gap-2">
               <i className="fas fa-flask text-yellow-600 dark:text-yellow-400 text-sm"></i>
@@ -82,13 +91,13 @@ export default function Home() {
         )}
 
         {/* Balance Section */}
-        <BalanceCard user={user} stats={stats} />
+        <BalanceCard user={user as User} stats={stats} />
 
         {/* Watch Ads Section */}
-        <AdWatchingSection user={user} />
+        <AdWatchingSection user={user as User} />
 
         {/* Streak Section */}
-        <StreakCard user={user} />
+        <StreakCard user={user as User} />
 
 
 
