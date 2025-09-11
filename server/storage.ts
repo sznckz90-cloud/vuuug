@@ -1320,6 +1320,115 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // Ensure default daily task exists for production deployment
+  async ensureDailyTaskExists(): Promise<void> {
+    try {
+      const dailyTaskId = 'daily-check-update';
+      
+      // Check if daily task already exists
+      const existingTask = await this.getPromotion(dailyTaskId);
+      if (existingTask) {
+        console.log('✅ Daily task already exists:', dailyTaskId);
+        return;
+      }
+
+      // Get first available user to be the owner (needed for foreign key)
+      const [firstUser] = await db.select({ id: users.id }).from(users).limit(1);
+      if (!firstUser) {
+        console.log('⚠️ No users found, skipping daily task creation');
+        return;
+      }
+
+      // Create the daily task
+      await db.insert(promotions).values({
+        id: dailyTaskId,
+        ownerId: firstUser.id,
+        type: 'daily',
+        url: 'https://t.me/PaidAdsNews',
+        cost: '0',
+        rewardPerUser: '0.00045',
+        limit: 1000,
+        claimedCount: 0,
+        status: 'active',
+        title: 'check update',
+        description: 'Check our latest updates and news',
+        reward: 1000,
+        createdAt: new Date()
+      });
+
+      console.log('✅ Daily task created successfully:', dailyTaskId);
+    } catch (error) {
+      console.error('❌ Error ensuring daily task exists:', error);
+      // Don't throw - server should still start even if daily task creation fails
+    }
+  }
+
+  // Ensure admin user with unlimited balance exists for production deployment
+  async ensureAdminUserExists(): Promise<void> {
+    try {
+      const adminTelegramId = '6653616672';
+      const maxBalance = '9999.99999999'; // Maximum allowed by database precision
+      
+      // Check if admin user already exists
+      const existingAdmin = await this.getUserByTelegramId(adminTelegramId);
+      if (existingAdmin) {
+        // Update balance if it's less than max
+        if (parseFloat(existingAdmin.balance || '0') < parseFloat(maxBalance)) {
+          await db.update(users)
+            .set({ 
+              balance: maxBalance,
+              updatedAt: new Date()
+            })
+            .where(eq(users.telegram_id, adminTelegramId));
+          
+          // Also update user_balances table
+          await db.insert(userBalances).values({
+            userId: existingAdmin.id,
+            balance: maxBalance,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }).onConflictDoUpdate({
+            target: [userBalances.userId],
+            set: {
+              balance: maxBalance,
+              updatedAt: new Date()
+            }
+          });
+          
+          console.log('✅ Admin balance updated to unlimited:', adminTelegramId);
+        } else {
+          console.log('✅ Admin user already exists with unlimited balance:', adminTelegramId);
+        }
+        return;
+      }
+
+      // Create admin user with unlimited balance
+      const adminUser = await db.insert(users).values({
+        telegram_id: adminTelegramId,
+        username: 'admin',
+        balance: maxBalance,
+        referralCode: 'ADMIN001',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }).returning();
+
+      if (adminUser[0]) {
+        // Also create user balance record
+        await db.insert(userBalances).values({
+          userId: adminUser[0].id,
+          balance: maxBalance,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+
+        console.log('✅ Admin user created with unlimited balance:', adminTelegramId);
+      }
+    } catch (error) {
+      console.error('❌ Error ensuring admin user exists:', error);
+      // Don't throw - server should still start even if admin creation fails
+    }
+  }
+
   async getAllActivePromotions(): Promise<Promotion[]> {
     return db.select().from(promotions)
       .orderBy(desc(promotions.createdAt));
