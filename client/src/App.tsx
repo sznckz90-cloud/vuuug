@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import Tasks from "@/pages/Tasks";
 import Stats from "@/pages/Stats";
 import Profile from "@/pages/Profile";
+import Promote from "@/pages/Promote";
 import Admin from "@/pages/Admin";
 import CreateTask from "@/pages/CreateTask";
 import MyPromotions from "@/pages/MyPromotions";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/wallet" component={Wallet} />
       <Route path="/stats" component={Stats} />
       <Route path="/profile" component={Profile} />
+      <Route path="/promote" component={Promote} />
       <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
