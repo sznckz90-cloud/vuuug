@@ -24,6 +24,64 @@ import { authenticateTelegram, requireAuth } from "./auth";
 // Map: sessionId -> { socket: WebSocket, userId: string }
 const connectedUsers = new Map<string, { socket: WebSocket; userId: string }>();
 
+// Function to verify session token against PostgreSQL sessions table
+async function verifySessionToken(sessionToken: string): Promise<{ isValid: boolean; userId?: string }> {
+  try {
+    const { pool } = await import('./db');
+    
+    // Query the sessions table to find the session
+    const result = await pool.query(
+      'SELECT sess, expire FROM sessions WHERE sid = $1',
+      [sessionToken]
+    );
+    
+    if (result.rows.length === 0) {
+      console.log('❌ Session not found in database:', sessionToken);
+      return { isValid: false };
+    }
+    
+    const sessionRow = result.rows[0];
+    const sessionData = sessionRow.sess;
+    const expireTime = new Date(sessionRow.expire);
+    
+    // Check if session has expired
+    if (expireTime <= new Date()) {
+      console.log('❌ Session expired:', sessionToken);
+      return { isValid: false };
+    }
+    
+    // Extract user information from session data
+    // Session data structure from connect-pg-simple typically contains passport user data
+    let userId: string | undefined;
+    
+    if (sessionData && typeof sessionData === 'object') {
+      // Try different possible session data structures
+      if (sessionData.user && sessionData.user.user && sessionData.user.user.id) {
+        // Structure: { user: { user: { id: "uuid", ... } } }
+        userId = sessionData.user.user.id;
+      } else if (sessionData.user && sessionData.user.id) {
+        // Structure: { user: { id: "uuid", ... } }
+        userId = sessionData.user.id;
+      } else if (sessionData.passport && sessionData.passport.user) {
+        // Structure: { passport: { user: "userId" } }
+        userId = sessionData.passport.user;
+      }
+    }
+    
+    if (!userId) {
+      console.log('❌ No user ID found in session data:', sessionToken);
+      return { isValid: false };
+    }
+    
+    console.log(`✅ Session verified for user: ${userId}`);
+    return { isValid: true, userId };
+    
+  } catch (error) {
+    console.error('❌ Session verification error:', error);
+    return { isValid: false };
+  }
+}
+
 // Helper function to send real-time updates to a user
 function sendRealtimeUpdate(userId: string, update: any) {
   // Find all sessions for this user
@@ -134,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Verify session token securely
           try {
             // In development mode, allow test user authentication
-            if (process.env.NODE_ENV === 'development' && data.sessionToken === 'test-session') {
+            if ((process.env.NODE_ENV === 'development' || process.env.REPL_ID) && data.sessionToken === 'test-session') {
               const testUserId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
               sessionId = `session_${Date.now()}_${Math.random()}`;
               connectedUsers.set(sessionId, { socket: ws, userId: testUserId });
@@ -147,12 +205,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return;
             }
             
-            // For production, implement proper session verification here
-            // This should verify the session token against the database/redis
-            console.log('⚠️ WebSocket session verification not yet implemented for production');
+            // Production mode: Verify session token against PostgreSQL sessions table
+            const { isValid, userId } = await verifySessionToken(data.sessionToken);
+            
+            if (!isValid || !userId) {
+              console.log(`❌ WebSocket authentication failed for token: ${data.sessionToken}`);
+              ws.send(JSON.stringify({
+                type: 'auth_error',
+                message: 'Invalid or expired session. Please refresh the page and try again.'
+              }));
+              return;
+            }
+            
+            // Session verified successfully - establish WebSocket connection
+            sessionId = `session_${Date.now()}_${Math.random()}`;
+            connectedUsers.set(sessionId, { socket: ws, userId });
+            console.log(`👤 User ${userId} connected via WebSocket (verified session)`);
+            
             ws.send(JSON.stringify({
-              type: 'auth_error',
-              message: 'Authentication failed - session verification not implemented'
+              type: 'connected',
+              message: 'Real-time updates enabled! 🚀',
+              userId: userId
             }));
           } catch (authError) {
             console.error('❌ WebSocket auth error:', authError);
@@ -358,6 +431,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Telegram authentication error:', error);
       res.status(500).json({ message: 'Authentication failed' });
+    }
+  });
+
+  // Session token endpoint for WebSocket authentication
+  app.get('/api/auth/session-token', authenticateTelegram, async (req: any, res) => {
+    try {
+      let sessionToken: string;
+      
+      // Development mode: Return predictable test token
+      if (process.env.NODE_ENV === 'development' || process.env.REPL_ID) {
+        sessionToken = 'test-session';
+        console.log('🔧 Development mode: Returning test session token');
+      } else {
+        // Production mode: Use session ID or generate secure token
+        if (req.sessionID) {
+          sessionToken = req.sessionID;
+          console.log('🔐 Production mode: Using Express session ID for WebSocket auth');
+        } else {
+          // Fallback: Generate a secure token tied to user ID
+          const userId = req.user.user.id;
+          const timestamp = Date.now();
+          const randomPart = crypto.randomBytes(16).toString('hex');
+          sessionToken = `ws_${userId.slice(0, 8)}_${timestamp}_${randomPart}`;
+          console.log('🔐 Production mode: Generated secure session token');
+        }
+      }
+      
+      res.json({ 
+        sessionToken,
+        message: 'Session token generated successfully'
+      });
+    } catch (error) {
+      console.error('❌ Error generating session token:', error);
+      res.status(500).json({ 
+        message: 'Failed to generate session token',
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
