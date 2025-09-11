@@ -375,29 +375,55 @@ export class DatabaseStorage implements IStorage {
     // Update canonical user_balances table and keep users table in sync
     // All earnings contribute to available balance
     if (parseFloat(earning.amount) !== 0) {
-      // Ensure user has a balance record first
-      await this.createOrUpdateUserBalance(earning.userId);
+      try {
+        // Ensure user has a balance record first with improved error handling
+        await this.createOrUpdateUserBalance(earning.userId);
+        
+        // Update canonical user_balances table
+        await db
+          .update(userBalances)
+          .set({
+            balance: sql`COALESCE(${userBalances.balance}, 0) + ${earning.amount}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(userBalances.userId, earning.userId));
+      } catch (balanceError) {
+        console.error('Error updating user balance in addEarning:', balanceError);
+        // Auto-create the record if it doesn't exist instead of throwing error
+        try {
+          console.log('🔄 Attempting to auto-create missing balance record...');
+          await this.createOrUpdateUserBalance(earning.userId, '0');
+          // Retry the balance update
+          await db
+            .update(userBalances)
+            .set({
+              balance: sql`COALESCE(${userBalances.balance}, 0) + ${earning.amount}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(userBalances.userId, earning.userId));
+          console.log('✅ Successfully recovered from balance error');
+        } catch (recoveryError) {
+          console.error('❌ Failed to recover from balance error:', recoveryError);
+          // Continue with the function - don't let balance errors block earnings
+        }
+      }
       
-      // Update canonical user_balances table
-      await db
-        .update(userBalances)
-        .set({
-          balance: sql`COALESCE(${userBalances.balance}, 0) + ${earning.amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(userBalances.userId, earning.userId));
-      
-      // Keep users table in sync for compatibility
-      await db
-        .update(users)
-        .set({
-          balance: sql`COALESCE(${users.balance}, 0) + ${earning.amount}`,
-          withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
-          totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${earning.amount}`,
-          totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${earning.amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, earning.userId));
+      try {
+        // Keep users table in sync for compatibility
+        await db
+          .update(users)
+          .set({
+            balance: sql`COALESCE(${users.balance}, 0) + ${earning.amount}`,
+            withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${earning.amount}`,
+            totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${earning.amount}`,
+            totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${earning.amount}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, earning.userId));
+      } catch (userUpdateError) {
+        console.error('Error updating users table in addEarning:', userUpdateError);
+        // Don't throw - the earning was already recorded
+      }
     }
     
     // Process referral commission (10% of user's earnings)
@@ -590,6 +616,7 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({
         adsWatchedToday: adsCount,
+        adsWatched: sql`COALESCE(${users.adsWatched}, 0) + 1`, // Increment total ads watched
         lastAdDate: new Date(),
         updatedAt: new Date(),
       })
@@ -1391,27 +1418,32 @@ export class DatabaseStorage implements IStorage {
 
   async createOrUpdateUserBalance(userId: string, balance?: string): Promise<UserBalance> {
     try {
-      const existingBalance = await this.getUserBalance(userId);
-      
-      if (existingBalance) {
-        const [result] = await db.update(userBalances)
-          .set({
-            balance: balance || existingBalance.balance,
-            updatedAt: new Date()
-          })
-          .where(eq(userBalances.userId, userId))
-          .returning();
-        return result;
-      } else {
-        // Create new balance record with default 0 if user not found
-        const [result] = await db.insert(userBalances).values({
+      // Use upsert pattern with ON CONFLICT to handle race conditions
+      const [result] = await db.insert(userBalances)
+        .values({
           userId,
           balance: balance || '0',
-        }).returning();
-        return result;
-      }
+        })
+        .onConflictDoUpdate({
+          target: userBalances.userId,
+          set: {
+            balance: balance ? balance : sql`${userBalances.balance}`,
+            updatedAt: new Date()
+          }
+        })
+        .returning();
+      return result;
     } catch (error) {
       console.error('Error creating/updating user balance:', error);
+      // Fallback: try to get existing balance if upsert fails
+      try {
+        const existingBalance = await this.getUserBalance(userId);
+        if (existingBalance) {
+          return existingBalance;
+        }
+      } catch (fallbackError) {
+        console.error('Fallback getUserBalance also failed:', fallbackError);
+      }
       throw error;
     }
   }

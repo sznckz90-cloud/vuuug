@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { WebSocketServer, WebSocket } from 'ws';
 import { 
   insertEarningSchema, 
   insertPromotionSchema,
@@ -18,6 +19,31 @@ import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
 import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook } from "./telegram";
 import { authenticateTelegram, requireAuth } from "./auth";
+
+// Store WebSocket connections for real-time updates
+// Map: sessionId -> { socket: WebSocket, userId: string }
+const connectedUsers = new Map<string, { socket: WebSocket; userId: string }>();
+
+// Helper function to send real-time updates to a user
+function sendRealtimeUpdate(userId: string, update: any) {
+  // Find all sessions for this user
+  for (const [sessionId, connection] of connectedUsers.entries()) {
+    if (connection.userId === userId && connection.socket.readyState === WebSocket.OPEN) {
+      connection.socket.send(JSON.stringify(update));
+      return true;
+    }
+  }
+  return false;
+}
+
+// Broadcast update to all connected users
+function broadcastUpdate(update: any) {
+  connectedUsers.forEach((socket, userId) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(update));
+    }
+  });
+}
 
 // Check if user is admin
 const isAdmin = (telegramId: string): boolean => {
@@ -79,6 +105,75 @@ const authenticateAdmin = async (req: any, res: any, next: any) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   console.log('🔧 Registering API routes...');
+  
+  // Create HTTP server first
+  const httpServer = createServer(app);
+  
+  // Set up WebSocket server for real-time updates  
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  wss.on('connection', (ws: WebSocket, req) => {
+    console.log('🔌 New WebSocket connection established');
+    let sessionId: string | null = null;
+    
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        if (data.type === 'auth' && data.sessionToken) {
+          // Verify session token securely
+          try {
+            // In development mode, allow test user authentication
+            if (process.env.NODE_ENV === 'development' && data.sessionToken === 'test-session') {
+              const testUserId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+              sessionId = `session_${Date.now()}_${Math.random()}`;
+              connectedUsers.set(sessionId, { socket: ws, userId: testUserId });
+              console.log(`👤 Test user connected via WebSocket: ${testUserId}`);
+              
+              ws.send(JSON.stringify({
+                type: 'connected',
+                message: 'Real-time updates enabled! 🚀'
+              }));
+              return;
+            }
+            
+            // For production, implement proper session verification here
+            // This should verify the session token against the database/redis
+            console.log('⚠️ WebSocket session verification not yet implemented for production');
+            ws.send(JSON.stringify({
+              type: 'auth_error',
+              message: 'Authentication failed'
+            }));
+          } catch (authError) {
+            console.error('❌ WebSocket auth error:', authError);
+            ws.send(JSON.stringify({
+              type: 'auth_error', 
+              message: 'Authentication failed'
+            }));
+          }
+        } else {
+          console.log('❌ Invalid WebSocket auth message format');
+        }
+      } catch (error) {
+        console.error('❌ WebSocket message error:', error);
+      }
+    });
+    
+    ws.on('close', () => {
+      // Remove session from connected list
+      if (sessionId) {
+        const connection = connectedUsers.get(sessionId);
+        if (connection) {
+          connectedUsers.delete(sessionId);
+          console.log(`👋 User ${connection.userId} disconnected from WebSocket`);
+        }
+      }
+    });
+    
+    ws.on('error', (error) => {
+      console.error('❌ WebSocket error:', error);
+    });
+  });
   
   // Simple test route to verify routing works
   app.get('/api/test', (req: any, res) => {
@@ -300,6 +395,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check and activate referral bonuses (anti-fraud: requires 10 ads)
       await storage.checkAndActivateReferralBonus(userId);
+      
+      // Send real-time update to user
+      sendRealtimeUpdate(userId, {
+        type: 'ad_reward',
+        amount: "0.00025",
+        message: 'Ad reward earned! 💰',
+        timestamp: new Date().toISOString()
+      });
       
       res.json({ 
         success: true, 
@@ -1108,6 +1211,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
   return httpServer;
 }
