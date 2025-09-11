@@ -18,8 +18,34 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const connect = () => {
+  const fetchSessionToken = async (): Promise<string | null> => {
+    try {
+      const response = await fetch('/api/auth/session-token', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to fetch session token:', response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      return data.sessionToken;
+    } catch (error) {
+      console.error('Error fetching session token:', error);
+      return null;
+    }
+  };
+
+  const connect = async () => {
     if (!user?.id) return;
+
+    // Fetch session token before connecting
+    const sessionToken = await fetchSessionToken();
+    if (!sessionToken) {
+      console.error('❌ Failed to obtain session token, cannot connect WebSocket');
+      return;
+    }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -32,10 +58,10 @@ export function useWebSocket() {
         console.log('🔌 WebSocket connected');
         setIsConnected(true);
         
-        // Authenticate with user ID
+        // Authenticate with session token
         ws.send(JSON.stringify({
           type: 'auth',
-          userId: user.id
+          sessionToken: sessionToken
         }));
       };
 
@@ -47,9 +73,16 @@ export function useWebSocket() {
           // Handle different message types
           switch (message.type) {
             case 'connected':
+              // Silently handle connection confirmation without showing toast
+              console.log('✅ WebSocket authenticated successfully');
+              break;
+              
+            case 'auth_error':
+              console.error('❌ WebSocket authentication error:', message.message);
               toast({
-                title: "Real-time Updates Enabled! 🚀",
-                description: message.message,
+                title: "Connection Error",
+                description: "Failed to authenticate real-time connection",
+                variant: "destructive"
               });
               break;
               
