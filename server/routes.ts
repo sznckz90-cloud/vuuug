@@ -120,7 +120,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const data = JSON.parse(message.toString());
         
-        if (data.type === 'auth' && data.sessionToken) {
+        // Handle different message types
+        if (data.type === 'auth') {
+          if (!data.sessionToken) {
+            console.log('❌ Missing sessionToken in auth message');
+            ws.send(JSON.stringify({
+              type: 'auth_error',
+              message: 'Missing sessionToken. Expected format: {"type": "auth", "sessionToken": "<token>"}'
+            }));
+            return;
+          }
+
           // Verify session token securely
           try {
             // In development mode, allow test user authentication
@@ -142,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log('⚠️ WebSocket session verification not yet implemented for production');
             ws.send(JSON.stringify({
               type: 'auth_error',
-              message: 'Authentication failed'
+              message: 'Authentication failed - session verification not implemented'
             }));
           } catch (authError) {
             console.error('❌ WebSocket auth error:', authError);
@@ -151,11 +161,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
               message: 'Authentication failed'
             }));
           }
+        } else if (data.type === 'ping') {
+          // Handle ping messages
+          ws.send(JSON.stringify({ type: 'pong' }));
         } else {
-          console.log('❌ Invalid WebSocket auth message format');
+          // Handle invalid message types
+          console.log(`❌ Invalid WebSocket message type: ${data.type || 'undefined'}`);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: `Invalid message type. Expected "auth" but received "${data.type || 'undefined'}". Format: {"type": "auth", "sessionToken": "<token>"}`
+          }));
         }
       } catch (error) {
-        console.error('❌ WebSocket message error:', error);
+        console.error('❌ WebSocket message parsing error:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Invalid JSON format. Expected: {"type": "auth", "sessionToken": "<token>"}'
+        }));
       }
     });
     

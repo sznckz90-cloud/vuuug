@@ -1,94 +1,206 @@
-// Production migration helper to ensure telegram_id column exists
+// Migration helper to ensure all database tables exist with correct schema
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 
-export async function ensureTelegramIdColumn(): Promise<void> {
+export async function ensureDatabaseSchema(): Promise<void> {
   try {
-    console.log('🔄 [MIGRATION] Checking if telegram_id column exists...');
+    console.log('🔄 [MIGRATION] Ensuring all database tables exist...');
     
-    // First ensure the users table exists
+    // Enable pgcrypto extension for gen_random_uuid() support
+    try {
+      await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+      console.log('✅ [MIGRATION] pgcrypto extension enabled');
+    } catch (error) {
+      console.log('⚠️ [MIGRATION] pgcrypto extension already exists or not available');
+    }
+    
+    // Create all essential tables with correct schema
+    
+    // Users table with full schema
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        telegram_id VARCHAR(20) UNIQUE,
         username VARCHAR,
-        balance DECIMAL(10, 2) DEFAULT 0,
-        streak_count INTEGER DEFAULT 0,
-        streak_last_date DATE,
-        referral_code VARCHAR UNIQUE,
+        email TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        profile_image_url TEXT,
+        personal_code TEXT,
+        balance DECIMAL(12, 8) DEFAULT '0',
+        withdraw_balance DECIMAL(12, 8),
+        total_earnings DECIMAL(12, 8),
+        total_earned DECIMAL(12, 8) DEFAULT '0',
+        ads_watched INTEGER DEFAULT 0,
+        daily_ads_watched INTEGER DEFAULT 0,
+        ads_watched_today INTEGER DEFAULT 0,
+        daily_earnings DECIMAL(12, 8),
+        last_ad_watch TIMESTAMP,
+        last_ad_date TIMESTAMP,
+        current_streak INTEGER DEFAULT 0,
+        last_streak_date TIMESTAMP,
+        level INTEGER DEFAULT 1,
         referred_by VARCHAR,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        referral_code TEXT NOT NULL,
+        flagged BOOLEAN DEFAULT false,
+        flag_reason TEXT,
+        banned BOOLEAN DEFAULT false,
+        last_login_at TIMESTAMP,
+        last_login_ip TEXT,
+        last_login_device TEXT,
+        last_login_user_agent TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
     
-    // Check if telegram_id column exists
-    const result = await db.execute(sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'users' 
-      AND column_name = 'telegram_id'
-    `);
-    
-    if (result.rows.length === 0) {
-      console.log('➕ [MIGRATION] Adding telegram_id column to users table...');
-      
-      // Add the column safely
-      await db.execute(sql`
-        ALTER TABLE users 
-        ADD COLUMN telegram_id VARCHAR(20) UNIQUE
-      `);
-      
-      // Add index for performance
-      await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)
-      `);
-      
-      console.log('✅ [MIGRATION] telegram_id column added successfully');
-    } else {
-      console.log('✅ [MIGRATION] telegram_id column already exists');
-    }
-    
-    // Fix username column to allow NULL values (for users without Telegram usernames)
-    try {
-      await db.execute(sql`
-        ALTER TABLE users ALTER COLUMN username DROP NOT NULL
-      `);
-      console.log('✅ [MIGRATION] Username column constraint fixed');
-    } catch (error) {
-      // Column might already be nullable, ignore the error
-      console.log('ℹ️ [MIGRATION] Username column already nullable or constraint doesn\'t exist');
-    }
-    
-    // Also ensure all other essential tables exist
+    // Earnings table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS earnings (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR NOT NULL,
-        amount DECIMAL(10, 2) NOT NULL,
-        type VARCHAR NOT NULL,
-        metadata JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        amount DECIMAL(12, 8) NOT NULL,
+        source VARCHAR NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
       )
     `);
     
+    // Withdrawals table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS withdrawals (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR NOT NULL,
-        amount DECIMAL(10, 2) NOT NULL,
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        amount DECIMAL(12, 8) NOT NULL,
         status VARCHAR DEFAULT 'pending',
-        payment_method VARCHAR NOT NULL,
-        payment_details JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        method VARCHAR NOT NULL,
+        details JSONB,
+        transaction_hash VARCHAR,
+        admin_notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
     
-    console.log('✅ [MIGRATION] All tables verified/created');
+    // Promotions table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_id VARCHAR NOT NULL REFERENCES users(id),
+        type VARCHAR NOT NULL,
+        url TEXT NOT NULL,
+        cost DECIMAL(12, 8) NOT NULL DEFAULT '0.01',
+        reward_per_user DECIMAL(12, 8) NOT NULL DEFAULT '0.00025',
+        "limit" INTEGER NOT NULL DEFAULT 1000,
+        claimed_count INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR NOT NULL DEFAULT 'active',
+        title VARCHAR(255),
+        description TEXT,
+        reward INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Task completions table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS task_completions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        promotion_id VARCHAR NOT NULL REFERENCES promotions(id),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        reward_amount DECIMAL(12, 8) NOT NULL,
+        verified BOOLEAN DEFAULT false,
+        completed_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(promotion_id, user_id)
+      )
+    `);
+    
+    // User balances table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_balances (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR UNIQUE NOT NULL REFERENCES users(id),
+        balance DECIMAL(20, 8) DEFAULT '0',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Referrals table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        referrer_id VARCHAR NOT NULL REFERENCES users(id),
+        referee_id VARCHAR NOT NULL REFERENCES users(id),
+        reward_amount DECIMAL(12, 5) DEFAULT '0.01',
+        status VARCHAR DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(referrer_id, referee_id)
+      )
+    `);
+    
+    // Referral commissions table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS referral_commissions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        referrer_id VARCHAR NOT NULL REFERENCES users(id),
+        referred_user_id VARCHAR NOT NULL REFERENCES users(id),
+        original_earning_id INTEGER NOT NULL REFERENCES earnings(id),
+        commission_amount DECIMAL(12, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Promo codes table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        code VARCHAR UNIQUE NOT NULL,
+        reward_amount DECIMAL(12, 2) NOT NULL,
+        reward_currency VARCHAR DEFAULT 'USDT',
+        usage_limit INTEGER,
+        usage_count INTEGER DEFAULT 0,
+        per_user_limit INTEGER DEFAULT 1,
+        is_active BOOLEAN DEFAULT true,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Promo code usage tracking table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS promo_code_usage (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        promo_code_id VARCHAR NOT NULL REFERENCES promo_codes(id),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        reward_amount DECIMAL(12, 2) NOT NULL,
+        used_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Promotion claims table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS promotion_claims (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        promotion_id VARCHAR NOT NULL REFERENCES promotions(id),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        reward_amount DECIMAL(12, 8) NOT NULL,
+        claimed_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(promotion_id, user_id)
+      )
+    `);
+    
+    // Create indexes for performance
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_earnings_user_id ON earnings(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_promotions_status ON promotions(status)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_task_completions_user_id ON task_completions(user_id)`);
+    
+    console.log('✅ [MIGRATION] All tables and indexes created successfully');
     
   } catch (error) {
     console.error('❌ [MIGRATION] Critical error ensuring database schema:', error);
-    // This IS critical - we need to throw to prevent startup with broken schema
     throw new Error(`Database migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

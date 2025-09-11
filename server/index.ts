@@ -2,12 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
-import { ensureTelegramIdColumn } from "./migrate";
+import { ensureDatabaseSchema } from "./migrate";
 
 // CRITICAL: Run database migrations before ANYTHING else
 // This ensures the telegram_id column exists before any database operations
 console.log('🚀 Starting CashWatch server...');
-await ensureTelegramIdColumn();
+await ensureDatabaseSchema();
 console.log('✅ Database schema verified, starting server setup...');
 
 const app = express();
@@ -30,9 +30,17 @@ app.post('/api/telegram/webhook', async (req: any, res) => {
   }
 });
 
-// CRITICAL: Emergency referral fix endpoint - MUST be before other middleware
+// Emergency referral fix endpoint - SECURED for production
 app.post('/api/emergency-fix-referrals', async (req: any, res) => {
   try {
+    // Only allow in development - disabled in production for security
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        success: false,
+        message: 'Emergency endpoint disabled in production for security'
+      });
+    }
+    
     console.log('🚨 EMERGENCY: Running referral data repair...');
     
     const { storage } = await import('./storage');
