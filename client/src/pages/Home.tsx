@@ -18,10 +18,6 @@ export default function Home() {
     retry: false,
   });
 
-  const { data: earnings, isLoading: earningsLoading } = useQuery({
-    queryKey: ["/api/earnings"],
-    retry: false,
-  });
 
   if (isLoading) {
     return (
@@ -94,58 +90,6 @@ export default function Home() {
         {/* Streak Section */}
         <StreakCard user={user} />
 
-        {/* Recent Activity */}
-        <Card className="rounded-xl shadow-sm border border-border mt-4">
-          <CardContent className="p-4">
-            <h3 className="text-base font-semibold text-foreground mb-3">Recent Activity</h3>
-            
-            {earningsLoading ? (
-              <div className="text-center py-4">
-                <div className="text-muted-foreground">Loading activity...</div>
-              </div>
-            ) : !earnings || (earnings as any[])?.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-muted-foreground mb-2">No activity yet</div>
-                <div className="text-muted-foreground text-sm">
-                  Watch your first ad to start earning!
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(earnings as any[])?.slice(0, 5).map((earning: any) => (
-                  <div key={earning.id} className="flex justify-between items-center py-3 border-b border-border last:border-b-0">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-primary/10 p-2 rounded-lg">
-                        <i className={`fas ${
-                          earning.type === 'ad_watch' ? 'fa-video text-primary' :
-                          earning.type === 'streak_bonus' ? 'fa-fire text-secondary' :
-                          earning.type === 'referral' ? 'fa-users text-primary' :
-                          'fa-dollar-sign text-muted-foreground'
-                        } text-sm`}></i>
-                      </div>
-                      <div>
-                        <div className="font-medium text-foreground">
-                          {earning.type === 'ad_watch' ? 'Ad Watched' :
-                           earning.type === 'streak_bonus' ? 'Streak Bonus' :
-                           earning.type === 'referral' ? 'Referral Bonus' :
-                           earning.description}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
-                          {new Date(earning.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className={`font-semibold ${
-                      parseFloat(earning.amount) > 0 ? 'text-primary' : 'text-destructive'
-                    }`}>
-                      {parseFloat(earning.amount) > 0 ? '+' : ''}${parseFloat(earning.amount).toFixed(5)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
 
       </main>

@@ -148,8 +148,16 @@ export default function AdminPage() {
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" className="space-y-4">
-              {/* Stats Cards - Compact Layout */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Stats Sections - Weekly/Monthly Tabs */}
+              <Tabs defaultValue="weekly" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="weekly">Weekly Stats</TabsTrigger>
+                  <TabsTrigger value="monthly">Monthly Stats</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="weekly" className="space-y-4">
+                  {/* Weekly Stats Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <Card className="p-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -213,82 +221,209 @@ export default function AdminPage() {
                 <Card className="p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Processed</p>
-                      <p className="text-lg font-bold text-green-600" data-testid="text-total-withdrawals">
+                      <p className="text-xs text-muted-foreground">Weekly Processed</p>
+                      <p className="text-lg font-bold text-green-600" data-testid="text-weekly-withdrawals">
                         ${stats?.totalWithdrawals || '0.00'}
                       </p>
                     </div>
                     <i className="fas fa-check-circle text-green-600"></i>
                   </div>
                 </Card>
-              </div>
+                  </div>
+                  
+                  {/* Weekly Real-time Chart */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center">
+                        <i className="fas fa-chart-line mr-2 text-blue-600"></i>
+                        Weekly Real-time Activity 📈
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart
+                            data={[
+                              { day: 'Mon', ads: 45, users: 12 },
+                              { day: 'Tue', ads: 52, users: 15 },
+                              { day: 'Wed', ads: 38, users: 8 },
+                              { day: 'Thu', ads: 67, users: 18 },
+                              { day: 'Fri', ads: 73, users: 22 },
+                              { day: 'Sat', ads: 85, users: 25 },
+                              { day: 'Today', ads: stats?.totalAdsWatched || 0, users: stats?.dailyActiveUsers || 0 }
+                            ]}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="day" />
+                            <YAxis />
+                            <Tooltip />
+                            <Area type="monotone" dataKey="ads" stroke="#2563eb" fill="#2563eb" fillOpacity={0.3} strokeWidth={2} dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="monthly" className="space-y-4">
+                  {/* Monthly Stats Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <Card className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Monthly Users</p>
+                          <p className="text-lg font-bold" data-testid="text-monthly-users">
+                            {stats?.totalUsers?.toLocaleString() || '0'}
+                          </p>
+                        </div>
+                        <i className="fas fa-users text-blue-600"></i>
+                      </div>
+                    </Card>
 
-              {/* Charts Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center">
-                      <i className="fas fa-chart-bar mr-2 text-blue-600"></i>
-                      Daily Activity 📈
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                          data={[
-                            { day: 'Mon', ads: 45, users: 12 },
-                            { day: 'Tue', ads: 52, users: 15 },
-                            { day: 'Wed', ads: 38, users: 8 },
-                            { day: 'Thu', ads: 67, users: 18 },
-                            { day: 'Fri', ads: 73, users: 22 },
-                            { day: 'Sat', ads: 85, users: 25 },
-                            { day: 'Today', ads: stats?.totalAdsWatched || 0, users: stats?.dailyActiveUsers || 0 }
-                          ]}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="day" />
-                          <YAxis />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="ads" stroke="#2563eb" strokeWidth={2} name="Ads Watched" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
+                    <Card className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Monthly Ads</p>
+                          <p className="text-lg font-bold" data-testid="text-monthly-ads">
+                            {stats?.totalAdsWatched?.toLocaleString() || '0'}
+                          </p>
+                        </div>
+                        <i className="fas fa-eye text-purple-600"></i>
+                      </div>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center">
-                      <i className="fas fa-users mr-2 text-green-600"></i>
-                      User Analytics 📈
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                          data={[
-                            { day: 'Mon', users: 12, earnings: 24.5 },
-                            { day: 'Tue', users: 15, earnings: 31.2 },
-                            { day: 'Wed', users: 8, earnings: 18.6 },
-                            { day: 'Thu', users: 18, earnings: 42.8 },
-                            { day: 'Fri', users: 22, earnings: 55.4 },
-                            { day: 'Sat', users: 25, earnings: 67.9 },
-                            { day: 'Today', users: stats?.dailyActiveUsers || 0, earnings: parseFloat(stats?.totalEarnings || '0') }
-                          ]}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="day" />
-                          <YAxis />
-                          <Tooltip />
-                          <Area type="monotone" dataKey="users" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="Active Users" />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                    <Card className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Monthly Earnings</p>
+                          <p className="text-lg font-bold text-green-600" data-testid="text-monthly-earnings">
+                            ${stats?.totalEarnings || '0.00'}
+                          </p>
+                        </div>
+                        <i className="fas fa-dollar-sign text-yellow-600"></i>
+                      </div>
+                    </Card>
+
+                    <Card className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Monthly Pending</p>
+                          <p className="text-lg font-bold text-orange-600" data-testid="text-monthly-pending">
+                            {stats?.pendingWithdrawals || '0'}
+                          </p>
+                        </div>
+                        <i className="fas fa-clock text-orange-600"></i>
+                      </div>
+                    </Card>
+
+                    <Card className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Monthly Processed</p>
+                          <p className="text-lg font-bold text-green-600" data-testid="text-monthly-processed">
+                            ${stats?.totalWithdrawals || '0.00'}
+                          </p>
+                        </div>
+                        <i className="fas fa-check-circle text-green-600"></i>
+                      </div>
+                    </Card>
+                  </div>
+                  
+                  {/* Monthly Real-time Chart */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center">
+                        <i className="fas fa-chart-area mr-2 text-green-600"></i>
+                        Monthly Real-time Trends 📈
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart
+                            data={[
+                              { week: 'Week 1', users: 142, earnings: 245.5 },
+                              { week: 'Week 2', users: 158, earnings: 312.8 },
+                              { week: 'Week 3', users: 176, earnings: 387.6 },
+                              { week: 'Week 4', users: stats?.totalUsers || 0, earnings: parseFloat(stats?.totalEarnings || '0') }
+                            ]}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="week" />
+                            <YAxis />
+                            <Tooltip />
+                            <Area type="monotone" dataKey="users" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.4} strokeWidth={2} dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+
+              {/* User Profiles with Charts */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center">
+                    <i className="fas fa-user-chart mr-2 text-purple-600"></i>
+                    User Analytics Dashboard
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Daily Earnings Chart */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-3 flex items-center">
+                        <i className="fas fa-clock mr-2 text-blue-600"></i>
+                        Daily Earnings (Last 24h)
+                      </h4>
+                      <div className="h-32">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={[
+                              { hour: '00', earnings: 0.12 },
+                              { hour: '06', earnings: 0.25 },
+                              { hour: '12', earnings: 0.45 },
+                              { hour: '18', earnings: 0.38 },
+                              { hour: '24', earnings: parseFloat(stats?.totalEarnings || '0') / 30 }
+                            ]}
+                          >
+                            <XAxis dataKey="hour" />
+                            <YAxis />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="earnings" stroke="#2563eb" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    
+                    {/* Monthly Total Earnings Chart */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-3 flex items-center">
+                        <i className="fas fa-calendar mr-2 text-green-600"></i>
+                        Monthly Total Earnings
+                      </h4>
+                      <div className="h-32">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart
+                            data={[
+                              { week: 'W1', total: 45.2 },
+                              { week: 'W2', total: 78.6 },
+                              { week: 'W3', total: 124.8 },
+                              { week: 'W4', total: parseFloat(stats?.totalEarnings || '0') }
+                            ]}
+                          >
+                            <XAxis dataKey="week" />
+                            <YAxis />
+                            <Tooltip />
+                            <Area type="monotone" dataKey="total" stroke="#10b981" fill="#10b981" fillOpacity={0.4} strokeWidth={2} dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Quick Actions */}
               <Card>

@@ -14,11 +14,6 @@ import Layout from '@/components/Layout';
 interface CreateTaskForm {
   type: 'subscribe' | 'bot';
   url: string;
-  cost: string;
-  rewardPerUser: string;
-  limit: number;
-  title: string;
-  description: string;
 }
 
 export default function CreateTask() {
@@ -27,12 +22,7 @@ export default function CreateTask() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateTaskForm>({
     type: 'subscribe',
-    url: '',
-    cost: '',
-    rewardPerUser: '',
-    limit: 100,
-    title: '',
-    description: ''
+    url: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -40,16 +30,19 @@ export default function CreateTask() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!form.title.trim()) newErrors.title = 'Title is required';
-    if (!form.description.trim()) newErrors.description = 'Description is required';
-    if (!form.url.trim()) newErrors.url = 'URL is required';
-    if (!form.cost || parseFloat(form.cost) <= 0) newErrors.cost = 'Cost must be greater than 0';
-    if (!form.rewardPerUser || parseFloat(form.rewardPerUser) <= 0) newErrors.rewardPerUser = 'Reward must be greater than 0';
-    if (form.limit <= 0) newErrors.limit = 'Limit must be greater than 0';
+    if (!form.url.trim()) newErrors.url = 'Channel/Bot URL is required';
     
-    // Validate URL format
+    // Validate and normalize URL format
+    let urlToValidate = form.url.trim();
+    if (urlToValidate && !urlToValidate.startsWith('http')) {
+      urlToValidate = 'https://' + urlToValidate;
+    }
+    
     try {
-      new URL(form.url);
+      const url = new URL(urlToValidate);
+      if (!url.hostname.includes('t.me') && !url.hostname.includes('telegram.me')) {
+        newErrors.url = 'Please enter a valid Telegram URL (t.me or telegram.me)';
+      }
     } catch {
       newErrors.url = 'Please enter a valid URL';
     }
@@ -60,12 +53,21 @@ export default function CreateTask() {
 
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: CreateTaskForm) => {
+      // Add fixed values for cost, reward, limit, and title
+      const taskPayload = {
+        ...taskData,
+        cost: '0.01',
+        rewardPerUser: '0.00001',
+        limit: 1000,
+        title: `${taskData.type === 'subscribe' ? 'Subscribe to' : 'Start'} ${taskData.url.replace('https://t.me/', '@')}`,
+      };
+
       const response = await fetch('/api/promotions/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(taskData)
+        body: JSON.stringify(taskPayload)
       });
 
       if (!response.ok) {
@@ -78,22 +80,18 @@ export default function CreateTask() {
     onSuccess: (data) => {
       toast({
         title: "Task Created Successfully! 🎉",
-        description: `Your ${form.type} task "${form.title}" has been created and posted to the channel.`,
+        description: `Your promotional task has been created and posted to the channel.`,
       });
       
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/promotions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/promotions'] });
       
       // Reset form
       setForm({
         type: 'subscribe',
-        url: '',
-        cost: '',
-        rewardPerUser: '',
-        limit: 100,
-        title: '',
-        description: ''
+        url: ''
       });
       setErrors({});
       
@@ -123,10 +121,6 @@ export default function CreateTask() {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
-
-  const totalCost = parseFloat(form.cost || '0');
-  const rewardPerUser = parseFloat(form.rewardPerUser || '0');
-  const calculatedCost = rewardPerUser * form.limit;
 
   return (
     <Layout>
@@ -168,33 +162,6 @@ export default function CreateTask() {
               </Select>
             </div>
 
-            {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">Task Title</Label>
-              <Input
-                id="title"
-                value={form.title}
-                onChange={(e) => updateForm('title', e.target.value)}
-                placeholder="e.g., Subscribe to our crypto channel"
-                className={errors.title ? 'border-red-500' : ''}
-              />
-              {errors.title && <p className="text-sm text-red-500">{errors.title}</p>}
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={form.description}
-                onChange={(e) => updateForm('description', e.target.value)}
-                placeholder="Describe what users need to do..."
-                rows={3}
-                className={errors.description ? 'border-red-500' : ''}
-              />
-              {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
-            </div>
-
             {/* URL */}
             <div className="space-y-2">
               <Label htmlFor="url">{form.type === 'subscribe' ? 'Channel URL' : 'Bot URL'}</Label>
@@ -208,66 +175,23 @@ export default function CreateTask() {
               {errors.url && <p className="text-sm text-red-500">{errors.url}</p>}
             </div>
 
-            {/* Reward Per User */}
-            <div className="space-y-2">
-              <Label htmlFor="rewardPerUser">Reward Per User ($)</Label>
-              <Input
-                id="rewardPerUser"
-                type="number"
-                step="0.00001"
-                min="0.00001"
-                value={form.rewardPerUser}
-                onChange={(e) => updateForm('rewardPerUser', e.target.value)}
-                placeholder="0.50"
-                className={errors.rewardPerUser ? 'border-red-500' : ''}
-              />
-              {errors.rewardPerUser && <p className="text-sm text-red-500">{errors.rewardPerUser}</p>}
-            </div>
-
-            {/* Limit */}
-            <div className="space-y-2">
-              <Label htmlFor="limit">Maximum Participants</Label>
-              <Input
-                id="limit"
-                type="number"
-                min="1"
-                value={form.limit}
-                onChange={(e) => updateForm('limit', parseInt(e.target.value) || 0)}
-                placeholder="100"
-                className={errors.limit ? 'border-red-500' : ''}
-              />
-              {errors.limit && <p className="text-sm text-red-500">{errors.limit}</p>}
-            </div>
-
-            {/* Total Cost */}
-            <div className="space-y-2">
-              <Label htmlFor="cost">Total Budget ($)</Label>
-              <Input
-                id="cost"
-                type="number"
-                step="0.00001"
-                min="0"
-                value={form.cost}
-                onChange={(e) => updateForm('cost', e.target.value)}
-                placeholder="50.00"
-                className={errors.cost ? 'border-red-500' : ''}
-              />
-              {errors.cost && <p className="text-sm text-red-500">{errors.cost}</p>}
-              
-              {/* Cost Calculator */}
-              {rewardPerUser > 0 && form.limit > 0 && (
-                <div className="bg-muted p-3 rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Calculated Cost:</div>
-                  <div className="font-medium">
-                    ${rewardPerUser.toFixed(5)} × {form.limit} = ${calculatedCost.toFixed(5)}
-                  </div>
-                  {totalCost > 0 && totalCost !== calculatedCost && (
-                    <Badge variant={totalCost >= calculatedCost ? "default" : "destructive"} className="mt-1">
-                      {totalCost >= calculatedCost ? '✓ Sufficient budget' : '⚠ Insufficient budget'}
-                    </Badge>
-                  )}
+            {/* Fixed Cost Info */}
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="text-sm font-medium text-foreground mb-2">Task Details:</div>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>Ad Cost:</span>
+                  <span className="font-medium">$0.01</span>
                 </div>
-              )}
+                <div className="flex justify-between">
+                  <span>Max Participants:</span>
+                  <span className="font-medium">1,000 users</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Reward per User:</span>
+                  <span className="font-medium">$0.00001</span>
+                </div>
+              </div>
             </div>
 
             {/* Submit Button */}

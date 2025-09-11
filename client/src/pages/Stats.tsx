@@ -11,15 +11,7 @@ export default function Stats() {
     retry: false,
   });
 
-  const { data: earnings, isLoading: earningsLoading } = useQuery({
-    queryKey: ["/api/earnings"],
-    retry: false,
-  });
 
-  const { data: withdrawals, isLoading: withdrawalsLoading } = useQuery({
-    queryKey: ["/api/withdrawals"],
-    retry: false,
-  });
 
   if (isLoading) {
     return (
@@ -109,58 +101,10 @@ export default function Stats() {
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Total Transactions</span>
-                  <span className="font-semibold text-foreground" data-testid="text-total-transactions">
-                    {earningsLoading ? "..." : (earnings?.length || 0)}
-                  </span>
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Withdrawal History */}
-          <Card className="shadow-sm border border-border mb-6">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Withdrawal History</h3>
-              
-              {withdrawalsLoading ? (
-                <div className="text-center py-4">
-                  <div className="text-muted-foreground">Loading withdrawals...</div>
-                </div>
-              ) : !withdrawals || withdrawals.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-muted-foreground mb-2">No withdrawals yet</div>
-                  <div className="text-muted-foreground text-sm">
-                    Make your first withdrawal from your profile
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {withdrawals.map((withdrawal: any) => (
-                    <div key={withdrawal.id} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
-                      <div>
-                        <div className="font-medium text-foreground">
-                          ${parseFloat(withdrawal.amount).toFixed(2)}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
-                          {new Date(withdrawal.createdAt).toLocaleDateString()} • {withdrawal.method}
-                        </div>
-                      </div>
-                      <div className={`text-xs px-2 py-1 rounded-full ${
-                        withdrawal.status === 'completed' ? 'bg-primary/10 text-primary' :
-                        withdrawal.status === 'processing' ? 'bg-secondary/10 text-secondary' :
-                        withdrawal.status === 'failed' ? 'bg-destructive/10 text-destructive' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {withdrawal.status}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
         </div>
       </main>

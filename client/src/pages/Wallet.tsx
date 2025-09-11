@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -21,15 +20,20 @@ interface WithdrawalRequest {
   adminNotes?: string;
 }
 
+interface User {
+  id: string;
+  balance: string;
+  [key: string]: any;
+}
+
 interface WithdrawForm {
   amount: string;
-  method: string;
   paymentDetails: string;
 }
 
 export default function Wallet() {
   // Fetch user data
-  const { data: user, isLoading: userLoading } = useQuery({
+  const { data: user, isLoading: userLoading } = useQuery<User>({
     queryKey: ['/api/auth/user'],
     retry: false,
   });
@@ -38,7 +42,6 @@ export default function Wallet() {
   const [activeTab, setActiveTab] = useState('balance');
   const [withdrawForm, setWithdrawForm] = useState<WithdrawForm>({
     amount: '',
-    method: '',
     paymentDetails: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,12 +65,9 @@ export default function Wallet() {
       newErrors.amount = 'Minimum withdrawal is $0.001';
     }
 
-    if (!withdrawForm.method) {
-      newErrors.method = 'Please select a payment method';
-    }
 
     if (!withdrawForm.paymentDetails.trim()) {
-      newErrors.paymentDetails = 'Payment details are required';
+      newErrors.paymentDetails = 'TON wallet address is required';
     }
 
     setErrors(newErrors);
@@ -83,7 +83,7 @@ export default function Wallet() {
         },
         body: JSON.stringify({
           amount: withdrawData.amount,
-          method: withdrawData.method,
+          method: 'ton',
           details: { paymentDetails: withdrawData.paymentDetails }
         })
       });
@@ -102,7 +102,7 @@ export default function Wallet() {
       });
       
       // Reset form
-      setWithdrawForm({ amount: '', method: '', paymentDetails: '' });
+      setWithdrawForm({ amount: '', paymentDetails: '' });
       setErrors({});
       
       // Invalidate relevant queries
@@ -261,9 +261,6 @@ export default function Wallet() {
                 <i className="fas fa-money-bill-wave text-primary"></i>
                 Request Withdrawal
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Withdrawals are manually reviewed by admin and processed within 24-48 hours.
-              </p>
             </CardHeader>
             
             <CardContent>
@@ -299,53 +296,15 @@ export default function Wallet() {
                   </p>
                 </div>
 
-                {/* Payment Method */}
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
-                  <Select value={withdrawForm.method} onValueChange={(value) => updateForm('method', value)}>
-                    <SelectTrigger className={errors.method ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="paypal">
-                        <div className="flex items-center gap-2">
-                          <i className="fab fa-paypal text-blue-600"></i>
-                          PayPal
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="crypto">
-                        <div className="flex items-center gap-2">
-                          <i className="fab fa-bitcoin text-orange-500"></i>
-                          Cryptocurrency
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="bank">
-                        <div className="flex items-center gap-2">
-                          <i className="fas fa-university text-green-600"></i>
-                          Bank Transfer
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.method && <p className="text-sm text-red-500">{errors.method}</p>}
-                </div>
 
-                {/* Payment Details */}
+                {/* TON Wallet Address */}
                 <div className="space-y-2">
-                  <Label htmlFor="paymentDetails">
-                    {withdrawForm.method === 'paypal' ? 'PayPal Email' :
-                     withdrawForm.method === 'crypto' ? 'Wallet Address' :
-                     withdrawForm.method === 'bank' ? 'Bank Account Details' : 'Payment Details'}
-                  </Label>
+                  <Label htmlFor="paymentDetails">Ton Wallet Address</Label>
                   <Input
                     id="paymentDetails"
                     value={withdrawForm.paymentDetails}
                     onChange={(e) => updateForm('paymentDetails', e.target.value)}
-                    placeholder={
-                      withdrawForm.method === 'paypal' ? 'your@email.com' :
-                      withdrawForm.method === 'crypto' ? '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' :
-                      withdrawForm.method === 'bank' ? 'Account details...' : 'Enter payment details...'
-                    }
+                    placeholder="UQD..."
                     className={errors.paymentDetails ? 'border-red-500' : ''}
                   />
                   {errors.paymentDetails && <p className="text-sm text-red-500">{errors.paymentDetails}</p>}
@@ -371,19 +330,6 @@ export default function Wallet() {
                 </Button>
               </form>
 
-              {/* Info Box */}
-              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
-                  <div className="text-sm">
-                    <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Processing Information</p>
-                    <p className="text-blue-700 dark:text-blue-300">
-                      All withdrawal requests are manually reviewed by our admin team for security. 
-                      Processing typically takes 24-48 hours during business days.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

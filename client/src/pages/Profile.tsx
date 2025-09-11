@@ -65,20 +65,6 @@ export default function Profile() {
               <p className="text-muted-foreground text-sm" data-testid="text-user-email">
                 Telegram ID: {(user as any)?.id || 'Unknown'}
               </p>
-              {isAdmin && (
-                <div className="mt-4">
-                  <Link href="/admin">
-                    <Button 
-                      size="default"
-                      className="bg-orange-600 hover:bg-orange-700 border-orange-600 text-white"
-                      data-testid="button-admin-dashboard"
-                    >
-                      <i className="fas fa-crown mr-2"></i>
-                      Admin Panel
-                    </Button>
-                  </Link>
-                </div>
-              )}
             </CardContent>
           </Card>
 
