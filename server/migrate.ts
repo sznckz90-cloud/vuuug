@@ -89,6 +89,6 @@ export async function ensureTelegramIdColumn(): Promise<void> {
   } catch (error) {
     console.error('❌ [MIGRATION] Critical error ensuring database schema:', error);
     // This IS critical - we need to throw to prevent startup with broken schema
-    throw new Error(`Database migration failed: ${error.message}`);
+    throw new Error(`Database migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

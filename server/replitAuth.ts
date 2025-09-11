@@ -66,6 +66,7 @@ async function upsertUser(
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    referralCode: claims["sub"] || '', // Use the subject ID as referral code fallback
   });
 }
 

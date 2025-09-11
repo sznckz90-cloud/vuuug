@@ -38,9 +38,9 @@ function sendRealtimeUpdate(userId: string, update: any) {
 
 // Broadcast update to all connected users
 function broadcastUpdate(update: any) {
-  connectedUsers.forEach((socket, userId) => {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(update));
+  connectedUsers.forEach((connection, userId) => {
+    if (connection.socket.readyState === WebSocket.OPEN) {
+      connection.socket.send(JSON.stringify(update));
     }
   });
 }
@@ -869,16 +869,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.ensureAllUsersHaveReferralCodes();
       
       // Step 3: Get repair summary
-      const [totalReferrals] = await db
+      const totalReferralsResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(referrals);
       
-      const [completedReferrals] = await db
+      const completedReferralsResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(referrals)
         .where(eq(referrals.status, 'completed'));
 
-      const [totalReferralEarnings] = await db
+      const totalReferralEarningsResult = await db
         .select({ total: sql<string>`COALESCE(SUM(${earnings.amount}), '0')` })
         .from(earnings)
         .where(sql`${earnings.source} IN ('referral', 'referral_commission')`);
@@ -889,9 +889,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         message: 'Emergency referral data repair completed successfully!',
         summary: {
-          totalReferrals: totalReferrals[0]?.count || 0,
-          completedReferrals: completedReferrals[0]?.count || 0,
-          totalReferralEarnings: totalReferralEarnings[0]?.total || '0',
+          totalReferrals: totalReferralsResult[0]?.count || 0,
+          completedReferrals: completedReferralsResult[0]?.count || 0,
+          totalReferralEarnings: totalReferralEarningsResult[0]?.total || '0',
           message: 'All missing referral data has been restored. Check your app now!'
         }
       });
@@ -1166,7 +1166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!balance) {
         // Create initial balance if doesn't exist
-        const newBalance = await storage.createOrUpdateUserBalance(userId, '0', '0');
+        const newBalance = await storage.createOrUpdateUserBalance(userId, '0');
         res.json(newBalance);
       } else {
         res.json(balance);
@@ -1203,7 +1203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "userId and amount are required" });
       }
 
-      const result = await storage.deductMainBalance(userId, amount);
+      const result = await storage.deductBalance(userId, amount);
       res.json(result);
     } catch (error) {
       console.error("Error deducting balance:", error);
