@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -26,10 +27,35 @@ interface TaskCompletionStatus {
   completedAt?: string;
 }
 
+// Function to check if we're in Telegram WebApp environment
+const getTelegramInitData = (): string | null => {
+  if (typeof window !== 'undefined') {
+    // First try to get from Telegram WebApp
+    if (window.Telegram?.WebApp?.initData) {
+      return window.Telegram.WebApp.initData;
+    }
+    
+    // Fallback: try to get from URL params (for testing)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tgData = urlParams.get('tgData');
+    if (tgData) {
+      return tgData;
+    }
+  }
+  return null;
+};
+
 export default function TaskSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'subscribe' | 'bot' | 'daily'>('subscribe');
+  const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
+
+  // Check for Telegram environment on component mount
+  useEffect(() => {
+    const initData = getTelegramInitData();
+    setTelegramInitData(initData);
+  }, []);
 
   // Fetch all active tasks
   const { data: tasksResponse, isLoading: tasksLoading } = useQuery<{success: boolean, tasks: Promotion[]}>({
@@ -59,12 +85,24 @@ export default function TaskSection() {
 
   // Complete task mutation
   const completeTaskMutation = useMutation({
-    mutationFn: async (promotionId: string) => {
-      const response = await fetch(`/api/tasks/${promotionId}/complete`, {
+    mutationFn: async (params: { promotionId: string; task: Promotion }) => {
+      const currentTelegramData = getTelegramInitData();
+      
+      if (!currentTelegramData) {
+        throw new Error('Please open this app inside Telegram to complete tasks');
+      }
+      
+      const response = await fetch(`/api/tasks/${params.promotionId}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-telegram-data': currentTelegramData,
         },
+        body: JSON.stringify({
+          taskType: params.task.type,
+          channelUsername: params.task.channelUsername,
+          botUsername: params.task.botUsername,
+        }),
       });
       
       if (!response.ok) {
@@ -74,7 +112,7 @@ export default function TaskSection() {
       
       return response.json();
     },
-    onSuccess: (data, promotionId) => {
+    onSuccess: (data, params) => {
       toast({
         title: "Task Completed! 🎉",
         description: `You earned $${data.rewardAmount || '0.00045'}!`,
@@ -82,7 +120,7 @@ export default function TaskSection() {
       
       // Invalidate and refetch relevant queries
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tasks`, promotionId, 'status'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tasks`, params.promotionId, 'status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
     },
@@ -116,7 +154,7 @@ export default function TaskSection() {
 
       // Wait a moment for user to complete the action
       setTimeout(() => {
-        completeTaskMutation.mutate(task.id);
+        completeTaskMutation.mutate({ promotionId: task.id, task });
         setPhase('click'); // Reset for next time
       }, 3000);
     }
@@ -224,6 +262,15 @@ export default function TaskSection() {
 
   return (
     <div data-testid="card-task-section">
+      {/* Show warning if Telegram WebApp is not available */}
+      {!telegramInitData && (
+        <Alert className="mb-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+          <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+            ⚠️ Please open this app inside Telegram to complete tasks and earn rewards.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subscribe' | 'bot' | 'daily')}>
         <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
           <TabsTrigger value="subscribe" data-testid="tab-subscribe" className="px-2 py-2 text-xs">
