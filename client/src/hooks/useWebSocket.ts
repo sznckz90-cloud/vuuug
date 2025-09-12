@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 interface WebSocketMessage {
   type: string;
@@ -20,15 +21,7 @@ export function useWebSocket() {
 
   const fetchSessionToken = async (): Promise<string | null> => {
     try {
-      const response = await fetch('/api/auth/session-token', {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch session token:', response.status);
-        return null;
-      }
-      
+      const response = await apiRequest('GET', '/api/auth/session-token');
       const data = await response.json();
       return data.sessionToken;
     } catch (error) {
