@@ -1311,22 +1311,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!isVerified) {
         console.log(`❌ Task verification failed for user ${userId}:`, verificationMessage);
+        let friendlyMessage = '❌ Verification failed. Please complete the required action first.';
+        if (taskType === 'subscribe' && channelUsername) {
+          friendlyMessage = `❌ Verification failed. Please make sure you joined the required channel @${channelUsername}.`;
+        } else if (taskType === 'bot' && botUsername) {
+          friendlyMessage = `❌ Verification failed. Please make sure you started the bot @${botUsername}.`;
+        }
         return res.status(400).json({ 
           success: false, 
-          message: verificationMessage 
+          message: verificationMessage,
+          friendlyMessage
         });
       }
       
       console.log(`✅ Task verification successful for user ${userId}:`, verificationMessage);
       
+      // Get promotion to fetch actual reward amount
+      const promotion = await storage.getPromotion(promotionId);
+      if (!promotion) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Task not found' 
+        });
+      }
+      
+      const rewardAmount = promotion.rewardPerUser || '0.00025';
+      console.log(`🔍 Promotion details:`, { rewardPerUser: promotion.rewardPerUser, type: promotion.type, id: promotion.id });
+      console.log(`💰 Using dynamic reward amount: $${rewardAmount}`);
+      
       // Complete the task if verification passed
-      const result = await storage.completeTask(promotionId, userId, "0.00045");
+      const result = await storage.completeTask(promotionId, userId, rewardAmount);
       
       if (result.success) {
+        // Get updated balance for real-time sync
+        let updatedBalance;
+        try {
+          updatedBalance = await storage.getUserBalance(userId);
+          console.log(`💰 Balance updated for user ${userId}: $${updatedBalance?.balance || '0'}`);
+          
+          // Send real-time balance update to WebSocket clients
+          const balanceUpdate = {
+            type: 'balance_update',
+            balance: updatedBalance?.balance || '0',
+            delta: rewardAmount,
+            message: `🎉 Task completed! +$${parseFloat(rewardAmount).toFixed(5)}`
+          };
+          sendRealtimeUpdate(userId, balanceUpdate);
+          console.log(`📡 Real-time balance update sent to user ${userId}`);
+          
+        } catch (balanceError) {
+          console.error('⚠️ Failed to fetch updated balance for real-time sync:', balanceError);
+        }
+        
         res.json({ 
           ...result, 
           verificationMessage,
-          rewardAmount: "0.00045"
+          rewardAmount,
+          newBalance: updatedBalance?.balance || '0'
         });
       } else {
         res.status(400).json(result);

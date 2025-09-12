@@ -53,10 +53,37 @@ function clearUserPromotionState(chatId: string) {
 
 // All claim state functions removed
 
-export async function verifyChannelMembership(userId: number, channelUsername: string, botToken: string) {
+export async function verifyChannelMembership(userId: number, channelUsername: string, botToken: string): Promise<boolean> {
+  try {
     const bot = new TelegramBot(botToken);
     const member = await bot.getChatMember(channelUsername, userId);
-    return member.status !== 'left';
+    
+    // Valid membership statuses: 'creator', 'administrator', 'member'
+    // Invalid statuses: 'left', 'kicked', 'restricted'
+    const validStatuses = ['creator', 'administrator', 'member'];
+    const isValid = validStatuses.includes(member.status);
+    
+    console.log(`🔍 Telegram verification: User ${userId} status in ${channelUsername}: ${member.status} (valid: ${isValid})`);
+    return isValid;
+    
+  } catch (error: any) {
+    console.error(`❌ Telegram verification error for user ${userId} in ${channelUsername}:`, error?.message || error);
+    
+    // Handle common Telegram API errors gracefully
+    if (error?.code === 'ETELEGRAM') {
+      if (error.response?.body?.error_code === 400) {
+        console.log(`⚠️ Channel not found or user not accessible: ${channelUsername}`);
+        return false;
+      }
+      if (error.response?.body?.error_code === 403) {
+        console.log(`⚠️ Bot doesn't have access to channel: ${channelUsername}`);
+        return false;
+      }
+    }
+    
+    // Default to false for any verification errors
+    return false;
+  }
 }
 
 // Extract bot username from URL
@@ -102,7 +129,7 @@ export async function sendTaskCompletionNotification(userId: string, rewardAmoun
       return false;
     }
 
-    const notificationMessage = `🎉 Task Completed! ✅ You earned $${parseFloat(rewardAmount).toFixed(2)} 💎`;
+    const notificationMessage = `🎉 Task Completed! ✅ You earned $${parseFloat(rewardAmount).toFixed(5)} 💎`;
 
     const success = await sendUserTelegramNotification(user.telegram_id, notificationMessage);
     console.log(`✅ Task completion notification sent to user ${userId}:`, success);
@@ -122,7 +149,7 @@ export async function postPromotionToChannel(promotion: any): Promise<string | n
   
   try {
     const channelMessage = `⭐World's Biggest Free Crypto Drop!⭐
-💎 $${promotion.reward_per_user} Crypto → ${promotion.limit} Winners 🔥
+💎 $${promotion.rewardPerUser} Crypto → ${promotion.limit} Winners 🔥
 🚀 Claim in 1 tap – before it's over!`;
 
     // Generate web app link to task section
