@@ -7,10 +7,26 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-// Helper function to get Telegram data with enhanced detection
+// Helper function to get Telegram data with proper WebApp detection
 const getTelegramInitData = (): string | null => {
   if (typeof window !== 'undefined') {
-    // First try to get from Telegram WebApp
+    // Check if we're in development environment first
+    const isDev = window.location.hostname === 'localhost' || window.location.hostname.includes('replit');
+    
+    // For development, check URL params fallback
+    if (isDev) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tgData = urlParams.get('tgData');
+      if (tgData) {
+        console.log('✅ Found Telegram data from URL params (testing mode)');
+        return tgData;
+      }
+      console.log('🔧 Development environment detected - backend will use development mode authentication');
+      console.log('ℹ️ In development, authentication bypasses Telegram requirements');
+      return null;
+    }
+    
+    // Production: Strictly require valid Telegram WebApp initData
     if (window.Telegram?.WebApp?.initData) {
       const initData = window.Telegram.WebApp.initData;
       if (initData && initData.trim() !== '') {
@@ -18,49 +34,32 @@ const getTelegramInitData = (): string | null => {
         console.log('🔐 Telegram WebApp Info:', {
           version: (window.Telegram.WebApp as any).version,
           platform: (window.Telegram.WebApp as any).platform,
-          isExpanded: (window.Telegram.WebApp as any).isExpanded,
-          viewportHeight: (window.Telegram.WebApp as any).viewportHeight,
-          colorScheme: (window.Telegram.WebApp as any).colorScheme
+          ready: typeof window.Telegram.WebApp.ready === 'function'
         });
         return initData;
       }
     }
     
-    // Check if we're in Telegram environment but initData is missing
+    // In production, if no valid initData found, log environment info for debugging
     if (window.Telegram?.WebApp) {
-      console.warn('⚠️ Telegram WebApp detected but initData is empty');
+      console.warn('⚠️ Telegram WebApp detected but initData is empty - this may require opening in official Telegram app');
       console.log('🔍 WebApp state:', {
-        initData: window.Telegram.WebApp.initData,
-        initDataUnsafe: window.Telegram.WebApp.initDataUnsafe,
+        hasInitData: !!window.Telegram.WebApp.initData,
+        initDataLength: window.Telegram.WebApp.initData?.length || 0,
         version: (window.Telegram.WebApp as any).version,
         ready: typeof window.Telegram.WebApp.ready === 'function'
       });
     } else {
-      console.log('❌ No Telegram WebApp object found');
+      console.log('❌ No Telegram WebApp object found - please open this app inside Telegram');
       console.log('🔍 Environment info:', {
         userAgent: navigator.userAgent,
         hasTelegram: !!window.Telegram,
-        location: window.location.href,
-        isLocalhost: window.location.hostname === 'localhost',
-        isReplit: window.location.hostname.includes('replit')
+        location: window.location.href
       });
     }
     
-    // Fallback: try to get from URL params (for testing)
-    const urlParams = new URLSearchParams(window.location.search);
-    const tgData = urlParams.get('tgData');
-    if (tgData) {
-      console.log('✅ Found Telegram data from URL params (testing mode)');
-      return tgData;
-    }
-    
-    // Check for development environment and inform about dev mode
-    if (window.location.hostname === 'localhost' || window.location.hostname.includes('replit')) {
-      console.log('🔧 Development environment detected - backend will use development mode authentication');
-      console.log('ℹ️ In development, authentication bypasses Telegram requirements');
-    } else {
-      console.log('❌ Production environment: Telegram WebApp authentication required');
-    }
+    // No valid data found in production
+    console.log('❌ Production environment: Valid Telegram WebApp authentication required');
   }
   return null;
 };
@@ -127,9 +126,6 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
-    },
-    mutations: {
       retry: false,
     },
   },
