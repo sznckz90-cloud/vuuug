@@ -80,20 +80,20 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs font-medium">Wallet</span>
             </button>
           </Link>
+          <Link href="/exchange">
+            <button className={`flex flex-col items-center p-2 transition-colors ${
+              location === "/exchange" ? "text-primary" : "text-muted-foreground hover:text-primary"
+            }`} data-testid="link-exchange">
+              <i className="fas fa-exchange-alt text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <span className="text-xs font-medium">Exchange</span>
+            </button>
+          </Link>
           <Link href="/affiliates">
             <button className={`flex flex-col items-center p-2 transition-colors ${
               location === "/affiliates" ? "text-primary" : "text-muted-foreground hover:text-primary"
             }`} data-testid="link-affiliates">
               <i className="fas fa-users text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
               <span className="text-xs">Affiliates</span>
-            </button>
-          </Link>
-          <Link href="/stats">
-            <button className={`flex flex-col items-center p-2 transition-colors ${
-              location === "/stats" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-stats">
-              <i className="fas fa-chart-bar text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs">Stats</span>
             </button>
           </Link>
         </div>
