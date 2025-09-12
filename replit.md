@@ -4,6 +4,14 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
+**September 12, 2025 (Telegram WebApp Authentication Fix for Render):**
+- **Fixed critical Telegram WebApp authentication for Render deployment**: Resolved "Telegram authentication required" errors that prevented users from creating promotions and completing tasks when accessing through legitimate Telegram WebApp
+- **Removed unsafe initDataUnsafe fallback**: Eliminated security-breaking fallback that lacked proper HMAC hash verification, ensuring all production authentication requires valid Telegram WebApp initData
+- **Enhanced environment detection**: Improved development vs production detection for Render deployments with proper REPL_ID dependency removal
+- **Fixed task reward calculation**: Resolved hardcoded $0.00 reward display bug, now showing correct dynamic reward amounts from promotion data
+- **Strengthened authentication security**: Implemented strict HMAC signature verification using TELEGRAM_BOT_TOKEN for all production environments
+- **Production-ready for Render**: Code now fully supports Render deployment without authentication bypass issues while maintaining development mode compatibility
+
 **September 8, 2025 (Referral System Fix):**
 - **Fixed referral system database errors**: Resolved "null value in column 'referee_id'" errors by improving input validation and error handling in createReferral function
 - **Enhanced referral creation logic**: Added comprehensive user verification, duplicate checking, and self-referral prevention
