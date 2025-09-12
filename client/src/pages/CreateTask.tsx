@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import Layout from '@/components/Layout';
+import { apiRequest } from '@/lib/queryClient';
 
 interface CreateTaskForm {
   type: 'subscribe' | 'bot';
@@ -57,24 +58,12 @@ export default function CreateTask() {
       const taskPayload = {
         ...taskData,
         cost: '0.01',
-        rewardPerUser: '0.00001',
+        rewardPerUser: '0.00025',
         limit: 1000,
         title: `${taskData.type === 'subscribe' ? 'Subscribe to' : 'Start'} ${taskData.url.replace('https://t.me/', '@')}`,
       };
 
-      const response = await fetch('/api/promotions/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(taskPayload)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create task');
-      }
-
+      const response = await apiRequest('POST', '/api/promotions/create', taskPayload);
       return response.json();
     },
     onSuccess: (data) => {

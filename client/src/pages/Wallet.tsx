@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import Layout from '@/components/Layout';
+import { apiRequest } from '@/lib/queryClient';
 
 interface WithdrawalRequest {
   id: string;
@@ -76,22 +77,11 @@ export default function Wallet() {
 
   const withdrawMutation = useMutation({
     mutationFn: async (withdrawData: WithdrawForm) => {
-      const response = await fetch('/api/withdrawals', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: withdrawData.amount,
-          method: 'ton',
-          details: { paymentDetails: withdrawData.paymentDetails }
-        })
+      const response = await apiRequest('POST', '/api/withdrawals', {
+        amount: withdrawData.amount,
+        method: 'ton',
+        details: { paymentDetails: withdrawData.paymentDetails }
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to submit withdrawal request');
-      }
 
       return response.json();
     },

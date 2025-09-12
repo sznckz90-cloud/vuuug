@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AffiliateStats {
   totalFriendsReferred: number;
@@ -20,14 +21,7 @@ interface AffiliateStats {
 }
 
 async function fetchAffiliateStats(): Promise<AffiliateStats> {
-  const response = await fetch('/api/affiliates/stats', {
-    credentials: 'include',
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch affiliate stats');
-  }
-  
+  const response = await apiRequest('GET', '/api/affiliates/stats');
   return response.json();
 }
 
