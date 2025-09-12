@@ -34,7 +34,7 @@ export default function RewardNotification() {
         <div>
           <div className="font-semibold">Reward Earned!</div>
           <div className="text-primary-foreground/80 text-sm">
-            +{rewardAmount} PADZ added to your balance
+            +${rewardAmount.toFixed(5)} added to your balance
           </div>
         </div>
       </div>

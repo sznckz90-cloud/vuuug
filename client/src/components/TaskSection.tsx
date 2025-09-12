@@ -76,7 +76,7 @@ export default function TaskSection() {
     description: 'Check our latest updates and news',
     type: 'daily',
     channelUsername: 'PaidAdsNews',
-    reward: '80',
+    reward: '1000',
     completedCount: 0,
     totalSlots: 1000,
     isActive: true,
@@ -115,7 +115,7 @@ export default function TaskSection() {
     onSuccess: (data, params) => {
       toast({
         title: "Task Completed! 🎉",
-        description: `You earned ${data.rewardAmount || '80'} PADZ!`,
+        description: `You earned $${data.rewardAmount || '0.00045'}!`,
       });
       
       // Invalidate and refetch relevant queries

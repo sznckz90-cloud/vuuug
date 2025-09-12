@@ -32,7 +32,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       
       // Show reward notification
       const event = new CustomEvent('showReward', { 
-        detail: { amount: 80 } 
+        detail: { amount: 0.00025 } 
       });
       window.dispatchEvent(event);
     },
@@ -88,7 +88,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           watchAdMutation.mutate('rewarded');
           toast({
             title: "Ad Completed!",
-            description: "You earned 80 PADZ",
+            description: "You earned $0.00025",
           });
         }, 2000);
       }
@@ -98,7 +98,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       watchAdMutation.mutate('rewarded');
       toast({
         title: "Ad Completed!",
-        description: "You earned 80 PADZ",
+        description: "You earned $0.00025",
       });
     } finally {
       setTimeout(() => {
@@ -112,7 +112,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       <CardContent className="p-4">
         <div className="text-center mb-4">
           <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
-          <p className="text-muted-foreground text-xs">Earn 80 PADZ per ad watched</p>
+          <p className="text-muted-foreground text-xs">Earn $0.00025 per ad watched</p>
         </div>
         
         <div className="relative flex justify-center mb-4">
