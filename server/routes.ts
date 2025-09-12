@@ -444,18 +444,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sessionToken = 'test-session';
         console.log('🔧 Development mode: Returning test session token');
       } else {
-        // Production mode: Use session ID or generate secure token
-        if (req.sessionID) {
-          sessionToken = req.sessionID;
-          console.log('🔐 Production mode: Using Express session ID for WebSocket auth');
-        } else {
-          // Fallback: Generate a secure token tied to user ID
-          const userId = req.user.user.id;
-          const timestamp = Date.now();
-          const randomPart = crypto.randomBytes(16).toString('hex');
-          sessionToken = `ws_${userId.slice(0, 8)}_${timestamp}_${randomPart}`;
-          console.log('🔐 Production mode: Generated secure session token');
+        // Production mode: Always use Express session ID
+        if (!req.sessionID) {
+          console.error('❌ No session ID found - session not created properly');
+          return res.status(500).json({ 
+            message: 'Session not established',
+            error: 'Express session not found'
+          });
         }
+        
+        sessionToken = req.sessionID;
+        console.log('🔐 Production mode: Using Express session ID for WebSocket auth:', sessionToken);
       }
       
       res.json({ 

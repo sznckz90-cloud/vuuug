@@ -124,6 +124,9 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
         telegramUser: { ...testUser, id: testUserId },
         user: upsertedUser
       };
+      
+      // Save user data to session for WebSocket authentication
+      req.session.user = req.user;
       return next();
     }
     
@@ -179,6 +182,9 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       telegramUser,
       user: upsertedUser 
     };
+    
+    // Save user data to session for WebSocket authentication
+    req.session.user = req.user;
     
     next();
   } catch (error) {
