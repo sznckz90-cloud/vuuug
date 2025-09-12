@@ -89,25 +89,38 @@ app.use((req, res, next) => {
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
+  // Safely intercept res.json without interfering with response flow
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+    try {
+      capturedJsonResponse = bodyJson;
+    } catch (error) {
+      // Ignore JSON capture errors to prevent response interference
+      console.warn('⚠️ Failed to capture response JSON for logging:', error);
+    }
+    // Always call original method regardless of capture success
+    return originalResJson.apply(this, [bodyJson, ...args]);
   };
 
   res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
+    try {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api")) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          const responseStr = JSON.stringify(capturedJsonResponse);
+          logLine += ` :: ${responseStr}`;
+        }
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
+        }
 
-      log(logLine);
+        log(logLine);
+      }
+    } catch (error) {
+      // Ignore logging errors to prevent interference with response
+      console.warn('⚠️ Failed to log response:', error);
     }
   });
 

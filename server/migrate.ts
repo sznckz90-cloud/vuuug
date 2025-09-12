@@ -16,6 +16,16 @@ export async function ensureDatabaseSchema(): Promise<void> {
     
     // Create all essential tables with correct schema
     
+    // Sessions table - CRITICAL for connect-pg-simple authentication
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sessions (
+        sid VARCHAR NOT NULL PRIMARY KEY,
+        sess JSONB NOT NULL,
+        expire TIMESTAMP NOT NULL
+      )
+    `);
+    console.log('✅ [MIGRATION] Sessions table ensured');
+    
     // Users table with full schema
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS users (
@@ -191,6 +201,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
     `);
     
     // Create indexes for performance
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON sessions(expire)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_earnings_user_id ON earnings(user_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id)`);
