@@ -1367,7 +1367,7 @@ export class DatabaseStorage implements IStorage {
   async ensureAdminUserExists(): Promise<void> {
     try {
       const adminTelegramId = '6653616672';
-      const maxBalance = '9999.99999999'; // Maximum allowed by database precision
+      const maxBalance = '99.999'; // Admin balance as requested
       
       // Check if admin user already exists
       const existingAdmin = await this.getUserByTelegramId(adminTelegramId);
