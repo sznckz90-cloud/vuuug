@@ -12,7 +12,7 @@ interface Promotion {
   id: string;
   title: string;
   description: string;
-  type: 'subscribe' | 'bot' | 'daily';
+  type: 'channel' | 'bot' | 'daily';
   channelUsername?: string;
   botUsername?: string;
   reward: string;
@@ -48,7 +48,7 @@ const getTelegramInitData = (): string | null => {
 export default function TaskSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'subscribe' | 'bot' | 'daily'>('subscribe');
+  const [activeTab, setActiveTab] = useState<'channel' | 'bot' | 'daily'>('channel');
   const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
 
   // Check for Telegram environment on component mount
@@ -66,7 +66,7 @@ export default function TaskSection() {
   const tasks = tasksResponse?.tasks || [];
 
   // Filter tasks by category
-  const subscribeTasks = tasks.filter(task => task.type === 'subscribe');
+  const channelTasks = tasks.filter(task => task.type === 'channel');
   const botTasks = tasks.filter(task => task.type === 'bot');
   
   // Daily task (hardcoded)
@@ -139,7 +139,7 @@ export default function TaskSection() {
       // Second click - open link and process reward
       setPhase('processing');
       
-      if (task.type === 'subscribe' && task.channelUsername) {
+      if (task.type === 'channel' && task.channelUsername) {
         const channelUrl = `https://t.me/${task.channelUsername}`;
         window.open(channelUrl, '_blank');
       } else if (task.type === 'bot' && task.botUsername) {
@@ -269,13 +269,13 @@ export default function TaskSection() {
         </Alert>
       )}
       
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subscribe' | 'bot' | 'daily')}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'channel' | 'bot' | 'daily')}>
         <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
-          <TabsTrigger value="subscribe" data-testid="tab-subscribe" className="px-2 py-2 text-xs">
+          <TabsTrigger value="channel" data-testid="tab-channel" className="px-2 py-2 text-xs">
             <i className="fas fa-users mr-1"></i>
-            <span className="hidden sm:inline">Subscribe</span>
-            <span className="sm:hidden">Sub</span>
-            <span className="ml-1">({subscribeTasks.length})</span>
+            <span className="hidden sm:inline">Channels</span>
+            <span className="sm:hidden">Chan</span>
+            <span className="ml-1">({channelTasks.length})</span>
           </TabsTrigger>
           <TabsTrigger value="bot" data-testid="tab-bot" className="px-2 py-2 text-xs">
             <i className="fas fa-robot mr-1"></i>
@@ -291,15 +291,15 @@ export default function TaskSection() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="subscribe" className="space-y-3">
-          {subscribeTasks.length > 0 ? (
-            subscribeTasks.map((task) => (
+        <TabsContent value="channel" className="space-y-3">
+          {channelTasks.length > 0 ? (
+            channelTasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))
           ) : (
-            <div className="text-center py-8" data-testid="text-no-subscribe-tasks">
+            <div className="text-center py-8" data-testid="text-no-channel-tasks">
               <i className="fas fa-users text-3xl text-muted-foreground mb-3"></i>
-              <div className="text-muted-foreground">No subscription tasks available</div>
+              <div className="text-muted-foreground">No channel tasks available</div>
               <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
             </div>
           )}
