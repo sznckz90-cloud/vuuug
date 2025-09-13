@@ -84,14 +84,25 @@ async function verifySessionToken(sessionToken: string): Promise<{ isValid: bool
 
 // Helper function to send real-time updates to a user
 function sendRealtimeUpdate(userId: string, update: any) {
-  // Find all sessions for this user
+  let messagesSent = 0;
+  
+  // Find ALL sessions for this user and send to each one
   for (const [sessionId, connection] of connectedUsers.entries()) {
     if (connection.userId === userId && connection.socket.readyState === WebSocket.OPEN) {
-      connection.socket.send(JSON.stringify(update));
-      return true;
+      try {
+        connection.socket.send(JSON.stringify(update));
+        messagesSent++;
+        console.log(`📤 Sent update to user ${userId}, session ${sessionId}`);
+      } catch (error) {
+        console.error(`❌ Failed to send update to user ${userId}, session ${sessionId}:`, error);
+        // Remove dead connection
+        connectedUsers.delete(sessionId);
+      }
     }
   }
-  return false;
+  
+  console.log(`📊 Sent real-time update to ${messagesSent} sessions for user ${userId}`);
+  return messagesSent > 0;
 }
 
 // Broadcast update to all connected users
@@ -895,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`💰 Task creation cost $${FIXED_TASK_COST} (fixed rate) deducted from user ${userId} balance`);
       
-      // Create promotion in database
+      // Create promotion in database - requires admin approval before going live
       const promotion = await storage.createPromotion({
         ownerId: userId,
         type,
@@ -905,27 +916,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         limit,
         title,
         description,
-        status: 'active'
+        status: 'active',
+        isApproved: false // Require admin approval before public visibility
       });
       
-      console.log(`📊 TASK_CREATION_LOG: UserID=${userId}, TaskID=${promotion.id}, CostDeducted=${FIXED_TASK_COST}, RewardPerUser=${rewardPerUser}, Limit=${limit}, Status=CREATED, Title="${title}"`);
+      console.log(`📊 TASK_CREATION_LOG: UserID=${userId}, TaskID=${promotion.id}, CostDeducted=${FIXED_TASK_COST}, RewardPerUser=${rewardPerUser}, Limit=${limit}, Status=PENDING_APPROVAL, Title="${title}"`);
       
-      // Auto-post to Telegram channel and get message_id
-      const { postPromotionToChannel } = await import('./telegram');
-      const messageId = await postPromotionToChannel(promotion);
-      
-      if (messageId) {
-        console.log(`✅ Promotion ${promotion.id} posted to channel with message_id: ${messageId}`);
-      } else {
-        console.warn(`⚠️ Promotion ${promotion.id} created but failed to post to channel`);
-      }
-      
+      // Promotion created but needs admin approval before going live
       res.json({
         success: true,
+        message: '🎯 Task created successfully! It will appear to users after admin approval.',
         promotion: {
           ...promotion,
-          messageId,
-          channelPostUrl: messageId ? `https://t.me/${process.env.TELEGRAM_CHANNEL_USERNAME}/${messageId}` : null
+          isPending: true
         }
       });
     } catch (error) {
@@ -942,7 +945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.user.id;
       
-      // Get active promotions that user hasn't completed
+      // Get active promotions that user hasn't completed - only show approved promotions
       const activeTasks = await db
         .select({
           id: promotions.id,
@@ -953,11 +956,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           claimedCount: promotions.claimedCount,
           title: promotions.title,
           description: promotions.description,
+          channelMessageId: promotions.channelMessageId,
           createdAt: promotions.createdAt
         })
         .from(promotions)
         .where(and(
           eq(promotions.status, 'active'),
+          eq(promotions.isApproved, true), // Only show admin-approved promotions
           sql`${promotions.claimedCount} < ${promotions.limit}`
         ))
         .orderBy(desc(promotions.createdAt));
@@ -990,14 +995,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Filter out completed tasks and add channel post URLs
+      // Filter out completed tasks and generate proper task links
       const availableTasks = activeTasks
         .filter(task => !completedIds.has(task.id))
-        .map(task => ({
-          ...task,
-          channelPostUrl: null, // Will be set if needed later
-          claimUrl: `https://t.me/${process.env.BOT_USERNAME}?start=task_${task.id}`
-        }));
+        .map(task => {
+          // Extract username from URL for link generation
+          const urlMatch = task.url.match(/t\.me\/([^/?]+)/);
+          const username = urlMatch ? urlMatch[1] : null;
+          
+          let channelPostUrl = null;
+          let claimUrl = null;
+          
+          if (task.type === 'channel' && username) {
+            // Use channel message ID if available, otherwise fallback to channel URL
+            if (task.channelMessageId) {
+              channelPostUrl = `https://t.me/${username}/${task.channelMessageId}`;
+            } else {
+              channelPostUrl = `https://t.me/${username}`;
+            }
+            claimUrl = channelPostUrl;
+          } else if (task.type === 'bot' && username) {
+            // Bot deep link with task ID
+            claimUrl = `https://t.me/${username}?start=task_${task.id}`;
+          } else if (task.type === 'daily' && username) {
+            // Daily task using channel link
+            claimUrl = `https://t.me/${username}`;
+          }
+          
+          return {
+            ...task,
+            channelPostUrl,
+            claimUrl,
+            username // Include username for mobile fallback
+          };
+        });
       
       res.json({
         success: true,
@@ -1462,6 +1493,476 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error completing task:", error);
       res.status(500).json({ message: "Failed to complete task" });
+    }
+  });
+
+  // Admin API endpoints for promotion management
+  
+  // Get pending promotions (admin only)
+  app.get('/api/admin/promotions/pending', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Check if user is admin (you may need to adjust this based on your admin system)
+      // For now, checking if user has unlimited balance as admin indicator
+      const userBalance = await storage.getUserBalance(userId);
+      const isAdmin = userBalance?.balance === '999999999' || userId === '6653616672'; // Admin user from logs
+      
+      if (!isAdmin) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Access denied. Admin privileges required.' 
+        });
+      }
+      
+      // Get all pending promotions
+      const pendingPromotions = await db
+        .select({
+          id: promotions.id,
+          ownerId: promotions.ownerId,
+          type: promotions.type,
+          url: promotions.url,
+          cost: promotions.cost,
+          rewardPerUser: promotions.rewardPerUser,
+          limit: promotions.limit,
+          title: promotions.title,
+          description: promotions.description,
+          createdAt: promotions.createdAt
+        })
+        .from(promotions)
+        .where(and(
+          eq(promotions.status, 'active'),
+          eq(promotions.isApproved, false)
+        ))
+        .orderBy(desc(promotions.createdAt));
+      
+      res.json({
+        success: true,
+        promotions: pendingPromotions,
+        total: pendingPromotions.length
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fetching pending promotions:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch pending promotions' 
+      });
+    }
+  });
+  
+  // Approve promotion (admin only)
+  app.post('/api/admin/promotions/:promotionId/approve', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      
+      // Check if user is admin
+      const userBalance = await storage.getUserBalance(userId);
+      const isAdmin = userBalance?.balance === '999999999' || userId === '6653616672';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Access denied. Admin privileges required.' 
+        });
+      }
+      
+      // Get the promotion
+      const promotion = await storage.getPromotion(promotionId);
+      if (!promotion) {
+        return res.status(404).json({
+          success: false,
+          message: 'Promotion not found'
+        });
+      }
+      
+      if (promotion.isApproved) {
+        return res.status(400).json({
+          success: false,
+          message: 'Promotion is already approved'
+        });
+      }
+      
+      // Approve the promotion
+      await db.update(promotions)
+        .set({ 
+          isApproved: true 
+        })
+        .where(eq(promotions.id, promotionId));
+      
+      // Post to Telegram channel now that it's approved
+      const { postPromotionToChannel } = await import('./telegram');
+      const messageId = await postPromotionToChannel(promotion);
+      
+      if (messageId) {
+        // Update with channel message ID for linking
+        await db.update(promotions)
+          .set({ 
+            channelMessageId: messageId.toString() 
+          })
+          .where(eq(promotions.id, promotionId));
+        
+        console.log(`✅ Promotion ${promotionId} approved and posted to channel with message_id: ${messageId}`);
+      }
+      
+      // Send real-time update to promotion owner
+      if (promotion) {
+        sendRealtimeUpdate(promotion.ownerId, {
+          type: 'promotion_approved',
+          promotionId: promotionId,
+          title: promotion.title,
+          message: `Your promotion "${promotion.title}" has been approved and is now live!`
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: '✅ Promotion approved and posted to channel',
+        messageId
+      });
+      
+    } catch (error) {
+      console.error('❌ Error approving promotion:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to approve promotion' 
+      });
+    }
+  });
+  
+  // Reject promotion (admin only)
+  app.post('/api/admin/promotions/:promotionId/reject', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      const { reason, refund = true } = req.body;
+      
+      // Check if user is admin
+      const userBalance = await storage.getUserBalance(userId);
+      const isAdmin = userBalance?.balance === '999999999' || userId === '6653616672';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Access denied. Admin privileges required.' 
+        });
+      }
+      
+      // Get the promotion
+      const promotion = await storage.getPromotion(promotionId);
+      if (!promotion) {
+        return res.status(404).json({
+          success: false,
+          message: 'Promotion not found'
+        });
+      }
+      
+      if (promotion.isApproved) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot reject approved promotion'
+        });
+      }
+      
+      // Reject the promotion by setting status to 'deleted'
+      await db.update(promotions)
+        .set({ 
+          status: 'deleted'
+        })
+        .where(eq(promotions.id, promotionId));
+      
+      // Refund the user if requested (default true)
+      if (refund) {
+        const refundAmount = promotion.cost;
+        await storage.createOrUpdateUserBalance(promotion.ownerId, `+${refundAmount}`);
+        
+        // Record the refund transaction
+        await storage.addTransaction({
+          userId: promotion.ownerId,
+          amount: refundAmount,
+          type: 'addition',
+          source: 'promotion_refund',
+          description: `Refund for rejected promotion: ${promotion.title}`,
+          metadata: { 
+            promotionId: promotion.id,
+            reason: reason || 'Promotion rejected by admin',
+            originalCost: promotion.cost
+          }
+        });
+        
+        console.log(`💰 Refunded $${refundAmount} to user ${promotion.ownerId} for rejected promotion ${promotionId}`);
+      }
+      
+      // Send real-time update to promotion owner
+      sendRealtimeUpdate(promotion.ownerId, {
+        type: 'promotion_rejected',
+        promotionId: promotionId,
+        title: promotion.title,
+        refunded: refund,
+        refundAmount: refund ? promotion.cost : '0',
+        message: `Your promotion "${promotion.title}" has been rejected` + (refund ? ' and you have been refunded' : '')
+      });
+      
+      res.json({
+        success: true,
+        message: '❌ Promotion rejected' + (refund ? ' and user refunded' : ''),
+        refunded: refund,
+        refundAmount: refund ? promotion.cost : '0'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error rejecting promotion:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to reject promotion' 
+      });
+    }
+  });
+  
+  // Delete task/promotion (user can delete own, admin can delete any)
+  app.delete('/api/promotions/:promotionId', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      
+      // Get the promotion
+      const promotion = await storage.getPromotion(promotionId);
+      if (!promotion) {
+        return res.status(404).json({
+          success: false,
+          message: 'Task not found'
+        });
+      }
+      
+      // Check permissions: user can delete own tasks, admin can delete any
+      const userBalance = await storage.getUserBalance(userId);
+      const isAdmin = userBalance?.balance === '999999999' || userId === '6653616672';
+      const isOwner = promotion.ownerId === userId;
+      
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only delete your own tasks'
+        });
+      }
+      
+      // Check if already deleted
+      if (promotion.status === 'deleted') {
+        return res.status(400).json({
+          success: false,
+          message: 'Task is already deleted'
+        });
+      }
+      
+      // Soft delete the promotion
+      await db.update(promotions)
+        .set({ 
+          status: 'deleted' 
+        })
+        .where(eq(promotions.id, promotionId));
+      
+      // Calculate refund amount based on claims
+      // If no claims yet, refund full cost. If claims exist, refund remaining budget
+      const claimedCount = promotion.claimedCount || 0;
+      const rewardPerUser = parseFloat(promotion.rewardPerUser);
+      const totalCost = parseFloat(promotion.cost);
+      const spentOnRewards = claimedCount * rewardPerUser;
+      const refundAmount = Math.max(0, totalCost - spentOnRewards);
+      
+      // Issue refund if there's any amount to refund
+      if (refundAmount > 0) {
+        await storage.createOrUpdateUserBalance(promotion.ownerId, `+${refundAmount.toFixed(8)}`);
+        
+        // Record the refund transaction
+        await storage.addTransaction({
+          userId: promotion.ownerId,
+          amount: refundAmount.toFixed(8),
+          type: 'addition',
+          source: 'task_deletion_refund',
+          description: `Refund for deleted task: ${promotion.title}`,
+          metadata: { 
+            promotionId: promotion.id,
+            originalCost: promotion.cost,
+            claimedCount: claimedCount,
+            refundReason: 'task_deleted'
+          }
+        });
+        
+        console.log(`💰 Refunded $${refundAmount.toFixed(8)} to user ${promotion.ownerId} for deleted task ${promotionId}`);
+      }
+      
+      // Send real-time update to promotion owner (if not self-deleting)
+      if (promotion.ownerId !== userId) {
+        sendRealtimeUpdate(promotion.ownerId, {
+          type: 'task_deleted',
+          promotionId: promotionId,
+          title: promotion.title,
+          refunded: refundAmount > 0,
+          refundAmount: refundAmount.toFixed(8),
+          message: `Your task "${promotion.title}" has been deleted` + (refundAmount > 0 ? ` and you received a refund of $${refundAmount.toFixed(8)}` : '') + ` by admin`
+        });
+      }
+      
+      // Broadcast task removal to all users for real-time UI updates
+      broadcastUpdate({
+        type: 'task_removed',
+        promotionId: promotionId
+      });
+      
+      res.json({
+        success: true,
+        message: '🗑️ Task deleted successfully' + (refundAmount > 0 ? ` (refund: $${refundAmount.toFixed(8)})` : ''),
+        refunded: refundAmount > 0,
+        refundAmount: refundAmount.toFixed(8)
+      });
+      
+    } catch (error) {
+      console.error('❌ Error deleting task:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to delete task' 
+      });
+    }
+  });
+  
+  // Admin withdrawal management endpoints
+  
+  // Get pending withdrawals (admin only)
+  app.get('/api/admin/withdrawals/pending', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Check if user is admin
+      const userBalance = await storage.getUserBalance(userId);
+      const isAdmin = userBalance?.balance === '999999999' || userId === '6653616672';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Access denied. Admin privileges required.' 
+        });
+      }
+      
+      // Get all pending withdrawals with user details
+      const pendingWithdrawals = await db
+        .select({
+          id: withdrawals.id,
+          userId: withdrawals.userId,
+          amount: withdrawals.amount,
+          method: withdrawals.method,
+          details: withdrawals.details,
+          createdAt: withdrawals.createdAt,
+          user: {
+            firstName: users.firstName,
+            lastName: users.lastName,
+            username: users.username,
+            telegram_id: users.telegram_id
+          }
+        })
+        .from(withdrawals)
+        .leftJoin(users, eq(withdrawals.userId, users.id))
+        .where(eq(withdrawals.status, 'pending'))
+        .orderBy(desc(withdrawals.createdAt));
+      
+      res.json({
+        success: true,
+        withdrawals: pendingWithdrawals,
+        total: pendingWithdrawals.length
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fetching pending withdrawals:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch pending withdrawals' 
+      });
+    }
+  });
+  
+  // Approve withdrawal (admin only)
+  app.post('/api/admin/withdrawals/:withdrawalId/approve', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { withdrawalId } = req.params;
+      const { adminNotes } = req.body;
+      
+      // Approve the withdrawal using existing storage method
+      const result = await storage.approveWithdrawal(withdrawalId, adminNotes);
+      
+      if (result.success) {
+        console.log(`✅ Withdrawal ${withdrawalId} approved by admin ${req.user.telegramUser.id}`);
+        
+        // Send real-time update to user
+        if (result.withdrawal) {
+          sendRealtimeUpdate(result.withdrawal.userId, {
+            type: 'withdrawal_approved',
+            amount: result.withdrawal.amount,
+            method: result.withdrawal.method,
+            message: `Your withdrawal of $${result.withdrawal.amount} has been approved and processed`
+          });
+        }
+        
+        res.json({
+          success: true,
+          message: '✅ Withdrawal approved and processed',
+          withdrawal: result.withdrawal
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error approving withdrawal:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to approve withdrawal' 
+      });
+    }
+  });
+  
+  // Reject withdrawal (admin only)
+  app.post('/api/admin/withdrawals/:withdrawalId/reject', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { withdrawalId } = req.params;
+      const { adminNotes, reason } = req.body;
+      
+      // Reject the withdrawal using existing storage method
+      const result = await storage.rejectWithdrawal(withdrawalId, adminNotes || reason);
+      
+      if (result.success) {
+        console.log(`❌ Withdrawal ${withdrawalId} rejected by admin ${req.user.telegramUser.id}`);
+        
+        // Send real-time update to user
+        if (result.withdrawal) {
+          sendRealtimeUpdate(result.withdrawal.userId, {
+            type: 'withdrawal_rejected',
+            amount: result.withdrawal.amount,
+            method: result.withdrawal.method,
+            message: `Your withdrawal of $${result.withdrawal.amount} has been rejected and balance refunded`
+          });
+        }
+        
+        res.json({
+          success: true,
+          message: '❌ Withdrawal rejected',
+          withdrawal: result.withdrawal
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error rejecting withdrawal:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to reject withdrawal' 
+      });
     }
   });
 
