@@ -80,10 +80,11 @@ export function useWebSocket() {
               break;
               
             case 'ad_reward':
-              toast({
-                title: "Ad Reward Earned! 💰",
-                description: `You earned $${message.amount}`,
+              // Show purple reward notification for consistency
+              const adRewardEvent = new CustomEvent('showReward', { 
+                detail: { amount: parseFloat(message.amount || '0') } 
               });
+              window.dispatchEvent(adRewardEvent);
               break;
               
             case 'withdrawal_requested':
@@ -101,10 +102,11 @@ export function useWebSocket() {
               break;
               
             case 'referral_bonus':
-              toast({
-                title: "Referral Bonus! 🎉",
-                description: `You earned $${message.amount} from a referral`,
+              // Show purple reward notification for consistency  
+              const referralRewardEvent = new CustomEvent('showReward', { 
+                detail: { amount: parseFloat(message.amount || '0') } 
               });
+              window.dispatchEvent(referralRewardEvent);
               break;
               
             case 'balance_update':
@@ -116,11 +118,10 @@ export function useWebSocket() {
               break;
               
             default:
+              // Remove default black notifications to prevent duplicates
+              // Only log unhandled messages for debugging
               if (message.message) {
-                toast({
-                  title: "Update",
-                  description: message.message,
-                });
+                console.log('📬 Unhandled WebSocket message:', message);
               }
           }
         } catch (error) {
