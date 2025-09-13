@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Tasks from "@/pages/Tasks";
-import Stats from "@/pages/Stats";
 import Profile from "@/pages/Profile";
 import Promote from "@/pages/Promote";
 import Admin from "@/pages/Admin";
@@ -23,7 +22,6 @@ function Router() {
       <Route path="/create-task" component={CreateTask} />
       <Route path="/my-promotions" component={MyPromotions} />
       <Route path="/wallet" component={Wallet} />
-      <Route path="/stats" component={Stats} />
       <Route path="/affiliates" component={Affiliates} />
       <Route path="/profile" component={Profile} />
       <Route path="/promote" component={Promote} />
