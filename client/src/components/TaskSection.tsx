@@ -48,7 +48,7 @@ const getTelegramInitData = (): string | null => {
 export default function TaskSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'channel' | 'bot' | 'daily'>('channel');
+  const [activeTab, setActiveTab] = useState<'channel' | 'bot' | 'daily'>('daily');
   const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
 
   // Check for Telegram environment on component mount
@@ -56,6 +56,33 @@ export default function TaskSection() {
     const initData = getTelegramInitData();
     setTelegramInitData(initData);
   }, []);
+
+  // Listen for real-time task removal events
+  useEffect(() => {
+    const handleTaskRemoved = (event: CustomEvent) => {
+      const { promotionId } = event.detail;
+      console.log(`🗑️ Task removed: ${promotionId}, refreshing task list`);
+      
+      // Invalidate queries to trigger refetch of tasks
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tasks`, promotionId, 'status'] });
+      
+      // Show notification about task removal
+      toast({
+        title: "Task Removed",
+        description: "A task has been removed and the list has been updated",
+        variant: "destructive"
+      });
+    };
+
+    // Add event listener for taskRemoved events from WebSocket
+    window.addEventListener('taskRemoved', handleTaskRemoved as EventListener);
+
+    // Cleanup event listener on component unmount
+    return () => {
+      window.removeEventListener('taskRemoved', handleTaskRemoved as EventListener);
+    };
+  }, [queryClient, toast]);
 
   // Fetch all active tasks
   const { data: tasksResponse, isLoading: tasksLoading } = useQuery<{success: boolean, tasks: Promotion[]}>({
@@ -139,15 +166,38 @@ export default function TaskSection() {
       // Second click - open link and process reward
       setPhase('processing');
       
-      if (task.type === 'channel' && task.channelUsername) {
-        const channelUrl = `https://t.me/${task.channelUsername}`;
-        window.open(channelUrl, '_blank');
-      } else if (task.type === 'bot' && task.botUsername) {
-        const botUrl = `https://t.me/${task.botUsername}`;
-        window.open(botUrl, '_blank');
-      } else if (task.type === 'daily' && task.channelUsername) {
-        const channelUrl = `https://t.me/${task.channelUsername}`;
-        window.open(channelUrl, '_blank');
+      // Use the properly generated claimUrl from the backend
+      const url = (task as any).claimUrl;
+      if (url) {
+        // Check if on mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobile && (task as any).username) {
+          // Use Telegram protocol for better mobile experience
+          const username = (task as any).username;
+          let tgUrl = '';
+          
+          if (task.type === 'bot') {
+            tgUrl = `tg://resolve?domain=${username}&start=task_${task.id}`;
+          } else {
+            tgUrl = `tg://resolve?domain=${username}`;
+          }
+          
+          // Try Telegram protocol first, fallback to web
+          const a = document.createElement('a');
+          a.href = tgUrl;
+          a.click();
+          
+          // Fallback to web URL after a short delay
+          setTimeout(() => {
+            window.open(url, '_blank');
+          }, 1000);
+        } else {
+          // Desktop or fallback - use standard web URL
+          window.open(url, '_blank');
+        }
+      } else {
+        console.error('No claimUrl available for task:', task);
       }
 
       // Wait a moment for user to complete the action
@@ -182,21 +232,36 @@ export default function TaskSection() {
       return hoursPassed >= 24;
     };
     
-    const canComplete = isDailyAvailable() && !isCompleted && !isTaskFull;
+    // Daily task state detection
+    const isDailyAvailableNow = task.type === 'daily' && isDailyAvailable();
+    const isDailyCooldown = task.type === 'daily' && !isDailyAvailable();
+    
+    // Display flags - daily tasks don't show as "completed" when available again
+    const displayCompleted = task.type !== 'daily' && !!isCompleted;
+    
+    // Fixed completion logic - daily tasks can be re-completed after cooldown
+    const canComplete = task.type === 'daily' 
+      ? isDailyAvailable() && !isTaskFull 
+      : !isCompleted && !isTaskFull;
+
+    // Hide completed tasks entirely, except for daily tasks (which show cooldown)
+    if (isCompleted && task.type !== 'daily') {
+      return null;
+    }
 
     return (
       <Card className="shadow-sm border border-border" data-testid={`card-task-${task.id}`}>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <CardTitle className="text-base font-semibold text-foreground">{task.title}</CardTitle>
+              <CardTitle className="text-sm font-semibold text-foreground">{task.title}</CardTitle>
             </div>
-            <Badge variant={isCompleted ? "default" : "secondary"} className="ml-2">
+            <Badge variant={displayCompleted ? "default" : "secondary"} className="ml-2 text-xs">
               ${task.reward}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 pb-3">
           <div className="flex items-center justify-between">
             <div className="text-xs text-muted-foreground">
               {remainingSlots > 0 ? (
@@ -212,32 +277,30 @@ export default function TaskSection() {
               onClick={() => handleTaskAction(task, buttonPhase, setButtonPhase)}
               disabled={!canComplete || (buttonPhase === 'processing')}
               data-testid={`button-complete-${task.id}`}
-              className="h-8 px-3 text-xs"
+              className="h-7 px-2 text-xs"
             >
               {buttonPhase === 'processing' 
                 ? "Processing..." 
-                : isCompleted 
-                  ? "Completed ✓" 
-                  : !isDailyAvailable() && task.type === 'daily'
-                    ? "⏰ Wait 24h"
-                    : isTaskFull 
-                      ? "$0.00025" 
-                      : buttonPhase === 'click'
-                        ? "👆🏻"
-                        : "✓ Check"
+                : isDailyCooldown
+                  ? "⏰ Wait 24h"
+                  : isTaskFull 
+                    ? "$0.00025" 
+                    : (isDailyAvailableNow || !displayCompleted)
+                      ? (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
+                      : "Completed ✓"
               }
             </Button>
           </div>
           
           {/* Progress bar */}
-          <div className="mt-3">
+          <div className="mt-2">
             <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span>Progress</span>
               <span>{task.completedCount}/{task.totalSlots}</span>
             </div>
-            <div className="w-full bg-secondary rounded-full h-1.5">
+            <div className="w-full bg-secondary rounded-full h-1">
               <div 
-                className="bg-primary h-1.5 rounded-full transition-all duration-300"
+                className="bg-primary h-1 rounded-full transition-all duration-300"
                 style={{ width: `${(task.completedCount / task.totalSlots) * 100}%` }}
               />
             </div>
@@ -270,34 +333,38 @@ export default function TaskSection() {
       )}
       
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'channel' | 'bot' | 'daily')}>
-        <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
-          <TabsTrigger value="channel" data-testid="tab-channel" className="px-2 py-2 text-xs">
-            <i className="fas fa-users mr-1"></i>
-            <span className="hidden sm:inline">Channels</span>
-            <span className="sm:hidden">Chan</span>
-            <span className="ml-1">({channelTasks.length})</span>
-          </TabsTrigger>
-          <TabsTrigger value="bot" data-testid="tab-bot" className="px-2 py-2 text-xs">
-            <i className="fas fa-robot mr-1"></i>
-            <span className="hidden sm:inline">Bot</span>
-            <span className="sm:hidden">Bot</span>
-            <span className="ml-1">({botTasks.length})</span>
-          </TabsTrigger>
-          <TabsTrigger value="daily" data-testid="tab-daily" className="px-2 py-2 text-xs">
+        <TabsList className="grid w-full grid-cols-3 mb-3 h-auto">
+          <TabsTrigger value="daily" data-testid="tab-daily" className="px-2 py-1.5 text-xs">
             <i className="fas fa-calendar-day mr-1"></i>
             <span className="hidden sm:inline">Daily</span>
             <span className="sm:hidden">Day</span>
             <span className="ml-1">(1)</span>
           </TabsTrigger>
+          <TabsTrigger value="channel" data-testid="tab-channel" className="px-2 py-1.5 text-xs">
+            <i className="fas fa-users mr-1"></i>
+            <span className="hidden sm:inline">Channels</span>
+            <span className="sm:hidden">Chan</span>
+            <span className="ml-1">({channelTasks.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="bot" data-testid="tab-bot" className="px-2 py-1.5 text-xs">
+            <i className="fas fa-robot mr-1"></i>
+            <span className="hidden sm:inline">Bot</span>
+            <span className="sm:hidden">Bot</span>
+            <span className="ml-1">({botTasks.length})</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="channel" className="space-y-3">
+        <TabsContent value="daily" className="space-y-2">
+          <TaskCard task={dailyTask} />
+        </TabsContent>
+
+        <TabsContent value="channel" className="space-y-2">
           {channelTasks.length > 0 ? (
             channelTasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))
           ) : (
-            <div className="text-center py-8" data-testid="text-no-channel-tasks">
+            <div className="text-center py-6" data-testid="text-no-channel-tasks">
               <i className="fas fa-users text-3xl text-muted-foreground mb-3"></i>
               <div className="text-muted-foreground">No channel tasks available</div>
               <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
@@ -305,22 +372,18 @@ export default function TaskSection() {
           )}
         </TabsContent>
 
-        <TabsContent value="bot" className="space-y-3">
+        <TabsContent value="bot" className="space-y-2">
           {botTasks.length > 0 ? (
             botTasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))
           ) : (
-            <div className="text-center py-8" data-testid="text-no-bot-tasks">
+            <div className="text-center py-6" data-testid="text-no-bot-tasks">
               <i className="fas fa-robot text-3xl text-muted-foreground mb-3"></i>
               <div className="text-muted-foreground">No bot tasks available</div>
               <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="daily" className="space-y-3">
-          <TaskCard key={dailyTask.id} task={dailyTask} />
         </TabsContent>
       </Tabs>
 
