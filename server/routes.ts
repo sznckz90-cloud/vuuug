@@ -873,11 +873,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const allowedTypes = ['subscribe', 'bot', 'daily'];
+      const allowedTypes = ['channel', 'bot', 'daily'];
       if (!allowedTypes.includes(type)) {
         return res.status(400).json({ 
           success: false, 
-          message: '❌ Invalid task type.' 
+          message: '❌ Invalid task type. Allowed types: channel, bot, daily.' 
         });
       }
       
@@ -964,11 +964,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check which tasks user has already completed
       const completedTaskIds = await db
-        .select({ promotionId: taskCompletions.promotionId })
+        .select({ 
+          promotionId: taskCompletions.promotionId,
+          completedAt: taskCompletions.completedAt 
+        })
         .from(taskCompletions)
         .where(eq(taskCompletions.userId, userId));
       
-      const completedIds = new Set(completedTaskIds.map(c => c.promotionId));
+      const completedIds = new Set();
+      const now = new Date();
+      
+      // For non-daily tasks, permanently hide if completed
+      // For daily tasks, only hide if completed within last 24 hours
+      for (const completion of completedTaskIds) {
+        const task = activeTasks.find(t => t.id === completion.promotionId);
+        if (task?.type === 'daily') {
+          const completedAt = completion.completedAt ? new Date(completion.completedAt) : new Date();
+          const hoursSinceCompletion = (now.getTime() - completedAt.getTime()) / (1000 * 60 * 60);
+          if (hoursSinceCompletion < 24) {
+            completedIds.add(completion.promotionId);
+          }
+        } else {
+          // Non-daily tasks: hide permanently if completed
+          completedIds.add(completion.promotionId);
+        }
+      }
       
       // Filter out completed tasks and add channel post URLs
       const availableTasks = activeTasks
@@ -1304,12 +1324,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate taskType is one of the allowed values
-      const allowedTaskTypes = ['subscribe', 'bot', 'daily'];
+      const allowedTaskTypes = ['channel', 'bot', 'daily'];
       if (!allowedTaskTypes.includes(taskType)) {
         console.log(`❌ Task completion blocked: Invalid taskType '${taskType}' for user ${userId}`);
         return res.status(400).json({ 
           success: false, 
-          message: '❌ Task cannot be completed: Invalid task type.' 
+          message: '❌ Task cannot be completed: Invalid task type. Allowed types: channel, bot, daily.' 
         });
       }
       
@@ -1326,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let isVerified = false;
       let verificationMessage = '';
       
-      if (taskType === 'subscribe' && channelUsername) {
+      if (taskType === 'channel' && channelUsername) {
         // Verify channel membership using Telegram Bot API
         const botToken = process.env.TELEGRAM_BOT_TOKEN;
         if (!botToken) {
@@ -1379,7 +1399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isVerified) {
         console.log(`❌ Task verification failed for user ${userId}:`, verificationMessage);
         let friendlyMessage = '❌ Verification failed. Please complete the required action first.';
-        if (taskType === 'subscribe' && channelUsername) {
+        if (taskType === 'channel' && channelUsername) {
           friendlyMessage = `❌ Verification failed. Please make sure you joined the required channel @${channelUsername}.`;
         } else if (taskType === 'bot' && botUsername) {
           friendlyMessage = `❌ Verification failed. Please make sure you started the bot @${botUsername}.`;
@@ -1460,7 +1480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create promotion (via Telegram bot only - internal endpoint)
-  app.post('/api/internal/promotions', async (req: any, res) => {
+  app.post('/api/internal/promotions', authenticateTelegram, async (req: any, res) => {
     try {
       const promotionData = insertPromotionSchema.parse(req.body);
       const promotion = await storage.createPromotion(promotionData);
@@ -1491,7 +1511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add funds to main balance (via bot only - internal endpoint)
-  app.post('/api/internal/add-funds', async (req: any, res) => {
+  app.post('/api/internal/add-funds', authenticateTelegram, async (req: any, res) => {
     try {
       const { userId, amount } = req.body;
       

@@ -10,6 +10,7 @@ import {
   promotionClaims,
   taskCompletions,
   userBalances,
+  transactions,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -29,6 +30,8 @@ import {
   type InsertTaskCompletion,
   type UserBalance,
   type InsertUserBalance,
+  type Transaction,
+  type InsertTransaction,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
@@ -363,6 +366,17 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
+  }
+
+  // Transaction operations
+  async addTransaction(transaction: InsertTransaction): Promise<Transaction> {
+    const [newTransaction] = await db
+      .insert(transactions)
+      .values(transaction)
+      .returning();
+    
+    console.log(`📊 Transaction recorded: ${transaction.type} of $${transaction.amount} for user ${transaction.userId} - ${transaction.source}`);
+    return newTransaction;
   }
 
   // Earnings operations
@@ -1595,6 +1609,20 @@ export class DatabaseStorage implements IStorage {
           updatedAt: new Date(),
         })
         .where(eq(userBalances.userId, userId));
+
+      // Record transaction for balance deduction
+      await this.addTransaction({
+        userId,
+        amount: `-${amount}`,
+        type: 'deduction',
+        source: 'task_creation',
+        description: `Task creation cost deducted - fixed rate`,
+        metadata: { 
+          deductedAmount: amount,
+          fixedCost: '0.01',
+          reason: 'task_creation_fee'
+        }
+      });
 
       return { success: true, message: 'Balance deducted successfully' };
     } catch (error) {
