@@ -73,6 +73,18 @@ export const earnings = pgTable("earnings", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Transactions table - For tracking all balance changes (deductions and additions)
+export const transactions = pgTable("transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 8 }).notNull(),
+  type: varchar("type").notNull(), // "deduction" or "addition"
+  source: varchar("source").notNull(), // "task_creation", "task_completion", "withdrawal", "ad_reward", etc.
+  description: text("description"),
+  metadata: jsonb("metadata"), // Additional data like promotionId, taskType, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Withdrawals table
 export const withdrawals = pgTable("withdrawals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -137,7 +149,7 @@ export const promoCodeUsage = pgTable("promo_code_usage", {
 export const promotions = pgTable("promotions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   ownerId: varchar("owner_id").references(() => users.id).notNull(), // User who created the promotion
-  type: varchar("type").notNull(), // "channel" or "bot"
+  type: varchar("type").notNull(), // "channel", "bot", or "daily"
   url: text("url").notNull(), // Channel or bot link
   cost: decimal("cost", { precision: 12, scale: 8 }).notNull().default("0.01"), // Ad cost
   rewardPerUser: decimal("reward_per_user", { precision: 12, scale: 8 }).notNull().default("0.00025"), // Reward per completion
@@ -185,6 +197,7 @@ export const userBalances = pgTable("user_balances", {
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
+export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, usageCount: true, createdAt: true, updatedAt: true });
 export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, createdAt: true });
@@ -208,6 +221,8 @@ export type Promotion = typeof promotions.$inferSelect;
 export type InsertPromotion = z.infer<typeof insertPromotionSchema>;
 export type PromotionClaim = typeof promotionClaims.$inferSelect;
 export type InsertPromotionClaim = z.infer<typeof insertPromotionClaimSchema>;
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type TaskCompletion = typeof taskCompletions.$inferSelect;
 export type InsertTaskCompletion = z.infer<typeof insertTaskCompletionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
