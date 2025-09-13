@@ -113,10 +113,8 @@ export default function TaskSection() {
       return response.json();
     },
     onSuccess: (data, params) => {
-      toast({
-        title: "Task Completed! 🎉",
-        description: `You earned $${data.rewardAmount || '0.00045'}!`,
-      });
+      // Purple notification will be shown via WebSocket balance_update message
+      // Removed duplicate client-side notification to prevent duplicates
       
       // Invalidate and refetch relevant queries
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
