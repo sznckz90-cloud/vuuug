@@ -101,6 +101,14 @@ export function useWebSocket() {
               });
               break;
               
+            case 'withdrawal_rejected':
+              toast({
+                title: "Withdrawal Rejected ❌",
+                description: `Your withdrawal of $${message.amount} was rejected and balance refunded`,
+                variant: "destructive"
+              });
+              break;
+              
             case 'referral_bonus':
               // Show purple reward notification for consistency  
               const referralRewardEvent = new CustomEvent('showReward', { 
@@ -115,6 +123,37 @@ export function useWebSocket() {
                 detail: { amount: parseFloat((message as any).delta || message.amount || '0') } 
               });
               window.dispatchEvent(rewardEvent);
+              break;
+              
+            case 'promotion_approved':
+              toast({
+                title: "Promotion Approved! ✅",
+                description: `Your promotion "${(message as any).title}" has been approved and is now live!`,
+              });
+              break;
+              
+            case 'promotion_rejected':
+              toast({
+                title: "Promotion Rejected ❌",
+                description: `Your promotion "${(message as any).title}" has been rejected` + ((message as any).refunded ? ' and you have been refunded' : ''),
+                variant: "destructive"
+              });
+              break;
+              
+            case 'task_deleted':
+              toast({
+                title: "Task Deleted 🗑️",
+                description: `Your task "${(message as any).title}" has been deleted by admin` + ((message as any).refunded ? ` (refund: $${(message as any).refundAmount})` : ''),
+                variant: "destructive"
+              });
+              break;
+              
+            case 'task_removed':
+              // Broadcast event for real-time task list updates
+              const taskRemovedEvent = new CustomEvent('taskRemoved', { 
+                detail: { promotionId: (message as any).promotionId } 
+              });
+              window.dispatchEvent(taskRemovedEvent);
               break;
               
             default:
