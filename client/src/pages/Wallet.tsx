@@ -179,9 +179,9 @@ export default function Wallet() {
         <TabsContent value="balance" className="space-y-4">
           {/* Current Balance Card */}
           <Card className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
-            <CardContent className="p-6 text-center">
+            <CardContent className="p-4 text-center">
               <div className="text-primary-foreground/80 text-sm font-medium mb-2">Available Balance</div>
-              <div className="text-3xl font-bold mb-2">
+              <div className="text-2xl font-bold mb-2">
                 ${user ? parseFloat(user.balance || "0").toFixed(5) : "0.00000"}
               </div>
               <div className="text-primary-foreground/60 text-xs">
