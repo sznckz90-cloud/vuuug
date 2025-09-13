@@ -155,7 +155,9 @@ export const promotions = pgTable("promotions", {
   rewardPerUser: decimal("reward_per_user", { precision: 12, scale: 8 }).notNull().default("0.00025"), // Reward per completion
   limit: integer("limit").notNull().default(1000), // Max number of users who can claim
   claimedCount: integer("claimed_count").notNull().default(0), // Current number of claims
-  status: varchar("status").notNull().default("active"), // "active", "paused", "completed"
+  status: varchar("status").notNull().default("active"), // "active", "paused", "completed", "deleted"
+  isApproved: boolean("is_approved").notNull().default(false), // Admin approval required
+  channelMessageId: varchar("channel_message_id"), // Telegram channel message ID for linking
   title: varchar("title", { length: 255 }),
   description: text("description"),
   reward: integer("reward").default(0), // Keep for backward compatibility
