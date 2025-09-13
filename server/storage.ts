@@ -1447,6 +1447,12 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Promotion not found' };
       }
 
+      // Prevent users from completing their own tasks
+      if (promotion.ownerId === userId) {
+        console.log(`❌ Task completion blocked: User ${userId} tried to complete their own task ${promotionId}`);
+        return { success: false, message: 'You cannot complete your own task' };
+      }
+
       // Check if user already completed this task
       const hasCompleted = await this.hasUserCompletedTask(promotionId, userId);
       if (hasCompleted) {
@@ -1460,6 +1466,8 @@ export class DatabaseStorage implements IStorage {
         rewardAmount,
         verified: true,
       });
+
+      console.log(`📊 TASK_COMPLETION_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
 
       // Add reward to user's earnings balance
       await this.addBalance(userId, rewardAmount);

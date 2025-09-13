@@ -855,18 +855,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Enforce fixed task creation cost for security - never trust client
+      const FIXED_TASK_COST = '0.01';
+      
+      // Validate client input ranges for security
+      if (parseFloat(rewardPerUser) <= 0 || parseFloat(rewardPerUser) > 1) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '❌ Invalid reward amount. Must be between $0.01 and $1.00.' 
+        });
+      }
+      
+      if (limit <= 0 || limit > 10000) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '❌ Invalid limit. Must be between 1 and 10,000.' 
+        });
+      }
+      
+      const allowedTypes = ['subscribe', 'bot', 'daily'];
+      if (!allowedTypes.includes(type)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '❌ Invalid task type.' 
+        });
+      }
+      
+      // Check user balance and deduct fixed cost - security: ignore client cost
+      const balanceResult = await storage.deductBalance(userId, FIXED_TASK_COST);
+      if (!balanceResult.success) {
+        console.log(`❌ Task creation blocked for user ${userId}: ${balanceResult.message}`);
+        return res.status(400).json({ 
+          success: false, 
+          message: balanceResult.message === 'Insufficient balance' 
+            ? '❌ Not enough balance to create this task.'
+            : 'Failed to process task creation cost' 
+        });
+      }
+      
+      console.log(`💰 Task creation cost $${FIXED_TASK_COST} (fixed rate) deducted from user ${userId} balance`);
+      
       // Create promotion in database
       const promotion = await storage.createPromotion({
         ownerId: userId,
         type,
         url,
-        cost: cost.toString(),
+        cost: FIXED_TASK_COST,
         rewardPerUser: rewardPerUser.toString(),
         limit,
         title,
         description,
         status: 'active'
       });
+      
+      console.log(`📊 TASK_CREATION_LOG: UserID=${userId}, TaskID=${promotion.id}, CostDeducted=${FIXED_TASK_COST}, RewardPerUser=${rewardPerUser}, Limit=${limit}, Status=CREATED, Title="${title}"`);
       
       // Auto-post to Telegram channel and get message_id
       const { postPromotionToChannel } = await import('./telegram');
@@ -1252,6 +1294,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { promotionId } = req.params;
       const { taskType, channelUsername, botUsername } = req.body;
       
+      // Validate required parameters
+      if (!taskType) {
+        console.log(`❌ Task completion blocked: Missing taskType for user ${userId}`);
+        return res.status(400).json({ 
+          success: false, 
+          message: '❌ Task cannot be completed: Missing task type parameter.' 
+        });
+      }
+      
+      // Validate taskType is one of the allowed values
+      const allowedTaskTypes = ['subscribe', 'bot', 'daily'];
+      if (!allowedTaskTypes.includes(taskType)) {
+        console.log(`❌ Task completion blocked: Invalid taskType '${taskType}' for user ${userId}`);
+        return res.status(400).json({ 
+          success: false, 
+          message: '❌ Task cannot be completed: Invalid task type.' 
+        });
+      }
+      
       console.log(`📋 Task completion attempt:`, {
         userId,
         telegramUserId,
@@ -1302,9 +1363,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           verificationMessage = 'Daily task completed';
         }
       } else {
+        console.log(`❌ Task validation failed: Invalid task type '${taskType}' or missing parameters`, {
+          taskType,
+          channelUsername,
+          botUsername,
+          promotionId,
+          userId
+        });
         return res.status(400).json({ 
           success: false, 
-          message: 'Invalid task type or missing required parameters' 
+          message: '❌ Task cannot be completed: Invalid task type or missing parameters.' 
         });
       }
       
