@@ -40,14 +40,6 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             </div>
           </Link>
-          <div className="flex items-center gap-2">
-            <Link href="/promote">
-              <button className="px-3 py-2 rounded-full bg-muted hover:bg-accent transition-colors flex items-center gap-2">
-                <i className="fas fa-bullhorn text-muted-foreground"></i>
-                <span className="text-xs font-medium text-muted-foreground">Promote</span>
-              </button>
-            </Link>
-          </div>
         </div>
       </header>
 
@@ -88,12 +80,12 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs">Affiliates</span>
             </button>
           </Link>
-          <Link href="/stats">
+          <Link href="/promote">
             <button className={`flex flex-col items-center p-2 transition-colors ${
-              location === "/stats" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-stats">
-              <i className="fas fa-chart-bar text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs">Stats</span>
+              location === "/promote" ? "text-primary" : "text-muted-foreground hover:text-primary"
+            }`} data-testid="link-promote">
+              <i className="fas fa-bullhorn text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              <span className="text-xs">Promote</span>
             </button>
           </Link>
         </div>

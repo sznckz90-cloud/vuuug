@@ -108,14 +108,14 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   };
 
   return (
-    <Card className="rounded-xl shadow-sm border border-border mt-4">
-      <CardContent className="p-4">
-        <div className="text-center mb-4">
+    <Card className="rounded-xl shadow-sm border border-border mt-3">
+      <CardContent className="p-3">
+        <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
           <p className="text-muted-foreground text-xs">Earn $0.00025 per ad watched</p>
         </div>
         
-        <div className="relative flex justify-center mb-4">
+        <div className="relative flex justify-center mb-3">
           <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse-ring"></div>
           <button
             onClick={handleWatchAd}

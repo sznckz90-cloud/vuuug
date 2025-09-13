@@ -87,18 +87,18 @@ export default function StreakCard({ user }: StreakCardProps) {
   const streakProgress = Math.min((currentStreak % 5) / 5 * 100, 100);
 
   return (
-    <Card className="rounded-xl shadow-sm border border-border mt-4">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-center mb-3">
+    <Card className="rounded-xl shadow-sm border border-border mt-3">
+      <CardContent className="p-3">
+        <div className="flex justify-between items-center mb-2">
           <h3 className="text-base font-semibold text-foreground">Daily Streak</h3>
           <div className="text-secondary text-xl streak-fire">
             <i className="fas fa-fire"></i>
           </div>
         </div>
         
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex justify-between items-center mb-2">
           <span className="text-muted-foreground text-sm">Current streak</span>
-          <span className="text-xl font-bold text-foreground" data-testid="text-current-streak">
+          <span className="text-lg font-bold text-foreground" data-testid="text-current-streak">
             {currentStreak} days
           </span>
         </div>
