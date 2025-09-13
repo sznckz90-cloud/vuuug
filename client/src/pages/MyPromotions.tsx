@@ -10,7 +10,7 @@ interface UserPromotion {
   id: string;
   title: string;
   description: string;
-  type: 'subscribe' | 'bot';
+  type: 'channel' | 'bot';
   rewardPerUser: string;
   limit: number;
   claimedCount: number;

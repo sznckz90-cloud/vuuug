@@ -13,7 +13,7 @@ import Layout from '@/components/Layout';
 import { apiRequest } from '@/lib/queryClient';
 
 interface CreateTaskForm {
-  type: 'subscribe' | 'bot';
+  type: 'channel' | 'bot';
   url: string;
 }
 
@@ -22,7 +22,7 @@ export default function CreateTask() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateTaskForm>({
-    type: 'subscribe',
+    type: 'channel',
     url: ''
   });
 
@@ -60,7 +60,7 @@ export default function CreateTask() {
         cost: '0.01',
         rewardPerUser: '0.00025',
         limit: 1000,
-        title: `${taskData.type === 'subscribe' ? 'Subscribe to' : 'Start'} ${taskData.url.replace('https://t.me/', '@')}`,
+        title: `${taskData.type === 'channel' ? 'Subscribe to' : 'Start'} ${taskData.url.replace('https://t.me/', '@')}`,
       };
 
       const response = await apiRequest('POST', '/api/promotions/create', taskPayload);
@@ -79,7 +79,7 @@ export default function CreateTask() {
       
       // Reset form
       setForm({
-        type: 'subscribe',
+        type: 'channel',
         url: ''
       });
       setErrors({});
@@ -130,12 +130,12 @@ export default function CreateTask() {
             {/* Task Type */}
             <div className="space-y-2">
               <Label htmlFor="type">Task Type</Label>
-              <Select value={form.type} onValueChange={(value: 'subscribe' | 'bot') => updateForm('type', value)}>
+              <Select value={form.type} onValueChange={(value: 'channel' | 'bot') => updateForm('type', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select task type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="subscribe">
+                  <SelectItem value="channel">
                     <div className="flex items-center gap-2">
                       <i className="fas fa-users text-blue-600"></i>
                       Channel Subscription
@@ -153,12 +153,12 @@ export default function CreateTask() {
 
             {/* URL */}
             <div className="space-y-2">
-              <Label htmlFor="url">{form.type === 'subscribe' ? 'Channel URL' : 'Bot URL'}</Label>
+              <Label htmlFor="url">{form.type === 'channel' ? 'Channel URL' : 'Bot URL'}</Label>
               <Input
                 id="url"
                 value={form.url}
                 onChange={(e) => updateForm('url', e.target.value)}
-                placeholder={form.type === 'subscribe' ? 'https://t.me/yourchannel' : 'https://t.me/yourbot'}
+                placeholder={form.type === 'channel' ? 'https://t.me/yourchannel' : 'https://t.me/yourbot'}
                 className={errors.url ? 'border-red-500' : ''}
               />
               {errors.url && <p className="text-sm text-red-500">{errors.url}</p>}
