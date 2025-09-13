@@ -107,6 +107,14 @@ export function useWebSocket() {
               });
               break;
               
+            case 'balance_update':
+              // Show purple reward notification for consistent styling
+              const rewardEvent = new CustomEvent('showReward', { 
+                detail: { amount: parseFloat((message as any).delta || message.amount || '0') } 
+              });
+              window.dispatchEvent(rewardEvent);
+              break;
+              
             default:
               if (message.message) {
                 toast({
