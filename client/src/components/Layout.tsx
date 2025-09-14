@@ -18,30 +18,24 @@ export default function Layout({ children }: LayoutProps) {
       <header className="bg-card border-b border-border sticky top-0 z-50 backdrop-blur-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <div 
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={(e) => {
-                // Secret admin access - click 5 times quickly
-                const clickCount = (window as any).adminClickCount || 0;
-                (window as any).adminClickCount = clickCount + 1;
-                
-                setTimeout(() => {
-                  (window as any).adminClickCount = 0;
-                }, 3000); // Reset after 3 seconds
-                
-                if ((window as any).adminClickCount >= 5) {
-                  e.preventDefault();
-                  window.location.href = '/admin';
-                  (window as any).adminClickCount = 0;
-                }
-              }}
-            >
+            <div className="flex items-center gap-3 cursor-pointer">
               <GhostLogo />
               <div>
                 <p className="text-muted-foreground text-xs">Watch ads and earn crypto</p>
               </div>
             </div>
           </Link>
+          
+          {/* Admin Button - Top Right */}
+          {isAdmin && (
+            <Link href="/admin">
+              <button className={`p-2 rounded-lg transition-colors ${
+                location === "/admin" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
+              }`} data-testid="admin-button">
+                <i className="fas fa-cog text-lg" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+              </button>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -74,16 +68,6 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs font-medium">Wallet</span>
             </button>
           </Link>
-          {isAdmin && (
-            <Link href="/admin">
-              <button className={`flex flex-col items-center p-2 transition-colors ${
-                location === "/admin" ? "text-primary" : "text-muted-foreground hover:text-primary"
-              }`} data-testid="link-admin">
-                <i className="fas fa-cog text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-                <span className="text-xs font-medium">Admin</span>
-              </button>
-            </Link>
-          )}
         </div>
       </nav>
 
