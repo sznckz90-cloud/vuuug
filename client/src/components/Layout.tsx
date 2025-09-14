@@ -72,22 +72,6 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs font-medium">Wallet</span>
             </button>
           </Link>
-          <Link href="/affiliates">
-            <button className={`flex flex-col items-center p-2 transition-colors ${
-              location === "/affiliates" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-affiliates">
-              <i className="fas fa-users text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs">Affiliates</span>
-            </button>
-          </Link>
-          <Link href="/promote">
-            <button className={`flex flex-col items-center p-2 transition-colors ${
-              location === "/promote" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-promote">
-              <i className="fas fa-bullhorn text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs">Promote</span>
-            </button>
-          </Link>
         </div>
       </nav>
 
