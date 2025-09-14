@@ -12,7 +12,7 @@ interface Promotion {
   id: string;
   title: string;
   description: string;
-  type: 'channel' | 'bot' | 'daily';
+  type: 'fix';
   channelUsername?: string;
   botUsername?: string;
   reward: string;
@@ -48,7 +48,7 @@ const getTelegramInitData = (): string | null => {
 export default function TaskSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'channel' | 'bot' | 'daily'>('daily');
+  const [activeTab, setActiveTab] = useState<'fix'>('fix');
   const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
 
   // Check for Telegram environment on component mount
@@ -92,23 +92,8 @@ export default function TaskSection() {
   
   const tasks = tasksResponse?.tasks || [];
 
-  // Filter tasks by category
-  const channelTasks = tasks.filter(task => task.type === 'channel');
-  const botTasks = tasks.filter(task => task.type === 'bot');
-  
-  // Daily task (hardcoded)
-  const dailyTask: Promotion = {
-    id: 'daily-check-update',
-    title: 'check update',
-    description: 'Check our latest updates and news',
-    type: 'daily',
-    channelUsername: 'PaidAdsNews',
-    reward: '1000',
-    completedCount: 0,
-    totalSlots: 1000,
-    isActive: true,
-    createdAt: new Date().toISOString()
-  };
+  // Filter tasks by category - only show approved 'fix' tasks
+  const fixTasks = tasks.filter(task => task.type === 'fix');
 
   // Complete task mutation
   const completeTaskMutation = useMutation({
@@ -172,30 +157,8 @@ export default function TaskSection() {
         // Check if on mobile device
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        if (isMobile && (task as any).username) {
-          // Use Telegram protocol for better mobile experience
-          const username = (task as any).username;
-          let tgUrl = '';
-          
-          if (task.type === 'bot') {
-            tgUrl = `tg://resolve?domain=${username}&start=task_${task.id}`;
-          } else {
-            tgUrl = `tg://resolve?domain=${username}`;
-          }
-          
-          // Try Telegram protocol first, fallback to web
-          const a = document.createElement('a');
-          a.href = tgUrl;
-          a.click();
-          
-          // Fallback to web URL after a short delay
-          setTimeout(() => {
-            window.open(url, '_blank');
-          }, 1000);
-        } else {
-          // Desktop or fallback - use standard web URL
-          window.open(url, '_blank');
-        }
+        // For fix tasks, open the URL directly
+        window.open(url, '_blank');
       } else {
         console.error('No claimUrl available for task:', task);
       }
@@ -221,31 +184,11 @@ export default function TaskSection() {
     const isTaskFull = task.completedCount >= task.totalSlots;
     const remainingSlots = task.totalSlots - task.completedCount;
     
-    // Check if daily task is available (24 hour cooldown)
-    const isDailyAvailable = () => {
-      if (task.type !== 'daily') return true;
-      if (!statusData?.completedAt) return true;
-      
-      const completedTime = new Date(statusData.completedAt).getTime();
-      const now = new Date().getTime();
-      const hoursPassed = (now - completedTime) / (1000 * 60 * 60);
-      return hoursPassed >= 24;
-    };
-    
-    // Daily task state detection
-    const isDailyAvailableNow = task.type === 'daily' && isDailyAvailable();
-    const isDailyCooldown = task.type === 'daily' && !isDailyAvailable();
-    
-    // Display flags - daily tasks don't show as "completed" when available again
-    const displayCompleted = task.type !== 'daily' && !!isCompleted;
-    
-    // Fixed completion logic - daily tasks can be re-completed after cooldown
-    const canComplete = task.type === 'daily' 
-      ? isDailyAvailable() && !isTaskFull 
-      : !isCompleted && !isTaskFull;
+    // Fix tasks completion logic - can only be completed once
+    const canComplete = !isCompleted && !isTaskFull;
 
-    // Hide completed tasks entirely, except for daily tasks (which show cooldown)
-    if (isCompleted && task.type !== 'daily') {
+    // Hide completed tasks entirely
+    if (isCompleted) {
       return null;
     }
 
@@ -256,7 +199,7 @@ export default function TaskSection() {
             <div className="flex-1">
               <CardTitle className="text-sm font-semibold text-foreground">{task.title}</CardTitle>
             </div>
-            <Badge variant={displayCompleted ? "default" : "secondary"} className="ml-2 text-xs">
+            <Badge variant={isCompleted ? "default" : "secondary"} className="ml-2 text-xs">
               ${task.reward}
             </Badge>
           </div>
@@ -281,13 +224,11 @@ export default function TaskSection() {
             >
               {buttonPhase === 'processing' 
                 ? "Processing..." 
-                : isDailyCooldown
-                  ? "⏰ Wait 24h"
-                  : isTaskFull 
-                    ? "$0.00025" 
-                    : (isDailyAvailableNow || !displayCompleted)
-                      ? (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
-                      : "Completed ✓"
+                : isTaskFull 
+                  ? "$0.00025" 
+                  : !isCompleted
+                    ? (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
+                    : "Completed ✓"
               }
             </Button>
           </div>
@@ -332,60 +273,28 @@ export default function TaskSection() {
         </Alert>
       )}
       
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'channel' | 'bot' | 'daily')}>
-        <TabsList className="grid w-full grid-cols-3 mb-3 h-auto">
-          <TabsTrigger value="daily" data-testid="tab-daily" className="px-2 py-1.5 text-xs">
-            <i className="fas fa-calendar-day mr-1"></i>
-            <span className="hidden sm:inline">Daily</span>
-            <span className="sm:hidden">Day</span>
-            <span className="ml-1">(1)</span>
-          </TabsTrigger>
-          <TabsTrigger value="channel" data-testid="tab-channel" className="px-2 py-1.5 text-xs">
-            <i className="fas fa-users mr-1"></i>
-            <span className="hidden sm:inline">Channels</span>
-            <span className="sm:hidden">Chan</span>
-            <span className="ml-1">({channelTasks.length})</span>
-          </TabsTrigger>
-          <TabsTrigger value="bot" data-testid="tab-bot" className="px-2 py-1.5 text-xs">
-            <i className="fas fa-robot mr-1"></i>
-            <span className="hidden sm:inline">Bot</span>
-            <span className="sm:hidden">Bot</span>
-            <span className="ml-1">({botTasks.length})</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="daily" className="space-y-2">
-          <TaskCard task={dailyTask} />
-        </TabsContent>
-
-        <TabsContent value="channel" className="space-y-2">
-          {channelTasks.length > 0 ? (
-            channelTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))
-          ) : (
-            <div className="text-center py-6" data-testid="text-no-channel-tasks">
-              <i className="fas fa-users text-3xl text-muted-foreground mb-3"></i>
-              <div className="text-muted-foreground">No channel tasks available</div>
-              <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="bot" className="space-y-2">
-          {botTasks.length > 0 ? (
-            botTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))
-          ) : (
-            <div className="text-center py-6" data-testid="text-no-bot-tasks">
-              <i className="fas fa-robot text-3xl text-muted-foreground mb-3"></i>
-              <div className="text-muted-foreground">No bot tasks available</div>
-              <div className="text-xs text-muted-foreground mt-1">New tasks will appear here automatically</div>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      {/* Fix Tasks Section */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold text-foreground flex items-center">
+            <i className="fas fa-tools mr-2 text-blue-600"></i>
+            Fix Tasks
+            <span className="ml-2 text-sm text-muted-foreground">({fixTasks.length})</span>
+          </h3>
+        </div>
+        
+        {fixTasks.length > 0 ? (
+          fixTasks.map((task) => (
+            <TaskCard key={task.id} task={task} />
+          ))
+        ) : (
+          <div className="text-center py-8" data-testid="text-no-fix-tasks">
+            <i className="fas fa-tools text-4xl text-muted-foreground mb-4"></i>
+            <div className="text-muted-foreground text-lg font-medium">No fix tasks available</div>
+            <div className="text-sm text-muted-foreground mt-2">Fix tasks will appear here when admin approves them</div>
+          </div>
+        )}
+      </div>
 
     </div>
   );
