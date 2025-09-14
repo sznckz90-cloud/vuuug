@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatCurrency } from "@/lib/utils";
 
 interface RewardData {
   amount: number;
@@ -34,7 +35,7 @@ export default function RewardNotification() {
         <div>
           <div className="font-semibold">Reward Earned!</div>
           <div className="text-primary-foreground/80 text-sm">
-            +${rewardAmount.toFixed(5)} added to your balance
+            +{formatCurrency(rewardAmount, false)} added to your balance
           </div>
         </div>
       </div>
