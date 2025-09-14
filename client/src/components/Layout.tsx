@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import GhostLogo from "./GhostLogo";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAdmin } from "@/hooks/useAdmin";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { isConnected } = useWebSocket(); // Initialize WebSocket connection
+  const { isAdmin } = useAdmin();
 
   return (
     <div className="min-h-screen bg-background">
@@ -72,6 +74,16 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-xs font-medium">Wallet</span>
             </button>
           </Link>
+          {isAdmin && (
+            <Link href="/admin">
+              <button className={`flex flex-col items-center p-2 transition-colors ${
+                location === "/admin" ? "text-primary" : "text-muted-foreground hover:text-primary"
+              }`} data-testid="link-admin">
+                <i className="fas fa-cog text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
+                <span className="text-xs font-medium">Admin</span>
+              </button>
+            </Link>
+          )}
         </div>
       </nav>
 
