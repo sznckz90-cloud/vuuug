@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import Layout from '@/components/Layout';
 import { apiRequest } from '@/lib/queryClient';
+import { formatCurrency } from '@/lib/utils';
 
 interface WithdrawalRequest {
   id: string;
@@ -182,7 +183,7 @@ export default function Wallet() {
             <CardContent className="p-4 text-center">
               <div className="text-primary-foreground/80 text-sm font-medium mb-2">Available Balance</div>
               <div className="text-2xl font-bold mb-2">
-                ${user ? parseFloat(user.balance || "0").toFixed(5) : "0.00000"}
+                {formatCurrency(user?.balance || "0")}
               </div>
               <div className="text-primary-foreground/60 text-xs">
                 Ready for withdrawal
@@ -215,7 +216,7 @@ export default function Wallet() {
                           <i className={`${getStatusIcon(withdrawal.status)} text-white text-sm`}></i>
                         </div>
                         <div>
-                          <div className="font-medium">${parseFloat(withdrawal.amount).toFixed(5)}</div>
+                          <div className="font-medium">{formatCurrency(withdrawal.amount)}</div>
                           <div className="text-sm text-muted-foreground">{withdrawal.method}</div>
                         </div>
                       </div>
@@ -282,7 +283,7 @@ export default function Wallet() {
                   </div>
                   {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
                   <p className="text-xs text-muted-foreground">
-                    Available: ${user ? parseFloat(user.balance || "0").toFixed(5) : "0.00000"}
+                    Available: {formatCurrency(user?.balance || "0")}
                   </p>
                 </div>
 

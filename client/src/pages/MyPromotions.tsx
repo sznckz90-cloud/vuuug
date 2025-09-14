@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import Layout from '@/components/Layout';
+import { formatCurrency } from '@/lib/utils';
 
 interface UserPromotion {
   id: string;
@@ -76,21 +77,21 @@ export default function MyPromotions() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <div className="text-muted-foreground">Reward/User</div>
-                <div className="font-medium">${parseFloat(promotion.rewardPerUser).toFixed(5)}</div>
+                <div className="font-medium">{formatCurrency(promotion.rewardPerUser)}</div>
               </div>
               <div>
                 <div className="text-muted-foreground">Total Budget</div>
-                <div className="font-medium">${parseFloat(promotion.cost).toFixed(5)}</div>
+                <div className="font-medium">{formatCurrency(promotion.cost)}</div>
               </div>
             </div>
             <div className="border-t border-border pt-2">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground">Amount Spent:</span>
-                <span className="font-medium text-red-600">${totalSpent.toFixed(5)}</span>
+                <span className="font-medium text-red-600">{formatCurrency(totalSpent)}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground">Remaining Budget:</span>
-                <span className="font-medium text-green-600">${(parseFloat(promotion.cost) - totalSpent).toFixed(5)}</span>
+                <span className="font-medium text-green-600">{formatCurrency(parseFloat(promotion.cost) - totalSpent)}</span>
               </div>
             </div>
           </div>

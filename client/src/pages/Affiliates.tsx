@@ -3,6 +3,7 @@ import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -80,7 +81,7 @@ export default function Affiliates() {
             <Card className="shadow-sm border border-border">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-foreground">
-                  ${stats?.totalReferralEarnings || '0.00'}
+                  {formatCurrency(stats?.totalReferralEarnings || '0')}
                 </div>
                 <div className="text-muted-foreground text-sm">Earned</div>
               </CardContent>
