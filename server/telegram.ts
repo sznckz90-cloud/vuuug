@@ -24,32 +24,7 @@ interface TelegramMessage {
 }
 
 
-// Simple in-memory state management for promotion creation flow
-const userPromotionStates = new Map();
-
-interface PromotionState {
-  step: 'awaiting_channel_url' | 'awaiting_bot_url' | 'awaiting_forwarded_message';
-  type: 'channel' | 'bot';
-  adCost: string;
-  rewardAmount: string;
-  totalSlots: number;
-  url?: string;
-  forwardedBotUsername?: string;
-}
-
-// Claim states removed - all task claiming happens in the App only
-
-function setUserPromotionState(chatId: string, state: PromotionState) {
-  userPromotionStates.set(chatId, state);
-}
-
-function getUserPromotionState(chatId: string): PromotionState | null {
-  return userPromotionStates.get(chatId) || null;
-}
-
-function clearUserPromotionState(chatId: string) {
-  userPromotionStates.delete(chatId);
-}
+// Promotion features removed - focusing on core bot functionality only
 
 // All claim state functions removed
 
@@ -140,63 +115,7 @@ export async function sendTaskCompletionNotification(userId: string, rewardAmoun
   }
 }
 
-// Post promotion to Telegram channel and return message_id
-export async function postPromotionToChannel(promotion: any): Promise<string | null> {
-  if (!TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
-    console.error('Missing Telegram bot token or channel ID for posting promotion');
-    return null;
-  }
-  
-  try {
-    const channelMessage = `⭐World's Biggest Free Crypto Drop!⭐
-💎 $${promotion.rewardPerUser} Crypto → ${promotion.limit} Winners 🔥
-🚀 Claim in 1 tap – before it's over!`;
-
-    // Generate web app link to task section
-    const botUsername = process.env.BOT_USERNAME || "lightningsatsbot";
-    const webAppUrl = `https://t.me/${botUsername}?startapp=tasks`;
-    
-    const keyboard = {
-      inline_keyboard: [[
-        { 
-          text: '👉 Open in App 👈', 
-          url: webAppUrl 
-        }
-      ]]
-    };
-
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: process.env.TELEGRAM_CHANNEL_ID,
-        text: channelMessage,
-        parse_mode: 'HTML',
-        reply_markup: keyboard
-      })
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      const messageId = result.result.message_id.toString();
-      console.log('✅ Promotion posted to channel successfully:', messageId);
-      
-      // Update promotion with channel message ID for tracking
-      if (messageId) {
-        await storage.updatePromotionMessageId(promotion.id, messageId);
-      }
-      
-      return messageId;
-    } else {
-      const errorData = await response.text();
-      console.error('❌ Failed to post promotion to channel:', errorData);
-      return null;
-    }
-  } catch (error) {
-    console.error('❌ Error posting promotion to channel:', error);
-    return null;
-  }
-}
+// Promotion posting features removed - no longer needed
 
 export async function sendTelegramMessage(message: string): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_ID) {
@@ -937,12 +856,10 @@ Choose promotion type:`;
 
 🔸 **Account** - View your profile and earnings
 🔸 **Affiliates** - Get your referral link to invite friends
-🔸 **Promotion** - Create ad campaigns to promote your channels/bots
 
 💰 **How to Earn:**
 • Complete tasks in the app
 • Refer friends with your link
-• Create promotions for others to complete
 
 🚀 Start by visiting the web app and completing available tasks!`;
       
@@ -964,8 +881,6 @@ Choose promotion type:`;
     
     if (text === '🔙 Back to Menu') {
       console.log('⌨️ Processing Back to Menu button press');
-      // Clear any promotion state and return to main menu
-      clearUserPromotionState(chatId);
       
       const welcomeMessage = 'Welcome back to the main menu!';
       const keyboard = createBotKeyboard();
@@ -973,120 +888,24 @@ Choose promotion type:`;
       return true;
     }
     
-    if (text === '📢 Channel') {
-      console.log('⌨️ Processing Channel promotion type');
-      
-      const channelMessage = `📈 Create Ad Campaign Telegram — Subscribe / Join
-⚠️ Make the bot admin in your channel for easy join & verification.
-💰 Ad Cost: $0.01 (1000 users)
-📝 Channel URL:`;
-      
-      // Set user state to awaiting channel URL
-      setUserPromotionState(chatId, {
-        step: 'awaiting_channel_url',
-        type: 'channel',
-        adCost: '0.01',
-        rewardAmount: '0.00025',
-        totalSlots: 1000
-      });
-      
-      const keyboard = {
-        keyboard: [
-          [
-            '⬅️ Back'
-          ]
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true
-      };
-      
-      await sendUserTelegramNotification(chatId, channelMessage, keyboard);
-      return true;
-    }
     
-    if (text === '🤖 Bot') {
-      console.log('⌨️ Processing Bot promotion type');
-      
-      const botMessage = `📈 Create Ad Campaign Telegram: launch the bot
-🔎 FORWARD a message from the bot`;
-      
-      // Set user state to awaiting forwarded message
-      setUserPromotionState(chatId, {
-        step: 'awaiting_forwarded_message',
-        type: 'bot',
-        adCost: '0.01',
-        rewardAmount: '0.00025',
-        totalSlots: 1000
-      });
-      
-      const keyboard = {
-        keyboard: [
-          [
-            '⬅️ Back'
-          ]
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true
-      };
-      
-      await sendUserTelegramNotification(chatId, botMessage, keyboard);
-      return true;
-    }
     
-    // Handle Back button in promotion flow
+    // Handle Back button
     if (text === '⬅️ Back') {
       console.log('⌨️ Processing Back button');
       
-      // Check if user is in promotion state
-      const promotionState = getUserPromotionState(chatId);
-      if (promotionState) {
-        clearUserPromotionState(chatId);
-        
-        // Go back to promotion menu
-        const promotionMessage = `📈 Promotion
-→ 📝 Creation of an ad campaign`;
-        
-        const promotionKeyboard = {
-          keyboard: [
-            [
-              '📢 Channel',
-              '🤖 Bot'
-            ],
-            [
-              '⬅️ Back'
-            ]
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true
-        };
-        
-        await sendUserTelegramNotification(chatId, promotionMessage, promotionKeyboard);
-        return true;
-      }
-      
-      // Default back to main menu
+      // Go back to main menu
       const keyboard = createBotKeyboard();
       const backMessage = 'Back to main menu.';
       await sendUserTelegramNotification(chatId, backMessage, keyboard);
       return true;
     }
     
-    // Handle Cancel button in promotion flow
+    // Handle Cancel button
     if (text === '❌ Cancel') {
       console.log('⌨️ Processing Cancel button');
       
-      const promotionState = getUserPromotionState(chatId);
-      
-      if (promotionState) {
-        clearUserPromotionState(chatId);
-        
-        const keyboard = createBotKeyboard();
-        const cancelMessage = '❌ Promotion creation cancelled.';
-        await sendUserTelegramNotification(chatId, cancelMessage, keyboard);
-        return true;
-      }
-      
-      // Default back to main menu if not in any state
+      // Go back to main menu
       const keyboard = createBotKeyboard();
       const backMessage = 'Back to main menu.';
       await sendUserTelegramNotification(chatId, backMessage, keyboard);
@@ -1095,192 +914,9 @@ Choose promotion type:`;
 
     // ✅ Done button removed - all task claiming happens in the App only
 
-    // Handle forwarded message for bot promotion creation
-    if (update.message && update.message.forward_from) {
-      const promotionState = getUserPromotionState(chatId);
-      if (promotionState && promotionState.step === 'awaiting_forwarded_message' && promotionState.type === 'bot') {
-        console.log('📨 Processing forwarded message for bot promotion');
-        
-        // Extract bot username from forwarded message
-        const forwardedFrom = update.message.forward_from;
-        if (forwardedFrom.is_bot && forwardedFrom.username) {
-          const botUsername = forwardedFrom.username;
-          
-          // Update state with forwarded bot username and ask for bot link
-          setUserPromotionState(chatId, {
-            ...promotionState,
-            step: 'awaiting_bot_url',
-            forwardedBotUsername: botUsername
-          });
-          
-          const botLinkMessage = `🔗 Send the bot LINK
-ℹ️ It can be your referral link or any bot link
-⚠️ Must start with https://t.me/${botUsername}`;
-          
-          const keyboard = {
-            keyboard: [
-              [
-                '⬅️ Back'
-              ]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          };
-          
-          await sendUserTelegramNotification(chatId, botLinkMessage, keyboard);
-          return true;
-        } else {
-          const errorMessage = '❌ Please forward a message from a bot, not a regular user.';
-          
-          const keyboard = {
-            keyboard: [
-              [
-                '⬅️ Back'
-              ]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          };
-          
-          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-          return true;
-        }
-      }
-    }
 
     // All claim verification removed - tasks can only be completed in the App
 
-    // Handle promotion URL collection
-    const promotionState = getUserPromotionState(chatId);
-    if (promotionState && (promotionState.step === 'awaiting_channel_url' || promotionState.step === 'awaiting_bot_url')) {
-      console.log('📝 Processing promotion URL from user:', chatId);
-      
-      const url = text.trim();
-      
-      // URL validation based on promotion type
-      if (promotionState.step === 'awaiting_channel_url') {
-        // Validate channel link
-        if (!url.startsWith('https://t.me/')) {
-          const errorMessage = '❌ Please enter a valid channel link (should start with https://t.me/)';
-          const keyboard = {
-            keyboard: [
-              [
-                '⬅️ Back'
-              ]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          };
-          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-          return true;
-        }
-      } else if (promotionState.step === 'awaiting_bot_url') {
-        // Validate bot link - must start with https://t.me/ and match forwarded bot username
-        const expectedBotUsername = promotionState.forwardedBotUsername;
-        if (!expectedBotUsername) {
-          const errorMessage = '❌ Bot username not found. Please restart the bot promotion process.';
-          const keyboard = {
-            keyboard: [
-              [
-                '⬅️ Back',
-                '❌ Cancel'
-              ]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          };
-          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-          return true;
-        }
-        
-        if (!url.startsWith(`https://t.me/${expectedBotUsername}`)) {
-          const errorMessage = `❌ Please enter a valid bot link that starts with https://t.me/${expectedBotUsername}`;
-          const keyboard = {
-            keyboard: [
-              [
-                '⬅️ Back',
-                '❌ Cancel'
-              ]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          };
-          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-          return true;
-        }
-      }
-      
-      // Check user's main balance (for promotion costs)
-      // Note: Admins have unlimited balance
-      const isAdmin = dbUser.telegram_id === process.env.TELEGRAM_ADMIN_ID;
-      const userBalance = await storage.getUserBalance(dbUser.id);
-      const currentMainBalance = parseFloat(userBalance?.balance || '0');
-      const adCost = parseFloat(promotionState.adCost);
-      
-      if (!isAdmin && currentMainBalance < adCost) {
-        clearUserPromotionState(chatId);
-        
-        const insufficientBalanceMessage = `❌ You don't have enough balance to advertise. ⭐ Use /deposit to add more balance.`;
-        
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, insufficientBalanceMessage, keyboard);
-        return true;
-      }
-      
-      // Create the promotion
-      try {
-        // Server-side validation for channel promotion costs
-        if (promotionState.type === 'channel') {
-          if (promotionState.adCost !== '0.01' || promotionState.totalSlots !== 1000) {
-            const errorMessage = '❌ Channel promotion must cost exactly $0.01 for 1000 users.';
-            const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-            clearUserPromotionState(chatId);
-            return true;
-          }
-        }
-        
-        const title = promotionState.type === 'channel' 
-          ? 'Telegram: subscribe to the channel / join the chat'
-          : 'Telegram: launch the bot';
-        
-        const promotion = await storage.createPromotion({
-          ownerId: dbUser.id,
-          type: promotionState.type,
-          title: title,
-          description: `${title} (${url})`,
-          url: url,
-          rewardPerUser: promotionState.rewardAmount,
-          cost: promotionState.adCost,
-          limit: promotionState.totalSlots,
-          status: 'active'
-        });
-        
-        // Deduct the ad cost from user's balance
-        await storage.deductBalance(dbUser.id, promotionState.adCost);
-        
-        // Post to channel automatically
-        await postPromotionToChannel(promotion);
-        
-        // Clear state
-        clearUserPromotionState(chatId);
-        
-        const successMessage = `📈 Ad campaign ${title} (${url}) successfully created.`;
-        
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, successMessage, keyboard);
-        return true;
-        
-      } catch (error) {
-        console.error('❌ Error creating promotion:', error);
-        clearUserPromotionState(chatId);
-        
-        const errorMessage = '❌ Failed to create promotion. Please try again.';
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-        return true;
-      }
-    }
 
 
 
@@ -1349,72 +985,13 @@ Choose promotion type:`;
     if (text === '⬅️ Back' || text === '🔙 Back to Menu') {
       console.log('⌨️ Processing Back button press');
       
-      // Clear any active states
-      clearUserPromotionState(chatId);
-      
       const backMessage = 'Back to main menu:';
       const keyboard = createBotKeyboard();
       await sendUserTelegramNotification(chatId, backMessage, keyboard);
       return true;
     }
 
-    // Handle Channel promotion type selection
-    if (text === '📢 Channel') {
-      console.log('⌨️ Processing Channel promotion type');
-      
-      setUserPromotionState(chatId, {
-        step: 'awaiting_channel_url',
-        type: 'channel',
-        adCost: '0.01',
-        rewardAmount: '0.00025',
-        totalSlots: 1000
-      });
-      
-      const channelMessage = `📢 Channel Promotion
 
-Please enter your channel URL (e.g., https://t.me/yourchannel):`;
-      
-      const channelKeyboard = {
-        keyboard: [
-          ['❌ Cancel'],
-          ['⬅️ Back']
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      };
-      
-      await sendUserTelegramNotification(chatId, channelMessage, channelKeyboard);
-      return true;
-    }
-
-    // Handle Bot promotion type selection  
-    if (text === '🤖 Bot') {
-      console.log('⌨️ Processing Bot promotion type');
-      
-      setUserPromotionState(chatId, {
-        step: 'awaiting_bot_url',
-        type: 'bot',
-        adCost: '0.01',
-        rewardAmount: '0.00025',
-        totalSlots: 1000
-      });
-      
-      const botMessage = `🤖 Bot Promotion
-
-Please enter your bot URL (e.g., https://t.me/yourbot):`;
-      
-      const botKeyboard = {
-        keyboard: [
-          ['❌ Cancel'],
-          ['⬅️ Back']
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      };
-      
-      await sendUserTelegramNotification(chatId, botMessage, botKeyboard);
-      return true;
-    }
 
 
 
@@ -1444,7 +1021,6 @@ export function createBotKeyboard() {
         '👥 Affiliates'
       ],
       [
-        '📈 Promotion',
         '⁉️ How-to'
       ]
     ],
