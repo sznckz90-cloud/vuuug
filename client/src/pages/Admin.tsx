@@ -92,6 +92,20 @@ export default function AdminPage() {
     refetchInterval: 60000,
   });
 
+  // Fetch pending tasks/promotions
+  const { data: tasksData, isLoading: tasksLoading } = useQuery({
+    queryKey: ["/api/admin/promotions/pending"],
+    queryFn: () => apiRequest("GET", "/api/admin/promotions/pending").then(res => res.json()),
+    refetchInterval: 30000,
+  });
+
+  // Fetch pending withdrawals
+  const { data: withdrawalsData, isLoading: withdrawalsLoading } = useQuery({
+    queryKey: ["/api/admin/withdrawals/pending"],
+    queryFn: () => apiRequest("GET", "/api/admin/withdrawals/pending").then(res => res.json()),
+    refetchInterval: 30000,
+  });
+
 
 
   // Ban/unban user mutation
@@ -143,315 +157,399 @@ export default function AdminPage() {
                   <i className="fas fa-chart-line mr-2"></i>
                   Dashboard
                 </TabsTrigger>
+                <TabsTrigger value="users" data-testid="tab-users" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-users mr-2"></i>
+                  Users
+                </TabsTrigger>
+                <TabsTrigger value="tasks" data-testid="tab-tasks" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-tasks mr-2"></i>
+                  Tasks
+                </TabsTrigger>
+                <TabsTrigger value="withdrawals" data-testid="tab-withdrawals" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-money-bill-wave mr-2"></i>
+                  Withdrawals
+                </TabsTrigger>
+                <TabsTrigger value="analytics" data-testid="tab-analytics" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-chart-area mr-2"></i>
+                  Analytics
+                </TabsTrigger>
               </TabsList>
             </div>
 
             {/* Dashboard Tab */}
-            <TabsContent value="dashboard" className="space-y-4">
-              {/* Stats Sections - Weekly/Monthly Tabs */}
-              <Tabs defaultValue="weekly" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="weekly">Weekly Stats</TabsTrigger>
-                  <TabsTrigger value="monthly">Monthly Stats</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="weekly" className="space-y-4">
-                  {/* Weekly Stats Cards */}
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Total Users</p>
-                      <p className="text-lg font-bold" data-testid="text-total-users">
-                        {stats?.totalUsers?.toLocaleString() || '0'}
-                      </p>
+            <TabsContent value="dashboard" className="space-y-6">
+              {/* Real-time Verified Stats */}
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-chart-bar mr-2 text-blue-600"></i>
+                  Real-time Analytics
+                </h2>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Users</p>
+                        <p className="text-2xl font-bold" data-testid="text-total-users">
+                          {stats?.totalUsers?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                      <i className="fas fa-users text-blue-600 text-xl"></i>
                     </div>
-                    <i className="fas fa-users text-blue-600"></i>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Active Today</p>
-                      <p className="text-lg font-bold" data-testid="text-active-users">
-                        {stats?.dailyActiveUsers?.toLocaleString() || '0'}
-                      </p>
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Tasks Completed</p>
+                        <p className="text-2xl font-bold" data-testid="text-total-tasks">
+                          {stats?.totalAdsWatched?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                      <i className="fas fa-check-circle text-green-600 text-xl"></i>
                     </div>
-                    <i className="fas fa-user-check text-green-600"></i>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Ads Watched</p>
-                      <p className="text-lg font-bold" data-testid="text-total-ads">
-                        {stats?.totalAdsWatched?.toLocaleString() || '0'}
-                      </p>
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Withdrawals Processed</p>
+                        <p className="text-2xl font-bold text-green-600" data-testid="text-total-withdrawals">
+                          ${stats?.totalWithdrawals || '0.00'}
+                        </p>
+                      </div>
+                      <i className="fas fa-money-bill-wave text-green-600 text-xl"></i>
                     </div>
-                    <i className="fas fa-eye text-purple-600"></i>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Earnings</p>
-                      <p className="text-lg font-bold text-green-600" data-testid="text-total-earnings">
-                        ${stats?.totalEarnings || '0.00'}
-                      </p>
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Revenue</p>
+                        <p className="text-2xl font-bold text-blue-600" data-testid="text-total-revenue">
+                          ${stats?.totalEarnings || '0.00'}
+                        </p>
+                      </div>
+                      <i className="fas fa-chart-line text-blue-600 text-xl"></i>
                     </div>
-                    <i className="fas fa-dollar-sign text-yellow-600"></i>
-                  </div>
-                </Card>
-
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                      <p className="text-lg font-bold text-orange-600" data-testid="text-pending-withdrawals">
-                        {stats?.pendingWithdrawals || '0'}
-                      </p>
-                    </div>
-                    <i className="fas fa-clock text-orange-600"></i>
-                  </div>
-                </Card>
-
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Weekly Processed</p>
-                      <p className="text-lg font-bold text-green-600" data-testid="text-weekly-withdrawals">
-                        ${stats?.totalWithdrawals || '0.00'}
-                      </p>
-                    </div>
-                    <i className="fas fa-check-circle text-green-600"></i>
-                  </div>
-                </Card>
-                  </div>
-                  
-                  {/* Weekly Real-time Chart */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center">
+                  </Card>
+                </div>
+              </div>
+              {/* Interactive Trading-Style Chart */}
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-chart-area mr-2 text-green-600"></i>
+                  Interactive Analytics Dashboard
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center">
                         <i className="fas fa-chart-line mr-2 text-blue-600"></i>
-                        Weekly Real-time Activity 📈
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-48">
+                        Real-time Activity Overview
+                      </span>
+                      <Badge variant="outline" className="bg-green-50 text-green-700">
+                        Live Data
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-80 w-full">
+                      {stats ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart
                             data={[
-                              { day: 'Mon', ads: 45, users: 12 },
-                              { day: 'Tue', ads: 52, users: 15 },
-                              { day: 'Wed', ads: 38, users: 8 },
-                              { day: 'Thu', ads: 67, users: 18 },
-                              { day: 'Fri', ads: 73, users: 22 },
-                              { day: 'Sat', ads: 85, users: 25 },
-                              { day: 'Today', ads: stats?.totalAdsWatched || 0, users: stats?.dailyActiveUsers || 0 }
+                              { 
+                                period: 'Current', 
+                                users: stats.totalUsers || 0, 
+                                tasks: stats.totalAdsWatched || 0,
+                                revenue: parseFloat(stats.totalEarnings || '0')
+                              }
                             ]}
                           >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="day" />
-                            <YAxis />
-                            <Tooltip />
-                            <Area type="monotone" dataKey="ads" stroke="#2563eb" fill="#2563eb" fillOpacity={0.3} strokeWidth={2} dot={false} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis 
+                              dataKey="period" 
+                              tick={{ fontSize: 12 }}
+                              axisLine={{ stroke: '#64748b' }}
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 12 }}
+                              axisLine={{ stroke: '#64748b' }}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: '#1f2937', 
+                                border: 'none', 
+                                borderRadius: '8px',
+                                color: '#f9fafb'
+                              }}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="users" 
+                              stroke="#3b82f6" 
+                              fill="#3b82f6" 
+                              fillOpacity={0.2} 
+                              strokeWidth={3}
+                              name="Total Users"
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="tasks" 
+                              stroke="#10b981" 
+                              fill="#10b981" 
+                              fillOpacity={0.2} 
+                              strokeWidth={3}
+                              name="Tasks Completed"
+                            />
                           </AreaChart>
                         </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                
-                <TabsContent value="monthly" className="space-y-4">
-                  {/* Monthly Stats Cards */}
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    <Card className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Monthly Users</p>
-                          <p className="text-lg font-bold" data-testid="text-monthly-users">
-                            {stats?.totalUsers?.toLocaleString() || '0'}
-                          </p>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                          <div className="text-center">
+                            <i className="fas fa-chart-line text-4xl mb-4 opacity-50"></i>
+                            <p>No data available</p>
+                            <p className="text-sm">Real-time data will appear here when available</p>
+                          </div>
                         </div>
-                        <i className="fas fa-users text-blue-600"></i>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Monthly Ads</p>
-                          <p className="text-lg font-bold" data-testid="text-monthly-ads">
-                            {stats?.totalAdsWatched?.toLocaleString() || '0'}
-                          </p>
-                        </div>
-                        <i className="fas fa-eye text-purple-600"></i>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Monthly Earnings</p>
-                          <p className="text-lg font-bold text-green-600" data-testid="text-monthly-earnings">
-                            ${stats?.totalEarnings || '0.00'}
-                          </p>
-                        </div>
-                        <i className="fas fa-dollar-sign text-yellow-600"></i>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Monthly Pending</p>
-                          <p className="text-lg font-bold text-orange-600" data-testid="text-monthly-pending">
-                            {stats?.pendingWithdrawals || '0'}
-                          </p>
-                        </div>
-                        <i className="fas fa-clock text-orange-600"></i>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Monthly Processed</p>
-                          <p className="text-lg font-bold text-green-600" data-testid="text-monthly-processed">
-                            ${stats?.totalWithdrawals || '0.00'}
-                          </p>
-                        </div>
-                        <i className="fas fa-check-circle text-green-600"></i>
-                      </div>
-                    </Card>
-                  </div>
-                  
-                  {/* Monthly Real-time Chart */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center">
-                        <i className="fas fa-chart-area mr-2 text-green-600"></i>
-                        Monthly Real-time Trends 📈
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={[
-                              { week: 'Week 1', users: 142, earnings: 245.5 },
-                              { week: 'Week 2', users: 158, earnings: 312.8 },
-                              { week: 'Week 3', users: 176, earnings: 387.6 },
-                              { week: 'Week 4', users: stats?.totalUsers || 0, earnings: parseFloat(stats?.totalEarnings || '0') }
-                            ]}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="week" />
-                            <YAxis />
-                            <Tooltip />
-                            <Area type="monotone" dataKey="users" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.4} strokeWidth={2} dot={false} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-
-              {/* User Profiles with Charts */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <i className="fas fa-user-chart mr-2 text-purple-600"></i>
-                    User Analytics Dashboard
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Daily Earnings Chart */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-3 flex items-center">
-                        <i className="fas fa-clock mr-2 text-blue-600"></i>
-                        Daily Earnings (Last 24h)
-                      </h4>
-                      <div className="h-32">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            data={[
-                              { hour: '00', earnings: 0.12 },
-                              { hour: '06', earnings: 0.25 },
-                              { hour: '12', earnings: 0.45 },
-                              { hour: '18', earnings: 0.38 },
-                              { hour: '24', earnings: parseFloat(stats?.totalEarnings || '0') / 30 }
-                            ]}
-                          >
-                            <XAxis dataKey="hour" />
-                            <YAxis />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="earnings" stroke="#2563eb" strokeWidth={2} dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
+                      )}
                     </div>
-                    
-                    {/* Monthly Total Earnings Chart */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-3 flex items-center">
-                        <i className="fas fa-calendar mr-2 text-green-600"></i>
-                        Monthly Total Earnings
-                      </h4>
-                      <div className="h-32">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={[
-                              { week: 'W1', total: 45.2 },
-                              { week: 'W2', total: 78.6 },
-                              { week: 'W3', total: 124.8 },
-                              { week: 'W4', total: parseFloat(stats?.totalEarnings || '0') }
-                            ]}
-                          >
-                            <XAxis dataKey="week" />
-                            <YAxis />
-                            <Tooltip />
-                            <Area type="monotone" dataKey="total" stroke="#10b981" fill="#10b981" fillOpacity={0.4} strokeWidth={2} dot={false} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button 
-                      variant="outline"
-                      className="flex items-center justify-center gap-2"
-                      onClick={() => {
-                        queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-                        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                        toast({ title: "Data refreshed successfully" });
-                      }}
-                      data-testid="button-refresh-data"
-                    >
-                      <i className="fas fa-sync-alt"></i>
-                      Refresh Data
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
+            {/* Users Tab */}
+            <TabsContent value="users" className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-users mr-2 text-purple-600"></i>
+                  User Management
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Active Users</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {users?.map((user: any) => (
+                        <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <i className="fas fa-user text-blue-600"></i>
+                            </div>
+                            <div>
+                              <p className="font-medium">{user.username || `User ${user.id}`}</p>
+                              <p className="text-sm text-muted-foreground">Balance: ${parseFloat(user.balance || '0').toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={user.banned ? "destructive" : "default"}>
+                              {user.banned ? "Banned" : "Active"}
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleUserBanMutation.mutate({ userId: user.id, banned: !user.banned })}
+                              disabled={toggleUserBanMutation.isPending}
+                            >
+                              {user.banned ? "Unban" : "Ban"}
+                            </Button>
+                          </div>
+                        </div>
+                      )) || <p className="text-muted-foreground">No users found</p>}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
+            {/* Tasks Tab */}
+            <TabsContent value="tasks" className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-tasks mr-2 text-green-600"></i>
+                  Task Management
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Pending Tasks</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {tasksLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
+                        <p className="ml-2 text-muted-foreground">Loading tasks...</p>
+                      </div>
+                    ) : tasksData?.promotions && tasksData.promotions.length > 0 ? (
+                      <div className="space-y-4">
+                        {tasksData.promotions.map((task: any) => (
+                          <div key={task.id} className="flex items-center justify-between p-4 border rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                <i className="fas fa-tasks text-green-600"></i>
+                              </div>
+                              <div>
+                                <p className="font-medium">{task.title || 'Task'}</p>
+                                <p className="text-sm text-muted-foreground">Reward: ${parseFloat(task.reward || '0').toFixed(2)}</p>
+                                <p className="text-xs text-muted-foreground">{task.taskType} task</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={task.isApproved ? "default" : "secondary"}>
+                                {task.isApproved ? "Approved" : "Pending"}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <i className="fas fa-inbox text-4xl mb-4 opacity-50"></i>
+                        <p>No pending tasks</p>
+                        <p className="text-sm">Task submissions will appear here</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Withdrawals Tab */}
+            <TabsContent value="withdrawals" className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-money-bill-wave mr-2 text-orange-600"></i>
+                  Withdrawal Management
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Pending Withdrawals</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {withdrawalsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
+                        <p className="ml-2 text-muted-foreground">Loading withdrawals...</p>
+                      </div>
+                    ) : withdrawalsData?.withdrawals && withdrawalsData.withdrawals.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-4 gap-4 font-medium text-sm border-b pb-2">
+                          <span>User</span>
+                          <span>Amount</span>
+                          <span>Method</span>
+                          <span>Date</span>
+                        </div>
+                        {withdrawalsData.withdrawals.map((withdrawal: any) => (
+                          <div key={withdrawal.id} className="grid grid-cols-4 gap-4 items-center p-3 border rounded-lg">
+                            <div>
+                              <p className="font-medium">{withdrawal.user?.firstName || 'User'} {withdrawal.user?.lastName || ''}</p>
+                              <p className="text-xs text-muted-foreground">@{withdrawal.user?.username || withdrawal.user?.telegram_id}</p>
+                            </div>
+                            <p className="font-medium text-green-600">${parseFloat(withdrawal.amount || '0').toFixed(2)}</p>
+                            <Badge variant="outline">{withdrawal.method || 'Unknown'}</Badge>
+                            <p className="text-sm text-muted-foreground">{new Date(withdrawal.createdAt).toLocaleDateString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <i className="fas fa-inbox text-4xl mb-4 opacity-50"></i>
+                        <p>No pending withdrawals</p>
+                        <p className="text-sm">Withdrawal requests will appear here</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Analytics Tab */}
+            <TabsContent value="analytics" className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-chart-area mr-2 text-indigo-600"></i>
+                  Advanced Analytics
+                </h2>
+                
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* User Growth Chart */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center">
+                        <i className="fas fa-chart-line mr-2 text-blue-600"></i>
+                        User Growth Trend
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64">
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                          <div className="text-center">
+                            <i className="fas fa-chart-line text-4xl mb-4 opacity-50"></i>
+                            <p>Growth trend analytics coming soon</p>
+                            <p className="text-sm">Historical data will be available here</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Earnings Chart */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center">
+                        <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
+                        Earnings Overview
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64">
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                          <div className="text-center">
+                            <i className="fas fa-chart-area text-4xl mb-4 opacity-50"></i>
+                            <p>Earnings analytics coming soon</p>
+                            <p className="text-sm">Historical earnings data will be available here</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
           </Tabs>
+          
+          {/* Quick Actions */}
+          <div className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <i className="fas fa-bolt mr-2 text-yellow-600"></i>
+                  Quick Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button 
+                    variant="outline"
+                    className="flex items-center justify-center gap-2"
+                    onClick={() => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/admin/promotions/pending"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
+                      toast({ title: "Data refreshed successfully" });
+                    }}
+                    data-testid="button-refresh-data"
+                  >
+                    <i className="fas fa-sync-alt"></i>
+                    Refresh Data
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
     </Layout>
