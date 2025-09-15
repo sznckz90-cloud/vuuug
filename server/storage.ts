@@ -547,6 +547,20 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userBalances.userId, userId));
   }
 
+  // Helper function to get the correct day bucket start (12:00 PM UTC)
+  private getDayBucketStart(date: Date): Date {
+    const bucketStart = new Date(date);
+    bucketStart.setUTCHours(12, 0, 0, 0);
+    
+    // If the event occurred before 12:00 PM UTC on its calendar day,
+    // it belongs to the previous day's bucket
+    if (date.getTime() < bucketStart.getTime()) {
+      bucketStart.setUTCDate(bucketStart.getUTCDate() - 1);
+    }
+    
+    return bucketStart;
+  }
+
   async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string }> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
@@ -554,18 +568,17 @@ export class DatabaseStorage implements IStorage {
       throw new Error("User not found");
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = this.getDayBucketStart(now);
     
     const lastStreakDate = user.lastStreakDate;
     let newStreak = 1;
     let rewardEarned = "0";
 
     if (lastStreakDate) {
-      const lastDate = new Date(lastStreakDate);
-      lastDate.setHours(0, 0, 0, 0);
+      const lastStreakBucket = this.getDayBucketStart(new Date(lastStreakDate));
       
-      const dayDiff = Math.floor((today.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+      const dayDiff = Math.floor((today.getTime() - lastStreakBucket.getTime()) / (24 * 60 * 60 * 1000));
       
       if (dayDiff === 1) {
         // Consecutive day
@@ -580,7 +593,7 @@ export class DatabaseStorage implements IStorage {
 
     // Calculate streak reward (daily streak bonus)
     if (newStreak > 0) {
-      rewardEarned = "0.0012"; // $0.0012 daily streak bonus
+      rewardEarned = "0.00035"; // 0.00035 TON daily streak bonus
     }
 
     // Update user streak
@@ -619,7 +632,13 @@ export class DatabaseStorage implements IStorage {
     
     if (lastAdDate) {
       const lastDate = new Date(lastAdDate);
-      lastDate.setHours(0, 0, 0, 0);
+      const currentUTC = new Date();
+      // Set to 12:00 PM UTC of the last ad date  
+      lastDate.setUTCHours(12, 0, 0, 0);
+      // If current time is before 12:00 PM UTC today, use yesterday's 12:00 PM UTC
+      if (currentUTC.getTime() < today.getTime()) {
+        lastDate.setUTCDate(lastDate.getUTCDate() - 1);
+      }
       
       if (today.getTime() === lastDate.getTime()) {
         adsCount = (user.adsWatchedToday || 0) + 1;
@@ -651,22 +670,35 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) return false;
     
+    // Use 12:00 PM UTC for daily reset instead of midnight
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const currentUTC = new Date();
+    // Set to 12:00 PM UTC of current day
+    today.setUTCHours(12, 0, 0, 0);
+    // If current time is before 12:00 PM UTC today, use yesterday's 12:00 PM UTC
+    if (currentUTC.getTime() < today.getTime()) {
+      today.setUTCDate(today.getUTCDate() - 1);
+    }
     
     const lastAdDate = user.lastAdDate;
     let currentCount = 0;
     
     if (lastAdDate) {
       const lastDate = new Date(lastAdDate);
-      lastDate.setHours(0, 0, 0, 0);
+      const currentUTC = new Date();
+      // Set to 12:00 PM UTC of the last ad date  
+      lastDate.setUTCHours(12, 0, 0, 0);
+      // If current time is before 12:00 PM UTC today, use yesterday's 12:00 PM UTC
+      if (currentUTC.getTime() < today.getTime()) {
+        lastDate.setUTCDate(lastDate.getUTCDate() - 1);
+      }
       
       if (today.getTime() === lastDate.getTime()) {
         currentCount = user.adsWatchedToday || 0;
       }
     }
     
-    return currentCount < 250; // Daily limit of 250 ads
+    return currentCount < 160; // Daily limit of 160 ads
   }
 
 

@@ -521,13 +521,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user can watch ad (daily limit)
       const canWatch = await storage.canWatchAd(userId);
       if (!canWatch) {
-        return res.status(429).json({ message: 'Daily ad limit reached (250 ads)' });
+        return res.status(429).json({ message: 'Daily ad limit reached (160 ads)' });
       }
       
       // Add earning for watched ad with new rate
       const earning = await storage.addEarning({
         userId,
-        amount: "0.00025",
+        amount: "0.000086",
         source: 'ad_watch',
         description: 'Watched advertisement',
       });
@@ -541,7 +541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send real-time update to user
       sendRealtimeUpdate(userId, {
         type: 'ad_reward',
-        amount: "0.00025",
+        amount: "0.000086",
         message: 'Ad reward earned! 💰',
         timestamp: new Date().toISOString()
       });
@@ -1591,20 +1591,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(promotions.id, promotionId));
       
-      // Post to Telegram channel now that it's approved
-      const { postPromotionToChannel } = await import('./telegram');
-      const messageId = await postPromotionToChannel(promotion);
-      
-      if (messageId) {
-        // Update with channel message ID for linking
-        await db.update(promotions)
-          .set({ 
-            channelMessageId: messageId.toString() 
-          })
-          .where(eq(promotions.id, promotionId));
-        
-        console.log(`✅ Promotion ${promotionId} approved and posted to channel with message_id: ${messageId}`);
-      }
+      // Channel posting functionality removed - promotion features simplified
+      console.log(`✅ Promotion ${promotionId} approved`);
+      const messageId = null;
       
       // Send real-time update to promotion owner
       if (promotion) {
