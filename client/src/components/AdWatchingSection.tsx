@@ -32,7 +32,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       
       // Show reward notification
       const event = new CustomEvent('showReward', { 
-        detail: { amount: 0.00025 } 
+        detail: { amount: 0.000086 } 
       });
       window.dispatchEvent(event);
     },
@@ -88,7 +88,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           watchAdMutation.mutate('rewarded');
           toast({
             title: "Ad Completed!",
-            description: "You earned $0.00025",
+            description: "You earned 0.000086 TON",
           });
         }, 2000);
       }
@@ -98,7 +98,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       watchAdMutation.mutate('rewarded');
       toast({
         title: "Ad Completed!",
-        description: "You earned $0.00025",
+        description: "You earned 0.000086 TON",
       });
     } finally {
       setTimeout(() => {
@@ -112,7 +112,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       <CardContent className="p-3">
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
-          <p className="text-muted-foreground text-xs">Earn $0.00025 per ad watched</p>
+          <p className="text-muted-foreground text-xs">Earn 0.000086 TON per ad watched</p>
         </div>
         
         <div className="relative flex justify-center mb-3">
@@ -134,10 +134,10 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         <div className="text-center">
           <div className="text-muted-foreground text-xs mb-1">Ads watched today</div>
           <div className="text-xl font-bold text-foreground" data-testid="text-ads-watched-today">
-            {user?.adsWatchedToday || 0} / 250
+            {user?.adsWatchedToday || 0} / 160
           </div>
           <div className="text-muted-foreground text-xs mt-1">
-            {250 - (user?.adsWatchedToday || 0)} ads remaining
+            {160 - (user?.adsWatchedToday || 0)} ads remaining
           </div>
         </div>
       </CardContent>

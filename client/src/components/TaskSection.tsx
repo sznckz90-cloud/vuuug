@@ -212,7 +212,7 @@ export default function TaskSection() {
                   {remainingSlots}
                 </span>
               ) : (
-                <span className="text-red-600 dark:text-red-400 font-medium">$0.00025</span>
+                <span className="text-red-600 dark:text-red-400 font-medium">0.000086 TON</span>
               )}
             </div>
             <Button
@@ -225,7 +225,7 @@ export default function TaskSection() {
               {buttonPhase === 'processing' 
                 ? "Processing..." 
                 : isTaskFull 
-                  ? "$0.00025" 
+                  ? "0.000086 TON" 
                   : !isCompleted
                     ? (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
                     : "Completed ✓"
