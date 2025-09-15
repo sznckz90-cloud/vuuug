@@ -7,13 +7,13 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format currency values with a maximum of 7 significant digits
- * Examples: $0.000083, $1.234567, $123.4567, $1234567
+ * Examples: 0.000083 TON, 1.234567 TON, 123.4567 TON, 1234567 TON
  */
 export function formatCurrency(value: string | number, includeSymbol: boolean = true): string {
   const numValue = typeof value === 'string' ? parseFloat(value) : value;
   
   if (isNaN(numValue) || numValue === 0) {
-    return includeSymbol ? '$0' : '0';
+    return includeSymbol ? '0 TON' : '0';
   }
 
   // Use toLocaleString to properly enforce 7 significant digits for all values
@@ -28,6 +28,6 @@ export function formatCurrency(value: string | number, includeSymbol: boolean = 
     formatted = formatted.replace(/0+$/, '').replace(/\.$/, '');
   }
   
-  const symbol = includeSymbol ? '$' : '';
-  return `${symbol}${formatted}`;
+  const symbol = includeSymbol ? ' TON' : '';
+  return `${formatted}${symbol}`;
 }
