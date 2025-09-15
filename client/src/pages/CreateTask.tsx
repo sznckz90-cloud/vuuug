@@ -58,7 +58,7 @@ export default function CreateTask() {
       const taskPayload = {
         ...taskData,
         cost: '0.01',
-        rewardPerUser: '0.00025',
+        rewardPerUser: '0.000086',
         limit: 1000,
         title: `${taskData.type === 'channel' ? 'Subscribe to' : 'Start'} ${taskData.url.replace('https://t.me/', '@')}`,
       };
@@ -170,7 +170,7 @@ export default function CreateTask() {
               <div className="space-y-1 text-sm text-muted-foreground">
                 <div className="flex justify-between">
                   <span>Ad Cost:</span>
-                  <span className="font-medium">$0.01</span>
+                  <span className="font-medium">0.01 TON</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Max Participants:</span>
@@ -178,7 +178,7 @@ export default function CreateTask() {
                 </div>
                 <div className="flex justify-between">
                   <span>Reward per User:</span>
-                  <span className="font-medium">$0.00001</span>
+                  <span className="font-medium">0.000086 TON</span>
                 </div>
               </div>
             </div>
