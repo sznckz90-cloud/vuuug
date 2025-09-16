@@ -12,6 +12,7 @@ import {
   withdrawals,
   promotions,
   taskCompletions,
+  dailyTaskCompletions,
   userBalances
 } from "../shared/schema";
 import { db } from "./db";
@@ -968,31 +969,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(promotions.createdAt));
       
       // Check which tasks user has already completed
-      const completedTaskIds = await db
-        .select({ 
-          promotionId: taskCompletions.promotionId,
-          completedAt: taskCompletions.completedAt 
-        })
+      const completedIds = new Set<string>();
+      
+      // Calculate current task date using 12:00 PM UTC reset logic
+      const getCurrentTaskDate = (): string => {
+        const now = new Date();
+        const resetHour = 12; // 12:00 PM UTC
+        
+        // If current time is before 12:00 PM UTC, use yesterday's date
+        if (now.getUTCHours() < resetHour) {
+          now.setUTCDate(now.getUTCDate() - 1);
+        }
+        
+        return now.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+      };
+      
+      const currentTaskDate = getCurrentTaskDate();
+      
+      // Query non-daily task completions from taskCompletions table
+      const nonDailyCompletions = await db
+        .select({ promotionId: taskCompletions.promotionId })
         .from(taskCompletions)
         .where(eq(taskCompletions.userId, userId));
       
-      const completedIds = new Set();
-      const now = new Date();
+      // Query daily task completions from dailyTaskCompletions table for today only
+      const dailyCompletions = await db
+        .select({ promotionId: dailyTaskCompletions.promotionId })
+        .from(dailyTaskCompletions)
+        .where(and(
+          eq(dailyTaskCompletions.userId, userId),
+          eq(dailyTaskCompletions.completionDate, currentTaskDate)
+        ));
       
-      // For non-daily tasks, permanently hide if completed
-      // For daily tasks, only hide if completed within last 24 hours
-      for (const completion of completedTaskIds) {
+      // Add non-daily completed tasks (permanently hidden)
+      for (const completion of nonDailyCompletions) {
         const task = activeTasks.find(t => t.id === completion.promotionId);
-        if (task?.type === 'daily') {
-          const completedAt = completion.completedAt ? new Date(completion.completedAt) : new Date();
-          const hoursSinceCompletion = (now.getTime() - completedAt.getTime()) / (1000 * 60 * 60);
-          if (hoursSinceCompletion < 24) {
-            completedIds.add(completion.promotionId);
-          }
-        } else {
-          // Non-daily tasks: hide permanently if completed
+        const isDailyTask = task && ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard', 'daily'].includes(task.type);
+        
+        if (!isDailyTask) {
+          // Only add non-daily tasks to completed set
           completedIds.add(completion.promotionId);
         }
+      }
+      
+      // Add daily completed tasks (hidden until tomorrow's reset at 12:00 PM UTC)
+      for (const completion of dailyCompletions) {
+        completedIds.add(completion.promotionId);
       }
       
       // Filter out completed tasks and generate proper task links
@@ -1024,6 +1046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           return {
             ...task,
+            reward: task.rewardPerUser, // Map rewardPerUser to reward for frontend compatibility
             channelPostUrl,
             claimUrl,
             username // Include username for mobile fallback

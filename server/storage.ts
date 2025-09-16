@@ -1369,46 +1369,123 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  // Ensure default daily task exists for production deployment
-  async ensureDailyTaskExists(): Promise<void> {
+  // Ensure all required system tasks exist for production deployment
+  async ensureSystemTasksExist(): Promise<void> {
     try {
-      const dailyTaskId = 'daily-check-update';
-      
-      // Check if daily task already exists
-      const existingTask = await this.getPromotion(dailyTaskId);
-      if (existingTask) {
-        console.log('✅ Daily task already exists:', dailyTaskId);
-        return;
-      }
-
       // Get first available user to be the owner (needed for foreign key)
       const [firstUser] = await db.select({ id: users.id }).from(users).limit(1);
       if (!firstUser) {
-        console.log('⚠️ No users found, skipping daily task creation');
+        console.log('⚠️ No users found, skipping system task creation');
         return;
       }
 
-      // Create the daily task
-      await db.insert(promotions).values({
-        id: dailyTaskId,
-        ownerId: firstUser.id,
-        type: 'daily',
-        url: 'https://t.me/PaidAdsNews',
-        cost: '0',
-        rewardPerUser: '0.00045',
-        limit: 1000,
-        claimedCount: 0,
-        status: 'active',
-        title: 'check update',
-        description: 'Check our latest updates and news',
-        reward: 1000,
-        createdAt: new Date()
-      });
+      // Define all system tasks with exact specifications
+      const systemTasks = [
+        // Fixed daily tasks
+        {
+          id: 'channel-visit-check-update',
+          type: 'channel_visit',
+          url: 'https://t.me/PaidAdsNews',
+          rewardPerUser: '0.0001500', // 0.00015 TON formatted to 7 digits
+          title: 'Channel visit (Check Update)',
+          description: 'Visit our Telegram channel for updates and news'
+        },
+        {
+          id: 'app-link-share',
+          type: 'share_link',
+          url: 'share://referral',
+          rewardPerUser: '0.0002000', // 0.00020 TON formatted to 7 digits
+          title: 'App link share (Share link)',
+          description: 'Share your affiliate link with friends'
+        },
+        {
+          id: 'invite-friend-valid',
+          type: 'invite_friend',
+          url: 'invite://friend',
+          rewardPerUser: '0.0005000', // 0.00050 TON formatted to 7 digits
+          title: 'Invite friend (valid)',
+          description: 'Invite 1 valid friend to earn rewards'
+        },
+        // Daily ads goal tasks
+        {
+          id: 'ads-goal-mini',
+          type: 'ads_goal_mini',
+          url: 'watch://ads/mini',
+          rewardPerUser: '0.0004500', // 0.00045 TON formatted to 7 digits
+          title: 'Mini (Watch 15 ads)',
+          description: 'Watch 15 ads to complete this daily goal'
+        },
+        {
+          id: 'ads-goal-light',
+          type: 'ads_goal_light',
+          url: 'watch://ads/light',
+          rewardPerUser: '0.0006000', // 0.00060 TON formatted to 7 digits
+          title: 'Light (Watch 25 ads)',
+          description: 'Watch 25 ads to complete this daily goal'
+        },
+        {
+          id: 'ads-goal-medium',
+          type: 'ads_goal_medium',
+          url: 'watch://ads/medium',
+          rewardPerUser: '0.0007000', // 0.00070 TON formatted to 7 digits
+          title: 'Medium (Watch 45 ads)',
+          description: 'Watch 45 ads to complete this daily goal'
+        },
+        {
+          id: 'ads-goal-hard',
+          type: 'ads_goal_hard',
+          url: 'watch://ads/hard',
+          rewardPerUser: '0.0008000', // 0.00080 TON formatted to 7 digits
+          title: 'Hard (Watch 75 ads)',
+          description: 'Watch 75 ads to complete this daily goal'
+        }
+      ];
 
-      console.log('✅ Daily task created successfully:', dailyTaskId);
+      // Create or update each system task
+      for (const task of systemTasks) {
+        const existingTask = await this.getPromotion(task.id);
+        
+        if (existingTask) {
+          // Update existing task to match current specifications
+          await db.update(promotions)
+            .set({
+              type: task.type,
+              url: task.url,
+              rewardPerUser: task.rewardPerUser,
+              title: task.title,
+              description: task.description,
+              status: 'active',
+              isApproved: true // System tasks are pre-approved
+            })
+            .where(eq(promotions.id, task.id));
+          
+          console.log(`✅ System task updated: ${task.title}`);
+        } else {
+          // Create new system task
+          await db.insert(promotions).values({
+            id: task.id,
+            ownerId: firstUser.id,
+            type: task.type,
+            url: task.url,
+            cost: '0',
+            rewardPerUser: task.rewardPerUser,
+            limit: 100000, // High limit for system tasks
+            claimedCount: 0,
+            status: 'active',
+            isApproved: true, // System tasks are pre-approved
+            title: task.title,
+            description: task.description,
+            createdAt: new Date()
+          });
+          
+          console.log(`✅ System task created: ${task.title}`);
+        }
+      }
+
+      console.log('✅ All system tasks ensured successfully');
     } catch (error) {
-      console.error('❌ Error ensuring daily task exists:', error);
-      // Don't throw - server should still start even if daily task creation fails
+      console.error('❌ Error ensuring system tasks exist:', error);
+      // Don't throw - server should still start even if task creation fails
     }
   }
 

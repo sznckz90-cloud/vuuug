@@ -13,7 +13,7 @@ console.log('✅ Database schema verified, starting server setup...');
 // Ensure daily task and admin user exist for production deployment
 try {
   const { storage } = await import('./storage');
-  await storage.ensureDailyTaskExists();
+  await storage.ensureSystemTasksExist();
   await storage.ensureAdminUserExists();
 } catch (error) {
   console.log('⚠️ Could not ensure system setup:', error);
