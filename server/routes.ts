@@ -202,8 +202,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Verify session token securely
           try {
-            // In development mode, allow test user authentication
-            if ((process.env.NODE_ENV === 'development' || process.env.REPL_ID) && data.sessionToken === 'test-session') {
+            // In development mode ONLY, allow test user authentication
+            if (process.env.NODE_ENV === 'development' && data.sessionToken === 'test-session') {
               const testUserId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
               sessionId = `session_${Date.now()}_${Math.random()}`;
               connectedUsers.set(sessionId, { socket: ws, userId: testUserId });
@@ -1326,11 +1326,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Task/Promotion API routes
   
-  // Get all active promotions/tasks
+  // Get all active promotions/tasks for current user
   app.get('/api/tasks', authenticateTelegram, async (req: any, res) => {
     try {
-      const promotions = await storage.getAllActivePromotions();
-      res.json(promotions);
+      const userId = req.user.user.id;
+      const result = await storage.getAvailablePromotionsForUser(userId);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching tasks:", error);
       res.status(500).json({ message: "Failed to fetch tasks" });
@@ -1355,12 +1356,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate taskType is one of the allowed values
-      const allowedTaskTypes = ['channel', 'bot', 'daily'];
+      const allowedTaskTypes = [
+        'channel', 'bot', 'daily', 'fix',
+        'channel_visit', 'share_link', 'invite_friend',
+        'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'
+      ];
       if (!allowedTaskTypes.includes(taskType)) {
         console.log(`❌ Task completion blocked: Invalid taskType '${taskType}' for user ${userId}`);
         return res.status(400).json({ 
           success: false, 
-          message: '❌ Task cannot be completed: Invalid task type. Allowed types: channel, bot, daily.' 
+          message: '❌ Task cannot be completed: Invalid task type.' 
         });
       }
       
@@ -1413,6 +1418,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isVerified = true;
           verificationMessage = 'Daily task completed';
         }
+      } else if (taskType === 'fix') {
+        // Fix tasks are verified by default (user opening link is verification)
+        isVerified = true;
+        verificationMessage = 'Fix task completed';
+      } else if (taskType === 'channel_visit') {
+        // Channel visit task requires channel membership verification
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+          console.log('⚠️ TELEGRAM_BOT_TOKEN not configured, skipping channel verification');
+          isVerified = false;
+          verificationMessage = 'Channel verification failed - bot token not configured';
+        } else {
+          // Extract channel username from promotion URL
+          const promotion = await storage.getPromotion(promotionId);
+          const channelMatch = promotion?.url?.match(/t\.me\/([^/?]+)/);
+          const channelName = channelMatch ? channelMatch[1] : 'PaidAdsNews';
+          
+          const isMember = await verifyChannelMembership(parseInt(telegramUserId), `@${channelName}`, botToken);
+          isVerified = isMember;
+          verificationMessage = isVerified 
+            ? 'Channel membership verified successfully' 
+            : `Please join the channel @${channelName} first to complete this task`;
+        }
+      } else if (taskType === 'share_link') {
+        // Share link task is auto-verified (user sharing is the action)
+        isVerified = true;
+        verificationMessage = 'App link shared successfully';
+      } else if (taskType === 'invite_friend') {
+        // Invite friend task requires checking if user has made a valid referral today
+        // Check if user has made any referrals in the last 24 hours
+        try {
+          const { pool } = await import('./db');
+          const result = await pool.query(`
+            SELECT COUNT(*) as referral_count 
+            FROM referrals 
+            WHERE referrer_id = $1 
+            AND created_at >= NOW() - INTERVAL '24 hours'
+          `, [userId]);
+          
+          const referralCount = parseInt(result.rows[0]?.referral_count || '0');
+          isVerified = referralCount > 0;
+          verificationMessage = isVerified 
+            ? `Friend invitation verified (${referralCount} referral${referralCount > 1 ? 's' : ''} today)` 
+            : 'Please invite a friend to complete this task. Share your referral link to earn rewards together!';
+        } catch (error) {
+          console.error('❌ Error checking referrals for invite_friend task:', error);
+          isVerified = false;
+          verificationMessage = 'Unable to verify friend invitation. Please try again later.';
+        }
+      } else if (taskType.startsWith('ads_goal_')) {
+        // Ads goal tasks require checking user's daily ad count
+        const hasMetGoal = await storage.checkAdsGoalCompletion(userId, taskType);
+        isVerified = hasMetGoal;
+        verificationMessage = isVerified 
+          ? 'Ads goal achieved successfully' 
+          : 'You need to watch more ads today to complete this goal';
       } else {
         console.log(`❌ Task validation failed: Invalid task type '${taskType}' or missing parameters`, {
           taskType,
@@ -1455,10 +1516,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const rewardAmount = promotion.rewardPerUser || '0.00025';
       console.log(`🔍 Promotion details:`, { rewardPerUser: promotion.rewardPerUser, type: promotion.type, id: promotion.id });
-      console.log(`💰 Using dynamic reward amount: $${rewardAmount}`);
       
-      // Complete the task if verification passed
-      const result = await storage.completeTask(promotionId, userId, rewardAmount);
+      // Determine if this is a daily task (new task types that reset daily)
+      const isDailyTask = [
+        'channel_visit', 'share_link', 'invite_friend',
+        'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'
+      ].includes(taskType);
+      
+      if (isDailyTask) {
+        console.log(`💰 Using dynamic reward amount: ${rewardAmount} TON`);
+      } else {
+        console.log(`💰 Using dynamic reward amount: $${rewardAmount}`);
+      }
+      
+      // Complete the task using appropriate method
+      const result = isDailyTask 
+        ? await storage.completeDailyTask(promotionId, userId, rewardAmount)
+        : await storage.completeTask(promotionId, userId, rewardAmount);
       
       if (result.success) {
         // Get updated balance for real-time sync
@@ -1468,11 +1542,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`💰 Balance updated for user ${userId}: $${updatedBalance?.balance || '0'}`);
           
           // Send real-time balance update to WebSocket clients
+          const currencySymbol = isDailyTask ? 'TON' : '$';
           const balanceUpdate = {
             type: 'balance_update',
             balance: updatedBalance?.balance || '0',
             delta: rewardAmount,
-            message: `🎉 Task completed! +$${parseFloat(rewardAmount).toFixed(5)}`
+            message: `🎉 Task completed! +${currencySymbol}${parseFloat(rewardAmount).toFixed(5)}`
           };
           sendRealtimeUpdate(userId, balanceUpdate);
           console.log(`📡 Real-time balance update sent to user ${userId}`);

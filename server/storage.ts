@@ -9,6 +9,7 @@ import {
   promotions,
   promotionClaims,
   taskCompletions,
+  dailyTaskCompletions,
   userBalances,
   transactions,
   type User,
@@ -28,6 +29,8 @@ import {
   type InsertPromotionClaim,
   type TaskCompletion,
   type InsertTaskCompletion,
+  type DailyTaskCompletion,
+  type InsertDailyTaskCompletion,
   type UserBalance,
   type InsertUserBalance,
   type Transaction,
@@ -1480,6 +1483,84 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(promotions.createdAt));
   }
 
+  async getAvailablePromotionsForUser(userId: string): Promise<any> {
+    // Get all active and approved promotions
+    const allPromotions = await db.select().from(promotions)
+      .where(and(eq(promotions.status, 'active'), eq(promotions.isApproved, true)))
+      .orderBy(desc(promotions.createdAt));
+
+    const currentDate = this.getCurrentTaskDate();
+    const availablePromotions = [];
+
+    for (const promotion of allPromotions) {
+      // Check if this is a daily task type
+      const isDailyTask = [
+        'channel_visit', 'share_link', 'invite_friend',
+        'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'
+      ].includes(promotion.type);
+
+      if (isDailyTask) {
+        // For daily tasks, check if user has completed it today
+        const hasCompletedToday = await this.hasUserCompletedDailyTask(promotion.id, userId);
+        if (!hasCompletedToday) {
+          // For ads goal tasks, always show them for progress tracking
+          if (promotion.type.startsWith('ads_goal_')) {
+            const hasMetGoal = await this.checkAdsGoalCompletion(userId, promotion.type);
+            availablePromotions.push({
+              ...promotion,
+              isAvailable: hasMetGoal,
+              completionStatus: hasMetGoal ? 'available' : 'in_progress'
+            });
+          } else {
+            availablePromotions.push({
+              ...promotion,
+              isAvailable: true,
+              completionStatus: 'available'
+            });
+          }
+        } else {
+          // For ads goal tasks, always show them even if completed today for progress tracking
+          if (promotion.type.startsWith('ads_goal_')) {
+            availablePromotions.push({
+              ...promotion,
+              isAvailable: false,
+              completionStatus: 'completed_today'
+            });
+          }
+        }
+      } else {
+        // For regular tasks, check if user has completed it ever
+        const hasCompleted = await this.hasUserCompletedTask(promotion.id, userId);
+        if (!hasCompleted) {
+          availablePromotions.push({
+            ...promotion,
+            isAvailable: true,
+            completionStatus: 'available'
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      tasks: availablePromotions.map(p => ({
+        id: p.id,
+        title: p.title || 'Untitled Task',
+        description: p.description || '',
+        type: p.type,
+        channelUsername: p.url?.match(/t\.me\/([^/?]+)/)?.[1],
+        botUsername: p.url?.match(/t\.me\/([^/?]+)/)?.[1],
+        reward: p.rewardPerUser || '0',
+        completedCount: p.claimedCount || 0,
+        totalSlots: p.limit || 1000,
+        isActive: p.status === 'active',
+        createdAt: p.createdAt,
+        claimUrl: p.url
+      })),
+      total: availablePromotions.length
+    };
+  }
+
   async getPromotion(id: string): Promise<Promotion | undefined> {
     const [promotion] = await db.select().from(promotions).where(eq(promotions.id, id));
     return promotion;
@@ -1549,6 +1630,106 @@ export class DatabaseStorage implements IStorage {
         eq(taskCompletions.userId, userId)
       ));
     return !!completion;
+  }
+
+  // Get current date in YYYY-MM-DD format for 12:00 PM UTC reset
+  private getCurrentTaskDate(): string {
+    const now = new Date();
+    const resetHour = 12; // 12:00 PM UTC
+    
+    // If current time is before 12:00 PM UTC, use yesterday's date
+    if (now.getUTCHours() < resetHour) {
+      now.setUTCDate(now.getUTCDate() - 1);
+    }
+    
+    return now.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+  }
+
+  async hasUserCompletedDailyTask(promotionId: string, userId: string): Promise<boolean> {
+    const currentDate = this.getCurrentTaskDate();
+    
+    const [completion] = await db.select().from(dailyTaskCompletions)
+      .where(and(
+        eq(dailyTaskCompletions.promotionId, promotionId),
+        eq(dailyTaskCompletions.userId, userId),
+        eq(dailyTaskCompletions.completionDate, currentDate)
+      ));
+    return !!completion;
+  }
+
+  async completeDailyTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if promotion exists
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Daily task not found' };
+      }
+
+      // Check if user already completed this daily task today
+      const hasCompleted = await this.hasUserCompletedDailyTask(promotionId, userId);
+      if (hasCompleted) {
+        return { success: false, message: 'You have already completed this daily task today' };
+      }
+
+      const currentDate = this.getCurrentTaskDate();
+
+      // Record daily task completion
+      await db.insert(dailyTaskCompletions).values({
+        promotionId,
+        userId,
+        rewardAmount,
+        completionDate: currentDate,
+      });
+
+      console.log(`📊 DAILY_TASK_COMPLETION_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Date=${currentDate}, Status=SUCCESS, Title="${promotion.title}"`);
+
+      // Add reward to user's earnings balance
+      await this.addBalance(userId, rewardAmount);
+
+      // Add earning record
+      await this.addEarning({
+        userId,
+        amount: rewardAmount,
+        source: 'daily_task_completion',
+        description: `Daily task completed: ${promotion.title}`,
+      });
+
+      // Send task completion notification to user via Telegram
+      try {
+        const { sendTaskCompletionNotification } = await import('./telegram');
+        await sendTaskCompletionNotification(userId, rewardAmount);
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+        // Don't fail the task completion if notification fails
+      }
+
+      return { success: true, message: 'Daily task completed successfully' };
+    } catch (error) {
+      console.error('Error completing daily task:', error);
+      return { success: false, message: 'Error completing daily task' };
+    }
+  }
+
+  async checkAdsGoalCompletion(userId: string, adsGoalType: string): Promise<boolean> {
+    const user = await this.getUser(userId);
+    if (!user) return false;
+
+    const currentDate = this.getCurrentTaskDate();
+    const adsWatchedToday = user.adsWatchedToday || 0;
+
+    // Define ads goal thresholds
+    const adsGoalThresholds = {
+      'ads_goal_mini': 15,
+      'ads_goal_light': 25, 
+      'ads_goal_medium': 45,
+      'ads_goal_hard': 75
+    };
+
+    const requiredAds = adsGoalThresholds[adsGoalType as keyof typeof adsGoalThresholds];
+    if (!requiredAds) return false;
+
+    // Check if user has watched enough ads today
+    return adsWatchedToday >= requiredAds;
   }
 
   // Simplified methods for the new schema - no complex tracking needed
