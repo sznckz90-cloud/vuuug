@@ -187,6 +187,18 @@ export const promotionClaims = pgTable("promotion_claims", {
   uniqueClaim: unique().on(table.promotionId, table.userId),
 }));
 
+// Daily task completions tracking for tasks that reset daily
+export const dailyTaskCompletions = pgTable("daily_task_completions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
+  completionDate: varchar("completion_date").notNull(), // Date in YYYY-MM-DD format
+  completedAt: timestamp("completed_at").defaultNow(),
+}, (table) => ({
+  uniqueDailyCompletion: unique().on(table.promotionId, table.userId, table.completionDate),
+}));
+
 // User balances table - separate balance tracking  
 export const userBalances = pgTable("user_balances", {
   id: serial("id").primaryKey(),
@@ -205,6 +217,7 @@ export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: t
 export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, createdAt: true });
 export const insertPromotionClaimSchema = createInsertSchema(promotionClaims).omit({ id: true, claimedAt: true });
 export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
+export const insertDailyTaskCompletionSchema = createInsertSchema(dailyTaskCompletions).omit({ id: true, completedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
@@ -227,5 +240,7 @@ export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type TaskCompletion = typeof taskCompletions.$inferSelect;
 export type InsertTaskCompletion = z.infer<typeof insertTaskCompletionSchema>;
+export type DailyTaskCompletion = typeof dailyTaskCompletions.$inferSelect;
+export type InsertDailyTaskCompletion = z.infer<typeof insertDailyTaskCompletionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
 export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
