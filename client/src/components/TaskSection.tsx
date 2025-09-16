@@ -12,7 +12,7 @@ interface Promotion {
   id: string;
   title: string;
   description: string;
-  type: 'fix';
+  type: 'fix' | 'channel_visit' | 'share_link' | 'invite_friend' | 'ads_goal_mini' | 'ads_goal_light' | 'ads_goal_medium' | 'ads_goal_hard' | 'channel' | 'bot' | 'daily';
   channelUsername?: string;
   botUsername?: string;
   reward: string;
@@ -20,6 +20,7 @@ interface Promotion {
   totalSlots: number;
   isActive: boolean;
   createdAt: string;
+  claimUrl?: string;
 }
 
 interface TaskCompletionStatus {
@@ -48,7 +49,7 @@ const getTelegramInitData = (): string | null => {
 export default function TaskSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'fix'>('fix');
+  const [activeTab, setActiveTab] = useState<'daily' | 'fix'>('daily');
   const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
 
   // Check for Telegram environment on component mount
@@ -92,8 +93,11 @@ export default function TaskSection() {
   
   const tasks = tasksResponse?.tasks || [];
 
-  // Filter tasks by category - only show approved 'fix' tasks
+  // Filter tasks by category
   const fixTasks = tasks.filter(task => task.type === 'fix');
+  const dailyTasks = tasks.filter(task => 
+    ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(task.type)
+  );
 
   // Complete task mutation
   const completeTaskMutation = useMutation({
@@ -184,7 +188,9 @@ export default function TaskSection() {
     const isTaskFull = task.completedCount >= task.totalSlots;
     const remainingSlots = task.totalSlots - task.completedCount;
     
-    // Fix tasks completion logic - can only be completed once
+    // Daily tasks vs regular tasks completion logic
+    const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(task.type);
+    const currencySymbol = isDailyTask ? 'TON' : '$';
     const canComplete = !isCompleted && !isTaskFull;
 
     // Hide completed tasks entirely
@@ -200,7 +206,7 @@ export default function TaskSection() {
               <CardTitle className="text-sm font-semibold text-foreground">{task.title}</CardTitle>
             </div>
             <Badge variant={isCompleted ? "default" : "secondary"} className="ml-2 text-xs">
-              ${task.reward}
+              {currencySymbol}{task.reward}
             </Badge>
           </div>
         </CardHeader>
@@ -225,7 +231,7 @@ export default function TaskSection() {
               {buttonPhase === 'processing' 
                 ? "Processing..." 
                 : isTaskFull 
-                  ? "0.000086 TON" 
+                  ? "Sold Out" 
                   : !isCompleted
                     ? (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
                     : "Completed ✓"
@@ -273,28 +279,63 @@ export default function TaskSection() {
         </Alert>
       )}
       
-      {/* Fix Tasks Section */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-foreground flex items-center">
-            <i className="fas fa-tools mr-2 text-blue-600"></i>
-            Fix Tasks
-            <span className="ml-2 text-sm text-muted-foreground">({fixTasks.length})</span>
-          </h3>
-        </div>
-        
-        {fixTasks.length > 0 ? (
-          fixTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))
-        ) : (
-          <div className="text-center py-8" data-testid="text-no-fix-tasks">
-            <i className="fas fa-tools text-4xl text-muted-foreground mb-4"></i>
-            <div className="text-muted-foreground text-lg font-medium">No fix tasks available</div>
-            <div className="text-sm text-muted-foreground mt-2">Fix tasks will appear here when admin approves them</div>
+      {/* Tabs for different task types */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'daily' | 'fix')}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="daily" className="flex items-center">
+            <i className="fas fa-calendar-alt mr-2"></i>
+            Daily Tasks ({dailyTasks.length})
+          </TabsTrigger>
+          <TabsTrigger value="fix" className="flex items-center">
+            <i className="fas fa-tools mr-2"></i>
+            Fix Tasks ({fixTasks.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="daily" className="space-y-2 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-foreground flex items-center">
+              <i className="fas fa-calendar-alt mr-2 text-green-600"></i>
+              Daily Tasks
+              <span className="ml-2 text-sm text-muted-foreground">Reset at 12:00 PM UTC</span>
+            </h3>
           </div>
-        )}
-      </div>
+          
+          {dailyTasks.length > 0 ? (
+            dailyTasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))
+          ) : (
+            <div className="text-center py-8" data-testid="text-no-daily-tasks">
+              <i className="fas fa-calendar-alt text-4xl text-muted-foreground mb-4"></i>
+              <div className="text-muted-foreground text-lg font-medium">No daily tasks available</div>
+              <div className="text-sm text-muted-foreground mt-2">Daily tasks reset at 12:00 PM UTC</div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="fix" className="space-y-2 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-foreground flex items-center">
+              <i className="fas fa-tools mr-2 text-blue-600"></i>
+              Fix Tasks
+              <span className="ml-2 text-sm text-muted-foreground">One-time completion</span>
+            </h3>
+          </div>
+          
+          {fixTasks.length > 0 ? (
+            fixTasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))
+          ) : (
+            <div className="text-center py-8" data-testid="text-no-fix-tasks">
+              <i className="fas fa-tools text-4xl text-muted-foreground mb-4"></i>
+              <div className="text-muted-foreground text-lg font-medium">No fix tasks available</div>
+              <div className="text-sm text-muted-foreground mt-2">Fix tasks will appear here when admin approves them</div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
     </div>
   );
