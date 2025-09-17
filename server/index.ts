@@ -173,11 +173,15 @@ app.use((req, res, next) => {
     if (process.env.TELEGRAM_BOT_TOKEN) {
       try {
         const { setupTelegramWebhook } = await import('./telegram');
-        // Use the correct domain for the webhook (Render, Replit, or fallback)
+        // Use the correct domain for the webhook (Render, Replit, or require env)
         const domain = process.env.RENDER_EXTERNAL_URL?.replace(/^https?:\/\//, '') ||
                       process.env.REPLIT_DOMAIN || 
-                      (process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.replit.app` : null) ||
-                      'lighting-sats-app.onrender.com'; // fallback to your production domain
+                      (process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.replit.app` : null);
+        
+        if (!domain) {
+          log('❌ No webhook domain configured - set RENDER_EXTERNAL_URL or ensure Replit environment variables are available');
+          return;
+        }
         const webhookUrl = `https://${domain}/api/telegram/webhook`;
         log(`Setting up Telegram webhook: ${webhookUrl}`);
         

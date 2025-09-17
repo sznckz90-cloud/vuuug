@@ -623,27 +623,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementAdsWatched(userId: string): Promise<void> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
     if (!user) return;
 
+    // Use 12:00 PM UTC for daily reset logic
+    const getCurrentResetDate = (): Date => {
+      const now = new Date();
+      const resetTime = new Date();
+      resetTime.setUTCHours(12, 0, 0, 0);
+      
+      // If current time is before 12:00 PM UTC today, use yesterday's reset time
+      if (now.getTime() < resetTime.getTime()) {
+        resetTime.setUTCDate(resetTime.getUTCDate() - 1);
+      }
+      
+      return resetTime;
+    };
+
+    const currentResetDate = getCurrentResetDate();
     const lastAdDate = user.lastAdDate;
     let adsCount = 1;
     
     if (lastAdDate) {
-      const lastDate = new Date(lastAdDate);
-      const currentUTC = new Date();
-      // Set to 12:00 PM UTC of the last ad date  
-      lastDate.setUTCHours(12, 0, 0, 0);
-      // If current time is before 12:00 PM UTC today, use yesterday's 12:00 PM UTC
-      if (currentUTC.getTime() < today.getTime()) {
-        lastDate.setUTCDate(lastDate.getUTCDate() - 1);
-      }
+      const lastResetDate = new Date(lastAdDate);
+      // Set to 12:00 PM UTC of the last ad date
+      lastResetDate.setUTCHours(12, 0, 0, 0);
       
-      if (today.getTime() === lastDate.getTime()) {
+      // Check if the last ad was in the same reset period as current
+      if (currentResetDate.getTime() === lastResetDate.getTime()) {
         adsCount = (user.adsWatchedToday || 0) + 1;
       }
     }
@@ -673,30 +681,30 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) return false;
     
-    // Use 12:00 PM UTC for daily reset instead of midnight
-    const today = new Date();
-    const currentUTC = new Date();
-    // Set to 12:00 PM UTC of current day
-    today.setUTCHours(12, 0, 0, 0);
-    // If current time is before 12:00 PM UTC today, use yesterday's 12:00 PM UTC
-    if (currentUTC.getTime() < today.getTime()) {
-      today.setUTCDate(today.getUTCDate() - 1);
-    }
-    
+    // Use same reset logic as incrementAdsWatched
+    const getCurrentResetDate = (): Date => {
+      const now = new Date();
+      const resetTime = new Date();
+      resetTime.setUTCHours(12, 0, 0, 0);
+      
+      // If current time is before 12:00 PM UTC today, use yesterday's reset time
+      if (now.getTime() < resetTime.getTime()) {
+        resetTime.setUTCDate(resetTime.getUTCDate() - 1);
+      }
+      
+      return resetTime;
+    };
+
+    const currentResetDate = getCurrentResetDate();
     const lastAdDate = user.lastAdDate;
     let currentCount = 0;
     
     if (lastAdDate) {
-      const lastDate = new Date(lastAdDate);
-      const currentUTC = new Date();
-      // Set to 12:00 PM UTC of the last ad date  
-      lastDate.setUTCHours(12, 0, 0, 0);
-      // If current time is before 12:00 PM UTC today, use yesterday's 12:00 PM UTC
-      if (currentUTC.getTime() < today.getTime()) {
-        lastDate.setUTCDate(lastDate.getUTCDate() - 1);
-      }
+      const lastResetDate = new Date(lastAdDate);
+      lastResetDate.setUTCHours(12, 0, 0, 0);
       
-      if (today.getTime() === lastDate.getTime()) {
+      // Check if the last ad was in the same reset period as current
+      if (currentResetDate.getTime() === lastResetDate.getTime()) {
         currentCount = user.adsWatchedToday || 0;
       }
     }
@@ -1372,11 +1380,23 @@ export class DatabaseStorage implements IStorage {
   // Ensure all required system tasks exist for production deployment
   async ensureSystemTasksExist(): Promise<void> {
     try {
-      // Get first available user to be the owner (needed for foreign key)
-      const [firstUser] = await db.select({ id: users.id }).from(users).limit(1);
+      // Get first available user to be the owner, or create a system user
+      let firstUser = await db.select({ id: users.id }).from(users).limit(1).then(users => users[0]);
+      
       if (!firstUser) {
-        console.log('⚠️ No users found, skipping system task creation');
-        return;
+        console.log('⚠️ No users found, creating system user for task ownership');
+        // Create a system user for task ownership
+        const systemUser = await db.insert(users).values({
+          id: 'system-user',
+          username: 'System',
+          firstName: 'System',
+          lastName: 'Tasks',
+          referralCode: 'SYSTEM',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }).returning({ id: users.id });
+        firstUser = systemUser[0];
+        console.log('✅ System user created for task ownership');
       }
 
       // Define all system tasks with exact specifications
