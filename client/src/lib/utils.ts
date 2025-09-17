@@ -6,27 +6,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format currency values with a maximum of 7 significant digits
- * Examples: 0.000083 TON, 1.234567 TON, 123.4567 TON, 1234567 TON
+ * Format currency values with exactly 7 decimal places for TON precision
+ * Examples: 0.0001500 TON, 0.0002000 TON, 0.0008000 TON
  */
 export function formatCurrency(value: string | number, includeSymbol: boolean = true): string {
   const numValue = typeof value === 'string' ? parseFloat(value) : value;
   
-  if (isNaN(numValue) || numValue === 0) {
-    return includeSymbol ? '0 TON' : '0';
+  if (isNaN(numValue)) {
+    return includeSymbol ? '0.0000000 TON' : '0.0000000';
   }
 
-  // Use toLocaleString to properly enforce 7 significant digits for all values
-  let formatted = numValue.toLocaleString('en-US', {
-    maximumSignificantDigits: 7,
-    useGrouping: false,
-    notation: 'standard'
-  });
-  
-  // Remove trailing decimal zeros
-  if (formatted.includes('.')) {
-    formatted = formatted.replace(/0+$/, '').replace(/\.$/, '');
-  }
+  // Format to exactly 7 decimal places as requested by user
+  const formatted = numValue.toFixed(7);
   
   const symbol = includeSymbol ? ' TON' : '';
   return `${formatted}${symbol}`;
