@@ -169,6 +169,16 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
+    // Set up daily reset check (runs every 5 minutes)
+    setInterval(async () => {
+      try {
+        const { storage } = await import('./storage');
+        await storage.checkAndPerformDailyReset();
+      } catch (error) {
+        console.error('❌ Error in daily reset check:', error);
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+    
     // Auto-setup Telegram webhook on server start
     if (process.env.TELEGRAM_BOT_TOKEN) {
       try {

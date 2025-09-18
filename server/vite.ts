@@ -37,7 +37,9 @@ export async function setupVite(app: Express, server: Server) {
         process.exit(1);
       },
       warnOnce: (msg: string) => console.warn(msg),
-      clearScreen: () => {}
+      clearScreen: () => {},
+      hasErrorLogged: () => false,
+      hasWarned: false
     },
     server: serverOptions,
     appType: "custom",

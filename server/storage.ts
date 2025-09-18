@@ -622,47 +622,49 @@ export class DatabaseStorage implements IStorage {
     return { newStreak, rewardEarned };
   }
 
+  // Helper function for consistent 12:00 PM UTC reset date calculation
+  private getResetDate(date = new Date()): string {
+    const utcDate = date.toISOString().split('T')[0];
+    
+    // If current time is before 12:00 PM UTC, consider it still "yesterday" for tasks
+    if (date.getUTCHours() < 12) {
+      const yesterday = new Date(date);
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      return yesterday.toISOString().split('T')[0];
+    }
+    
+    return utcDate;
+  }
+
   async incrementAdsWatched(userId: string): Promise<void> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
     if (!user) return;
 
-    // Use 12:00 PM UTC for daily reset logic
-    const getCurrentResetDate = (): Date => {
-      const now = new Date();
-      const resetTime = new Date();
-      resetTime.setUTCHours(12, 0, 0, 0);
-      
-      // If current time is before 12:00 PM UTC today, use yesterday's reset time
-      if (now.getTime() < resetTime.getTime()) {
-        resetTime.setUTCDate(resetTime.getUTCDate() - 1);
-      }
-      
-      return resetTime;
-    };
+    const now = new Date();
+    const currentResetDate = this.getResetDate(now);
 
-    const currentResetDate = getCurrentResetDate();
-    const lastAdDate = user.lastAdDate;
-    let adsCount = 1;
+    // Check if last ad was watched today (same reset period)
+    let adsCount = 1; // Default for first ad of the day
     
-    if (lastAdDate) {
-      const lastResetDate = new Date(lastAdDate);
-      // Set to 12:00 PM UTC of the last ad date
-      lastResetDate.setUTCHours(12, 0, 0, 0);
+    if (user.lastAdDate) {
+      const lastAdResetDate = this.getResetDate(user.lastAdDate);
       
-      // Check if the last ad was in the same reset period as current
-      if (currentResetDate.getTime() === lastResetDate.getTime()) {
+      // If same reset period, increment current count
+      if (lastAdResetDate === currentResetDate) {
         adsCount = (user.adsWatchedToday || 0) + 1;
       }
     }
+
+    console.log(`📊 ADS_COUNT_DEBUG: User ${userId}, Reset Date: ${currentResetDate}, New Count: ${adsCount}, Previous Count: ${user.adsWatchedToday || 0}`);
 
     await db
       .update(users)
       .set({
         adsWatchedToday: adsCount,
         adsWatched: sql`COALESCE(${users.adsWatched}, 0) + 1`, // Increment total ads watched
-        lastAdDate: new Date(),
-        updatedAt: new Date(),
+        lastAdDate: now,
+        updatedAt: now,
       })
       .where(eq(users.id, userId));
   }
@@ -681,30 +683,16 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) return false;
     
-    // Use same reset logic as incrementAdsWatched
-    const getCurrentResetDate = (): Date => {
-      const now = new Date();
-      const resetTime = new Date();
-      resetTime.setUTCHours(12, 0, 0, 0);
-      
-      // If current time is before 12:00 PM UTC today, use yesterday's reset time
-      if (now.getTime() < resetTime.getTime()) {
-        resetTime.setUTCDate(resetTime.getUTCDate() - 1);
-      }
-      
-      return resetTime;
-    };
+    const now = new Date();
+    const currentResetDate = this.getResetDate(now);
 
-    const currentResetDate = getCurrentResetDate();
-    const lastAdDate = user.lastAdDate;
     let currentCount = 0;
     
-    if (lastAdDate) {
-      const lastResetDate = new Date(lastAdDate);
-      lastResetDate.setUTCHours(12, 0, 0, 0);
+    if (user.lastAdDate) {
+      const lastAdResetDate = this.getResetDate(user.lastAdDate);
       
-      // Check if the last ad was in the same reset period as current
-      if (currentResetDate.getTime() === lastResetDate.getTime()) {
+      // If same reset period, use current count
+      if (lastAdResetDate === currentResetDate) {
         currentCount = user.adsWatchedToday || 0;
       }
     }
@@ -1506,6 +1494,60 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('❌ Error ensuring system tasks exist:', error);
       // Don't throw - server should still start even if task creation fails
+    }
+  }
+
+  // Daily reset functionality at 12:00 PM UTC
+  async performDailyReset(): Promise<void> {
+    try {
+      console.log('🔄 Starting daily reset at 12:00 PM UTC...');
+      
+      // Get current UTC date
+      const now = new Date();
+      const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      // Reset ads counters for all users
+      await db.update(users)
+        .set({
+          adsWatchedToday: 0,
+          updatedAt: new Date()
+        });
+      
+      // Clear daily task completions from previous day
+      // Keep only today's completions based on 12:00 PM UTC reset logic
+      const resetDate = currentDate;
+      if (now.getUTCHours() < 12) {
+        // If before 12:00 PM UTC, we're still in "yesterday" for tasks
+        const yesterday = new Date(now);
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        const yesterdayDate = yesterday.toISOString().split('T')[0];
+        
+        // Clear all completions except today's (which is technically yesterday)
+        await db.delete(dailyTaskCompletions)
+          .where(sql`${dailyTaskCompletions.completionDate} < ${yesterdayDate}`);
+      } else {
+        // If after 12:00 PM UTC, clear all completions before today
+        await db.delete(dailyTaskCompletions)
+          .where(sql`${dailyTaskCompletions.completionDate} < ${resetDate}`);
+      }
+      
+      console.log('✅ Daily reset completed successfully');
+    } catch (error) {
+      console.error('❌ Error performing daily reset:', error);
+    }
+  }
+
+  // Check if daily reset is needed and perform it
+  async checkAndPerformDailyReset(): Promise<void> {
+    try {
+      const now = new Date();
+      
+      // Check if it's 12:00 PM UTC (within a 5-minute window)
+      if (now.getUTCHours() === 12 && now.getUTCMinutes() < 5) {
+        await this.performDailyReset();
+      }
+    } catch (error) {
+      console.error('❌ Error checking daily reset:', error);
     }
   }
 
