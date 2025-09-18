@@ -21,6 +21,15 @@ interface Promotion {
   isActive: boolean;
   createdAt: string;
   claimUrl?: string;
+  // New enhanced task status fields
+  isAvailable?: boolean;
+  completionStatus?: 'claimable' | 'not_eligible' | 'completed_today' | 'unknown';
+  statusMessage?: string;
+  progress?: {
+    current: number;
+    required: number;
+    percentage: number;
+  };
 }
 
 interface TaskCompletionStatus {
@@ -147,25 +156,49 @@ export default function TaskSection() {
 
   const handleTaskAction = async (task: Promotion, phase: string, setPhase: (phase: 'click' | 'check' | 'processing') => void) => {
     if (phase === 'click') {
-      // First click - show check button
+      // For share_link task, record the share action first
+      if (task.type === 'share_link') {
+        try {
+          await fetch('/api/record-link-share', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-data': getTelegramInitData() || '',
+            },
+          });
+          // Copy affiliate link to clipboard
+          const user = await fetch('/api/auth/user', {
+            headers: { 'x-telegram-data': getTelegramInitData() || '' }
+          }).then(r => r.json());
+          
+          if (user.referralLink) {
+            await navigator.clipboard.writeText(user.referralLink);
+            toast({
+              title: "Link Copied!",
+              description: "Your affiliate link has been copied to clipboard and share recorded.",
+            });
+          }
+        } catch (error) {
+          console.error('Error recording link share:', error);
+        }
+      }
+      
+      // First click - show check button for all tasks
       setPhase('check');
     } else if (phase === 'check') {
       // Second click - open link and process reward
       setPhase('processing');
       
-      // Use the properly generated claimUrl from the backend
-      const url = (task as any).claimUrl;
-      if (url) {
-        // Check if on mobile device
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        // For fix tasks, open the URL directly
-        window.open(url, '_blank');
-      } else {
-        console.error('No claimUrl available for task:', task);
+      // Handle different task types
+      if (task.type === 'channel_visit' && task.claimUrl) {
+        // For channel visit, open Telegram channel
+        window.open(task.claimUrl, '_blank');
+      } else if (task.claimUrl) {
+        // For other tasks, open the URL directly
+        window.open(task.claimUrl, '_blank');
       }
 
-      // Wait a moment for user to complete the action
+      // Wait a moment for user to complete the action, then try to claim
       setTimeout(() => {
         completeTaskMutation.mutate({ promotionId: task.id, task });
         setPhase('click'); // Reset for next time
@@ -182,16 +215,19 @@ export default function TaskSection() {
       retry: false,
     });
 
-    const isCompleted = statusData?.completed;
+    const isCompleted = statusData?.completed || task.completionStatus === 'completed_today';
     const isTaskFull = task.completedCount >= task.totalSlots;
     const remainingSlots = task.totalSlots - task.completedCount;
     
     // All tasks are daily tasks now - always show TON
     const isDailyTask = true; // All tasks shown are daily tasks
-    const canComplete = !isCompleted && !isTaskFull;
-
-    // Hide completed tasks entirely
-    if (isCompleted) {
+    
+    // Use new task eligibility system
+    const isEligible = task.isAvailable || task.completionStatus === 'claimable';
+    const canComplete = isEligible && !isCompleted && !isTaskFull;
+    
+    // Don't show completed daily tasks (unless they're ads goals for progress tracking)
+    if (isCompleted && !task.type.startsWith('ads_goal_')) {
       return null;
     }
 
@@ -224,17 +260,43 @@ export default function TaskSection() {
               disabled={!canComplete || (buttonPhase === 'processing')}
               data-testid={`button-complete-${task.id}`}
               className="h-7 px-2 text-xs"
+              variant={isEligible ? "default" : "secondary"}
             >
               {buttonPhase === 'processing' 
                 ? "Processing..." 
                 : isTaskFull 
                   ? "Sold Out" 
-                  : !isCompleted
-                    ? (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
-                    : "Completed ✓"
+                  : isCompleted
+                    ? "Completed ✓"
+                    : !isEligible
+                      ? "Not eligible yet"
+                      : (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
               }
             </Button>
           </div>
+          
+          {/* Status message and progress */}
+          {task.statusMessage && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              {task.statusMessage}
+            </div>
+          )}
+          
+          {/* Progress bar for ads goals */}
+          {task.progress && task.type.startsWith('ads_goal_') && (
+            <div className="mt-2">
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>Ads Progress</span>
+                <span>{task.progress.current}/{task.progress.required}</span>
+              </div>
+              <div className="w-full bg-secondary rounded-full h-1">
+                <div 
+                  className="bg-primary h-1 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, task.progress.percentage)}%` }}
+                />
+              </div>
+            </div>
+          )}
           
           {/* Progress bar */}
           <div className="mt-2">
