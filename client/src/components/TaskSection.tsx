@@ -203,7 +203,7 @@ export default function TaskSection() {
               <CardTitle className="text-sm font-semibold text-foreground">{task.title}</CardTitle>
             </div>
             <Badge variant={isCompleted ? "default" : "secondary"} className="ml-2 text-xs">
-              {task.reward} TON
+              {parseFloat(task.reward).toFixed(7)} TON
             </Badge>
           </div>
         </CardHeader>
