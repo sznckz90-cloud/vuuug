@@ -577,6 +577,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Record link share endpoint - called when user shares their affiliate link
+  app.post('/api/record-link-share', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Record the link share in the database
+      const result = await storage.recordLinkShare(userId);
+      
+      if (result.success) {
+        res.json({ 
+          success: true, 
+          message: result.message 
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: result.message 
+        });
+      }
+    } catch (error) {
+      console.error("Error recording link share:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to record link share" 
+      });
+    }
+  });
+
   // User stats endpoint
   app.get('/api/user/stats', authenticateTelegram, async (req: any, res) => {
     try {
@@ -1618,38 +1646,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : `Please join the channel @${channelName} first to complete this task`;
         }
       } else if (taskType === 'share_link') {
-        // Share link task is auto-verified (user sharing is the action)
-        isVerified = true;
-        verificationMessage = 'App link shared successfully';
+        // Share link task requires user to have shared their affiliate link  
+        const hasSharedToday = await storage.hasSharedLinkToday(userId);
+        isVerified = hasSharedToday;
+        verificationMessage = isVerified
+          ? 'App link sharing verified successfully'
+          : 'Not completed yet. Please share your affiliate link first.';
       } else if (taskType === 'invite_friend') {
-        // Invite friend task requires checking if user has made a valid referral today
-        // Check if user has made any referrals in the last 24 hours
-        try {
-          const { pool } = await import('./db');
-          const result = await pool.query(`
-            SELECT COUNT(*) as referral_count 
-            FROM referrals 
-            WHERE referrer_id = $1 
-            AND created_at >= NOW() - INTERVAL '24 hours'
-          `, [userId]);
-          
-          const referralCount = parseInt(result.rows[0]?.referral_count || '0');
-          isVerified = referralCount > 0;
-          verificationMessage = isVerified 
-            ? `Friend invitation verified (${referralCount} referral${referralCount > 1 ? 's' : ''} today)` 
-            : 'Please invite a friend to complete this task. Share your referral link to earn rewards together!';
-        } catch (error) {
-          console.error('❌ Error checking referrals for invite_friend task:', error);
-          isVerified = false;
-          verificationMessage = 'Unable to verify friend invitation. Please try again later.';
-        }
+        // Invite friend task requires exactly 1 valid referral today
+        const hasValidReferralToday = await storage.hasValidReferralToday(userId);
+        isVerified = hasValidReferralToday;
+        verificationMessage = isVerified 
+          ? 'Valid friend invitation verified for today' 
+          : 'Not completed yet. Please invite a friend using your referral link first.';
       } else if (taskType.startsWith('ads_goal_')) {
         // Ads goal tasks require checking user's daily ad count
         const hasMetGoal = await storage.checkAdsGoalCompletion(userId, taskType);
+        const user = await storage.getUser(userId);
+        const adsWatchedToday = user?.adsWatchedToday || 0;
+        
+        // Get required ads for this task type
+        const adsGoalThresholds = {
+          'ads_goal_mini': 15,
+          'ads_goal_light': 25,
+          'ads_goal_medium': 45,
+          'ads_goal_hard': 75
+        };
+        const requiredAds = adsGoalThresholds[taskType as keyof typeof adsGoalThresholds] || 0;
+        
         isVerified = hasMetGoal;
         verificationMessage = isVerified 
-          ? 'Ads goal achieved successfully' 
-          : 'You need to watch more ads today to complete this goal';
+          ? 'Ads goal achieved successfully!' 
+          : `Not eligible yet. Watch ${requiredAds - adsWatchedToday} more ads (${adsWatchedToday}/${requiredAds} watched).`;
       } else {
         console.log(`❌ Task validation failed: Invalid task type '${taskType}' or missing parameters`, {
           taskType,

@@ -123,6 +123,16 @@ export interface IStorage {
   updatePromotionCompletedCount(promotionId: string): Promise<void>;
   deactivateCompletedPromotions(): Promise<void>;
   
+  // Daily task validation methods
+  hasValidReferralToday(userId: string): Promise<boolean>;
+  hasSharedLinkToday(userId: string): Promise<boolean>;
+  recordLinkShare(userId: string): Promise<{ success: boolean; message: string }>;
+  checkAdsGoalCompletion(userId: string, adsGoalType: string): Promise<boolean>;
+  
+  // Daily reset system
+  performDailyReset(): Promise<void>;
+  checkAndPerformDailyReset(): Promise<void>;
+  
   // User balance operations
   getUserBalance(userId: string): Promise<UserBalance | undefined>;
   createOrUpdateUserBalance(userId: string, balance?: string): Promise<UserBalance>;
@@ -1394,7 +1404,7 @@ export class DatabaseStorage implements IStorage {
           id: 'channel-visit-check-update',
           type: 'channel_visit',
           url: 'https://t.me/PaidAdsNews',
-          rewardPerUser: '0.0001500', // 0.00015 TON formatted to 7 digits
+          rewardPerUser: '0.00015000', // 0.00015 TON formatted to 8 digits for precision
           title: 'Channel visit (Check Update)',
           description: 'Visit our Telegram channel for updates and news'
         },
@@ -1402,7 +1412,7 @@ export class DatabaseStorage implements IStorage {
           id: 'app-link-share',
           type: 'share_link',
           url: 'share://referral',
-          rewardPerUser: '0.0002000', // 0.00020 TON formatted to 7 digits
+          rewardPerUser: '0.00020000', // 0.00020 TON formatted to 8 digits for precision
           title: 'App link share (Share link)',
           description: 'Share your affiliate link with friends'
         },
@@ -1410,7 +1420,7 @@ export class DatabaseStorage implements IStorage {
           id: 'invite-friend-valid',
           type: 'invite_friend',
           url: 'invite://friend',
-          rewardPerUser: '0.0005000', // 0.00050 TON formatted to 7 digits
+          rewardPerUser: '0.00050000', // 0.00050 TON formatted to 8 digits for precision
           title: 'Invite friend (valid)',
           description: 'Invite 1 valid friend to earn rewards'
         },
@@ -1419,7 +1429,7 @@ export class DatabaseStorage implements IStorage {
           id: 'ads-goal-mini',
           type: 'ads_goal_mini',
           url: 'watch://ads/mini',
-          rewardPerUser: '0.0004500', // 0.00045 TON formatted to 7 digits
+          rewardPerUser: '0.00045000', // 0.00045 TON formatted to 8 digits for precision
           title: 'Mini (Watch 15 ads)',
           description: 'Watch 15 ads to complete this daily goal'
         },
@@ -1427,7 +1437,7 @@ export class DatabaseStorage implements IStorage {
           id: 'ads-goal-light',
           type: 'ads_goal_light',
           url: 'watch://ads/light',
-          rewardPerUser: '0.0006000', // 0.00060 TON formatted to 7 digits
+          rewardPerUser: '0.00060000', // 0.00060 TON formatted to 8 digits for precision
           title: 'Light (Watch 25 ads)',
           description: 'Watch 25 ads to complete this daily goal'
         },
@@ -1435,7 +1445,7 @@ export class DatabaseStorage implements IStorage {
           id: 'ads-goal-medium',
           type: 'ads_goal_medium',
           url: 'watch://ads/medium',
-          rewardPerUser: '0.0007000', // 0.00070 TON formatted to 7 digits
+          rewardPerUser: '0.00070000', // 0.00070 TON formatted to 8 digits for precision
           title: 'Medium (Watch 45 ads)',
           description: 'Watch 45 ads to complete this daily goal'
         },
@@ -1443,7 +1453,7 @@ export class DatabaseStorage implements IStorage {
           id: 'ads-goal-hard',
           type: 'ads_goal_hard',
           url: 'watch://ads/hard',
-          rewardPerUser: '0.0008000', // 0.00080 TON formatted to 7 digits
+          rewardPerUser: '0.00080000', // 0.00080 TON formatted to 8 digits for precision
           title: 'Hard (Watch 75 ads)',
           description: 'Watch 75 ads to complete this daily goal'
         }
@@ -1642,28 +1652,84 @@ export class DatabaseStorage implements IStorage {
         // For daily tasks, check if user has completed it today
         const hasCompletedToday = await this.hasUserCompletedDailyTask(promotion.id, userId);
         if (!hasCompletedToday) {
-          // For ads goal tasks, always show them for progress tracking
+          // For ads goal tasks, check if user has met the requirement and show proper status
           if (promotion.type.startsWith('ads_goal_')) {
             const hasMetGoal = await this.checkAdsGoalCompletion(userId, promotion.type);
+            const user = await this.getUser(userId);
+            const adsWatchedToday = user?.adsWatchedToday || 0;
+            
+            // Get the required ads count for this specific task
+            const adsGoalThresholds = {
+              'ads_goal_mini': 15,
+              'ads_goal_light': 25,
+              'ads_goal_medium': 45,
+              'ads_goal_hard': 75
+            };
+            const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
+            
             availablePromotions.push({
               ...promotion,
               isAvailable: hasMetGoal,
-              completionStatus: hasMetGoal ? 'available' : 'in_progress'
+              completionStatus: hasMetGoal ? 'claimable' : 'not_eligible',
+              statusMessage: hasMetGoal 
+                ? 'Ready to claim!' 
+                : `Watch ${requiredAds - adsWatchedToday} more ads (${adsWatchedToday}/${requiredAds})`,
+              progress: {
+                current: adsWatchedToday,
+                required: requiredAds,
+                percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
+              }
+            });
+          } else if (promotion.type === 'invite_friend') {
+            // For invite friend task, check if user has made a valid referral today
+            const hasValidReferralToday = await this.hasValidReferralToday(userId);
+            availablePromotions.push({
+              ...promotion,
+              isAvailable: hasValidReferralToday,
+              completionStatus: hasValidReferralToday ? 'claimable' : 'not_eligible',
+              statusMessage: hasValidReferralToday ? 'Ready to claim!' : 'Invite a friend first'
+            });
+          } else if (promotion.type === 'share_link') {
+            // For share link task, check if user has shared their affiliate link
+            const hasSharedToday = await this.hasSharedLinkToday(userId);
+            availablePromotions.push({
+              ...promotion,
+              isAvailable: hasSharedToday,
+              completionStatus: hasSharedToday ? 'claimable' : 'not_eligible',
+              statusMessage: hasSharedToday ? 'Ready to claim!' : 'Share your affiliate link first'
             });
           } else {
+            // Channel visit and other tasks
             availablePromotions.push({
               ...promotion,
               isAvailable: true,
-              completionStatus: 'available'
+              completionStatus: 'claimable',
+              statusMessage: 'Ready to complete!'
             });
           }
         } else {
-          // For ads goal tasks, always show them even if completed today for progress tracking
+          // Task completed today - don't show unless it's ads goal for progress tracking
           if (promotion.type.startsWith('ads_goal_')) {
+            const user = await this.getUser(userId);
+            const adsWatchedToday = user?.adsWatchedToday || 0;
+            const adsGoalThresholds = {
+              'ads_goal_mini': 15,
+              'ads_goal_light': 25,
+              'ads_goal_medium': 45,
+              'ads_goal_hard': 75
+            };
+            const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
+            
             availablePromotions.push({
               ...promotion,
               isAvailable: false,
-              completionStatus: 'completed_today'
+              completionStatus: 'completed_today',
+              statusMessage: 'Completed today!',
+              progress: {
+                current: adsWatchedToday,
+                required: requiredAds,
+                percentage: 100
+              }
             });
           }
         }
@@ -1694,7 +1760,12 @@ export class DatabaseStorage implements IStorage {
         totalSlots: p.limit || 1000,
         isActive: p.status === 'active',
         createdAt: p.createdAt,
-        claimUrl: p.url
+        claimUrl: p.url,
+        // New enhanced task status information
+        isAvailable: (p as any).isAvailable || false,
+        completionStatus: (p as any).completionStatus || 'unknown',
+        statusMessage: (p as any).statusMessage || '',
+        progress: (p as any).progress || null
       })),
       total: availablePromotions.length
     };
@@ -1869,6 +1940,113 @@ export class DatabaseStorage implements IStorage {
 
     // Check if user has watched enough ads today
     return adsWatchedToday >= requiredAds;
+  }
+
+  // Helper method to check if user has valid referral today (only 1 allowed per day)
+  async hasValidReferralToday(userId: string): Promise<boolean> {
+    try {
+      const currentDate = this.getCurrentTaskDate();
+      const referralQuery = await db.select({ count: sql<number>`count(*)` })
+        .from(referrals)
+        .where(and(
+          eq(referrals.referrerId, userId),
+          sql`DATE(${referrals.createdAt}) = ${currentDate}`
+        ));
+      
+      const count = referralQuery[0]?.count || 0;
+      return count >= 1; // User has made at least 1 referral today
+    } catch (error) {
+      console.error('Error checking valid referral today:', error);
+      return false;
+    }
+  }
+
+  // Helper method to check if user has shared their link today
+  async hasSharedLinkToday(userId: string): Promise<boolean> {
+    try {
+      // For now, we'll track this via a transaction record
+      // When user shares, we create a 'share_link' transaction
+      const currentDate = this.getCurrentTaskDate();
+      const shares = await db.select({ count: sql<number>`count(*)` })
+        .from(transactions)
+        .where(and(
+          eq(transactions.userId, userId),
+          eq(transactions.source, 'share_link'),
+          sql`DATE(${transactions.createdAt}) = ${currentDate}`
+        ));
+      
+      const count = shares[0]?.count || 0;
+      return count >= 1; // User has shared at least once today
+    } catch (error) {
+      console.error('Error checking link share today:', error);
+      return false;
+    }
+  }
+
+  // Method to record that user shared their link (called from frontend)
+  async recordLinkShare(userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if user already shared today
+      const hasShared = await this.hasSharedLinkToday(userId);
+      if (hasShared) {
+        return { success: true, message: 'Link share already recorded today' };
+      }
+
+      // Record the share action
+      await db.insert(transactions).values({
+        userId: userId,
+        amount: '0', // No monetary value for this action
+        type: 'addition', // Type of transaction
+        source: 'share_link',
+        description: 'User shared affiliate link'
+      });
+
+      return { success: true, message: 'Link share recorded successfully' };
+    } catch (error) {
+      console.error('Error recording link share:', error);
+      return { success: false, message: 'Failed to record link share' };
+    }
+  }
+
+  // Daily reset system - runs at 12:00 PM UTC
+  async performDailyReset(): Promise<void> {
+    try {
+      console.log('🔄 Starting daily reset at 12:00 PM UTC...');
+      
+      // 1. Reset all users' daily ads counter
+      await db.update(users)
+        .set({ 
+          adsWatchedToday: 0,
+          lastAdDate: new Date() 
+        });
+      
+      // 2. Clear all daily task completions from yesterday and before
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayString = yesterday.toISOString().split('T')[0];
+      
+      await db.delete(dailyTaskCompletions)
+        .where(sql`${dailyTaskCompletions.completionDate} < ${yesterdayString}`);
+      
+      // 3. Reset any other daily counters as needed
+      // (referral counters reset automatically based on date queries)
+      
+      console.log('✅ Daily reset completed successfully at 12:00 PM UTC');
+    } catch (error) {
+      console.error('❌ Error during daily reset:', error);
+    }
+  }
+
+  // Check if it's time for daily reset (12:00 PM UTC)
+  async checkAndPerformDailyReset(): Promise<void> {
+    const now = new Date();
+    
+    // Check if it's exactly 12:00 PM UTC (within 1 minute window)
+    const isResetTime = now.getUTCHours() === 12 && now.getUTCMinutes() === 0;
+    
+    if (isResetTime) {
+      await this.performDailyReset();
+    }
   }
 
   // Simplified methods for the new schema - no complex tracking needed
