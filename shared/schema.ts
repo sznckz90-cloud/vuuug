@@ -59,6 +59,11 @@ export const users = pgTable("users", {
   lastLoginIp: text("last_login_ip"),
   lastLoginDevice: text("last_login_device"),
   lastLoginUserAgent: text("last_login_user_agent"),
+  // Daily task tracking fields for eligibility validation
+  channelVisited: boolean("channel_visited").default(false),
+  linkShared: boolean("link_shared").default(false),
+  referralsToday: integer("referrals_today").default(0),
+  lastResetDate: timestamp("last_reset_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
