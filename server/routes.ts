@@ -605,6 +605,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Record channel visit endpoint - called when user visits the channel
+  app.post('/api/record-channel-visit', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Record the channel visit in the database
+      const result = await storage.recordChannelVisit(userId);
+      
+      if (result.success) {
+        res.json({ 
+          success: true, 
+          message: result.message 
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: result.message 
+        });
+      }
+    } catch (error) {
+      console.error("Error recording channel visit:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to record channel visit" 
+      });
+    }
+  });
+
+  // Get task eligibility status for a specific task type
+  app.get('/api/user/task-eligibility/:taskType', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskType } = req.params;
+      
+      let isEligible = false;
+      let message = '';
+      let progress = null;
+
+      switch (taskType) {
+        case 'channel_visit':
+          isEligible = await storage.hasVisitedChannelToday(userId);
+          message = isEligible ? 'Ready to claim!' : 'Visit channel first';
+          break;
+          
+        case 'share_link':
+          isEligible = await storage.hasSharedLinkToday(userId);
+          message = isEligible ? 'Ready to claim!' : 'Share your link first';
+          break;
+          
+        case 'invite_friend':
+          isEligible = await storage.hasValidReferralToday(userId);
+          message = isEligible ? 'Ready to claim!' : 'Invite a friend first';
+          break;
+          
+        case 'ads_goal_mini':
+        case 'ads_goal_light':
+        case 'ads_goal_medium':
+        case 'ads_goal_hard':
+          isEligible = await storage.checkAdsGoalCompletion(userId, taskType);
+          const user = await storage.getUser(userId);
+          const adsWatchedToday = user?.adsWatchedToday || 0;
+          
+          const adsGoalThresholds = {
+            'ads_goal_mini': 15,
+            'ads_goal_light': 25,
+            'ads_goal_medium': 45,
+            'ads_goal_hard': 75
+          };
+          const requiredAds = adsGoalThresholds[taskType as keyof typeof adsGoalThresholds] || 0;
+          
+          progress = {
+            current: adsWatchedToday,
+            required: requiredAds,
+            percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
+          };
+          
+          message = isEligible 
+            ? 'Ready to claim!' 
+            : `Watch ${requiredAds - adsWatchedToday} more ads (${adsWatchedToday}/${requiredAds})`;
+          break;
+          
+        default:
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Invalid task type' 
+          });
+      }
+
+      res.json({
+        success: true,
+        taskType,
+        isEligible,
+        message,
+        progress
+      });
+    } catch (error) {
+      console.error("Error checking task eligibility:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to check task eligibility" 
+      });
+    }
+  });
+
   // User stats endpoint
   app.get('/api/user/stats', authenticateTelegram, async (req: any, res) => {
     try {

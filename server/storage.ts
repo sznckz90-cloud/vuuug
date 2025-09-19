@@ -1945,16 +1945,11 @@ export class DatabaseStorage implements IStorage {
   // Helper method to check if user has valid referral today (only 1 allowed per day)
   async hasValidReferralToday(userId: string): Promise<boolean> {
     try {
-      const currentDate = this.getCurrentTaskDate();
-      const referralQuery = await db.select({ count: sql<number>`count(*)` })
-        .from(referrals)
-        .where(and(
-          eq(referrals.referrerId, userId),
-          sql`DATE(${referrals.createdAt}) = ${currentDate}`
-        ));
+      const user = await this.getUser(userId);
+      if (!user) return false;
       
-      const count = referralQuery[0]?.count || 0;
-      return count >= 1; // User has made at least 1 referral today
+      // Use the new referralsToday field for faster lookup
+      return (user.referralsToday || 0) >= 1;
     } catch (error) {
       console.error('Error checking valid referral today:', error);
       return false;
@@ -1964,21 +1959,27 @@ export class DatabaseStorage implements IStorage {
   // Helper method to check if user has shared their link today
   async hasSharedLinkToday(userId: string): Promise<boolean> {
     try {
-      // For now, we'll track this via a transaction record
-      // When user shares, we create a 'share_link' transaction
-      const currentDate = this.getCurrentTaskDate();
-      const shares = await db.select({ count: sql<number>`count(*)` })
-        .from(transactions)
-        .where(and(
-          eq(transactions.userId, userId),
-          eq(transactions.source, 'share_link'),
-          sql`DATE(${transactions.createdAt}) = ${currentDate}`
-        ));
+      const user = await this.getUser(userId);
+      if (!user) return false;
       
-      const count = shares[0]?.count || 0;
-      return count >= 1; // User has shared at least once today
+      // Use the new linkShared field for faster lookup
+      return user.linkShared || false;
     } catch (error) {
       console.error('Error checking link share today:', error);
+      return false;
+    }
+  }
+
+  // Helper method to check if user has visited channel today
+  async hasVisitedChannelToday(userId: string): Promise<boolean> {
+    try {
+      const user = await this.getUser(userId);
+      if (!user) return false;
+      
+      // Use the new channelVisited field for faster lookup
+      return user.channelVisited || false;
+    } catch (error) {
+      console.error('Error checking channel visit today:', error);
       return false;
     }
   }
@@ -1992,14 +1993,10 @@ export class DatabaseStorage implements IStorage {
         return { success: true, message: 'Link share already recorded today' };
       }
 
-      // Record the share action
-      await db.insert(transactions).values({
-        userId: userId,
-        amount: '0', // No monetary value for this action
-        type: 'addition', // Type of transaction
-        source: 'share_link',
-        description: 'User shared affiliate link'
-      });
+      // Update the linkShared field
+      await db.update(users)
+        .set({ linkShared: true })
+        .where(eq(users.id, userId));
 
       return { success: true, message: 'Link share recorded successfully' };
     } catch (error) {
@@ -2008,16 +2005,65 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Method to record that user visited channel (called from frontend)
+  async recordChannelVisit(userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if user already visited today
+      const hasVisited = await this.hasVisitedChannelToday(userId);
+      if (hasVisited) {
+        return { success: true, message: 'Channel visit already recorded today' };
+      }
+
+      // Update the channelVisited field
+      await db.update(users)
+        .set({ channelVisited: true })
+        .where(eq(users.id, userId));
+
+      return { success: true, message: 'Channel visit recorded successfully' };
+    } catch (error) {
+      console.error('Error recording channel visit:', error);
+      return { success: false, message: 'Failed to record channel visit' };
+    }
+  }
+
+  // Method to increment referrals today count when a referral is made
+  async incrementReferralsToday(userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Get current user data
+      const user = await this.getUser(userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      // Increment referrals today count
+      const newCount = (user.referralsToday || 0) + 1;
+      await db.update(users)
+        .set({ referralsToday: newCount })
+        .where(eq(users.id, userId));
+
+      return { success: true, message: `Referrals today count updated to ${newCount}` };
+    } catch (error) {
+      console.error('Error incrementing referrals today:', error);
+      return { success: false, message: 'Failed to increment referrals today' };
+    }
+  }
+
   // Daily reset system - runs at 12:00 PM UTC
   async performDailyReset(): Promise<void> {
     try {
       console.log('🔄 Starting daily reset at 12:00 PM UTC...');
       
-      // 1. Reset all users' daily ads counter
+      const currentDate = new Date();
+      
+      // 1. Reset all users' daily counters and tracking fields
       await db.update(users)
         .set({ 
           adsWatchedToday: 0,
-          lastAdDate: new Date() 
+          channelVisited: false,
+          linkShared: false,
+          referralsToday: 0,
+          lastResetDate: currentDate,
+          lastAdDate: currentDate 
         });
       
       // 2. Clear all daily task completions from yesterday and before
@@ -2028,10 +2074,12 @@ export class DatabaseStorage implements IStorage {
       await db.delete(dailyTaskCompletions)
         .where(sql`${dailyTaskCompletions.completionDate} < ${yesterdayString}`);
       
-      // 3. Reset any other daily counters as needed
-      // (referral counters reset automatically based on date queries)
-      
       console.log('✅ Daily reset completed successfully at 12:00 PM UTC');
+      console.log('   - Reset ads watched today to 0');
+      console.log('   - Reset channel visited to false');
+      console.log('   - Reset link shared to false');
+      console.log('   - Reset referrals today to 0');
+      console.log('   - Updated last reset date');
     } catch (error) {
       console.error('❌ Error during daily reset:', error);
     }
