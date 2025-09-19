@@ -154,55 +154,157 @@ export default function TaskSection() {
     },
   });
 
+  // Helper functions for API calls
+  const recordChannelVisit = async () => {
+    const response = await fetch('/api/record-channel-visit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-data': getTelegramInitData() || '',
+      },
+    });
+    return response.json();
+  };
+
+  const recordLinkShare = async () => {
+    const response = await fetch('/api/record-link-share', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-data': getTelegramInitData() || '',
+      },
+    });
+    return response.json();
+  };
+
+  const checkTaskEligibility = async (taskType: string) => {
+    const response = await fetch(`/api/user/task-eligibility/${taskType}`, {
+      headers: {
+        'x-telegram-data': getTelegramInitData() || '',
+      },
+    });
+    return response.json();
+  };
+
   const handleTaskAction = async (task: Promotion, phase: string, setPhase: (phase: 'click' | 'check' | 'processing') => void) => {
     if (phase === 'click') {
-      // For share_link task, record the share action first
-      if (task.type === 'share_link') {
+      // Handle different task types with specific flows
+      if (task.type === 'channel_visit') {
+        // Channel Visit Task: Show "Visit Channel" button, redirect and mark as visited
+        setPhase('processing');
         try {
-          await fetch('/api/record-link-share', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-telegram-data': getTelegramInitData() || '',
-            },
+          // Open channel link
+          window.open('https://t.me/PaidAdsNews', '_blank');
+          // Record channel visit
+          await recordChannelVisit();
+          toast({
+            title: "Channel Visit Recorded!",
+            description: "You visited the channel. You can now claim your reward.",
           });
-          // Copy affiliate link to clipboard
+          // Refresh task data
+          queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+          setPhase('check'); // Show claim button
+        } catch (error) {
+          console.error('Error recording channel visit:', error);
+          setPhase('click');
+        }
+      } else if (task.type === 'share_link') {
+        // App Link Share Task: Show "Share Link" button, open share dialog and mark as shared
+        setPhase('processing');
+        try {
+          // Get user data for affiliate link
           const user = await fetch('/api/auth/user', {
             headers: { 'x-telegram-data': getTelegramInitData() || '' }
           }).then(r => r.json());
           
           if (user.referralLink) {
+            // Copy to clipboard and show share dialog
             await navigator.clipboard.writeText(user.referralLink);
+            
+            // Record link share
+            await recordLinkShare();
+            
             toast({
-              title: "Link Copied!",
+              title: "Link Shared!",
               description: "Your affiliate link has been copied to clipboard and share recorded.",
             });
+            
+            // Refresh task data
+            queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+            setPhase('check'); // Show claim button
           }
         } catch (error) {
           console.error('Error recording link share:', error);
+          setPhase('click');
         }
+      } else if (task.type === 'invite_friend') {
+        // Invite Friend Task: Check if user has made a referral today
+        setPhase('processing');
+        try {
+          const eligibility = await checkTaskEligibility('invite_friend');
+          if (eligibility.isEligible) {
+            setPhase('check'); // Show claim button
+          } else {
+            toast({
+              title: "Not Eligible Yet",
+              description: "You need to invite a friend using your referral link first.",
+              variant: "destructive",
+            });
+            setPhase('click');
+          }
+        } catch (error) {
+          console.error('Error checking invite friend eligibility:', error);
+          setPhase('click');
+        }
+      } else if (task.type.startsWith('ads_goal_')) {
+        // Ads Task: Check if user has watched enough ads
+        setPhase('processing');
+        try {
+          const eligibility = await checkTaskEligibility(task.type);
+          if (eligibility.isEligible) {
+            setPhase('check'); // Show claim button
+          } else {
+            toast({
+              title: "Not Eligible Yet",
+              description: eligibility.message || "You need to watch more ads first.",
+              variant: "destructive",
+            });
+            setPhase('click');
+          }
+        } catch (error) {
+          console.error('Error checking ads goal eligibility:', error);
+          setPhase('click');
+        }
+      } else {
+        // Default behavior for other task types
+        setPhase('check');
       }
-      
-      // First click - show check button for all tasks
-      setPhase('check');
     } else if (phase === 'check') {
-      // Second click - open link and process reward
+      // Claim phase - validate eligibility and claim reward
       setPhase('processing');
       
-      // Handle different task types
-      if (task.type === 'channel_visit' && task.claimUrl) {
-        // For channel visit, open Telegram channel
-        window.open(task.claimUrl, '_blank');
-      } else if (task.claimUrl) {
-        // For other tasks, open the URL directly
-        window.open(task.claimUrl, '_blank');
-      }
-
-      // Wait a moment for user to complete the action, then try to claim
-      setTimeout(() => {
+      // Final eligibility check before claiming
+      try {
+        const eligibility = await checkTaskEligibility(task.type);
+        if (!eligibility.isEligible) {
+          toast({
+            title: "Not Eligible",
+            description: eligibility.message || "You are not eligible to claim this reward yet.",
+            variant: "destructive",
+          });
+          setPhase('click');
+          return;
+        }
+        
+        // Proceed with claiming
         completeTaskMutation.mutate({ promotionId: task.id, task });
         setPhase('click'); // Reset for next time
-      }, 3000);
+      } catch (error) {
+        console.error('Error checking eligibility for claim:', error);
+        // Proceed with claim anyway if eligibility check fails
+        completeTaskMutation.mutate({ promotionId: task.id, task });
+        setPhase('click');
+      }
     }
   };
 
@@ -262,16 +364,29 @@ export default function TaskSection() {
               className="h-7 px-2 text-xs"
               variant={isEligible ? "default" : "secondary"}
             >
-              {buttonPhase === 'processing' 
-                ? "Processing..." 
-                : isTaskFull 
-                  ? "Sold Out" 
-                  : isCompleted
-                    ? "Completed ✓"
-                    : !isEligible
-                      ? "Not eligible yet"
-                      : (buttonPhase === 'click' ? "👆🏻" : "✓ Check")
-              }
+              {(() => {
+                if (buttonPhase === 'processing') return "Processing...";
+                if (isTaskFull) return "Sold Out";
+                if (isCompleted) return "Completed ✓";
+                
+                // Task-specific button text based on type and phase
+                if (task.type === 'channel_visit') {
+                  if (buttonPhase === 'click') return "Visit Channel";
+                  if (buttonPhase === 'check') return "Claim";
+                } else if (task.type === 'share_link') {
+                  if (buttonPhase === 'click') return "Share Link";
+                  if (buttonPhase === 'check') return "Claim";
+                } else if (task.type === 'invite_friend') {
+                  if (isEligible) return "Claim";
+                  return "Not eligible yet";
+                } else if (task.type.startsWith('ads_goal_')) {
+                  if (isEligible) return "Claim";
+                  return "Not eligible yet";
+                }
+                
+                // Default fallback
+                return buttonPhase === 'click' ? "Start" : "Claim";
+              })()}
             </Button>
           </div>
           
