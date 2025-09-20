@@ -37,7 +37,7 @@ import {
   type InsertTransaction,
 } from "../shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
 import crypto from "crypto";
 
 // Payment system configuration
@@ -1892,11 +1892,26 @@ export class DatabaseStorage implements IStorage {
   // Helper method to check if user has valid referral today (only 1 allowed per day)
   async hasValidReferralToday(userId: string): Promise<boolean> {
     try {
-      const user = await this.getUser(userId);
-      if (!user) return false;
+      // Check if there's an actual new referral created today in the referrals table
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
       
-      // Use the new friendsInvited field for faster lookup
-      return (user.friendsInvited || 0) >= 1;
+      const todayReferrals = await db
+        .select({ count: sql`count(*)` })
+        .from(referrals)
+        .where(
+          and(
+            eq(referrals.referrerId, userId),
+            gte(referrals.createdAt, startOfDay),
+            lt(referrals.createdAt, endOfDay)
+          )
+        );
+
+      const count = Number(todayReferrals[0]?.count || 0);
+      console.log(`🔍 Referral validation for user ${userId}: ${count} new referrals today`);
+      
+      return count >= 1;
     } catch (error) {
       console.error('Error checking valid referral today:', error);
       return false;
