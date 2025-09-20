@@ -1507,59 +1507,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Daily reset functionality at 12:00 PM UTC
-  async performDailyReset(): Promise<void> {
-    try {
-      console.log('🔄 Starting daily reset at 12:00 PM UTC...');
-      
-      // Get current UTC date
-      const now = new Date();
-      const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      // Reset ads counters for all users
-      await db.update(users)
-        .set({
-          adsWatchedToday: 0,
-          updatedAt: new Date()
-        });
-      
-      // Clear daily task completions from previous day
-      // Keep only today's completions based on 12:00 PM UTC reset logic
-      const resetDate = currentDate;
-      if (now.getUTCHours() < 12) {
-        // If before 12:00 PM UTC, we're still in "yesterday" for tasks
-        const yesterday = new Date(now);
-        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-        const yesterdayDate = yesterday.toISOString().split('T')[0];
-        
-        // Clear all completions except today's (which is technically yesterday)
-        await db.delete(dailyTaskCompletions)
-          .where(sql`${dailyTaskCompletions.completionDate} < ${yesterdayDate}`);
-      } else {
-        // If after 12:00 PM UTC, clear all completions before today
-        await db.delete(dailyTaskCompletions)
-          .where(sql`${dailyTaskCompletions.completionDate} < ${resetDate}`);
-      }
-      
-      console.log('✅ Daily reset completed successfully');
-    } catch (error) {
-      console.error('❌ Error performing daily reset:', error);
-    }
-  }
-
-  // Check if daily reset is needed and perform it
-  async checkAndPerformDailyReset(): Promise<void> {
-    try {
-      const now = new Date();
-      
-      // Check if it's 12:00 PM UTC (within a 5-minute window)
-      if (now.getUTCHours() === 12 && now.getUTCMinutes() < 5) {
-        await this.performDailyReset();
-      }
-    } catch (error) {
-      console.error('❌ Error checking daily reset:', error);
-    }
-  }
 
   // Ensure admin user with unlimited balance exists for production deployment
   async ensureAdminUserExists(): Promise<void> {
@@ -1948,8 +1895,8 @@ export class DatabaseStorage implements IStorage {
       const user = await this.getUser(userId);
       if (!user) return false;
       
-      // Use the new referralsToday field for faster lookup
-      return (user.referralsToday || 0) >= 1;
+      // Use the new friendsInvited field for faster lookup
+      return (user.friendsInvited || 0) >= 1;
     } catch (error) {
       console.error('Error checking valid referral today:', error);
       return false;
@@ -1962,8 +1909,8 @@ export class DatabaseStorage implements IStorage {
       const user = await this.getUser(userId);
       if (!user) return false;
       
-      // Use the new linkShared field for faster lookup
-      return user.linkShared || false;
+      // Use the new appShared field for faster lookup
+      return user.appShared || false;
     } catch (error) {
       console.error('Error checking link share today:', error);
       return false;
@@ -1993,9 +1940,9 @@ export class DatabaseStorage implements IStorage {
         return { success: true, message: 'Link share already recorded today' };
       }
 
-      // Update the linkShared field
+      // Update the appShared field
       await db.update(users)
-        .set({ linkShared: true })
+        .set({ appShared: true })
         .where(eq(users.id, userId));
 
       return { success: true, message: 'Link share recorded successfully' };
@@ -2036,9 +1983,9 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Increment referrals today count
-      const newCount = (user.referralsToday || 0) + 1;
+      const newCount = (user.friendsInvited || 0) + 1;
       await db.update(users)
-        .set({ referralsToday: newCount })
+        .set({ friendsInvited: newCount })
         .where(eq(users.id, userId));
 
       return { success: true, message: `Referrals today count updated to ${newCount}` };
@@ -2060,8 +2007,8 @@ export class DatabaseStorage implements IStorage {
         .set({ 
           adsWatchedToday: 0,
           channelVisited: false,
-          linkShared: false,
-          referralsToday: 0,
+          appShared: false,
+          friendsInvited: 0,
           lastResetDate: currentDate,
           lastAdDate: currentDate 
         });
@@ -2077,8 +2024,8 @@ export class DatabaseStorage implements IStorage {
       console.log('✅ Daily reset completed successfully at 12:00 PM UTC');
       console.log('   - Reset ads watched today to 0');
       console.log('   - Reset channel visited to false');
-      console.log('   - Reset link shared to false');
-      console.log('   - Reset referrals today to 0');
+      console.log('   - Reset app shared to false');
+      console.log('   - Reset friends invited to 0');
       console.log('   - Updated last reset date');
     } catch (error) {
       console.error('❌ Error during daily reset:', error);
