@@ -59,10 +59,55 @@ export async function ensureDatabaseSchema(): Promise<void> {
         last_login_ip TEXT,
         last_login_device TEXT,
         last_login_user_agent TEXT,
+        channel_visited BOOLEAN DEFAULT false,
+        app_shared BOOLEAN DEFAULT false,
+        friends_invited INTEGER DEFAULT 0,
+        last_reset_date TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Add missing columns to existing users table (for production databases)
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_visited BOOLEAN DEFAULT false`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_shared BOOLEAN DEFAULT false`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS friends_invited INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reset_date TIMESTAMP`);
+      console.log('✅ [MIGRATION] Missing user task columns added');
+    } catch (error) {
+      // Columns might already exist - this is fine
+      console.log('ℹ️ [MIGRATION] User task columns already exist or cannot be added');
+    }
+    
+    // Ensure referral_code column exists and has proper constraints
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`);
+      
+      // Backfill referral codes for users that don't have them
+      await db.execute(sql`
+        UPDATE users 
+        SET referral_code = 'REF' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 8))
+        WHERE referral_code IS NULL OR referral_code = ''
+      `);
+      
+      // Create unique constraint if it doesn't exist
+      await db.execute(sql`
+        DO $$ 
+        BEGIN 
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint 
+            WHERE conname = 'users_referral_code_unique'
+          ) THEN
+            ALTER TABLE users ADD CONSTRAINT users_referral_code_unique UNIQUE (referral_code);
+          END IF;
+        END $$
+      `);
+      
+      console.log('✅ [MIGRATION] Referral code column and constraints ensured');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] Referral code setup complete or already exists');
+    }
     
     // Earnings table
     await db.execute(sql`
