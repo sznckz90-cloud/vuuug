@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { Share2, RefreshCw, Users, Tv, ArrowRight } from 'lucide-react';
 
 interface Promotion {
   id: string;
@@ -308,6 +309,25 @@ export default function TaskSection() {
     }
   };
 
+  // Function to get task icon based on type
+  const getTaskIcon = (type: string) => {
+    switch (type) {
+      case 'share_link':
+        return <Share2 className="w-6 h-6 text-green-500" />;
+      case 'channel_visit':
+        return <RefreshCw className="w-6 h-6 text-green-500" />;
+      case 'invite_friend':
+        return <Users className="w-6 h-6 text-green-500" />;
+      case 'ads_goal_mini':
+      case 'ads_goal_light':
+      case 'ads_goal_medium':
+      case 'ads_goal_hard':
+        return <Tv className="w-6 h-6 text-green-500" />;
+      default:
+        return <ArrowRight className="w-6 h-6 text-green-500" />;
+    }
+  };
+
   const TaskCard = ({ task }: { task: Promotion }) => {
     const [buttonPhase, setButtonPhase] = useState<'click' | 'check' | 'processing'>('click');
     
@@ -334,96 +354,62 @@ export default function TaskSection() {
     }
 
     return (
-      <Card className="shadow-sm border border-border" data-testid={`card-task-${task.id}`}>
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-sm font-semibold text-foreground">{task.title}</CardTitle>
-            </div>
-            <Badge variant={isCompleted ? "default" : "secondary"} className="ml-2 text-xs">
-              {parseFloat(task.reward).toFixed(7)} TON
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0 pb-3">
+      <Card className="shadow-sm border border-border bg-card hover:bg-accent/5 transition-colors" data-testid={`card-task-${task.id}`}>
+        <CardContent className="p-4">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-muted-foreground">
-              {remainingSlots > 0 ? (
-                <span className="text-green-600 dark:text-green-400 font-medium">
-                  {remainingSlots}
-                </span>
-              ) : (
-                <span className="text-red-600 dark:text-red-400 font-medium">Sold Out</span>
-              )}
-            </div>
-            <Button
-              size="sm"
-              onClick={() => handleTaskAction(task, buttonPhase, setButtonPhase)}
-              disabled={!canComplete || (buttonPhase === 'processing')}
-              data-testid={`button-complete-${task.id}`}
-              className="h-7 px-2 text-xs"
-              variant={isEligible ? "default" : "secondary"}
-            >
-              {(() => {
-                if (buttonPhase === 'processing') return "Processing...";
-                if (isTaskFull) return "Sold Out";
-                if (isCompleted) return "Completed ✓";
-                
-                // Task-specific button text based on type and phase
-                if (task.type === 'channel_visit') {
-                  if (buttonPhase === 'click') return "Visit Channel";
-                  if (buttonPhase === 'check') return "Claim";
-                } else if (task.type === 'share_link') {
-                  if (buttonPhase === 'click') return "Share Link";
-                  if (buttonPhase === 'check') return "Claim";
-                } else if (task.type === 'invite_friend') {
-                  if (isEligible) return "Claim";
-                  return "Not eligible yet";
-                } else if (task.type.startsWith('ads_goal_')) {
-                  if (isEligible) return "Claim";
-                  return "Not eligible yet";
-                }
-                
-                // Default fallback
-                return buttonPhase === 'click' ? "Start" : "Claim";
-              })()}
-            </Button>
-          </div>
-          
-          {/* Status message and progress */}
-          {task.statusMessage && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              {task.statusMessage}
-            </div>
-          )}
-          
-          {/* Progress bar for ads goals */}
-          {task.progress && task.type.startsWith('ads_goal_') && (
-            <div className="mt-2">
-              <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                <span>Ads Progress</span>
-                <span>{task.progress.current}/{task.progress.required}</span>
+            {/* Left: Icon and content */}
+            <div className="flex items-center space-x-4 flex-1">
+              {/* Task Icon */}
+              <div className="flex-shrink-0">
+                {getTaskIcon(task.type)}
               </div>
-              <div className="w-full bg-secondary rounded-full h-1">
-                <div 
-                  className="bg-primary h-1 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, task.progress.percentage)}%` }}
-                />
+              
+              {/* Task Info */}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-foreground mb-1">
+                  {task.title}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Daily task completion
+                </p>
               </div>
             </div>
-          )}
-          
-          {/* Progress bar */}
-          <div className="mt-2">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>Progress</span>
-              <span>{task.completedCount}/{task.totalSlots}</span>
-            </div>
-            <div className="w-full bg-secondary rounded-full h-1">
-              <div 
-                className="bg-primary h-1 rounded-full transition-all duration-300"
-                style={{ width: `${(task.completedCount / task.totalSlots) * 100}%` }}
-              />
+
+            {/* Center: Reward Display */}
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-foreground">
+                  {parseFloat(task.reward).toFixed(5)} TON
+                </div>
+                {task.progress && task.type.startsWith('ads_goal_') && (
+                  <div className="text-xs text-muted-foreground">
+                    {task.progress.current}/{task.progress.required}
+                  </div>
+                )}
+              </div>
+              
+              {/* Right: Action Button */}
+              <Button
+                onClick={() => handleTaskAction(task, buttonPhase, setButtonPhase)}
+                disabled={!canComplete || (buttonPhase === 'processing')}
+                data-testid={`button-complete-${task.id}`}
+                className="flex-shrink-0 w-12 h-12 p-0"
+                variant={isCompleted ? "secondary" : "default"}
+                size="sm"
+              >
+                {(() => {
+                  if (buttonPhase === 'processing') {
+                    return <div className="animate-spin">⏳</div>;
+                  }
+                  if (isCompleted) {
+                    return <div className="text-green-600">✓</div>;
+                  }
+                  if (task.type === 'share_link') {
+                    return <Share2 className="w-5 h-5" />;
+                  }
+                  return <ArrowRight className="w-5 h-5" />;
+                })()}
+              </Button>
             </div>
           </div>
         </CardContent>
