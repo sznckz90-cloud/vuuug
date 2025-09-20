@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -194,8 +194,13 @@ export default function TaskSection() {
         // Channel Visit Task: Show "Visit Channel" button, redirect and mark as visited
         setPhase('processing');
         try {
-          // Open channel link
-          window.open('https://t.me/PaidAdsNews', '_blank');
+          // Open channel link (use task-specific channel or bot username)
+          const channelUrl = task.channelUsername 
+            ? `https://t.me/${task.channelUsername}`
+            : task.botUsername 
+            ? `https://t.me/${task.botUsername}`
+            : 'https://t.me/PaidAdsNews'; // fallback
+          window.open(channelUrl, '_blank');
           // Record channel visit
           await recordChannelVisit();
           toast({
@@ -344,9 +349,21 @@ export default function TaskSection() {
     // All tasks are daily tasks now - always show TON
     const isDailyTask = true; // All tasks shown are daily tasks
     
-    // Use new task eligibility system
-    const isEligible = task.isAvailable || task.completionStatus === 'claimable';
-    const canComplete = isEligible && !isCompleted && !isTaskFull;
+    // Use server-side eligibility status - task.completionStatus is authoritative
+    const isClaimable = task.completionStatus === 'claimable' || task.isAvailable;
+    const canComplete = !isCompleted && !isTaskFull;
+    
+    // Determine button behavior based on server-side status
+    const shouldShowClaimButton = isClaimable || buttonPhase === 'check';
+    
+    // Reset button phase when task status changes from server
+    React.useEffect(() => {
+      if (isCompleted) {
+        setButtonPhase('click'); // Reset when completed
+      } else if (isClaimable && buttonPhase === 'click') {
+        setButtonPhase('check'); // Auto-show claim button when eligible
+      }
+    }, [isCompleted, isClaimable, buttonPhase]);
     
     // Don't show completed daily tasks (unless they're ads goals for progress tracking)
     if (isCompleted && !task.type.startsWith('ads_goal_')) {
@@ -367,47 +384,121 @@ export default function TaskSection() {
               {/* Task Info */}
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-semibold text-foreground mb-1">
-                  {task.title}
+                  {task.title} ({getActionLabel(task.type)}) → Reward: {parseFloat(task.reward).toFixed(5)} TON
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Daily task completion
+                  {task.progress && task.type.startsWith('ads_goal_') 
+                    ? `Progress: ${task.progress.current}/${task.progress.required} ads watched`
+                    : "Daily task completion"
+                  }
                 </p>
               </div>
             </div>
 
-            {/* Center: Reward Display */}
+            {/* Center: Progress Display for ads tasks */}
             <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-foreground">
-                  {parseFloat(task.reward).toFixed(5)} TON
-                </div>
-                {task.progress && task.type.startsWith('ads_goal_') && (
-                  <div className="text-xs text-muted-foreground">
+              {task.progress && task.type.startsWith('ads_goal_') && (
+                <div className="text-right">
+                  <div className="text-sm font-medium text-muted-foreground">
                     {task.progress.current}/{task.progress.required}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
               
               {/* Right: Action Button */}
               <Button
                 onClick={() => handleTaskAction(task, buttonPhase, setButtonPhase)}
-                disabled={!canComplete || (buttonPhase === 'processing')}
+                disabled={isCompleted || (buttonPhase === 'processing') || (!canComplete && !isClaimable)}
                 data-testid={`button-complete-${task.id}`}
-                className="flex-shrink-0 w-12 h-12 p-0"
-                variant={isCompleted ? "secondary" : "default"}
+                className="flex-shrink-0 min-w-fit px-4 py-2"
+                variant={
+                  isCompleted 
+                    ? "secondary" 
+                    : (isClaimable || buttonPhase === 'check') 
+                    ? "default" 
+                    : (!isClaimable && (task.type.startsWith('ads_goal_') || task.type === 'invite_friend'))
+                    ? "secondary"
+                    : "outline"
+                }
                 size="sm"
               >
                 {(() => {
                   if (buttonPhase === 'processing') {
-                    return <div className="animate-spin">⏳</div>;
+                    return (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin">⏳</div>
+                        Processing...
+                      </div>
+                    );
                   }
                   if (isCompleted) {
-                    return <div className="text-green-600">✓</div>;
+                    return (
+                      <div className="flex items-center gap-2 text-green-600">
+                        ✓ Completed
+                      </div>
+                    );
                   }
-                  if (task.type === 'share_link') {
-                    return <Share2 className="w-5 h-5" />;
+                  // Show claim button only when server confirms eligibility
+                  if ((buttonPhase === 'check' || isClaimable) && !isCompleted) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <ArrowRight className="w-4 h-4" />
+                        Claim Reward
+                      </div>
+                    );
                   }
-                  return <ArrowRight className="w-5 h-5" />;
+                  
+                  // Show status message for ads goals if not claimable but not completed
+                  if (task.type.startsWith('ads_goal_') && !isClaimable && !isCompleted) {
+                    return (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Tv className="w-4 h-4" />
+                        {task.statusMessage || "Watch more ads"}
+                      </div>
+                    );
+                  }
+                  
+                  // Show status message for invite friend if not claimable
+                  if (task.type === 'invite_friend' && !isClaimable && !isCompleted) {
+                    return (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Users className="w-4 h-4" />
+                        Need 1 referral
+                      </div>
+                    );
+                  }
+                  
+                  // Initial phase - show action-specific buttons for actionable tasks
+                  switch (task.type) {
+                    case 'channel_visit':
+                      return (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4" />
+                          Visit Channel
+                        </div>
+                      );
+                    case 'share_link':
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Share2 className="w-4 h-4" />
+                          Share Link
+                        </div>
+                      );
+                    case 'invite_friend':
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          Check Status
+                        </div>
+                      );
+                    default: // ads goal tasks
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Tv className="w-4 h-4" />
+                          Check Status
+                        </div>
+                      );
+                  }
                 })()}
               </Button>
             </div>
