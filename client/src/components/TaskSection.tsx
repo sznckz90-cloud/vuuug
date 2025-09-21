@@ -333,6 +333,28 @@ export default function TaskSection() {
     }
   };
 
+  // Function to get action label for task type (for displaying task titles)
+  const getActionLabel = (type: string) => {
+    switch (type) {
+      case 'channel_visit':
+        return 'Channel visit';
+      case 'share_link':
+        return 'Share link';
+      case 'invite_friend':
+        return 'Invite friend';
+      case 'ads_goal_mini':
+        return 'Watch 15 ads';
+      case 'ads_goal_light':
+        return 'Watch 25 ads';
+      case 'ads_goal_medium':
+        return 'Watch 45 ads';
+      case 'ads_goal_hard':
+        return 'Watch 75 ads';
+      default:
+        return 'Complete task';
+    }
+  };
+
   const TaskCard = ({ task }: { task: Promotion }) => {
     const [buttonPhase, setButtonPhase] = useState<'click' | 'check' | 'processing'>('click');
     
@@ -384,7 +406,7 @@ export default function TaskSection() {
               {/* Task Info */}
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-semibold text-foreground mb-1">
-                  {task.title} ({getActionLabel(task.type)}) → Reward: {parseFloat(task.reward).toFixed(5)} TON
+                  ({getActionLabel(task.type)}) → Reward: {parseFloat(task.reward).toFixed(5)} TON
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {task.progress && task.type.startsWith('ads_goal_') 
