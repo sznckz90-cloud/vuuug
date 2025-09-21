@@ -12,6 +12,7 @@ import {
   dailyTaskCompletions,
   userBalances,
   transactions,
+  taskStatuses,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -35,6 +36,8 @@ import {
   type InsertUserBalance,
   type Transaction,
   type InsertTransaction,
+  type TaskStatus,
+  type InsertTaskStatus,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
@@ -1580,7 +1583,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailablePromotionsForUser(userId: string): Promise<any> {
-    // Get all active and approved promotions
+    // Get all active and approved promotions - ALWAYS show them
     const allPromotions = await db.select().from(promotions)
       .where(and(eq(promotions.status, 'active'), eq(promotions.isApproved, true)))
       .orderBy(desc(promotions.createdAt));
@@ -1595,102 +1598,105 @@ export class DatabaseStorage implements IStorage {
         'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'
       ].includes(promotion.type);
 
-      if (isDailyTask) {
-        // For daily tasks, check if user has completed it today
-        const hasCompletedToday = await this.hasUserCompletedDailyTask(promotion.id, userId);
-        if (!hasCompletedToday) {
-          // For ads goal tasks, check if user has met the requirement and show proper status
-          if (promotion.type.startsWith('ads_goal_')) {
-            const hasMetGoal = await this.checkAdsGoalCompletion(userId, promotion.type);
-            const user = await this.getUser(userId);
-            const adsWatchedToday = user?.adsWatchedToday || 0;
-            
-            // Get the required ads count for this specific task
-            const adsGoalThresholds = {
-              'ads_goal_mini': 15,
-              'ads_goal_light': 25,
-              'ads_goal_medium': 45,
-              'ads_goal_hard': 75
-            };
-            const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
-            
-            availablePromotions.push({
-              ...promotion,
-              isAvailable: hasMetGoal,
-              completionStatus: hasMetGoal ? 'claimable' : 'not_eligible',
-              statusMessage: hasMetGoal 
-                ? 'Ready to claim!' 
-                : `Watch ${requiredAds - adsWatchedToday} more ads (${adsWatchedToday}/${requiredAds})`,
-              progress: {
+      const periodDate = isDailyTask ? currentDate : undefined;
+      
+      // Get current task status from the new system
+      const taskStatus = await this.getTaskStatus(userId, promotion.id, periodDate);
+      
+      let completionStatus = 'locked';
+      let statusMessage = 'Click to start';
+      let progress = null;
+      let buttonText = 'Start';
+
+      if (taskStatus) {
+        if (taskStatus.status === 'claimed') {
+          completionStatus = 'claimed';
+          statusMessage = '✅ Done';
+          buttonText = '✅ Done';
+        } else if (taskStatus.status === 'claimable') {
+          completionStatus = 'claimable';
+          statusMessage = 'Ready to claim!';
+          buttonText = 'Claim';
+        } else {
+          // Status is 'locked' - check if we can make it claimable
+          const verificationResult = await this.verifyTask(userId, promotion.id, promotion.type);
+          if (verificationResult.status === 'claimable') {
+            completionStatus = 'claimable';
+            statusMessage = 'Ready to claim!';
+            buttonText = 'Claim';
+          } else {
+            completionStatus = 'locked';
+            if (promotion.type.startsWith('ads_goal_')) {
+              const user = await this.getUser(userId);
+              const adsWatchedToday = user?.adsWatchedToday || 0;
+              const adsGoalThresholds = {
+                'ads_goal_mini': 15,
+                'ads_goal_light': 25,
+                'ads_goal_medium': 45,
+                'ads_goal_hard': 75
+              };
+              const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
+              statusMessage = `Watch ${Math.max(0, requiredAds - adsWatchedToday)} more ads (${adsWatchedToday}/${requiredAds})`;
+              progress = {
                 current: adsWatchedToday,
                 required: requiredAds,
                 percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
-              }
-            });
-          } else if (promotion.type === 'invite_friend') {
-            // For invite friend task, check if user has made a valid referral today
-            const hasValidReferralToday = await this.hasValidReferralToday(userId);
-            availablePromotions.push({
-              ...promotion,
-              isAvailable: hasValidReferralToday,
-              completionStatus: hasValidReferralToday ? 'claimable' : 'not_eligible',
-              statusMessage: hasValidReferralToday ? 'Ready to claim!' : 'Invite a friend first'
-            });
-          } else if (promotion.type === 'share_link') {
-            // For share link task, check if user has shared their affiliate link
-            const hasSharedToday = await this.hasSharedLinkToday(userId);
-            availablePromotions.push({
-              ...promotion,
-              isAvailable: hasSharedToday,
-              completionStatus: hasSharedToday ? 'claimable' : 'not_eligible',
-              statusMessage: hasSharedToday ? 'Ready to claim!' : 'Share your affiliate link first'
-            });
-          } else {
-            // Channel visit and other tasks
-            availablePromotions.push({
-              ...promotion,
-              isAvailable: true,
-              completionStatus: 'claimable',
-              statusMessage: 'Ready to complete!'
-            });
-          }
-        } else {
-          // Task completed today - don't show unless it's ads goal for progress tracking
-          if (promotion.type.startsWith('ads_goal_')) {
-            const user = await this.getUser(userId);
-            const adsWatchedToday = user?.adsWatchedToday || 0;
-            const adsGoalThresholds = {
-              'ads_goal_mini': 15,
-              'ads_goal_light': 25,
-              'ads_goal_medium': 45,
-              'ads_goal_hard': 75
-            };
-            const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
-            
-            availablePromotions.push({
-              ...promotion,
-              isAvailable: false,
-              completionStatus: 'completed_today',
-              statusMessage: 'Completed today!',
-              progress: {
-                current: adsWatchedToday,
-                required: requiredAds,
-                percentage: 100
-              }
-            });
+              };
+              buttonText = 'Watch Ads';
+            } else if (promotion.type === 'invite_friend') {
+              statusMessage = 'Invite a friend first';
+              buttonText = 'Copy Link';
+            } else if (promotion.type === 'share_link') {
+              statusMessage = 'Share your affiliate link first';
+              buttonText = 'Share Link';
+            } else if (promotion.type === 'channel_visit') {
+              statusMessage = 'Visit the channel';
+              buttonText = 'Visit Channel';
+            }
           }
         }
       } else {
-        // For regular tasks, check if user has completed it ever
-        const hasCompleted = await this.hasUserCompletedTask(promotion.id, userId);
-        if (!hasCompleted) {
-          availablePromotions.push({
-            ...promotion,
-            isAvailable: true,
-            completionStatus: 'available'
-          });
+        // No task status yet - create initial status
+        await this.setTaskStatus(userId, promotion.id, 'locked', periodDate);
+        
+        // Set default messages based on task type
+        if (promotion.type === 'channel_visit') {
+          statusMessage = 'Visit the channel';
+          buttonText = 'Visit Channel';
+        } else if (promotion.type === 'share_link') {
+          statusMessage = 'Share your affiliate link';
+          buttonText = 'Share Link';
+        } else if (promotion.type === 'invite_friend') {
+          statusMessage = 'Invite a friend';
+          buttonText = 'Copy Link';
+        } else if (promotion.type.startsWith('ads_goal_')) {
+          const adsGoalThresholds = {
+            'ads_goal_mini': 15,
+            'ads_goal_light': 25,
+            'ads_goal_medium': 45,
+            'ads_goal_hard': 75
+          };
+          const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
+          const user = await this.getUser(userId);
+          const adsWatchedToday = user?.adsWatchedToday || 0;
+          statusMessage = `Watch ${Math.max(0, requiredAds - adsWatchedToday)} more ads (${adsWatchedToday}/${requiredAds})`;
+          progress = {
+            current: adsWatchedToday,
+            required: requiredAds,
+            percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
+          };
+          buttonText = 'Watch Ads';
         }
       }
+
+      // ALWAYS add the task - never filter out
+      availablePromotions.push({
+        ...promotion,
+        completionStatus,
+        statusMessage,
+        buttonText,
+        progress
+      });
     }
 
     return {
@@ -1708,11 +1714,11 @@ export class DatabaseStorage implements IStorage {
         isActive: p.status === 'active',
         createdAt: p.createdAt,
         claimUrl: p.url,
-        // New enhanced task status information
-        isAvailable: (p as any).isAvailable || false,
-        completionStatus: (p as any).completionStatus || 'unknown',
-        statusMessage: (p as any).statusMessage || '',
-        progress: (p as any).progress || null
+        // New task status system properties
+        completionStatus: (p as any).completionStatus,
+        statusMessage: (p as any).statusMessage,
+        buttonText: (p as any).buttonText,
+        progress: (p as any).progress
       })),
       total: availablePromotions.length
     };
@@ -1966,6 +1972,234 @@ export class DatabaseStorage implements IStorage {
       return { success: false, message: 'Failed to record link share' };
     }
   }
+
+  // ============== NEW TASK STATUS SYSTEM FUNCTIONS ==============
+  
+  // Get or create task status for user
+  async getTaskStatus(userId: string, promotionId: string, periodDate?: string): Promise<TaskStatus | null> {
+    try {
+      const [taskStatus] = await db.select().from(taskStatuses)
+        .where(and(
+          eq(taskStatuses.userId, userId),
+          eq(taskStatuses.promotionId, promotionId),
+          periodDate ? eq(taskStatuses.periodDate, periodDate) : sql`${taskStatuses.periodDate} IS NULL`
+        ));
+      return taskStatus || null;
+    } catch (error) {
+      console.error('Error getting task status:', error);
+      return null;
+    }
+  }
+
+  // Update or create task status
+  async setTaskStatus(
+    userId: string, 
+    promotionId: string, 
+    status: 'locked' | 'claimable' | 'claimed',
+    periodDate?: string,
+    progressCurrent?: number,
+    progressRequired?: number,
+    metadata?: any
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const existingStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      
+      if (existingStatus) {
+        // Update existing status
+        await db.update(taskStatuses)
+          .set({
+            status,
+            progressCurrent,
+            progressRequired,
+            metadata,
+            updatedAt: sql`now()`
+          })
+          .where(eq(taskStatuses.id, existingStatus.id));
+      } else {
+        // Create new status
+        await db.insert(taskStatuses).values({
+          userId,
+          promotionId,
+          periodDate,
+          status,
+          progressCurrent: progressCurrent || 0,
+          progressRequired: progressRequired || 0,
+          metadata
+        });
+      }
+      
+      return { success: true, message: 'Task status updated successfully' };
+    } catch (error) {
+      console.error('Error setting task status:', error);
+      return { success: false, message: 'Failed to update task status' };
+    }
+  }
+
+  // Verify task and update status to claimable
+  async verifyTask(userId: string, promotionId: string, taskType: string): Promise<{ success: boolean; message: string; status?: 'claimable' | 'locked' | 'claimed' }> {
+    try {
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Task not found' };
+      }
+
+      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(taskType);
+      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
+
+      // Check current status
+      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      if (currentStatus?.status === 'claimed') {
+        return { success: false, message: 'Task already claimed', status: 'claimed' };
+      }
+
+      let verified = false;
+      let progressCurrent = 0;
+      let progressRequired = 0;
+
+      // Perform verification based on task type
+      switch (taskType) {
+        case 'channel_visit':
+          // Channel visit is immediately claimable after user clicks
+          verified = true;
+          break;
+          
+        case 'share_link':
+          // Check if user has shared their link
+          verified = await this.hasSharedLinkToday(userId);
+          break;
+          
+        case 'invite_friend':
+          // Check if user has valid referral today
+          verified = await this.hasValidReferralToday(userId);
+          break;
+          
+        case 'ads_goal_mini':
+        case 'ads_goal_light':
+        case 'ads_goal_medium':
+        case 'ads_goal_hard':
+          // Check if user met ads goal
+          const user = await this.getUser(userId);
+          const adsWatchedToday = user?.adsWatchedToday || 0;
+          
+          const adsGoalThresholds = {
+            'ads_goal_mini': 15,
+            'ads_goal_light': 25,
+            'ads_goal_medium': 45,
+            'ads_goal_hard': 75
+          };
+          
+          progressRequired = adsGoalThresholds[taskType as keyof typeof adsGoalThresholds] || 0;
+          progressCurrent = adsWatchedToday;
+          verified = adsWatchedToday >= progressRequired;
+          break;
+          
+        default:
+          verified = true; // For other task types, assume verified
+      }
+
+      const newStatus = verified ? 'claimable' : 'locked';
+      await this.setTaskStatus(userId, promotionId, newStatus, periodDate, progressCurrent, progressRequired);
+
+      return { 
+        success: true, 
+        message: verified ? 'Task verified, ready to claim!' : 'Task requirements not met yet',
+        status: newStatus
+      };
+    } catch (error) {
+      console.error('Error verifying task:', error);
+      return { success: false, message: 'Failed to verify task' };
+    }
+  }
+
+  // Claim task reward
+  async claimTaskReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
+    try {
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Task not found' };
+      }
+
+      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(promotion.type);
+      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
+
+      // Check current status
+      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      if (!currentStatus) {
+        return { success: false, message: 'Task status not found' };
+      }
+      
+      if (currentStatus.status === 'claimed') {
+        return { success: false, message: 'Task already claimed' };
+      }
+      
+      if (currentStatus.status !== 'claimable') {
+        return { success: false, message: 'Task not ready to claim' };
+      }
+
+      // Prevent users from claiming their own tasks
+      if (promotion.ownerId === userId) {
+        return { success: false, message: 'You cannot claim your own task' };
+      }
+
+      const rewardAmount = promotion.rewardPerUser || '0';
+      
+      // Record claim in appropriate table
+      if (isDailyTask) {
+        await db.insert(dailyTaskCompletions).values({
+          promotionId,
+          userId,
+          rewardAmount,
+          completionDate: periodDate!,
+        });
+      } else {
+        await db.insert(taskCompletions).values({
+          promotionId,
+          userId,
+          rewardAmount,
+          verified: true,
+        });
+      }
+
+      // Add reward to balance
+      await this.addBalance(userId, rewardAmount);
+
+      // Add earning record
+      await this.addEarning({
+        userId,
+        amount: rewardAmount,
+        source: isDailyTask ? 'daily_task_completion' : 'task_completion',
+        description: `Task completed: ${promotion.title}`,
+      });
+
+      // Update task status to claimed
+      await this.setTaskStatus(userId, promotionId, 'claimed', periodDate);
+
+      // Get updated balance
+      const updatedBalance = await this.getUserBalance(userId);
+
+      console.log(`📊 TASK_CLAIM_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
+
+      // Send notification
+      try {
+        const { sendTaskCompletionNotification } = await import('./telegram');
+        await sendTaskCompletionNotification(userId, rewardAmount);
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+      }
+
+      return { 
+        success: true, 
+        message: 'Task claimed successfully!',
+        rewardAmount,
+        newBalance: updatedBalance?.balance || '0'
+      };
+    } catch (error) {
+      console.error('Error claiming task reward:', error);
+      return { success: false, message: 'Failed to claim task reward' };
+    }
+  }
+
+  // ============== END NEW TASK STATUS SYSTEM FUNCTIONS ==============
 
   // Method to record that user visited channel (called from frontend)
   async recordChannelVisit(userId: string): Promise<{ success: boolean; message: string }> {

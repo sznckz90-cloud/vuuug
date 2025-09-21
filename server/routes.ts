@@ -2352,6 +2352,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // NEW TASK STATUS SYSTEM ENDPOINTS
+
+  // Verify task (makes it claimable if requirements are met)
+  app.post('/api/tasks/:promotionId/verify', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      const { taskType } = req.body;
+      
+      if (!taskType) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Task type is required' 
+        });
+      }
+      
+      console.log(`🔍 Task verification attempt: UserID=${userId}, TaskID=${promotionId}, TaskType=${taskType}`);
+      
+      const result = await storage.verifyTask(userId, promotionId, taskType);
+      
+      if (result.success) {
+        console.log(`✅ Task verification result: ${result.message}, Status: ${result.status}`);
+        res.json(result);
+      } else {
+        console.log(`❌ Task verification failed: ${result.message}`);
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error verifying task:", error);
+      res.status(500).json({ success: false, message: "Failed to verify task" });
+    }
+  });
+
+  // Claim task reward (credits balance and marks as claimed)
+  app.post('/api/tasks/:promotionId/claim', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { promotionId } = req.params;
+      
+      console.log(`🎁 Task claim attempt: UserID=${userId}, TaskID=${promotionId}`);
+      
+      const result = await storage.claimTaskReward(userId, promotionId);
+      
+      if (result.success) {
+        console.log(`✅ Task claimed successfully: ${result.message}, Reward: ${result.rewardAmount}`);
+        
+        // Send real-time balance update via WebSocket
+        try {
+          const connection = connectedUsers.get(req.sessionID);
+          if (connection && connection.ws.readyState === 1) {
+            connection.ws.send(JSON.stringify({
+              type: 'balance_update',
+              balance: result.newBalance,
+              rewardAmount: result.rewardAmount,
+              source: 'task_claim'
+            }));
+          }
+        } catch (wsError) {
+          console.error('Failed to send WebSocket balance update:', wsError);
+        }
+        
+        res.json(result);
+      } else {
+        console.log(`❌ Task claim failed: ${result.message}`);
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error claiming task reward:", error);
+      res.status(500).json({ success: false, message: "Failed to claim task reward" });
+    }
+  });
+
   // Create promotion (via Telegram bot only - internal endpoint)
   app.post('/api/internal/promotions', authenticateTelegram, async (req: any, res) => {
     try {
