@@ -3,17 +3,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-// Removed Tabs import - no longer using tabs, only Daily Tasks
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Share2, RefreshCw, Users, Tv, ArrowRight } from 'lucide-react';
+import { Share2, RefreshCw, Users, Tv, ArrowRight, Check } from 'lucide-react';
 
 interface Promotion {
   id: string;
   title: string;
   description: string;
-  type: 'fix' | 'channel_visit' | 'share_link' | 'invite_friend' | 'ads_goal_mini' | 'ads_goal_light' | 'ads_goal_medium' | 'ads_goal_hard' | 'channel' | 'bot' | 'daily';
+  type: 'channel_visit' | 'share_link' | 'invite_friend' | 'ads_goal_mini' | 'ads_goal_light' | 'ads_goal_medium' | 'ads_goal_hard';
   channelUsername?: string;
   botUsername?: string;
   reward: string;
@@ -22,10 +21,10 @@ interface Promotion {
   isActive: boolean;
   createdAt: string;
   claimUrl?: string;
-  // New enhanced task status fields
-  isAvailable?: boolean;
-  completionStatus?: 'claimable' | 'not_eligible' | 'completed_today' | 'unknown';
-  statusMessage?: string;
+  // New task status system fields
+  completionStatus: 'locked' | 'claimable' | 'claimed';
+  statusMessage: string;
+  buttonText: string;
   progress?: {
     current: number;
     required: number;
@@ -107,205 +106,156 @@ export default function TaskSection() {
     ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(task.type)
   );
 
-  // Complete task mutation
-  const completeTaskMutation = useMutation({
-    mutationFn: async (params: { promotionId: string; task: Promotion }) => {
+  // Get user referral link for sharing
+  const { data: userData } = useQuery({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+  });
+
+  // Verify task mutation (makes task claimable)
+  const verifyTaskMutation = useMutation({
+    mutationFn: async (params: { promotionId: string; taskType: string }) => {
       const currentTelegramData = getTelegramInitData();
       
       if (!currentTelegramData) {
         throw new Error('Please open this app inside Telegram to complete tasks');
       }
       
-      const response = await fetch(`/api/tasks/${params.promotionId}/complete`, {
+      const response = await fetch(`/api/tasks/${params.promotionId}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-telegram-data': currentTelegramData,
         },
         body: JSON.stringify({
-          taskType: params.task.type,
-          channelUsername: params.task.channelUsername,
-          botUsername: params.task.botUsername,
+          taskType: params.taskType,
         }),
       });
       
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to complete task');
+        throw new Error(error.message || 'Failed to verify task');
       }
       
       return response.json();
     },
     onSuccess: (data, params) => {
-      // Purple notification will be shown via WebSocket balance_update message
-      // Removed duplicate client-side notification to prevent duplicates
-      
-      // Invalidate and refetch relevant queries
+      // Refresh task list to show updated status
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tasks`, params.promotionId, 'status'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
     },
     onError: (error: any) => {
       toast({
-        title: "Task Failed",
-        description: error.message || "Failed to complete task",
+        title: "Verification Failed",
+        description: error.message || "Failed to verify task",
         variant: "destructive",
       });
     },
   });
 
-  // Helper functions for API calls
-  const recordChannelVisit = async () => {
-    const response = await fetch('/api/record-channel-visit', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-telegram-data': getTelegramInitData() || '',
-      },
-    });
-    return response.json();
-  };
-
-  const recordLinkShare = async () => {
-    const response = await fetch('/api/record-link-share', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-telegram-data': getTelegramInitData() || '',
-      },
-    });
-    return response.json();
-  };
-
-  const checkTaskEligibility = async (taskType: string) => {
-    const response = await fetch(`/api/user/task-eligibility/${taskType}`, {
-      headers: {
-        'x-telegram-data': getTelegramInitData() || '',
-      },
-    });
-    return response.json();
-  };
-
-  const handleTaskAction = async (task: Promotion, phase: string, setPhase: (phase: 'click' | 'check' | 'processing') => void) => {
-    if (phase === 'click') {
-      // Handle different task types with specific flows
-      if (task.type === 'channel_visit') {
-        // Channel Visit Task: Show "Visit Channel" button, redirect and mark as visited
-        setPhase('processing');
-        try {
-          // Open channel link
-          window.open('https://t.me/PaidAdsNews', '_blank');
-          // Record channel visit
-          await recordChannelVisit();
-          toast({
-            title: "Channel Visit Recorded!",
-            description: "You visited the channel. You can now claim your reward.",
-          });
-          // Refresh task data
-          queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-          setPhase('check'); // Show claim button
-        } catch (error) {
-          console.error('Error recording channel visit:', error);
-          setPhase('click');
-        }
-      } else if (task.type === 'share_link') {
-        // App Link Share Task: Show "Share Link" button, open share dialog and mark as shared
-        setPhase('processing');
-        try {
-          // Get user data for affiliate link
-          const user = await fetch('/api/auth/user', {
-            headers: { 'x-telegram-data': getTelegramInitData() || '' }
-          }).then(r => r.json());
-          
-          if (user.referralLink) {
-            // Copy to clipboard and show share dialog
-            await navigator.clipboard.writeText(user.referralLink);
-            
-            // Record link share
-            await recordLinkShare();
-            
-            toast({
-              title: "Link Shared!",
-              description: "Your affiliate link has been copied to clipboard and share recorded.",
-            });
-            
-            // Refresh task data
-            queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-            setPhase('check'); // Show claim button
-          }
-        } catch (error) {
-          console.error('Error recording link share:', error);
-          setPhase('click');
-        }
-      } else if (task.type === 'invite_friend') {
-        // Invite Friend Task: Check if user has made a referral today
-        setPhase('processing');
-        try {
-          const eligibility = await checkTaskEligibility('invite_friend');
-          if (eligibility.isEligible) {
-            setPhase('check'); // Show claim button
-          } else {
-            toast({
-              title: "Not Eligible Yet",
-              description: "You need to invite a friend using your referral link first.",
-              variant: "destructive",
-            });
-            setPhase('click');
-          }
-        } catch (error) {
-          console.error('Error checking invite friend eligibility:', error);
-          setPhase('click');
-        }
-      } else if (task.type.startsWith('ads_goal_')) {
-        // Ads Task: Check if user has watched enough ads
-        setPhase('processing');
-        try {
-          const eligibility = await checkTaskEligibility(task.type);
-          if (eligibility.isEligible) {
-            setPhase('check'); // Show claim button
-          } else {
-            toast({
-              title: "Not Eligible Yet",
-              description: eligibility.message || "You need to watch more ads first.",
-              variant: "destructive",
-            });
-            setPhase('click');
-          }
-        } catch (error) {
-          console.error('Error checking ads goal eligibility:', error);
-          setPhase('click');
-        }
-      } else {
-        // Default behavior for other task types
-        setPhase('check');
-      }
-    } else if (phase === 'check') {
-      // Claim phase - validate eligibility and claim reward
-      setPhase('processing');
+  // Claim task mutation (credits reward)
+  const claimTaskMutation = useMutation({
+    mutationFn: async (params: { promotionId: string }) => {
+      const currentTelegramData = getTelegramInitData();
       
-      // Final eligibility check before claiming
-      try {
-        const eligibility = await checkTaskEligibility(task.type);
-        if (!eligibility.isEligible) {
-          toast({
-            title: "Not Eligible",
-            description: eligibility.message || "You are not eligible to claim this reward yet.",
-            variant: "destructive",
-          });
-          setPhase('click');
-          return;
-        }
-        
-        // Proceed with claiming
-        completeTaskMutation.mutate({ promotionId: task.id, task });
-        setPhase('click'); // Reset for next time
-      } catch (error) {
-        console.error('Error checking eligibility for claim:', error);
-        // Proceed with claim anyway if eligibility check fails
-        completeTaskMutation.mutate({ promotionId: task.id, task });
-        setPhase('click');
+      if (!currentTelegramData) {
+        throw new Error('Please open this app inside Telegram to complete tasks');
       }
+      
+      const response = await fetch(`/api/tasks/${params.promotionId}/claim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-data': currentTelegramData,
+        },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to claim task');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data, params) => {
+      // Balance update will be shown via WebSocket
+      
+      // Invalidate and refetch relevant queries
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Claim Failed",
+        description: error.message || "Failed to claim task",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle task actions based on completion status and type
+  const handleTaskAction = (task: Promotion) => {
+    if (task.completionStatus === 'claimed') {
+      // Task already claimed, do nothing
+      return;
+    }
+    
+    if (task.completionStatus === 'claimable') {
+      // Task is ready to claim
+      claimTaskMutation.mutate({ promotionId: task.id });
+      return;
+    }
+    
+    // Task is locked, perform the action to verify it
+    if (task.type === 'channel_visit') {
+      // Open channel link, then verify
+      if (task.claimUrl) {
+        window.open(task.claimUrl, '_blank');
+      }
+      // Immediately verify (no extra message needed)
+      verifyTaskMutation.mutate({ promotionId: task.id, taskType: task.type });
+      
+    } else if (task.type === 'share_link') {
+      // Open Telegram share with formatted message
+      if (userData?.referralLink) {
+        const message = `👋 Hey, I'm using this app to earn TON by watching ads & completing tasks.  
+You can join too and start earning instantly! 🚀  
+
+🔗 Join with my invite link: ${userData.referralLink}  
+
+💡 When you sign up using my link, we both get rewards 🎁`;
+        
+        const encodedMessage = encodeURIComponent(message);
+        const shareUrl = `https://t.me/share/url?text=${encodedMessage}`;
+        window.open(shareUrl, '_blank');
+        
+        // The backend will verify via webhook when sharing is done
+        // For now, we can verify immediately for testing
+        verifyTaskMutation.mutate({ promotionId: task.id, taskType: task.type });
+      }
+      
+    } else if (task.type === 'invite_friend') {
+      // Show invite link for user to copy
+      if (userData?.referralLink) {
+        navigator.clipboard.writeText(userData.referralLink);
+        toast({
+          title: "Link Copied!",
+          description: "Share this link to invite friends. Task will unlock when someone joins!",
+        });
+      }
+      // Backend will verify when someone actually joins via referral
+      
+    } else if (task.type.startsWith('ads_goal_')) {
+      // Redirect to ads section (you can implement this)
+      toast({
+        title: "Watch Ads",
+        description: "Go to the Ads section to watch more ads!",
+      });
+      // Backend will verify when ads goal is reached
+      
+    } else {
+      // Default verification for other task types
+      verifyTaskMutation.mutate({ promotionId: task.id, taskType: task.type });
     }
   };
 
@@ -329,30 +279,10 @@ export default function TaskSection() {
   };
 
   const TaskCard = ({ task }: { task: Promotion }) => {
-    const [buttonPhase, setButtonPhase] = useState<'click' | 'check' | 'processing'>('click');
-    
-    // Check if user has completed this task
-    const { data: statusData } = useQuery<TaskCompletionStatus>({
-      queryKey: ['/api/tasks', task.id, 'status'],
-      retry: false,
-    });
-
-    const isCompleted = statusData?.completed || task.completionStatus === 'completed_today';
     const isTaskFull = task.completedCount >= task.totalSlots;
-    const remainingSlots = task.totalSlots - task.completedCount;
+    const isProcessing = verifyTaskMutation.isPending || claimTaskMutation.isPending;
     
-    // All tasks are daily tasks now - always show TON
-    const isDailyTask = true; // All tasks shown are daily tasks
-    
-    // Use new task eligibility system
-    const isEligible = task.isAvailable || task.completionStatus === 'claimable';
-    const canComplete = isEligible && !isCompleted && !isTaskFull;
-    
-    // Don't show completed daily tasks (unless they're ads goals for progress tracking)
-    if (isCompleted && !task.type.startsWith('ads_goal_')) {
-      return null;
-    }
-
+    // ALWAYS show tasks - never filter out
     return (
       <Card className="shadow-sm border border-border bg-card hover:bg-accent/5 transition-colors" data-testid={`card-task-${task.id}`}>
         <CardContent className="p-4">
@@ -370,8 +300,13 @@ export default function TaskSection() {
                   {task.title}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Daily task completion
+                  {task.statusMessage}
                 </p>
+                {task.progress && task.type.startsWith('ads_goal_') && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Progress: {task.progress.current}/{task.progress.required} ads
+                  </div>
+                )}
               </div>
             </div>
 
@@ -381,33 +316,29 @@ export default function TaskSection() {
                 <div className="text-2xl font-bold text-foreground">
                   {parseFloat(task.reward).toFixed(5)} TON
                 </div>
-                {task.progress && task.type.startsWith('ads_goal_') && (
-                  <div className="text-xs text-muted-foreground">
-                    {task.progress.current}/{task.progress.required}
-                  </div>
-                )}
               </div>
               
               {/* Right: Action Button */}
               <Button
-                onClick={() => handleTaskAction(task, buttonPhase, setButtonPhase)}
-                disabled={!canComplete || (buttonPhase === 'processing')}
+                onClick={() => handleTaskAction(task)}
+                disabled={isTaskFull || isProcessing || task.completionStatus === 'claimed'}
                 data-testid={`button-complete-${task.id}`}
-                className="flex-shrink-0 w-12 h-12 p-0"
-                variant={isCompleted ? "secondary" : "default"}
+                className="flex-shrink-0 min-w-[80px] h-12"
+                variant={task.completionStatus === 'claimed' ? "secondary" : "default"}
                 size="sm"
               >
                 {(() => {
-                  if (buttonPhase === 'processing') {
+                  if (isProcessing) {
                     return <div className="animate-spin">⏳</div>;
                   }
-                  if (isCompleted) {
-                    return <div className="text-green-600">✓</div>;
+                  if (task.completionStatus === 'claimed') {
+                    return <div className="text-green-600 flex items-center">✅ Done</div>;
                   }
-                  if (task.type === 'share_link') {
-                    return <Share2 className="w-5 h-5" />;
+                  if (task.completionStatus === 'claimable') {
+                    return "Claim";
                   }
-                  return <ArrowRight className="w-5 h-5" />;
+                  // Use the button text from backend
+                  return task.buttonText || "Start";
                 })()}
               </Button>
             </div>
