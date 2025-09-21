@@ -213,6 +213,21 @@ export const userBalances = pgTable("user_balances", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Task statuses table - tracks per-user task states (locked/claimable/claimed)
+export const taskStatuses = pgTable("task_statuses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
+  periodDate: varchar("period_date"), // Date in YYYY-MM-DD format for daily tasks, null for one-time
+  status: varchar("status").notNull().default("locked"), // 'locked', 'claimable', 'claimed'
+  progressCurrent: integer("progress_current").default(0),
+  progressRequired: integer("progress_required").default(0),
+  metadata: jsonb("metadata"), // Additional data like share message hash, channel username
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueUserTaskPeriod: unique().on(table.userId, table.promotionId, table.periodDate),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
@@ -224,6 +239,7 @@ export const insertPromotionClaimSchema = createInsertSchema(promotionClaims).om
 export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
 export const insertDailyTaskCompletionSchema = createInsertSchema(dailyTaskCompletions).omit({ id: true, completedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTaskStatusSchema = createInsertSchema(taskStatuses).omit({ id: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -249,3 +265,5 @@ export type DailyTaskCompletion = typeof dailyTaskCompletions.$inferSelect;
 export type InsertDailyTaskCompletion = z.infer<typeof insertDailyTaskCompletionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
 export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
+export type TaskStatus = typeof taskStatuses.$inferSelect;
+export type InsertTaskStatus = z.infer<typeof insertTaskStatusSchema>;
