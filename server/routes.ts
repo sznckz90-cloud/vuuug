@@ -2489,5 +2489,270 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // NEW TASK SYSTEM ENDPOINTS
+  // ================================
+
+  // Get all task statuses for user
+  app.get('/api/tasks/status', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get daily task completion records for today
+      const dailyTasks = await db.select()
+        .from(dailyTaskCompletions)
+        .where(and(
+          eq(dailyTaskCompletions.userId, userId),
+          eq(dailyTaskCompletions.completionDate, currentDate)
+        ));
+      
+      // Get current user data for ads progress
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Format task statuses
+      const taskStatuses = dailyTasks.map(task => ({
+        taskType: task.taskType,
+        progress: task.progress,
+        required: task.required,
+        completed: task.completed,
+        claimed: task.claimed,
+        rewardAmount: parseFloat(task.rewardAmount).toFixed(7),
+        status: task.claimed ? 'completed' : (task.completed ? 'claimable' : 'in_progress')
+      }));
+      
+      // Add ads progress from user data
+      const adsToday = user.adsWatchedToday || 0;
+      taskStatuses.forEach(task => {
+        if (task.taskType.startsWith('ads_')) {
+          task.progress = adsToday;
+          task.completed = adsToday >= task.required;
+          task.status = task.claimed ? 'completed' : (task.completed ? 'claimable' : 'in_progress');
+        }
+      });
+      
+      res.json({ tasks: taskStatuses, adsWatchedToday: adsToday });
+    } catch (error) {
+      console.error("Error fetching task status:", error);
+      res.status(500).json({ message: "Failed to fetch task status" });
+    }
+  });
+
+  // Complete channel visit task
+  app.post('/api/tasks/channel-visit/complete', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Update user's channel visited flag
+      await db.update(users)
+        .set({ channelVisited: true })
+        .where(eq(users.id, userId));
+      
+      // Update daily task completion
+      await db.update(dailyTaskCompletions)
+        .set({ completed: true, progress: 1 })
+        .where(and(
+          eq(dailyTaskCompletions.userId, userId),
+          eq(dailyTaskCompletions.taskType, 'channel_visit'),
+          eq(dailyTaskCompletions.completionDate, currentDate)
+        ));
+      
+      res.json({ success: true, message: 'Channel visit completed' });
+    } catch (error) {
+      console.error("Error completing channel visit:", error);
+      res.status(500).json({ message: "Failed to complete channel visit" });
+    }
+  });
+
+  // Complete share link task
+  app.post('/api/tasks/share-link/complete', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Update user's link shared flag
+      await db.update(users)
+        .set({ linkShared: true })
+        .where(eq(users.id, userId));
+      
+      // Update daily task completion
+      await db.update(dailyTaskCompletions)
+        .set({ completed: true, progress: 1 })
+        .where(and(
+          eq(dailyTaskCompletions.userId, userId),
+          eq(dailyTaskCompletions.taskType, 'share_link'),
+          eq(dailyTaskCompletions.completionDate, currentDate)
+        ));
+      
+      res.json({ success: true, message: 'Share link completed' });
+    } catch (error) {
+      console.error("Error completing share link:", error);
+      res.status(500).json({ message: "Failed to complete share link" });
+    }
+  });
+
+  // Increment ads counter
+  app.post('/api/tasks/ads/increment', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get current user data
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      const currentAds = (user.adsWatchedToday || 0) + 1;
+      
+      // Update user's ads watched count
+      await db.update(users)
+        .set({ 
+          adsWatchedToday: currentAds,
+          adsWatched: (user.adsWatched || 0) + 1,
+          lastAdWatch: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      // Update all ads goal tasks progress
+      const adsGoals = ['ads_mini', 'ads_light', 'ads_medium', 'ads_hard'];
+      for (const goalType of adsGoals) {
+        const taskData = await db.select()
+          .from(dailyTaskCompletions)
+          .where(and(
+            eq(dailyTaskCompletions.userId, userId),
+            eq(dailyTaskCompletions.taskType, goalType),
+            eq(dailyTaskCompletions.completionDate, currentDate)
+          ))
+          .limit(1);
+        
+        if (taskData.length > 0) {
+          const task = taskData[0];
+          const completed = currentAds >= task.required;
+          
+          await db.update(dailyTaskCompletions)
+            .set({ 
+              progress: currentAds,
+              completed: completed
+            })
+            .where(and(
+              eq(dailyTaskCompletions.userId, userId),
+              eq(dailyTaskCompletions.taskType, goalType),
+              eq(dailyTaskCompletions.completionDate, currentDate)
+            ));
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        adsWatchedToday: currentAds,
+        message: `Ads watched today: ${currentAds}`
+      });
+    } catch (error) {
+      console.error("Error incrementing ads counter:", error);
+      res.status(500).json({ message: "Failed to increment ads counter" });
+    }
+  });
+
+  // Complete invite friend task
+  app.post('/api/tasks/invite-friend/complete', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Update user's friend invited flag
+      await db.update(users)
+        .set({ friendInvited: true })
+        .where(eq(users.id, userId));
+      
+      // Update daily task completion
+      await db.update(dailyTaskCompletions)
+        .set({ completed: true, progress: 1 })
+        .where(and(
+          eq(dailyTaskCompletions.userId, userId),
+          eq(dailyTaskCompletions.taskType, 'invite_friend'),
+          eq(dailyTaskCompletions.completionDate, currentDate)
+        ));
+      
+      res.json({ success: true, message: 'Friend invite completed' });
+    } catch (error) {
+      console.error("Error completing friend invite:", error);
+      res.status(500).json({ message: "Failed to complete friend invite" });
+    }
+  });
+
+  // Claim completed task reward
+  app.post('/api/tasks/:taskType/claim', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskType } = req.params;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get task completion record
+      const taskData = await db.select()
+        .from(dailyTaskCompletions)
+        .where(and(
+          eq(dailyTaskCompletions.userId, userId),
+          eq(dailyTaskCompletions.taskType, taskType),
+          eq(dailyTaskCompletions.completionDate, currentDate)
+        ))
+        .limit(1);
+      
+      if (taskData.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      const task = taskData[0];
+      
+      if (task.claimed) {
+        return res.status(400).json({ message: 'Task already claimed' });
+      }
+      
+      if (!task.completed) {
+        return res.status(400).json({ message: 'Task not completed yet' });
+      }
+      
+      // Claim the reward in a transaction
+      await db.transaction(async (tx) => {
+        // Mark task as claimed
+        await tx.update(dailyTaskCompletions)
+          .set({ claimed: true })
+          .where(and(
+            eq(dailyTaskCompletions.userId, userId),
+            eq(dailyTaskCompletions.taskType, taskType),
+            eq(dailyTaskCompletions.completionDate, currentDate)
+          ));
+        
+        // Add balance
+        await storage.addBalance(userId, task.rewardAmount);
+        
+        // Add earning record
+        await storage.addEarning({
+          userId,
+          amount: task.rewardAmount,
+          source: 'daily_task_completion',
+          description: `Daily task completed: ${taskType}`,
+        });
+      });
+      
+      // Get updated balance
+      const user = await storage.getUser(userId);
+      
+      res.json({ 
+        success: true, 
+        message: 'Task reward claimed successfully',
+        rewardAmount: parseFloat(task.rewardAmount).toFixed(7),
+        newBalance: user?.balance || '0'
+      });
+    } catch (error) {
+      console.error("Error claiming task reward:", error);
+      res.status(500).json({ message: "Failed to claim task reward" });
+    }
+  });
+
   return httpServer;
 }

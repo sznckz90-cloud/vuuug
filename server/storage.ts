@@ -1840,7 +1840,12 @@ export class DatabaseStorage implements IStorage {
       await db.insert(dailyTaskCompletions).values({
         promotionId,
         userId,
+        taskType: promotion.type, // Use promotion type as task type
         rewardAmount,
+        progress: 1,
+        required: 1,
+        completed: true,
+        claimed: true,
         completionDate: currentDate,
       });
 
@@ -2148,7 +2153,12 @@ export class DatabaseStorage implements IStorage {
         await db.insert(dailyTaskCompletions).values({
           promotionId,
           userId,
+          taskType: promotion.type,
           rewardAmount,
+          progress: 1,
+          required: 1,
+          completed: true,
+          claimed: true,
           completionDate: periodDate!,
         });
       } else {
@@ -2250,32 +2260,93 @@ export class DatabaseStorage implements IStorage {
       console.log('🔄 Starting daily reset at 12:00 PM UTC...');
       
       const currentDate = new Date();
+      const currentDateString = currentDate.toISOString().split('T')[0];
+      const periodStart = new Date(currentDate);
+      periodStart.setUTCHours(12, 0, 0, 0); // 12:00 PM UTC period start
       
-      // 1. Reset all users' daily counters and tracking fields
+      // 1. Check if reset was already performed for this period (idempotency)
+      const usersNeedingReset = await db.select({ id: users.id })
+        .from(users)
+        .where(sql`${users.lastResetAt} < ${periodStart.toISOString()} OR ${users.lastResetAt} IS NULL`)
+        .limit(1000); // Process in batches
+      
+      if (usersNeedingReset.length === 0) {
+        console.log('🔄 Daily reset already completed for this period');
+        return;
+      }
+      
+      console.log(`🔄 Resetting ${usersNeedingReset.length} users for period ${currentDateString}`);
+      
+      // 2. Reset all users' daily counters and tracking fields
       await db.update(users)
         .set({ 
           adsWatchedToday: 0,
           channelVisited: false,
           appShared: false,
+          linkShared: false,
+          friendInvited: false,
           friendsInvited: 0,
           lastResetDate: currentDate,
+          lastResetAt: periodStart,
           lastAdDate: currentDate 
-        });
+        })
+        .where(sql`${users.lastResetAt} < ${periodStart.toISOString()} OR ${users.lastResetAt} IS NULL`);
       
-      // 2. Clear all daily task completions from yesterday and before
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayString = yesterday.toISOString().split('T')[0];
+      // 3. Create daily task completion records for all task types for this period
+      const taskTypes = ['channel_visit', 'share_link', 'invite_friend', 'ads_mini', 'ads_light', 'ads_medium', 'ads_hard'];
+      const taskRewards = {
+        'channel_visit': '0.000025',
+        'share_link': '0.000025', 
+        'invite_friend': '0.00005',
+        'ads_mini': '0.000035', // 15 ads
+        'ads_light': '0.000055', // 25 ads
+        'ads_medium': '0.000095', // 45 ads
+        'ads_hard': '0.000155' // 75 ads
+      };
+      const taskRequirements = {
+        'channel_visit': 1,
+        'share_link': 1,
+        'invite_friend': 1,
+        'ads_mini': 15,
+        'ads_light': 25,
+        'ads_medium': 45,
+        'ads_hard': 75
+      };
+      
+      for (const user of usersNeedingReset) {
+        for (const taskType of taskTypes) {
+          try {
+            await db.insert(dailyTaskCompletions).values({
+              userId: user.id,
+              taskType,
+              rewardAmount: taskRewards[taskType as keyof typeof taskRewards],
+              progress: 0,
+              required: taskRequirements[taskType as keyof typeof taskRequirements],
+              completed: false,
+              claimed: false,
+              completionDate: currentDateString,
+            }).onConflictDoNothing(); // Ignore if already exists
+          } catch (error) {
+            console.warn(`⚠️ Failed to create daily task ${taskType} for user ${user.id}:`, error);
+          }
+        }
+      }
+      
+      // 4. Clean up old daily task completions (older than 7 days)
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoString = weekAgo.toISOString().split('T')[0];
       
       await db.delete(dailyTaskCompletions)
-        .where(sql`${dailyTaskCompletions.completionDate} < ${yesterdayString}`);
+        .where(sql`${dailyTaskCompletions.completionDate} < ${weekAgoString}`);
       
       console.log('✅ Daily reset completed successfully at 12:00 PM UTC');
+      console.log(`   - Reset ${usersNeedingReset.length} users for period ${currentDateString}`);
       console.log('   - Reset ads watched today to 0');
-      console.log('   - Reset channel visited to false');
-      console.log('   - Reset app shared to false');
-      console.log('   - Reset friends invited to 0');
-      console.log('   - Updated last reset date');
+      console.log('   - Reset channel visited, app shared, link shared, friend invited to false');
+      console.log('   - Reset friends invited count to 0');
+      console.log('   - Created daily task completion records');
+      console.log('   - Cleaned up old task completions');
     } catch (error) {
       console.error('❌ Error during daily reset:', error);
     }
