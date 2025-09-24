@@ -62,11 +62,8 @@ export const users = pgTable("users", {
   // Daily task tracking fields for eligibility validation
   channelVisited: boolean("channel_visited").default(false),
   appShared: boolean("app_shared").default(false),
-  linkShared: boolean("link_shared").default(false),
-  friendInvited: boolean("friend_invited").default(false),
   friendsInvited: integer("friends_invited").default(0),
   lastResetDate: timestamp("last_reset_date"),
-  lastResetAt: timestamp("last_reset_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -198,19 +195,13 @@ export const promotionClaims = pgTable("promotion_claims", {
 // Daily task completions tracking for tasks that reset daily
 export const dailyTaskCompletions = pgTable("daily_task_completions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promotionId: varchar("promotion_id").references(() => promotions.id),
+  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  taskType: varchar("task_type").notNull(), // 'channel_visit', 'share_link', 'invite_friend', 'ads_mini', 'ads_light', 'ads_medium', 'ads_hard'
   rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
-  progress: integer("progress").default(0),
-  required: integer("required").default(1),
-  completed: boolean("completed").default(false),
-  claimed: boolean("claimed").default(false),
   completionDate: varchar("completion_date").notNull(), // Date in YYYY-MM-DD format
   completedAt: timestamp("completed_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  uniqueDailyCompletion: unique().on(table.userId, table.taskType, table.completionDate),
+  uniqueDailyCompletion: unique().on(table.promotionId, table.userId, table.completionDate),
 }));
 
 // User balances table - separate balance tracking  
@@ -246,7 +237,7 @@ export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: t
 export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, createdAt: true });
 export const insertPromotionClaimSchema = createInsertSchema(promotionClaims).omit({ id: true, claimedAt: true });
 export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
-export const insertDailyTaskCompletionSchema = createInsertSchema(dailyTaskCompletions).omit({ id: true, completedAt: true, updatedAt: true });
+export const insertDailyTaskCompletionSchema = createInsertSchema(dailyTaskCompletions).omit({ id: true, completedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTaskStatusSchema = createInsertSchema(taskStatuses).omit({ id: true, updatedAt: true });
 
