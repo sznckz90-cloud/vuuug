@@ -126,83 +126,6 @@ export const referralCommissions = pgTable("referral_commissions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Promo codes table
-export const promoCodes = pgTable("promo_codes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: varchar("code").unique().notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 2 }).notNull(),
-  rewardCurrency: varchar("reward_currency").default("USDT"),
-  usageLimit: integer("usage_limit"),
-  usageCount: integer("usage_count").default(0),
-  perUserLimit: integer("per_user_limit").default(1),
-  isActive: boolean("is_active").default(true),
-  expiresAt: timestamp("expires_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Promo code usage tracking
-export const promoCodeUsage = pgTable("promo_code_usage", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 2 }).notNull(),
-  usedAt: timestamp("used_at").defaultNow(),
-});
-
-// Promotions/Tasks table - Enhanced for Telegram bot promotion campaigns
-export const promotions = pgTable("promotions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  ownerId: varchar("owner_id").references(() => users.id).notNull(), // User who created the promotion
-  type: varchar("type").notNull(), // "channel", "bot", or "daily"
-  url: text("url").notNull(), // Channel or bot link
-  cost: decimal("cost", { precision: 12, scale: 8 }).notNull().default("0.01"), // Ad cost
-  rewardPerUser: decimal("reward_per_user", { precision: 12, scale: 8 }).notNull().default("0.00025"), // Reward per completion
-  limit: integer("limit").notNull().default(1000), // Max number of users who can claim
-  claimedCount: integer("claimed_count").notNull().default(0), // Current number of claims
-  status: varchar("status").notNull().default("active"), // "active", "paused", "completed", "deleted"
-  isApproved: boolean("is_approved").notNull().default(false), // Admin approval required
-  channelMessageId: varchar("channel_message_id"), // Telegram channel message ID for linking
-  title: varchar("title", { length: 255 }),
-  description: text("description"),
-  reward: integer("reward").default(0), // Keep for backward compatibility
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Task completions tracking
-export const taskCompletions = pgTable("task_completions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
-  verified: boolean("verified").default(false),
-  completedAt: timestamp("completed_at").defaultNow(),
-}, (table) => ({
-  uniqueTaskCompletion: unique().on(table.promotionId, table.userId),
-}));
-
-// Promotion claims tracking for user claim verification
-export const promotionClaims = pgTable("promotion_claims", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
-  claimedAt: timestamp("claimed_at").defaultNow(),
-}, (table) => ({
-  uniqueClaim: unique().on(table.promotionId, table.userId),
-}));
-
-// Daily task completions tracking for tasks that reset daily
-export const dailyTaskCompletions = pgTable("daily_task_completions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
-  completionDate: varchar("completion_date").notNull(), // Date in YYYY-MM-DD format
-  completedAt: timestamp("completed_at").defaultNow(),
-}, (table) => ({
-  uniqueDailyCompletion: unique().on(table.promotionId, table.userId, table.completionDate),
-}));
 
 // User balances table - separate balance tracking  
 export const userBalances = pgTable("user_balances", {
@@ -213,33 +136,13 @@ export const userBalances = pgTable("user_balances", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Task statuses table - tracks per-user task states (locked/claimable/claimed)
-export const taskStatuses = pgTable("task_statuses", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  promotionId: varchar("promotion_id").references(() => promotions.id).notNull(),
-  periodDate: varchar("period_date"), // Date in YYYY-MM-DD format for daily tasks, null for one-time
-  status: varchar("status").notNull().default("locked"), // 'locked', 'claimable', 'claimed'
-  progressCurrent: integer("progress_current").default(0),
-  progressRequired: integer("progress_required").default(0),
-  metadata: jsonb("metadata"), // Additional data like share message hash, channel username
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => ({
-  uniqueUserTaskPeriod: unique().on(table.userId, table.promotionId, table.periodDate),
-}));
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, usageCount: true, createdAt: true, updatedAt: true });
-export const insertPromotionSchema = createInsertSchema(promotions).omit({ id: true, createdAt: true });
-export const insertPromotionClaimSchema = createInsertSchema(promotionClaims).omit({ id: true, claimedAt: true });
-export const insertTaskCompletionSchema = createInsertSchema(taskCompletions).omit({ id: true, completedAt: true });
-export const insertDailyTaskCompletionSchema = createInsertSchema(dailyTaskCompletions).omit({ id: true, completedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertTaskStatusSchema = createInsertSchema(taskStatuses).omit({ id: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -250,20 +153,7 @@ export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type Referral = typeof referrals.$inferSelect;
 export type ReferralCommission = typeof referralCommissions.$inferSelect;
-export type PromoCode = typeof promoCodes.$inferSelect;
-export type InsertPromoCode = z.infer<typeof insertPromoCodeSchema>;
-export type PromoCodeUsage = typeof promoCodeUsage.$inferSelect;
-export type Promotion = typeof promotions.$inferSelect;
-export type InsertPromotion = z.infer<typeof insertPromotionSchema>;
-export type PromotionClaim = typeof promotionClaims.$inferSelect;
-export type InsertPromotionClaim = z.infer<typeof insertPromotionClaimSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
-export type TaskCompletion = typeof taskCompletions.$inferSelect;
-export type InsertTaskCompletion = z.infer<typeof insertTaskCompletionSchema>;
-export type DailyTaskCompletion = typeof dailyTaskCompletions.$inferSelect;
-export type InsertDailyTaskCompletion = z.infer<typeof insertDailyTaskCompletionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
 export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
-export type TaskStatus = typeof taskStatuses.$inferSelect;
-export type InsertTaskStatus = z.infer<typeof insertTaskStatusSchema>;
