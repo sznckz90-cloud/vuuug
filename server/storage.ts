@@ -3,41 +3,21 @@ import {
   earnings,
   referrals,
   referralCommissions,
-  promoCodes,
-  promoCodeUsage,
   withdrawals,
-  promotions,
-  promotionClaims,
-  taskCompletions,
-  dailyTaskCompletions,
   userBalances,
   transactions,
-  taskStatuses,
   type User,
   type UpsertUser,
   type InsertEarning,
   type Earning,
   type Referral,
   type ReferralCommission,
-  type PromoCode,
-  type InsertPromoCode,
-  type PromoCodeUsage,
   type Withdrawal,
   type InsertWithdrawal,
-  type Promotion,
-  type InsertPromotion,
-  type PromotionClaim,
-  type InsertPromotionClaim,
-  type TaskCompletion,
-  type InsertTaskCompletion,
-  type DailyTaskCompletion,
-  type InsertDailyTaskCompletion,
   type UserBalance,
   type InsertUserBalance,
   type Transaction,
   type InsertTransaction,
-  type TaskStatus,
-  type InsertTaskStatus,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
@@ -110,27 +90,6 @@ export interface IStorage {
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
   upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }>;
   
-  // Promo code operations
-  createPromoCode(promoCode: InsertPromoCode): Promise<PromoCode>;
-  getAllPromoCodes(): Promise<PromoCode[]>;
-  getPromoCode(code: string): Promise<PromoCode | undefined>;
-  updatePromoCodeStatus(id: string, isActive: boolean): Promise<PromoCode>;
-  usePromoCode(code: string, userId: string): Promise<{ success: boolean; message: string; reward?: string }>;
-  
-  // Task/Promotion operations
-  createPromotion(promotion: InsertPromotion): Promise<Promotion>;
-  getAllActivePromotions(): Promise<Promotion[]>;
-  getPromotion(id: string): Promise<Promotion | undefined>;
-  completeTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }>;
-  hasUserCompletedTask(promotionId: string, userId: string): Promise<boolean>;
-  updatePromotionCompletedCount(promotionId: string): Promise<void>;
-  deactivateCompletedPromotions(): Promise<void>;
-  
-  // Daily task validation methods
-  hasValidReferralToday(userId: string): Promise<boolean>;
-  hasSharedLinkToday(userId: string): Promise<boolean>;
-  recordLinkShare(userId: string): Promise<{ success: boolean; message: string }>;
-  checkAdsGoalCompletion(userId: string, adsGoalType: string): Promise<boolean>;
   
   // Daily reset system
   performDailyReset(): Promise<void>;

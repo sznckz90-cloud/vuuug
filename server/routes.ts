@@ -983,95 +983,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Telegram Promotion System API endpoints
-  
-  // Create promotion and auto-post to Telegram channel
-  app.post('/api/promotions/create', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const { type, url, cost, rewardPerUser, limit, title, description } = req.body;
-      
-      // Validate required fields
-      if (!type || !url || !cost || !rewardPerUser || !limit) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Missing required fields: type, url, cost, rewardPerUser, limit' 
-        });
-      }
-      
-      // Enforce fixed task creation cost for security - never trust client
-      const FIXED_TASK_COST = '0.01';
-      
-      // Validate client input ranges for security
-      if (parseFloat(rewardPerUser) <= 0 || parseFloat(rewardPerUser) > 1) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '❌ Invalid reward amount. Must be between $0.01 and $1.00.' 
-        });
-      }
-      
-      if (limit <= 0 || limit > 10000) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '❌ Invalid limit. Must be between 1 and 10,000.' 
-        });
-      }
-      
-      const allowedTypes = ['channel', 'bot', 'daily'];
-      if (!allowedTypes.includes(type)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '❌ Invalid task type. Allowed types: channel, bot, daily.' 
-        });
-      }
-      
-      // Check user balance and deduct fixed cost - security: ignore client cost
-      const balanceResult = await storage.deductBalance(userId, FIXED_TASK_COST);
-      if (!balanceResult.success) {
-        console.log(`❌ Task creation blocked for user ${userId}: ${balanceResult.message}`);
-        return res.status(400).json({ 
-          success: false, 
-          message: balanceResult.message === 'Insufficient balance' 
-            ? '❌ Not enough balance to create this task.'
-            : 'Failed to process task creation cost' 
-        });
-      }
-      
-      console.log(`💰 Task creation cost $${FIXED_TASK_COST} (fixed rate) deducted from user ${userId} balance`);
-      
-      // Create promotion in database - requires admin approval before going live
-      const promotion = await storage.createPromotion({
-        ownerId: userId,
-        type,
-        url,
-        cost: FIXED_TASK_COST,
-        rewardPerUser: rewardPerUser.toString(),
-        limit,
-        title,
-        description,
-        status: 'active',
-        isApproved: false // Require admin approval before public visibility
-      });
-      
-      console.log(`📊 TASK_CREATION_LOG: UserID=${userId}, TaskID=${promotion.id}, CostDeducted=${FIXED_TASK_COST}, RewardPerUser=${rewardPerUser}, Limit=${limit}, Status=PENDING_APPROVAL, Title="${title}"`);
-      
-      // Promotion created but needs admin approval before going live
-      res.json({
-        success: true,
-        message: '🎯 Task created successfully! It will appear to users after admin approval.',
-        promotion: {
-          ...promotion,
-          isPending: true
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error creating promotion:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Failed to create promotion' 
-      });
-    }
-  });
   
   // Get tasks/promotions with Open button links to Telegram channel posts
   app.get('/api/tasks', authenticateTelegram, async (req: any, res) => {
@@ -1352,42 +1263,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user's created promotions/tasks  
-  app.get('/api/user/promotions', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      
-      // Get user's promotions
-      const userPromotions = await db
-        .select({
-          id: promotions.id,
-          type: promotions.type,
-          url: promotions.url,
-          cost: promotions.cost,
-          rewardPerUser: promotions.rewardPerUser,
-          limit: promotions.limit,
-          claimedCount: promotions.claimedCount,
-          title: promotions.title,
-          description: promotions.description,
-          status: promotions.status,
-          createdAt: promotions.createdAt
-        })
-        .from(promotions)
-        .where(eq(promotions.ownerId, userId))
-        .orderBy(desc(promotions.createdAt));
-      
-      res.json({
-        success: true,
-        promotions: userPromotions
-      });
-    } catch (error) {
-      console.error('❌ Error fetching user promotions:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Failed to fetch promotions' 
-      });
-    }
-  });
 
   // CRITICAL: Public referral data repair endpoint (no auth needed for emergency fix)
   app.post('/api/emergency-fix-referrals', async (req: any, res) => {
@@ -2541,59 +2416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Complete channel visit task
-  app.post('/api/tasks/channel-visit/complete', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const currentDate = new Date().toISOString().split('T')[0];
-      
-      // Update user's channel visited flag
-      await db.update(users)
-        .set({ channelVisited: true })
-        .where(eq(users.id, userId));
-      
-      // Update daily task completion
-      await db.update(dailyTaskCompletions)
-        .set({ completed: true, progress: 1 })
-        .where(and(
-          eq(dailyTaskCompletions.userId, userId),
-          eq(dailyTaskCompletions.taskType, 'channel_visit'),
-          eq(dailyTaskCompletions.completionDate, currentDate)
-        ));
-      
-      res.json({ success: true, message: 'Channel visit completed' });
-    } catch (error) {
-      console.error("Error completing channel visit:", error);
-      res.status(500).json({ message: "Failed to complete channel visit" });
-    }
-  });
 
-  // Complete share link task
-  app.post('/api/tasks/share-link/complete', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const currentDate = new Date().toISOString().split('T')[0];
-      
-      // Update user's link shared flag
-      await db.update(users)
-        .set({ linkShared: true })
-        .where(eq(users.id, userId));
-      
-      // Update daily task completion
-      await db.update(dailyTaskCompletions)
-        .set({ completed: true, progress: 1 })
-        .where(and(
-          eq(dailyTaskCompletions.userId, userId),
-          eq(dailyTaskCompletions.taskType, 'share_link'),
-          eq(dailyTaskCompletions.completionDate, currentDate)
-        ));
-      
-      res.json({ success: true, message: 'Share link completed' });
-    } catch (error) {
-      console.error("Error completing share link:", error);
-      res.status(500).json({ message: "Failed to complete share link" });
-    }
-  });
 
   // Increment ads counter
   app.post('/api/tasks/ads/increment', authenticateTelegram, async (req: any, res) => {
