@@ -10,10 +10,9 @@ console.log('🚀 Starting CashWatch server...');
 await ensureDatabaseSchema();
 console.log('✅ Database schema verified, starting server setup...');
 
-// Ensure daily task and admin user exist for production deployment
+// Ensure admin user exists for production deployment
 try {
   const { storage } = await import('./storage');
-  await storage.ensureSystemTasksExist();
   await storage.ensureAdminUserExists();
 } catch (error) {
   console.log('⚠️ Could not ensure system setup:', error);

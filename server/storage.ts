@@ -1331,11 +1331,6 @@ export class DatabaseStorage implements IStorage {
     return withdrawal;
   }
 
-  // Task/Promotion operations (new implementations)
-  async createPromotion(promotion: InsertPromotion): Promise<Promotion> {
-    const [result] = await db.insert(promotions).values(promotion).returning();
-    return result;
-  }
 
   // Ensure all required system tasks exist for production deployment
   async ensureSystemTasksExist(): Promise<void> {
@@ -1536,10 +1531,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAllActivePromotions(): Promise<Promotion[]> {
-    return db.select().from(promotions)
-      .orderBy(desc(promotions.createdAt));
-  }
+  // Promotion system removed - using Ads Watch Tasks system only
 
   async getAvailablePromotionsForUser(userId: string): Promise<any> {
     // Get all active and approved promotions - ALWAYS show them
@@ -1683,76 +1675,9 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getPromotion(id: string): Promise<Promotion | undefined> {
-    const [promotion] = await db.select().from(promotions).where(eq(promotions.id, id));
-    return promotion;
-  }
 
-  async completeTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
-    try {
-      // Check if promotion exists
-      const promotion = await this.getPromotion(promotionId);
-      if (!promotion) {
-        return { success: false, message: 'Promotion not found' };
-      }
+  // Task completion system removed - using Ads Watch Tasks system only
 
-      // Prevent users from completing their own tasks
-      if (promotion.ownerId === userId) {
-        console.log(`❌ Task completion blocked: User ${userId} tried to complete their own task ${promotionId}`);
-        return { success: false, message: 'You cannot complete your own task' };
-      }
-
-      // Check if user already completed this task
-      const hasCompleted = await this.hasUserCompletedTask(promotionId, userId);
-      if (hasCompleted) {
-        return { success: false, message: 'You have already completed this task' };
-      }
-
-      // Record task completion
-      await db.insert(taskCompletions).values({
-        promotionId,
-        userId,
-        rewardAmount,
-        verified: true,
-      });
-
-      console.log(`📊 TASK_COMPLETION_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
-
-      // Add reward to user's earnings balance
-      await this.addBalance(userId, rewardAmount);
-
-      // Add earning record
-      await this.addEarning({
-        userId,
-        amount: rewardAmount,
-        source: 'task_completion',
-        description: `Task completed: ${promotion.title}`,
-      });
-
-      // Send task completion notification to user via Telegram
-      try {
-        const { sendTaskCompletionNotification } = await import('./telegram');
-        await sendTaskCompletionNotification(userId, rewardAmount);
-      } catch (error) {
-        console.error('Failed to send task completion notification:', error);
-        // Don't fail the task completion if notification fails
-      }
-
-      return { success: true, message: 'Task completed successfully' };
-    } catch (error) {
-      console.error('Error completing task:', error);
-      return { success: false, message: 'Error completing task' };
-    }
-  }
-
-  async hasUserCompletedTask(promotionId: string, userId: string): Promise<boolean> {
-    const [completion] = await db.select().from(taskCompletions)
-      .where(and(
-        eq(taskCompletions.promotionId, promotionId),
-        eq(taskCompletions.userId, userId)
-      ));
-    return !!completion;
-  }
 
   // Get current date in YYYY-MM-DD format for 12:00 PM UTC reset
   private getCurrentTaskDate(): string {
@@ -1767,17 +1692,6 @@ export class DatabaseStorage implements IStorage {
     return now.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
   }
 
-  async hasUserCompletedDailyTask(promotionId: string, userId: string): Promise<boolean> {
-    const currentDate = this.getCurrentTaskDate();
-    
-    const [completion] = await db.select().from(dailyTaskCompletions)
-      .where(and(
-        eq(dailyTaskCompletions.promotionId, promotionId),
-        eq(dailyTaskCompletions.userId, userId),
-        eq(dailyTaskCompletions.completionDate, currentDate)
-      ));
-    return !!completion;
-  }
 
   async completeDailyTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
     try {
@@ -2467,10 +2381,6 @@ export class DatabaseStorage implements IStorage {
     return !!claim;
   }
 
-  async createPromotionClaim(claim: InsertPromotionClaim): Promise<PromotionClaim> {
-    const [result] = await db.insert(promotionClaims).values(claim).returning();
-    return result;
-  }
 
   async incrementPromotionClaimedCount(promotionId: string): Promise<void> {
     await db.update(promotions)

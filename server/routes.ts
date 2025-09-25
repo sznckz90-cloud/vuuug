@@ -4,15 +4,11 @@ import { storage } from "./storage";
 import { WebSocketServer, WebSocket } from 'ws';
 import { 
   insertEarningSchema, 
-  insertPromotionSchema,
   users, 
   earnings, 
   referrals, 
   referralCommissions,
   withdrawals,
-  promotions,
-  taskCompletions,
-  dailyTaskCompletions,
   userBalances
 } from "../shared/schema";
 import { db } from "./db";
