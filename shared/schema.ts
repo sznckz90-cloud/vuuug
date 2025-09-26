@@ -50,7 +50,10 @@ export const users = pgTable("users", {
   currentStreak: integer("current_streak").default(0),
   lastStreakDate: timestamp("last_streak_date"),
   level: integer("level").default(1),
-  // Note: Referral fields removed as per requirement to remove referral logic
+  referredBy: varchar("referred_by"),
+  referralCode: text("referral_code"),
+  friendsInvited: integer("friends_invited"),
+  firstAdWatched: boolean("first_ad_watched").default(false),
   flagged: boolean("flagged").default(false),
   flagReason: text("flag_reason"),
   banned: boolean("banned").default(false),
@@ -102,7 +105,49 @@ export const withdrawals = pgTable("withdrawals", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Note: Referrals and referral commissions tables removed as per requirement to remove promotion/referral logic
+// Referrals table
+export const referrals = pgTable("referrals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  refereeId: varchar("referee_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 5 }).default("0.50"),
+  status: varchar("status").default('pending'),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Promo codes table
+export const promoCodes = pgTable("promo_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  rewardCurrency: varchar("reward_currency").default('USDT'),
+  usageLimit: integer("usage_limit"),
+  usageCount: integer("usage_count").default(0),
+  perUserLimit: integer("per_user_limit").default(1),
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Promo code usage table
+export const promoCodeUsage = pgTable("promo_code_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  usedAt: timestamp("used_at").defaultNow(),
+});
+
+// Referral commissions table
+export const referralCommissions = pgTable("referral_commissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
+  originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 10, scale: 8 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 
 // User balances table - separate balance tracking  
@@ -121,6 +166,10 @@ export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertReferralSchema = createInsertSchema(referrals).omit({ id: true, createdAt: true });
+export const insertReferralCommissionSchema = createInsertSchema(referralCommissions).omit({ id: true, createdAt: true });
+export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPromoCodeUsageSchema = createInsertSchema(promoCodeUsage).omit({ id: true, usedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -129,7 +178,14 @@ export type InsertEarning = z.infer<typeof insertEarningSchema>;
 export type Earning = typeof earnings.$inferSelect;
 export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type Withdrawal = typeof withdrawals.$inferSelect;
-// Note: Referral types removed as per requirement
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = z.infer<typeof insertReferralSchema>;
+export type ReferralCommission = typeof referralCommissions.$inferSelect;
+export type InsertReferralCommission = z.infer<typeof insertReferralCommissionSchema>;
+export type PromoCode = typeof promoCodes.$inferSelect;
+export type InsertPromoCode = z.infer<typeof insertPromoCodeSchema>;
+export type PromoCodeUsage = typeof promoCodeUsage.$inferSelect;
+export type InsertPromoCodeUsage = z.infer<typeof insertPromoCodeUsageSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
