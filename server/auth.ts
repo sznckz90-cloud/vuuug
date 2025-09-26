@@ -6,16 +6,18 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import crypto from "crypto";
 import { storage } from "./storage";
+import { pool } from "./db";
 
 // Session configuration
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   
+  // Configure session store using the same SSL-configured pool as the main database
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+    pool: pool, // Reuse the SSL-configured pool from db.ts
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: Math.floor(sessionTtl / 1000), // TTL expects seconds, not milliseconds
     tableName: "sessions",
   });
   
