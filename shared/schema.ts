@@ -50,8 +50,7 @@ export const users = pgTable("users", {
   currentStreak: integer("current_streak").default(0),
   lastStreakDate: timestamp("last_streak_date"),
   level: integer("level").default(1),
-  referredBy: varchar("referred_by"),
-  referralCode: text("referral_code").notNull().unique(),
+  // Note: Referral fields removed as per requirement to remove referral logic
   flagged: boolean("flagged").default(false),
   flagReason: text("flag_reason"),
   banned: boolean("banned").default(false),
@@ -59,10 +58,9 @@ export const users = pgTable("users", {
   lastLoginIp: text("last_login_ip"),
   lastLoginDevice: text("last_login_device"),
   lastLoginUserAgent: text("last_login_user_agent"),
-  // Daily task tracking fields for eligibility validation
+  // Daily task tracking fields for eligibility validation  
   channelVisited: boolean("channel_visited").default(false),
   appShared: boolean("app_shared").default(false),
-  friendsInvited: integer("friends_invited").default(0),
   lastResetDate: timestamp("last_reset_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -104,27 +102,7 @@ export const withdrawals = pgTable("withdrawals", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Referrals table
-export const referrals = pgTable("referrals", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
-  refereeId: varchar("referee_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 5 }).default("0.01"),
-  status: varchar("status").default("pending"),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => ({
-  uniqueReferral: unique().on(table.referrerId, table.refereeId),
-}));
-
-// Referral commissions table
-export const referralCommissions = pgTable("referral_commissions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
-  referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
-  originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
-  commissionAmount: decimal("commission_amount", { precision: 12, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// Note: Referrals and referral commissions tables removed as per requirement to remove promotion/referral logic
 
 
 // User balances table - separate balance tracking  
@@ -151,8 +129,7 @@ export type InsertEarning = z.infer<typeof insertEarningSchema>;
 export type Earning = typeof earnings.$inferSelect;
 export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type Withdrawal = typeof withdrawals.$inferSelect;
-export type Referral = typeof referrals.$inferSelect;
-export type ReferralCommission = typeof referralCommissions.$inferSelect;
+// Note: Referral types removed as per requirement
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
