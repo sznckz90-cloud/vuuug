@@ -45,17 +45,6 @@ export default function Landing() {
             </CardContent>
           </Card>
 
-          <Card className="border border-border shadow-sm">
-            <CardContent className="p-4 text-center">
-              <div className="bg-primary/10 p-2 rounded-full inline-block mb-3">
-                <i className="fas fa-users text-primary text-xl"></i>
-              </div>
-              <h3 className="text-base font-semibold text-foreground mb-2">Refer & Earn</h3>
-              <p className="text-muted-foreground text-xs">
-                Invite friends and earn 0.5 TON for each successful referral.
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Call to Action */}
