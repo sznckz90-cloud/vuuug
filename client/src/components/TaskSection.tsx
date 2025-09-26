@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Share2, RefreshCw, Users, Tv, ArrowRight, Check, ExternalLink } from 'lucide-react';
+import { RefreshCw, Tv, ArrowRight, Check, ExternalLink } from 'lucide-react';
 
 interface Task {
   taskType: string;
@@ -49,18 +49,6 @@ const taskConfig = {
     icon: Tv,
     color: 'blue',
     channelUrl: 'https://t.me/your_channel'
-  },
-  share_link: {
-    title: 'Share App Link',
-    description: 'Share this app with friends',
-    icon: Share2,
-    color: 'green'
-  },
-  invite_friend: {
-    title: 'Invite Friend',
-    description: 'Invite a friend using your referral link',
-    icon: Users,
-    color: 'purple'
   },
   ads_mini: {
     title: 'Mini Goal',
@@ -108,11 +96,6 @@ export default function TaskSection() {
   const tasks = tasksResponse?.tasks || [];
   const adsWatchedToday = tasksResponse?.adsWatchedToday || 0;
 
-  // Get user data for referral link
-  const { data: userData } = useQuery<{user?: {referralCode?: string}}>({
-    queryKey: ['/api/auth/user'],
-    retry: false,
-  });
 
   // Complete channel visit mutation
   const completeChannelVisitMutation = useMutation({
