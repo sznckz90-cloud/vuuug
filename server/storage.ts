@@ -3,6 +3,8 @@ import {
   earnings,
   referrals,
   referralCommissions,
+  promoCodes,
+  promoCodeUsage,
   withdrawals,
   userBalances,
   transactions,
@@ -11,7 +13,13 @@ import {
   type InsertEarning,
   type Earning,
   type Referral,
+  type InsertReferral,
   type ReferralCommission,
+  type InsertReferralCommission,
+  type PromoCode,
+  type InsertPromoCode,
+  type PromoCodeUsage,
+  type InsertPromoCodeUsage,
   type Withdrawal,
   type InsertWithdrawal,
   type UserBalance,
@@ -354,12 +362,27 @@ export class DatabaseStorage implements IStorage {
     return newTransaction;
   }
 
+  // Helper function to log transactions for referral system
+  async logTransaction(transactionData: InsertTransaction): Promise<Transaction> {
+    return this.addTransaction(transactionData);
+  }
+
   // Earnings operations
   async addEarning(earning: InsertEarning): Promise<Earning> {
     const [newEarning] = await db
       .insert(earnings)
       .values(earning)
       .returning();
+    
+    // Log transaction for security and tracking
+    await this.logTransaction({
+      userId: earning.userId,
+      amount: earning.amount,
+      type: 'addition',
+      source: earning.source,
+      description: earning.description || `${earning.source} earning`,
+      metadata: { earningId: newEarning.id }
+    });
     
     // Update canonical user_balances table and keep users table in sync
     // All earnings contribute to available balance
@@ -735,9 +758,16 @@ export class DatabaseStorage implements IStorage {
     return referral;
   }
 
-  // New method to check and activate referral bonus when friend reaches 10 ads
+  // Check and activate referral bonus when friend completes FIRST ad (0.002 TON reward)
   async checkAndActivateReferralBonus(userId: string): Promise<void> {
     try {
+      // Check if this user has already completed first ad
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || user.firstAdWatched) {
+        // First ad already processed for this user
+        return;
+      }
+
       // Count ads watched by this user
       const [adCount] = await db
         .select({ count: sql<number>`count(*)` })
@@ -749,8 +779,14 @@ export class DatabaseStorage implements IStorage {
 
       const adsWatched = adCount?.count || 0;
       
-      // If user has watched 10+ ads, activate pending referral bonuses
-      if (adsWatched >= 10) {
+      // If user has watched first ad, activate referral bonuses
+      if (adsWatched >= 1) {
+        // Mark this user as having completed first ad
+        await db
+          .update(users)
+          .set({ firstAdWatched: true })
+          .where(eq(users.id, userId));
+
         // Find pending referrals where this user is the referee
         const pendingReferrals = await db
           .select()
@@ -768,15 +804,15 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          // Award referral bonus to referrer
+          // Award 0.002 TON referral bonus to referrer
           await this.addEarning({
             userId: referral.referrerId,
-            amount: "0.01",
+            amount: "0.002",
             source: 'referral',
-            description: `Referral bonus - friend watched ${adsWatched} ads`,
+            description: `Referral bonus - friend completed first ad`,
           });
 
-          console.log(`✅ Referral bonus activated: $0.01 awarded to ${referral.referrerId}`);
+          console.log(`✅ First ad referral bonus: 0.002 TON awarded to ${referral.referrerId} from ${userId}'s first ad`);
         }
       }
     } catch (error) {
@@ -1071,8 +1107,8 @@ export class DatabaseStorage implements IStorage {
         return;
       }
 
-      // Calculate 10% commission on ad earnings only
-      const commissionAmount = (parseFloat(earningAmount) * 0.1).toFixed(8);
+      // Calculate 8% commission on ad earnings only
+      const commissionAmount = (parseFloat(earningAmount) * 0.08).toFixed(8);
       
       // Record the referral commission
       await db.insert(referralCommissions).values({
@@ -1087,7 +1123,21 @@ export class DatabaseStorage implements IStorage {
         userId: referralInfo.referrerId,
         amount: commissionAmount,
         source: 'referral_commission',
-        description: `10% commission from referred user's ad earnings`,
+        description: `8% commission from referred user's ad earnings`,
+      });
+
+      // Log commission transaction
+      await this.logTransaction({
+        userId: referralInfo.referrerId,
+        amount: commissionAmount,
+        type: 'addition',
+        source: 'referral_commission',
+        description: `8% commission from referred user's ad earnings`,
+        metadata: { 
+          originalEarningId, 
+          referredUserId: userId,
+          commissionRate: '8%'
+        }
       });
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
