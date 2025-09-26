@@ -4,7 +4,7 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set. For Neon: get your connection string from Neon dashboard. For Replit: ensure database is provisioned.");
 }
 
-// Determine SSL configuration for Drizzle
+// Determine SSL configuration for Neon database  
 function getSSLConfig() {
   const databaseUrl = process.env.DATABASE_URL;
   
@@ -13,14 +13,14 @@ function getSSLConfig() {
     return false;
   }
   
-  // For Neon and other cloud databases, enable SSL
-  if (databaseUrl?.includes('neon.tech') || 
-      databaseUrl?.includes('render.com') || 
-      process.env.NODE_ENV === 'production') {
-    // Use secure SSL by default, allow insecure only if explicitly set
-    return process.env.DB_SSL_INSECURE === 'true' 
-      ? { rejectUnauthorized: false }
-      : true;
+  // For Neon database, always use SSL with rejectUnauthorized: false
+  if (databaseUrl?.includes('neon.tech')) {
+    return { rejectUnauthorized: false };
+  }
+  
+  // For other cloud databases in production
+  if (databaseUrl?.includes('render.com') || process.env.NODE_ENV === 'production') {
+    return { rejectUnauthorized: false };
   }
   
   // For local development, disable SSL by default
