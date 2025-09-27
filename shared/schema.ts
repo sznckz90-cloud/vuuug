@@ -159,6 +159,25 @@ export const userBalances = pgTable("user_balances", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Simple daily tasks system - fixed sequential ads-based tasks
+export const dailyTasks = pgTable("daily_tasks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  taskLevel: integer("task_level").notNull(), // 1-9 for the 9 tasks
+  progress: integer("progress").default(0), // current ads watched
+  required: integer("required").notNull(), // ads required for this task
+  completed: boolean("completed").default(false),
+  claimed: boolean("claimed").default(false),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
+  completedAt: timestamp("completed_at"),
+  claimedAt: timestamp("claimed_at"),
+  resetDate: varchar("reset_date").notNull(), // YYYY-MM-DD format for daily reset
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  unique("daily_tasks_user_task_date_unique").on(table.userId, table.taskLevel, table.resetDate),
+]);
+
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
@@ -166,6 +185,7 @@ export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDailyTaskSchema = createInsertSchema(dailyTasks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertReferralSchema = createInsertSchema(referrals).omit({ id: true, createdAt: true });
 export const insertReferralCommissionSchema = createInsertSchema(referralCommissions).omit({ id: true, createdAt: true });
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, createdAt: true, updatedAt: true });
@@ -190,3 +210,5 @@ export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type UserBalance = typeof userBalances.$inferSelect;
 export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
+export type DailyTask = typeof dailyTasks.$inferSelect;
+export type InsertDailyTask = z.infer<typeof insertDailyTaskSchema>;
