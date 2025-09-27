@@ -62,6 +62,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         channel_visited BOOLEAN DEFAULT false,
         app_shared BOOLEAN DEFAULT false,
         friends_invited INTEGER DEFAULT 0,
+        first_ad_watched BOOLEAN DEFAULT false,
         last_reset_date TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
@@ -73,6 +74,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_visited BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_shared BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS friends_invited INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_ad_watched BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reset_date TIMESTAMP`);
       console.log('✅ [MIGRATION] Missing user task columns added');
     } catch (error) {
@@ -230,6 +232,26 @@ export async function ensureDatabaseSchema(): Promise<void> {
         user_id VARCHAR NOT NULL REFERENCES users(id),
         reward_amount DECIMAL(12, 2) NOT NULL,
         used_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Daily tasks table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS daily_tasks (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        task_level INTEGER NOT NULL,
+        progress INTEGER DEFAULT 0,
+        required INTEGER NOT NULL,
+        completed BOOLEAN DEFAULT false,
+        claimed BOOLEAN DEFAULT false,
+        reward_amount DECIMAL(12, 8) NOT NULL,
+        completed_at TIMESTAMP,
+        claimed_at TIMESTAMP,
+        reset_date VARCHAR NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, task_level, reset_date)
       )
     `);
     
