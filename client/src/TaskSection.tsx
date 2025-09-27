@@ -3,38 +3,33 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Share2, RefreshCw, Users, Tv, ArrowRight, Check } from 'lucide-react';
+import { Tv, Check, RefreshCw } from 'lucide-react';
 
-interface Promotion {
-  id: string;
+interface DailyTask {
+  id: number;
+  level: number;
   title: string;
   description: string;
-  type: 'channel_visit' | 'share_link' | 'invite_friend' | 'ads_goal_mini' | 'ads_goal_light' | 'ads_goal_medium' | 'ads_goal_hard';
-  channelUsername?: string;
-  botUsername?: string;
-  reward: string;
-  completedCount: number;
-  totalSlots: number;
-  isActive: boolean;
-  createdAt: string;
-  claimUrl?: string;
-  // New task status system fields
-  completionStatus: 'locked' | 'claimable' | 'claimed';
-  statusMessage: string;
-  buttonText: string;
-  progress?: {
-    current: number;
-    required: number;
-    percentage: number;
-  };
+  required: number;
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  rewardAmount: string;
+  canClaim: boolean;
 }
 
-interface TaskCompletionStatus {
-  completed: boolean;
-  completedAt?: string;
+interface TasksResponse {
+  success: boolean;
+  tasks: DailyTask[];
+  adsWatchedToday: number;
+  resetInfo: {
+    nextReset: string;
+    resetDate: string;
+  };
 }
 
 // Function to check if we're in Telegram WebApp environment
@@ -66,102 +61,25 @@ export default function TaskSection() {
     setTelegramInitData(initData);
   }, []);
 
-  // Listen for real-time task removal events
-  useEffect(() => {
-    const handleTaskRemoved = (event: CustomEvent) => {
-      const { promotionId } = event.detail;
-      console.log(`🗑️ Task removed: ${promotionId}, refreshing task list`);
-      
-      // Invalidate queries to trigger refetch of tasks
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tasks`, promotionId, 'status'] });
-      
-      // Show notification about task removal
-      toast({
-        title: "Task Removed",
-        description: "A task has been removed and the list has been updated",
-        variant: "destructive"
-      });
-    };
-
-    // Add event listener for taskRemoved events from WebSocket
-    window.addEventListener('taskRemoved', handleTaskRemoved as EventListener);
-
-    // Cleanup event listener on component unmount
-    return () => {
-      window.removeEventListener('taskRemoved', handleTaskRemoved as EventListener);
-    };
-  }, [queryClient, toast]);
-
-  // Fetch all active tasks
-  const { data: tasksResponse, isLoading: tasksLoading } = useQuery<{success: boolean, tasks: Promotion[]}>({
-    queryKey: ['/api/tasks'],
+  // Fetch daily tasks using new API
+  const { data: tasksResponse, isLoading: tasksLoading, refetch } = useQuery<TasksResponse>({
+    queryKey: ['/api/tasks/daily'],
     retry: false,
   });
   
   const tasks = tasksResponse?.tasks || [];
+  const adsWatchedToday = tasksResponse?.adsWatchedToday || 0;
 
-  // Filter tasks - only show daily tasks, remove fix tasks completely
-  const dailyTasks = tasks.filter(task => 
-    ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(task.type)
-  );
-
-  // Get user referral link for sharing
-  const { data: userData } = useQuery({
-    queryKey: ['/api/auth/user'],
-    retry: false,
-  });
-
-  // Verify task mutation (makes task claimable)
-  const verifyTaskMutation = useMutation({
-    mutationFn: async (params: { promotionId: string; taskType: string }) => {
-      const currentTelegramData = getTelegramInitData();
-      
-      if (!currentTelegramData) {
-        throw new Error('Please open this app inside Telegram to complete tasks');
-      }
-      
-      const response = await fetch(`/api/tasks/${params.promotionId}/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-data': currentTelegramData,
-        },
-        body: JSON.stringify({
-          taskType: params.taskType,
-        }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to verify task');
-      }
-      
-      return response.json();
-    },
-    onSuccess: (data, params) => {
-      // Refresh task list to show updated status
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Verification Failed",
-        description: error.message || "Failed to verify task",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Claim task mutation (credits reward)
+  // Claim task reward mutation
   const claimTaskMutation = useMutation({
-    mutationFn: async (params: { promotionId: string }) => {
+    mutationFn: async (taskLevel: number) => {
       const currentTelegramData = getTelegramInitData();
       
       if (!currentTelegramData) {
         throw new Error('Please open this app inside Telegram to complete tasks');
       }
       
-      const response = await fetch(`/api/tasks/${params.promotionId}/claim`, {
+      const response = await fetch(`/api/tasks/claim/${taskLevel}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,172 +94,106 @@ export default function TaskSection() {
       
       return response.json();
     },
-    onSuccess: (data, params) => {
-      // Balance update will be shown via WebSocket
+    onSuccess: (data) => {
+      toast({
+        title: "🎉 Task Completed!",
+        description: `You earned ${parseFloat(data.rewardAmount).toFixed(5)} TON`,
+      });
       
-      // Invalidate and refetch relevant queries
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
+      // Refresh tasks and balance
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
     },
     onError: (error: any) => {
       toast({
         title: "Claim Failed",
-        description: error.message || "Failed to claim task",
+        description: error.message || "Failed to claim task reward",
         variant: "destructive",
       });
     },
   });
 
-  // Handle task actions based on completion status and type
-  const handleTaskAction = (task: Promotion) => {
-    if (task.completionStatus === 'claimed') {
-      // Task already claimed, do nothing
-      return;
-    }
-    
-    if (task.completionStatus === 'claimable') {
-      // Task is ready to claim
-      claimTaskMutation.mutate({ promotionId: task.id });
-      return;
-    }
-    
-    // Task is locked, perform the action to verify it
-    if (task.type === 'channel_visit') {
-      // Open channel link, then verify
-      if (task.claimUrl) {
-        window.open(task.claimUrl, '_blank');
-      }
-      // Immediately verify (no extra message needed)
-      verifyTaskMutation.mutate({ promotionId: task.id, taskType: task.type });
-      
-    } else if (task.type === 'share_link') {
-      // Open Telegram share with formatted message
-      if (userData?.referralLink) {
-        const message = `👋 Hey, I'm using this app to earn TON by watching ads & completing tasks.  
-You can join too and start earning instantly! 🚀  
-
-🔗 Join with my invite link: ${userData.referralLink}  
-
-💡 When you sign up using my link, we both get rewards 🎁`;
-        
-        const encodedMessage = encodeURIComponent(message);
-        const shareUrl = `https://t.me/share/url?text=${encodedMessage}`;
-        window.open(shareUrl, '_blank');
-        
-        // The backend will verify via webhook when sharing is done
-        // For now, we can verify immediately for testing
-        verifyTaskMutation.mutate({ promotionId: task.id, taskType: task.type });
-      }
-      
-    } else if (task.type === 'invite_friend') {
-      // Show invite link for user to copy
-      if (userData?.referralLink) {
-        navigator.clipboard.writeText(userData.referralLink);
-        toast({
-          title: "Link Copied!",
-          description: "Share this link to invite friends. Task will unlock when someone joins!",
-        });
-      }
-      // Backend will verify when someone actually joins via referral
-      
-    } else if (task.type.startsWith('ads_goal_')) {
-      // Redirect to ads section (you can implement this)
-      toast({
-        title: "Watch Ads",
-        description: "Go to the Ads section to watch more ads!",
-      });
-      // Backend will verify when ads goal is reached
-      
-    } else {
-      // Default verification for other task types
-      verifyTaskMutation.mutate({ promotionId: task.id, taskType: task.type });
-    }
+  // Format TON amount to 5 decimal places
+  const formatTON = (amount: string) => {
+    return parseFloat(amount).toFixed(5);
   };
 
-  // Function to get task icon based on type
-  const getTaskIcon = (type: string) => {
-    switch (type) {
-      case 'share_link':
-        return <Share2 className="w-6 h-6 text-green-500" />;
-      case 'channel_visit':
-        return <RefreshCw className="w-6 h-6 text-green-500" />;
-      case 'invite_friend':
-        return <Users className="w-6 h-6 text-green-500" />;
-      case 'ads_goal_mini':
-      case 'ads_goal_light':
-      case 'ads_goal_medium':
-      case 'ads_goal_hard':
-        return <Tv className="w-6 h-6 text-green-500" />;
-      default:
-        return <ArrowRight className="w-6 h-6 text-green-500" />;
-    }
+  // Get next claimable task
+  const getNextClaimableTask = () => {
+    return tasks.find(task => !task.claimed);
   };
 
-  const TaskCard = ({ task }: { task: Promotion }) => {
-    const isTaskFull = task.completedCount >= task.totalSlots;
-    const isProcessing = verifyTaskMutation.isPending || claimTaskMutation.isPending;
+  // Check if task is available (sequential logic)
+  const isTaskAvailable = (task: DailyTask) => {
+    if (task.level === 1) return true; // First task is always available
     
-    // ALWAYS show tasks - never filter out
+    // Check if previous task is claimed
+    const previousTask = tasks.find(t => t.level === task.level - 1);
+    return previousTask?.claimed || false;
+  };
+
+  // Render task card
+  const renderTaskCard = (task: DailyTask) => {
+    const progressPercentage = task.required > 0 ? (task.progress / task.required) * 100 : 0;
+    const isAvailable = isTaskAvailable(task);
+    
     return (
-      <Card className="shadow-sm border border-border bg-card hover:bg-accent/5 transition-colors" data-testid={`card-task-${task.id}`}>
-        <CardContent className="p-4">
+      <Card key={task.id} className={`mb-4 ${!isAvailable ? 'opacity-50' : ''}`}>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            {/* Left: Icon and content */}
-            <div className="flex items-center space-x-4 flex-1">
-              {/* Task Icon */}
-              <div className="flex-shrink-0">
-                {getTaskIcon(task.type)}
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+                <Tv size={20} />
               </div>
-              
-              {/* Task Info */}
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-semibold text-foreground mb-1">
-                  {task.title}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {task.statusMessage}
-                </p>
-                {task.progress && task.type.startsWith('ads_goal_') && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Progress: {task.progress.current}/{task.progress.required} ads
-                  </div>
-                )}
+              <div>
+                <CardTitle className="text-lg">🎯 Task {task.level}</CardTitle>
+                <CardDescription>{task.title}</CardDescription>
               </div>
             </div>
-
-            {/* Center: Reward Display */}
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-foreground">
-                  {parseFloat(task.reward).toFixed(5)} TON
-                </div>
-              </div>
-              
-              {/* Right: Action Button */}
-              <Button
-                onClick={() => handleTaskAction(task)}
-                disabled={isTaskFull || isProcessing || task.completionStatus === 'claimed'}
-                data-testid={`button-complete-${task.id}`}
-                className="flex-shrink-0 min-w-[80px] h-12"
-                variant={task.completionStatus === 'claimed' ? "secondary" : "default"}
-                size="sm"
-              >
-                {(() => {
-                  if (isProcessing) {
-                    return <div className="animate-spin">⏳</div>;
-                  }
-                  if (task.completionStatus === 'claimed') {
-                    return <div className="text-green-600 flex items-center">✅ Done</div>;
-                  }
-                  if (task.completionStatus === 'claimable') {
-                    return "Claim";
-                  }
-                  // Use the button text from backend
-                  return task.buttonText || "Start";
-                })()}
+            <Badge 
+              variant={task.claimed ? "secondary" : task.completed ? "default" : "outline"}
+              className="ml-2"
+            >
+              {formatTON(task.rewardAmount)} TON
+            </Badge>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="pt-0">
+          {/* Progress bar */}
+          <div className="mb-3">
+            <div className="flex justify-between text-sm text-muted-foreground mb-1">
+              <span>Progress</span>
+              <span>{Math.min(task.progress, task.required)}/{task.required} ads</span>
+            </div>
+            <Progress value={progressPercentage} className="h-2" />
+          </div>
+          
+          {/* Action button */}
+          <div className="flex justify-end">
+            {task.claimed ? (
+              <Button disabled className="flex items-center gap-2 bg-green-600 text-white">
+                <Check size={16} />
+                ✅ Done
               </Button>
-            </div>
+            ) : task.completed && isAvailable ? (
+              <Button 
+                onClick={() => claimTaskMutation.mutate(task.level)}
+                disabled={claimTaskMutation.isPending}
+                className="flex items-center gap-2"
+              >
+                {claimTaskMutation.isPending ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : (
+                  "Claim"
+                )}
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                {!isAvailable ? "Complete previous tasks first" : `${Math.min(task.progress, task.required)}/${task.required} ads`}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -350,17 +202,15 @@ You can join too and start earning instantly! 🚀
 
   if (tasksLoading) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin text-primary text-xl mb-2">
-          <i className="fas fa-spinner"></i>
-        </div>
-        <div className="text-muted-foreground">Loading tasks...</div>
+      <div className="flex items-center justify-center py-8">
+        <RefreshCw className="animate-spin text-muted-foreground" size={24} />
+        <span className="ml-2">Loading tasks...</span>
       </div>
     );
   }
 
   return (
-    <div data-testid="card-task-section">
+    <div className="space-y-4">
       {/* Show warning if Telegram WebApp is not available */}
       {!telegramInitData && (
         <Alert className="mb-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
@@ -370,29 +220,48 @@ You can join too and start earning instantly! 🚀
         </Alert>
       )}
       
-      {/* Daily Tasks Section Only */}
-      <div className="space-y-2 mt-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-foreground flex items-center">
-            <i className="fas fa-calendar-alt mr-2 text-green-600"></i>
-            Daily Tasks
-            <span className="ml-2 text-sm text-muted-foreground">Reset at 12:00 PM UTC</span>
-          </h3>
-        </div>
-        
-        {dailyTasks.length > 0 ? (
-          dailyTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))
-        ) : (
-          <div className="text-center py-8" data-testid="text-no-daily-tasks">
-            <i className="fas fa-calendar-alt text-4xl text-muted-foreground mb-4"></i>
-            <div className="text-muted-foreground text-lg font-medium">No daily tasks available</div>
-            <div className="text-sm text-muted-foreground mt-2">Daily tasks reset at 12:00 PM UTC</div>
-          </div>
-        )}
+      {/* Task list header */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Reset at 00:00 UTC</span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => refetch()}
+          disabled={tasksLoading}
+        >
+          <RefreshCw size={16} className={tasksLoading ? "animate-spin" : ""} />
+        </Button>
       </div>
 
+      {/* Ads counter display */}
+      <Card className="bg-muted/50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Tv className="text-purple-600" size={20} />
+              <span className="font-medium">Ads Watched Today</span>
+            </div>
+            <Badge variant="secondary" className="text-lg px-3 py-1">
+              {adsWatchedToday}/160
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Task cards */}
+      {tasks.length > 0 ? (
+        <div>
+          {tasks.map(renderTaskCard)}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <Tv className="mx-auto text-muted-foreground mb-4" size={48} />
+            <p className="text-muted-foreground">Loading your daily tasks...</p>
+            <p className="text-sm text-muted-foreground mt-2">Tasks reset at 00:00 UTC daily</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
