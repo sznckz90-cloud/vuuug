@@ -8,6 +8,7 @@ import {
   withdrawals,
   userBalances,
   transactions,
+  dailyTasks,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -26,6 +27,8 @@ import {
   type InsertUserBalance,
   type Transaction,
   type InsertTransaction,
+  type DailyTask,
+  type InsertDailyTask,
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
@@ -637,16 +640,17 @@ export class DatabaseStorage implements IStorage {
     if (!user) return;
 
     const now = new Date();
-    const currentResetDate = this.getResetDate(now);
+    const currentResetDate = this.getCurrentResetDate(); // Use new reset method
 
     // Check if last ad was watched today (same reset period)
     let adsCount = 1; // Default for first ad of the day
     
     if (user.lastAdDate) {
-      const lastAdResetDate = this.getResetDate(user.lastAdDate);
+      const lastAdResetDate = this.getCurrentResetDate(); // Use consistent method
+      const lastAdDateString = user.lastAdDate.toISOString().split('T')[0];
       
       // If same reset period, increment current count
-      if (lastAdResetDate === currentResetDate) {
+      if (lastAdDateString === currentResetDate) {
         adsCount = (user.adsWatchedToday || 0) + 1;
       }
     }
@@ -662,6 +666,9 @@ export class DatabaseStorage implements IStorage {
         updatedAt: now,
       })
       .where(eq(users.id, userId));
+
+    // NEW: Update task progress for the new task system
+    await this.updateTaskProgress(userId, adsCount);
   }
 
   async resetDailyAdsCount(userId: string): Promise<void> {
@@ -2438,6 +2445,250 @@ export class DatabaseStorage implements IStorage {
         claimedCount: sql`${promotions.claimedCount} + 1`,
       })
       .where(eq(promotions.id, promotionId));
+  }
+
+  // ===== NEW SIMPLE TASK SYSTEM =====
+  
+  // Fixed task configuration for the 9 sequential ads-based tasks
+  private readonly TASK_CONFIG = [
+    { level: 1, required: 10, reward: "0.00015000" },
+    { level: 2, required: 12, reward: "0.00017000" },
+    { level: 3, required: 13, reward: "0.00018000" },
+    { level: 4, required: 15, reward: "0.00025000" },
+    { level: 5, required: 18, reward: "0.00028000" },
+    { level: 6, required: 20, reward: "0.00035000" },
+    { level: 7, required: 25, reward: "0.00040000" },
+    { level: 8, required: 28, reward: "0.00042000" },
+    { level: 9, required: 30, reward: "0.00055000" },
+  ];
+
+  // Get current reset date in YYYY-MM-DD format (resets at 00:00 UTC)
+  private getCurrentResetDate(): string {
+    const now = new Date();
+    return now.toISOString().split('T')[0];
+  }
+
+  // Initialize or get daily tasks for a user
+  async getUserDailyTasks(userId: string): Promise<DailyTask[]> {
+    const resetDate = this.getCurrentResetDate();
+    
+    // Get existing tasks for today
+    const existingTasks = await db
+      .select()
+      .from(dailyTasks)
+      .where(and(
+        eq(dailyTasks.userId, userId),
+        eq(dailyTasks.resetDate, resetDate)
+      ))
+      .orderBy(dailyTasks.taskLevel);
+
+    // If no tasks exist for today, create them
+    if (existingTasks.length === 0) {
+      const tasksToInsert: InsertDailyTask[] = this.TASK_CONFIG.map(config => ({
+        userId,
+        taskLevel: config.level,
+        progress: 0,
+        required: config.required,
+        completed: false,
+        claimed: false,
+        rewardAmount: config.reward,
+        resetDate,
+      }));
+
+      await db.insert(dailyTasks).values(tasksToInsert);
+      
+      // Fetch the newly created tasks
+      return await db
+        .select()
+        .from(dailyTasks)
+        .where(and(
+          eq(dailyTasks.userId, userId),
+          eq(dailyTasks.resetDate, resetDate)
+        ))
+        .orderBy(dailyTasks.taskLevel);
+    }
+
+    return existingTasks;
+  }
+
+  // Update task progress when user watches ads
+  async updateTaskProgress(userId: string, adsWatchedToday: number): Promise<void> {
+    const resetDate = this.getCurrentResetDate();
+    
+    // Get all tasks for today
+    const tasks = await this.getUserDailyTasks(userId);
+    
+    // Update progress for each task and mark as completed if requirement is met
+    for (const task of tasks) {
+      const newProgress = Math.min(adsWatchedToday, task.required);
+      const isCompleted = newProgress >= task.required;
+      
+      await db
+        .update(dailyTasks)
+        .set({
+          progress: newProgress,
+          completed: isCompleted,
+          completedAt: isCompleted && !task.completed ? new Date() : task.completedAt,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(dailyTasks.userId, userId),
+          eq(dailyTasks.taskLevel, task.taskLevel),
+          eq(dailyTasks.resetDate, resetDate)
+        ));
+    }
+  }
+
+  // Claim a completed task reward
+  async claimTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
+    const resetDate = this.getCurrentResetDate();
+    
+    // Get the specific task
+    const [task] = await db
+      .select()
+      .from(dailyTasks)
+      .where(and(
+        eq(dailyTasks.userId, userId),
+        eq(dailyTasks.taskLevel, taskLevel),
+        eq(dailyTasks.resetDate, resetDate)
+      ));
+
+    if (!task) {
+      return { success: false, message: "Task not found" };
+    }
+
+    if (!task.completed) {
+      return { success: false, message: "Task not completed yet" };
+    }
+
+    if (task.claimed) {
+      return { success: false, message: "Task already claimed" };
+    }
+
+    // Check if this is sequential (can only claim if previous tasks are claimed)
+    if (taskLevel > 1) {
+      const previousTask = await db
+        .select()
+        .from(dailyTasks)
+        .where(and(
+          eq(dailyTasks.userId, userId),
+          eq(dailyTasks.taskLevel, taskLevel - 1),
+          eq(dailyTasks.resetDate, resetDate)
+        ));
+
+      if (previousTask.length === 0 || !previousTask[0].claimed) {
+        return { success: false, message: "Complete previous tasks first" };
+      }
+    }
+
+    // Mark task as claimed
+    await db
+      .update(dailyTasks)
+      .set({
+        claimed: true,
+        claimedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(dailyTasks.userId, userId),
+        eq(dailyTasks.taskLevel, taskLevel),
+        eq(dailyTasks.resetDate, resetDate)
+      ));
+
+    // Add reward to user balance
+    await this.addEarning({
+      userId,
+      amount: task.rewardAmount,
+      source: 'task_completion',
+      description: `Task ${taskLevel} completed: Watch ${task.required} ads`,
+    });
+
+    // Log transaction
+    await this.logTransaction({
+      userId,
+      amount: task.rewardAmount,
+      type: 'addition',
+      source: 'task_completion',
+      description: `Task ${taskLevel} reward`,
+      metadata: { taskLevel, required: task.required, resetDate }
+    });
+
+    return {
+      success: true,
+      message: "Task reward claimed successfully",
+      rewardAmount: task.rewardAmount
+    };
+  }
+
+  // Get next available task (first unclaimed task)
+  async getNextAvailableTask(userId: string): Promise<DailyTask | null> {
+    const tasks = await this.getUserDailyTasks(userId);
+    
+    // Find the first unclaimed task
+    for (const task of tasks) {
+      if (!task.claimed) {
+        return task;
+      }
+    }
+    
+    return null; // All tasks claimed
+  }
+
+  // New daily reset - runs at 00:00 UTC instead of 12:00 PM UTC
+  async performDailyResetV2(): Promise<void> {
+    try {
+      console.log('🔄 Starting daily reset at 00:00 UTC (new task system)...');
+      
+      const currentDate = new Date();
+      const currentDateString = currentDate.toISOString().split('T')[0];
+      const resetTime = new Date(currentDate);
+      resetTime.setUTCHours(0, 0, 0, 0); // 00:00 UTC reset
+      
+      // Check if today's reset has already been performed
+      const usersNeedingReset = await db.select({ id: users.id })
+        .from(users)
+        .where(sql`${users.lastResetDate} != ${currentDateString} OR ${users.lastResetDate} IS NULL`)
+        .limit(1000);
+      
+      if (usersNeedingReset.length === 0) {
+        console.log('🔄 Daily reset already completed for today');
+        return;
+      }
+      
+      console.log(`🔄 Resetting ${usersNeedingReset.length} users for ${currentDateString}`);
+      
+      // Reset all users' daily counters
+      await db.update(users)
+        .set({ 
+          adsWatchedToday: 0,
+          lastResetDate: currentDate,
+          updatedAt: new Date(),
+        })
+        .where(sql`${users.lastResetDate} != ${currentDateString} OR ${users.lastResetDate} IS NULL`);
+      
+      console.log('✅ Daily reset completed successfully (new task system)');
+      
+    } catch (error) {
+      console.error('❌ Error in daily reset (new task system):', error);
+      throw error;
+    }
+  }
+
+  // Check and perform daily reset (called every 5 minutes)
+  async checkAndPerformDailyResetV2(): Promise<void> {
+    try {
+      const now = new Date();
+      const currentHour = now.getUTCHours();
+      const currentMinute = now.getUTCMinutes();
+      
+      // Run reset at 00:00-00:05 UTC to catch the reset window
+      if (currentHour === 0 && currentMinute < 5) {
+        await this.performDailyResetV2();
+      }
+    } catch (error) {
+      console.error('❌ Error checking daily reset:', error);
+      // Don't throw to avoid disrupting the interval
+    }
   }
 }
 

@@ -168,11 +168,11 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Set up daily reset check (runs every 5 minutes)
+    // Set up new daily reset check (runs every 5 minutes at 00:00 UTC)
     setInterval(async () => {
       try {
         const { storage } = await import('./storage');
-        await storage.checkAndPerformDailyReset();
+        await storage.checkAndPerformDailyResetV2();
       } catch (error) {
         console.error('❌ Error in daily reset check:', error);
       }

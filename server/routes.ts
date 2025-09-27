@@ -980,6 +980,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   
+  // ===== NEW SIMPLE TASK SYSTEM =====
+  
+  // Get user's daily tasks (new system)
+  app.get('/api/tasks/daily', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Get user's current ads count
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const adsWatchedToday = user?.adsWatchedToday || 0;
+      
+      // Get daily tasks
+      const tasks = await storage.getUserDailyTasks(userId);
+      
+      res.json({
+        success: true,
+        tasks: tasks.map(task => ({
+          id: task.id,
+          level: task.taskLevel,
+          title: `Watch ${task.required} ads`,
+          description: `Watch ${task.required} ads to earn ${parseFloat(task.rewardAmount).toFixed(5)} TON`,
+          required: task.required,
+          progress: task.progress,
+          completed: task.completed,
+          claimed: task.claimed,
+          rewardAmount: task.rewardAmount,
+          canClaim: task.completed && !task.claimed,
+        })),
+        adsWatchedToday,
+        resetInfo: {
+          nextReset: "00:00 UTC",
+          resetDate: new Date().toISOString().split('T')[0]
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error fetching daily tasks:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch daily tasks' 
+      });
+    }
+  });
+  
+  // Claim a task reward
+  app.post('/api/tasks/claim/:taskLevel', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const taskLevel = parseInt(req.params.taskLevel);
+      
+      if (!taskLevel || taskLevel < 1 || taskLevel > 9) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid task level' 
+        });
+      }
+      
+      const result = await storage.claimTaskReward(userId, taskLevel);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+          rewardAmount: result.rewardAmount
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error claiming task:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to claim task reward' 
+      });
+    }
+  });
+
+  // ===== OLD TASK SYSTEM (to be removed) =====
+  
   // Get tasks/promotions with Open button links to Telegram channel posts
   app.get('/api/tasks', authenticateTelegram, async (req: any, res) => {
     try {
