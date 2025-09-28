@@ -375,7 +375,15 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             // Get user to send notification
             const user = await storage.getUser(result.withdrawal.userId);
             if (user && user.telegram_id) {
-              const userMessage = `✅ Withdrawal Approved!\n\nYour withdrawal of $${parseFloat(result.withdrawal.amount).toFixed(2)} via ${result.withdrawal.method} has been approved and processed.\n\n💰 Amount has been deducted from your balance.`;
+              const withdrawalDetails = result.withdrawal.details as any;
+              const netAmount = withdrawalDetails?.netAmount ? parseFloat(withdrawalDetails.netAmount).toFixed(8) : parseFloat(result.withdrawal.amount).toFixed(8);
+              
+              let userMessage = `✅ Your withdraw request of ${netAmount} TON has been paid.`;
+              
+              if (result.withdrawal.transactionHash) {
+                userMessage += ` Transaction hash: ${result.withdrawal.transactionHash}`;
+              }
+              
               await sendUserTelegramNotification(user.telegram_id, userMessage);
             }
             

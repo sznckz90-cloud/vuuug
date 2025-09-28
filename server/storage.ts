@@ -40,13 +40,14 @@ export interface PaymentSystem {
   name: string;
   emoji: string;
   minWithdrawal: number;
+  fee: number;
 }
 
 export const PAYMENT_SYSTEMS: PaymentSystem[] = [
-  { id: 'telegram_stars', name: 'Telegram Stars', emoji: '⭐', minWithdrawal: 1.00 },
-  { id: 'tether_polygon', name: 'Tether (Polygon POS)', emoji: '🌐', minWithdrawal: 0.01 },
-  { id: 'ton_coin', name: 'Ton Coin', emoji: '💎', minWithdrawal: 0.35 },
-  { id: 'litecoin', name: 'Litecoin', emoji: '⏺', minWithdrawal: 0.35 }
+  { id: 'telegram_stars', name: 'Telegram Stars', emoji: '⭐', minWithdrawal: 1.00, fee: 0.0 },
+  { id: 'tether_polygon', name: 'Tether (Polygon POS)', emoji: '🌐', minWithdrawal: 0.01, fee: 0.0 },
+  { id: 'ton_coin', name: 'TON', emoji: '💎', minWithdrawal: 0.5, fee: 0.1 },
+  { id: 'litecoin', name: 'Litecoin', emoji: '⏺', minWithdrawal: 0.35, fee: 0.0 }
 ];
 
 // Interface for storage operations
@@ -1175,38 +1176,55 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'User not found' };
       }
 
+      // Find payment system and calculate fee
+      const paymentSystem = PAYMENT_SYSTEMS.find(p => p.id === paymentSystemId);
+      if (!paymentSystem) {
+        return { success: false, message: 'Invalid payment system' };
+      }
+      
+      const requestedAmount = parseFloat(amount);
+      const fee = paymentSystem.fee;
+      const netAmount = requestedAmount - fee;
+      
+      // Validate minimum withdrawal amount and ensure net amount is positive
+      if (requestedAmount < paymentSystem.minWithdrawal) {
+        return { success: false, message: `Minimum withdrawal is ${paymentSystem.minWithdrawal} ${paymentSystem.name}` };
+      }
+      
+      if (netAmount <= 0) {
+        return { success: false, message: `Withdrawal amount must be greater than the fee of ${fee} ${paymentSystem.name}` };
+      }
+
       // Check balance (but don't deduct yet - wait for admin approval)
       // Note: Admins have unlimited balance, so skip balance check for them
       const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
       const userBalance = parseFloat(user.balance || '0');
-      const payoutAmount = parseFloat(amount);
       
-      if (!isAdmin && userBalance < payoutAmount) {
+      if (!isAdmin && userBalance < requestedAmount) {
         return { success: false, message: 'Insufficient balance' };
       }
 
-      // Find payment system
-      const paymentSystem = PAYMENT_SYSTEMS.find(p => p.id === paymentSystemId);
-      const paymentSystemName = paymentSystem ? paymentSystem.name : paymentSystemId;
-
       // Create pending withdrawal record (DO NOT deduct balance yet)
       const withdrawalDetails = {
-        paymentSystem: paymentSystemName,
+        paymentSystem: paymentSystem.name,
         paymentDetails: paymentDetails,
-        paymentSystemId: paymentSystemId
+        paymentSystemId: paymentSystemId,
+        requestedAmount: requestedAmount.toString(),
+        fee: fee.toString(),
+        netAmount: netAmount.toString()
       };
 
       const [withdrawal] = await db.insert(withdrawals).values({
         userId: userId,
-        amount: amount,
+        amount: amount, // Store the full requested amount that will be deducted from balance
         status: 'pending',
-        method: paymentSystemName,
+        method: paymentSystem.name,
         details: withdrawalDetails
       }).returning();
 
       return { 
         success: true, 
-        message: 'Payout request created successfully and is pending admin approval',
+        message: `Payout request created successfully. Fee: ${fee} ${paymentSystem.name}, Net transfer: ${netAmount.toFixed(8)} ${paymentSystem.name}`,
         withdrawalId: withdrawal.id
       };
     } catch (error) {
@@ -1306,7 +1324,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async approveWithdrawal(withdrawalId: string, adminNotes?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+  async approveWithdrawal(withdrawalId: string, adminNotes?: string, transactionHash?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
     try {
       // Get withdrawal details
       const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
@@ -1352,7 +1370,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       // Update withdrawal status to paid
-      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'paid', undefined, adminNotes);
+      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'paid', transactionHash, adminNotes);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
