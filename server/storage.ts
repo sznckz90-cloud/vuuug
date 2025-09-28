@@ -2511,32 +2511,83 @@ export class DatabaseStorage implements IStorage {
     return existingTasks;
   }
 
-  // Update task progress when user watches ads
+  // Update task progress when user watches ads (truly independent task progress)
   async updateTaskProgress(userId: string, adsWatchedToday: number): Promise<void> {
     const resetDate = this.getCurrentResetDate();
     
-    // Get all tasks for today
+    // Get all tasks for today ordered by level
     const tasks = await this.getUserDailyTasks(userId);
     
-    // Update progress for each task and mark as completed if requirement is met
+    // Find the currently active task (first task that hasn't been claimed and all previous tasks are claimed)
+    let currentTask = null;
+    
     for (const task of tasks) {
-      const newProgress = Math.min(adsWatchedToday, task.required);
-      const isCompleted = newProgress >= task.required;
-      
-      await db
-        .update(dailyTasks)
-        .set({
-          progress: newProgress,
-          completed: isCompleted,
-          completedAt: isCompleted && !task.completed ? new Date() : task.completedAt,
-          updatedAt: new Date(),
-        })
-        .where(and(
-          eq(dailyTasks.userId, userId),
-          eq(dailyTasks.taskLevel, task.taskLevel),
-          eq(dailyTasks.resetDate, resetDate)
-        ));
+      if (!task.claimed) {
+        // Check if all previous tasks are claimed (sequential unlock)
+        let canActivate = true;
+        for (const prevTask of tasks) {
+          if (prevTask.taskLevel < task.taskLevel && !prevTask.claimed) {
+            canActivate = false;
+            break;
+          }
+        }
+        
+        if (canActivate) {
+          currentTask = task;
+          break;
+        }
+      }
     }
+    
+    // If no current task found, all tasks are claimed or blocked by prerequisites
+    if (!currentTask) {
+      return;
+    }
+    
+    // Calculate how many ads have been "consumed" by previous claimed tasks
+    let adsConsumedByPreviousTasks = 0;
+    for (const task of tasks) {
+      if (task.taskLevel < currentTask.taskLevel && task.claimed) {
+        adsConsumedByPreviousTasks += task.required;
+      }
+    }
+    
+    // Calculate independent progress for current task
+    // This ensures each task starts at 0 when it becomes active and only counts ads from that point
+    const adsAvailableForCurrentTask = Math.max(0, adsWatchedToday - adsConsumedByPreviousTasks);
+    const newProgress = Math.min(adsAvailableForCurrentTask, currentTask.required);
+    const isCompleted = newProgress >= currentTask.required;
+    
+    // Only update the currently active task with independent progress
+    await db
+      .update(dailyTasks)
+      .set({
+        progress: newProgress,
+        completed: isCompleted,
+        completedAt: isCompleted && !currentTask.completed ? new Date() : currentTask.completedAt,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(dailyTasks.userId, userId),
+        eq(dailyTasks.taskLevel, currentTask.taskLevel),
+        eq(dailyTasks.resetDate, resetDate)
+      ));
+    
+    // Reset progress of all non-active tasks to ensure they start fresh when they become active
+    await db
+      .update(dailyTasks)
+      .set({
+        progress: 0,
+        completed: false,
+        completedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(dailyTasks.userId, userId),
+        eq(dailyTasks.resetDate, resetDate),
+        sql`${dailyTasks.taskLevel} > ${currentTask.taskLevel}`,
+        eq(dailyTasks.claimed, false)
+      ));
   }
 
   // Claim a completed task reward
