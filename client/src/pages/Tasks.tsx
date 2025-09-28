@@ -1,7 +1,7 @@
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import Layout from "@/components/Layout";
-import TaskSection from "@/TaskSection";
+import TaskSection from "@/components/TaskSection";
 
 export default function Tasks() {
   return (
