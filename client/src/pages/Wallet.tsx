@@ -49,10 +49,32 @@ export default function Wallet() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Fetch user's withdrawal history
-  const { data: withdrawals = [], isLoading: withdrawalsLoading } = useQuery<WithdrawalRequest[]>({
+  const { data: withdrawalsData = [], isLoading: withdrawalsLoading } = useQuery<WithdrawalRequest[]>({
     queryKey: ['/api/withdrawals'],
     retry: false,
   });
+
+  // Filter withdrawals to only show 'pending' and 'paid' statuses (hide 'rejected' from user view)
+  const withdrawals = withdrawalsData.filter(withdrawal => 
+    withdrawal.status === 'pending' || withdrawal.status === 'paid'
+  );
+
+  // TON address validation function
+  const validateTONAddress = (address: string): boolean => {
+    if (!address || address.length !== 48) {
+      return false;
+    }
+    
+    // Check if it starts with UQ or EQ (user-friendly format)
+    if (!address.startsWith('UQ') && !address.startsWith('EQ')) {
+      return false;
+    }
+    
+    // Check if the rest contains only valid base64url characters (includes - and _)
+    const base64Part = address.slice(2);
+    const base64Regex = /^[A-Za-z0-9+/\-_]+={0,2}$/;
+    return base64Regex.test(base64Part);
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -63,13 +85,14 @@ export default function Wallet() {
       newErrors.amount = 'Please enter a valid amount';
     } else if (amount > userBalance) {
       newErrors.amount = 'Insufficient balance';
-    } else if (amount < 0.001) {
-      newErrors.amount = 'Minimum withdrawal is $0.001';
+    } else if (amount < 0.5) {
+      newErrors.amount = 'Minimum withdrawal is 0.5 TON';
     }
-
 
     if (!withdrawForm.paymentDetails.trim()) {
       newErrors.paymentDetails = 'TON wallet address is required';
+    } else if (!validateTONAddress(withdrawForm.paymentDetails.trim())) {
+      newErrors.paymentDetails = 'Please enter a valid TON address (format: UQ... or EQ...)';
     }
 
     setErrors(newErrors);
@@ -80,8 +103,8 @@ export default function Wallet() {
     mutationFn: async (withdrawData: WithdrawForm) => {
       const response = await apiRequest('POST', '/api/withdrawals', {
         amount: withdrawData.amount,
-        method: 'ton',
-        details: { paymentDetails: withdrawData.paymentDetails }
+        paymentSystemId: 'ton_coin',
+        paymentDetails: withdrawData.paymentDetails
       });
 
       return response.json();
@@ -129,7 +152,6 @@ export default function Wallet() {
     switch (status) {
       case 'paid': return 'bg-green-500';
       case 'pending': return 'bg-yellow-500';
-      case 'rejected': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -138,7 +160,6 @@ export default function Wallet() {
     switch (status) {
       case 'paid': return 'fas fa-check-circle';
       case 'pending': return 'fas fa-clock';
-      case 'rejected': return 'fas fa-times-circle';
       default: return 'fas fa-question-circle';
     }
   };
@@ -222,10 +243,10 @@ export default function Wallet() {
                       </div>
                       <div className="text-right">
                         <Badge 
-                          variant={withdrawal.status === 'paid' ? 'default' : withdrawal.status === 'pending' ? 'secondary' : 'destructive'}
+                          variant={withdrawal.status === 'paid' ? 'default' : 'secondary'}
                           className="text-xs"
                         >
-                          {withdrawal.status}
+                          {withdrawal.status === 'paid' ? 'Paid' : 'Pending'}
                         </Badge>
                         <div className="text-xs text-muted-foreground mt-1">
                           {new Date(withdrawal.createdAt).toLocaleDateString()}
@@ -287,6 +308,32 @@ export default function Wallet() {
                   </p>
                 </div>
 
+                {/* Fee Calculation Display */}
+                {withdrawForm.amount && parseFloat(withdrawForm.amount) > 0 && (
+                  <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                    <div className="text-sm font-medium text-muted-foreground">Transaction Details</div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>Withdrawal Amount:</span>
+                        <span>{parseFloat(withdrawForm.amount).toFixed(8)} TON</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Network Fee:</span>
+                        <span>0.1 TON</span>
+                      </div>
+                      <hr className="border-muted-foreground/20"/>
+                      <div className="flex justify-between font-medium">
+                        <span>You will receive:</span>
+                        <span className="text-primary">
+                          {Math.max(0, parseFloat(withdrawForm.amount) - 0.1).toFixed(8)} TON
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Minimum withdrawal: 0.5 TON
+                    </div>
+                  </div>
+                )}
 
                 {/* TON Wallet Address */}
                 <div className="space-y-2">
