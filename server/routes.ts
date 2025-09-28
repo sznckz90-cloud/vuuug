@@ -133,11 +133,17 @@ const authenticateAdmin = async (req: any, res: any, next: any) => {
       console.log('🔧 Development mode: Granting admin access to test user');
       req.user = { 
         telegramUser: { 
-          id: '123456789',
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           username: 'testuser',
           first_name: 'Test',
           last_name: 'Admin'
-        } 
+        },
+        user: {
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          username: 'testuser',
+          first_name: 'Test',
+          last_name: 'Admin'
+        }
       };
       return next();
     }
@@ -552,6 +558,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error processing ad watch:", error);
       res.status(500).json({ message: "Failed to process ad reward" });
+    }
+  });
+
+  // Adexium Widget ID endpoint - provides secure widget ID for frontend
+  app.get('/api/ads/adexium-config', authenticateTelegram, async (req: any, res) => {
+    try {
+      // Use environment variable or fallback to the widget ID
+      // For security, this should be set as a Replit Secret: ADEXIUM_WIDGET_ID
+      const widgetId = process.env.ADEXIUM_WIDGET_ID || '0d36dccd-6c42-4598-b9ec-f6b5c172c8e4';
+      
+      res.json({ 
+        success: true, 
+        widgetId,
+        message: 'Adexium configuration retrieved successfully' 
+      });
+    } catch (error) {
+      console.error('Error retrieving Adexium config:', error);
+      res.status(500).json({ message: 'Failed to retrieve Adexium configuration' });
     }
   });
 
