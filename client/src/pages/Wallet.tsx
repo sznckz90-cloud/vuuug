@@ -43,7 +43,7 @@ export default function Wallet() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('balance');
   const [withdrawForm, setWithdrawForm] = useState<WithdrawForm>({
-    amount: '',
+    amount: '0.5',
     paymentDetails: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -86,7 +86,7 @@ export default function Wallet() {
     } else if (amount > userBalance) {
       newErrors.amount = 'Insufficient balance';
     } else if (amount < 0.5) {
-      newErrors.amount = 'Minimum withdrawal is 0.5 TON';
+      newErrors.amount = 'Minimum withdraw amount is 0.5 TON';
     }
 
     if (!withdrawForm.paymentDetails.trim()) {
@@ -116,7 +116,7 @@ export default function Wallet() {
       });
       
       // Reset form
-      setWithdrawForm({ amount: '', paymentDetails: '' });
+      setWithdrawForm({ amount: '0.5', paymentDetails: '' });
       setErrors({});
       
       // Invalidate relevant queries
@@ -289,7 +289,7 @@ export default function Wallet() {
                       max={user?.balance || "0"}
                       value={withdrawForm.amount}
                       onChange={(e) => updateForm('amount', e.target.value)}
-                      placeholder="0.001"
+                      placeholder="0.5"
                       className={errors.amount ? 'border-red-500' : ''}
                     />
                     <Button 
