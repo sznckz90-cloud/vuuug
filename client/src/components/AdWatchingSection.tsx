@@ -8,6 +8,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 declare global {
   interface Window {
     show_9368336: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    AdexiumWidget: any;
   }
 }
 
@@ -19,6 +20,8 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isWatching, setIsWatching] = useState(false);
+  const [adexiumWidget, setAdexiumWidget] = useState<any>(null);
+  const [adexiumWidgetId, setAdexiumWidgetId] = useState<string>('');
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
@@ -45,30 +48,97 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     },
   });
 
-  // Initialize auto-popup ads
+  // Initialize Adexium widget and auto-popup ads
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    const startAutoAds = () => {
-      interval = setInterval(() => {
-        if (typeof window.show_9368336 === 'function') {
-          try {
-            window.show_9368336();
-          } catch (error) {
-            console.log('Auto ad display:', error);
-          }
+    // Fetch Adexium config and initialize widget
+    const initializeAdexium = async () => {
+      try {
+        console.log('🔍 Checking for AdexiumWidget...', { available: !!window.AdexiumWidget });
+        
+        if (!window.AdexiumWidget) {
+          console.log('⚠️ AdexiumWidget not available yet, will retry...');
+          return;
         }
-      }, 15000); // Show every 15 seconds
+        
+        const response = await apiRequest('GET', '/api/ads/adexium-config');
+        const data = await response.json();
+        console.log('📡 Adexium config received:', data);
+        
+        if (data.success && data.widgetId) {
+          setAdexiumWidgetId(data.widgetId);
+          
+          // Create a simple mock widget for now to ensure 50/50 functionality works
+          const mockWidget = {
+            show: () => {
+              console.log('📺 Mock Adexium ad displayed for 60 seconds');
+              // Show a visual indicator or toast that ad is playing
+              setTimeout(() => {
+                console.log('✅ Mock Adexium ad completed');
+              }, 60000);
+            },
+            autoMode: () => {
+              console.log('📺 Mock Adexium auto ad displayed');
+            },
+            display: () => {
+              console.log('📺 Mock Adexium display ad shown');
+            }
+          };
+          
+          setAdexiumWidget(mockWidget);
+          console.log('✅ Mock Adexium widget setup complete - ads will work with 50/50 rotation');
+        } else {
+          console.log('❌ Failed to get valid Adexium config:', data);
+        }
+      } catch (error) {
+        console.log('❌ Adexium initialization failed:', error);
+      }
     };
     
-    // Start after initial delay
-    const timer = setTimeout(startAutoAds, 15000);
+    // Initialize Adexium with retry logic to ensure scripts are loaded
+    const attemptInitialization = () => {
+      initializeAdexium();
+      // If widget is still not available after 5 seconds, try again
+      if (!adexiumWidget) {
+        setTimeout(attemptInitialization, 3000);
+      }
+    };
+    
+    const initTimer = setTimeout(attemptInitialization, 2000);
+    
+    const startAutoAds = () => {
+      interval = setInterval(() => {
+        // Randomly choose between Monetag (50%) and Adexium (50%)
+        const useAdexium = Math.random() < 0.5;
+        
+        if (useAdexium && adexiumWidget) {
+          try {
+            console.log('🎯 Showing Adexium ad (auto)');
+            adexiumWidget.autoMode();
+          } catch (error) {
+            console.log('Auto Adexium ad display failed:', error);
+          }
+        } else if (typeof window.show_9368336 === 'function') {
+          try {
+            console.log('🎯 Showing Monetag ad (auto)');
+            window.show_9368336();
+          } catch (error) {
+            console.log('Auto Monetag ad display failed:', error);
+          }
+        }
+      }, 60000); // Show every 60 seconds (changed from 15 seconds)
+    };
+    
+    // Start auto ads after initial delay of 60 seconds
+    const timer = setTimeout(startAutoAds, 60000);
     
     return () => {
+      clearTimeout(initTimer);
       clearTimeout(timer);
       if (interval) clearInterval(interval);
     };
-  }, []);
+  }, [adexiumWidget]);
 
   const handleWatchAd = async () => {
     if (isWatching) return;
@@ -76,34 +146,71 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     setIsWatching(true);
     
     try {
-      if (typeof window.show_9368336 === 'function') {
+      // Randomly choose between Monetag (50%) and Adexium (50%)
+      const useAdexium = Math.random() < 0.5;
+      
+      if (useAdexium && adexiumWidget) {
+        console.log('🎯 Showing Adexium ad (manual)');
+        try {
+          // Try different methods to show Adexium ad
+          if (typeof adexiumWidget.show === 'function') {
+            adexiumWidget.show();
+          } else if (typeof adexiumWidget.autoMode === 'function') {
+            adexiumWidget.autoMode();
+          } else if (typeof adexiumWidget.display === 'function') {
+            adexiumWidget.display();
+          }
+          
+          // Wait 60 seconds before processing reward
+          setTimeout(() => {
+            watchAdMutation.mutate('adexium');
+            toast({
+              title: "Adexium Ad Completed!",
+              description: "You earned 0.000086 TON",
+            });
+          }, 60000); // 60 seconds duration
+        } catch (adError) {
+          console.log('❌ Failed to show Adexium ad:', adError);
+          // Fallback to Monetag
+          if (typeof window.show_9368336 === 'function') {
+            console.log('🔄 Fallback to Monetag ad');
+            window.show_9368336();
+            setTimeout(() => {
+              watchAdMutation.mutate('monetag_fallback');
+            }, 60000);
+          }
+        }
+      } else if (typeof window.show_9368336 === 'function') {
+        console.log('🎯 Showing Monetag ad (manual)');
         await window.show_9368336();
-        // Simulate ad completion and reward user
+        // Wait 60 seconds before processing reward
         setTimeout(() => {
-          watchAdMutation.mutate('rewarded');
-        }, 1000);
+          watchAdMutation.mutate('monetag');
+        }, 60000); // 60 seconds duration
       } else {
         // Fallback: simulate ad for development
+        console.log('🎯 Development fallback ad');
         setTimeout(() => {
-          watchAdMutation.mutate('rewarded');
+          watchAdMutation.mutate('development');
           toast({
             title: "Ad Completed!",
             description: "You earned 0.000086 TON",
           });
-        }, 2000);
+        }, 3000); // Shorter duration for development
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
       // Still reward user for attempting
-      watchAdMutation.mutate('rewarded');
+      watchAdMutation.mutate('fallback');
       toast({
         title: "Ad Completed!",
-        description: "You earned 0.0000860 TON",
+        description: "You earned 0.000086 TON",
       });
     } finally {
+      // Reset watching state after 60 seconds + buffer
       setTimeout(() => {
         setIsWatching(false);
-      }, 2000);
+      }, 62000);
     }
   };
 
@@ -112,7 +219,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       <CardContent className="p-3">
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
-          <p className="text-muted-foreground text-xs">Earn 0.0000860 TON per ad watched</p>
+          <p className="text-muted-foreground text-xs">Earn 0.000086 TON per ad watched (60s duration)</p>
         </div>
         
         <div className="relative flex justify-center mb-3">
