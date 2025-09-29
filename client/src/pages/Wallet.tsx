@@ -81,9 +81,8 @@ export default function Wallet() {
     const amount = parseFloat(withdrawForm.amount);
     const userBalance = parseFloat(user?.balance || '0');
 
-    if (!withdrawForm.amount || amount <= 0) {
-      newErrors.amount = 'Please enter a valid amount';
-    } else if (amount > userBalance) {
+    // Remove validation error for valid amount as requested by user
+    if (amount > userBalance) {
       newErrors.amount = 'Insufficient balance';
     } else if (amount < 0.5) {
       newErrors.amount = 'Minimum withdraw amount is 0.5 TON';
@@ -297,7 +296,11 @@ export default function Wallet() {
                       size="sm"
                       variant="ghost"
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
-                      onClick={() => updateForm('amount', user?.balance || '0')}
+                      onClick={() => {
+                        const maxAmount = parseFloat(user?.balance || '0');
+                        const formattedAmount = parseFloat(maxAmount.toFixed(4)).toString();
+                        updateForm('amount', formattedAmount);
+                      }}
                     >
                       Max
                     </Button>
