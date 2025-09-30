@@ -9,6 +9,16 @@ declare global {
   interface Window {
     show_9368336: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     AdexiumWidget: any;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<{
+          done: boolean;
+          description: string;
+          state: 'load' | 'render' | 'playing' | 'destroy';
+          error: boolean;
+        }>;
+      };
+    };
   }
 }
 
@@ -25,6 +35,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const [adexiumMode, setAdexiumMode] = useState<'real' | 'fallback' | null>(null);
   const [hasCallbacks, setHasCallbacks] = useState(false);
   const [hasOwnTimer, setHasOwnTimer] = useState(false);
+  const [adgramController, setAdgramController] = useState<any>(null);
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
@@ -50,6 +61,24 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       });
     },
   });
+
+  // Initialize AdGram SDK
+  useEffect(() => {
+    const initAdGram = () => {
+      if (window.Adsgram && typeof window.Adsgram.init === 'function') {
+        try {
+          const controller = window.Adsgram.init({ blockId: "15022" });
+          setAdgramController(controller);
+          console.log('✅ AdGram controller initialized');
+        } catch (error) {
+          console.log('❌ AdGram initialization failed:', error);
+        }
+      }
+    };
+
+    const timer = setTimeout(initAdGram, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Initialize Adexium widget and auto-popup ads
   useEffect(() => {
@@ -189,12 +218,10 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     
     const startAutoAds = () => {
       interval = setInterval(() => {
-        // Randomly choose between Monetag (50%) and Adexium (50%)
-        const useAdexium = Math.random() < 0.5;
-        
-        if (useAdexium && adexiumWidget) {
+        // Pop-up ads use Adexium only (as specified in requirements)
+        if (adexiumWidget) {
           try {
-            console.log('🎯 Showing Adexium ad (auto)');
+            console.log('🎯 Showing Adexium pop-up ad (auto - every 30s)');
             if (typeof adexiumWidget.show === 'function') {
               adexiumWidget.show();
             } else if (typeof adexiumWidget.autoMode === 'function') {
@@ -209,22 +236,12 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           } catch (error) {
             console.log('Auto Adexium ad display failed:', error);
           }
-        } else if (typeof window.show_9368336 === 'function') {
-          try {
-            console.log('🎯 Showing Monetag ad (auto)');
-            window.show_9368336();
-            // For auto Monetag ads, trigger reward immediately
-            console.log('✅ Auto Monetag ad completed - triggering reward');
-            watchAdMutation.mutate('monetag');
-          } catch (error) {
-            console.log('Auto Monetag ad display failed:', error);
-          }
         }
-      }, 60000); // Show every 60 seconds
+      }, 30000); // Show every 30 seconds (as per requirements)
     };
     
-    // Start auto ads after initial delay of 60 seconds
-    const timer = setTimeout(startAutoAds, 60000);
+    // Start auto ads after initial delay of 30 seconds
+    const timer = setTimeout(startAutoAds, 30000);
     
     return () => {
       clearTimeout(initTimer);
@@ -244,33 +261,28 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     setIsWatching(true);
     
     try {
-      // Randomly choose between Monetag (50%) and Adexium (50%)
-      const useAdexium = Math.random() < 0.5;
-      console.log('🎲 Ad network selection:', useAdexium ? 'Adexium' : 'Monetag', '(50/50 random)');
+      // Randomly choose between Monetag (50%) and AdGram (50%)
+      const useAdGram = Math.random() < 0.5;
+      console.log('🎲 Ad network selection:', useAdGram ? 'AdGram' : 'Monetag', '(50/50 random)');
       
-      if (useAdexium && adexiumWidget) {
-        console.log('🎯 Showing Adexium ad (manual)');
+      if (useAdGram && adgramController) {
+        console.log('🎯 Showing AdGram ad (manual)');
         try {
-          // Try different methods to show Adexium ad
-          if (typeof adexiumWidget.show === 'function') {
-            adexiumWidget.show();
-            // Note: Real widget should trigger onAdComplete callback, fallback widget has timeout built-in
-          } else if (typeof adexiumWidget.autoMode === 'function') {
-            adexiumWidget.autoMode();
-          } else if (typeof adexiumWidget.display === 'function') {
-            adexiumWidget.display();
-          }
+          const result = await adgramController.show();
+          console.log('✅ AdGram ad result:', result);
           
-          // Only trigger reward if widget doesn't have callbacks (fallback mode)
-          if (!hasCallbacks) {
-            watchAdMutation.mutate('adexium');
+          // Only reward if user watched till end
+          if (result.done) {
+            watchAdMutation.mutate('adgram');
             toast({
-              title: "Adexium Ad Completed!",
+              title: "AdGram Ad Completed!",
               description: "You earned 0.000086 TON",
             });
+          } else {
+            console.log('⏭️ AdGram ad skipped, no reward');
           }
         } catch (adError) {
-          console.log('❌ Failed to show Adexium ad:', adError);
+          console.log('❌ Failed to show AdGram ad:', adError);
           // Fallback to Monetag
           if (typeof window.show_9368336 === 'function') {
             console.log('🔄 Fallback to Monetag ad');
@@ -299,7 +311,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       } else {
         // Fallback: simulate ad for development
         console.log('🎯 Development fallback ad (no ad networks available)');
-        watchAdMutation.mutate('adexium');
+        watchAdMutation.mutate('adgram');
         toast({
           title: "Development Ad Completed!",
           description: "You earned 0.000086 TON",
@@ -308,7 +320,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     } catch (error) {
       console.error('Ad watching failed:', error);
       // Still reward user for attempting
-      watchAdMutation.mutate('adexium');
+      watchAdMutation.mutate('adgram');
       toast({
         title: "Ad Completed!",
         description: "You earned 0.000086 TON",
