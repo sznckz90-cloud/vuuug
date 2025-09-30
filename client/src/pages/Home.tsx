@@ -22,7 +22,7 @@ export default function Home() {
   const { toast } = useToast();
   const { user, isLoading, authenticateWithTelegramWebApp, isTelegramAuthenticating, telegramAuthError } = useAuth();
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ["/api/user/stats"],
     retry: false,
   });
@@ -36,6 +36,23 @@ export default function Home() {
             <i className="fas fa-spinner"></i>
           </div>
           <div className="text-foreground font-medium">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (statsError && !user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="text-red-500 text-4xl mb-4">
+            <i className="fas fa-exclamation-triangle"></i>
+          </div>
+          <h2 className="text-foreground font-bold text-xl mb-2">Server issue</h2>
+          <p className="text-muted-foreground mb-4">Please try again later.</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
