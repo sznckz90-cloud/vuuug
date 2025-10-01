@@ -4,6 +4,15 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
+**October 1, 2025 (Replit Environment Setup & Configuration):**
+- **Successfully configured CashWatch for Replit environment**: Set up fresh GitHub import with all dependencies and workflows
+- **Updated ad reward system**: Changed per-ad reward from 0.000086 TON to 0.0002 TON across entire application
+- **Reconfigured task system**: Updated all 9 daily tasks to require 20 ads watched for 0.00033 TON reward each
+- **Improved balance display formatting**: Changed TON balance display from 7 decimal places to 4 decimal places throughout app (e.g., 0.1234 or 1.2345 TON)
+- **Fixed admin panel visibility**: Updated useAdmin hook to check telegram_id field for proper admin access
+- **Configured deployment settings**: Set up VM deployment with build and run commands for production publishing
+- **Admin user configured**: System recognizes telegram_id 6653616672 as admin with full dashboard access
+
 **September 12, 2025 (Telegram WebApp Authentication Fix for Render):**
 - **Fixed critical Telegram WebApp authentication for Render deployment**: Resolved "Telegram authentication required" errors that prevented users from creating promotions and completing tasks when accessing through legitimate Telegram WebApp
 - **Removed unsafe initDataUnsafe fallback**: Eliminated security-breaking fallback that lacked proper HMAC hash verification, ensuring all production authentication requires valid Telegram WebApp initData
