@@ -8,7 +8,7 @@
     "module": "ESNext",
     "target": "ES2022",
     "strict": true,
-    "lib": ["esnext", "dom", "dom.iterable"],
+    "lib": ["esnext", "dom", "dom.iterable", "ES2022.Import"],
     "jsx": "preserve",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
