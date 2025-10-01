@@ -10,7 +10,6 @@ import { formatCurrency } from "@/lib/utils";
 declare global {
   interface Window {
     show_9368336: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
-    AdexiumWidget: any;
   }
 }
 
@@ -61,20 +60,14 @@ export default function StreakCard({ user }: StreakCardProps) {
     setIsClaiming(true);
     
     try {
-      // Use Adexium ads for streak claims (as per requirements)
-      if (window.AdexiumWidget) {
+      if (typeof window.show_9368336 === 'function') {
         try {
-          console.log('🎯 Showing Adexium ad for streak claim');
-          if (typeof window.AdexiumWidget.show === 'function') {
-            await window.AdexiumWidget.show();
-          } else if (typeof window.AdexiumWidget.display === 'function') {
-            await window.AdexiumWidget.display();
-          }
+          await window.show_9368336('pop');
         } catch (adError) {
-          console.log('Adexium ad display failed, but proceeding with streak claim:', adError);
+          console.log('Ad display failed, but proceeding with streak claim:', adError);
         }
       } else {
-        console.log('Adexium SDK not loaded, proceeding with streak claim anyway');
+        console.log('Ad SDK not loaded, proceeding with streak claim anyway');
       }
       
       // Always process streak claim regardless of ad success/failure
