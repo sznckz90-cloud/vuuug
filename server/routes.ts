@@ -525,7 +525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add earning for watched ad with new rate
       const earning = await storage.addEarning({
         userId,
-        amount: "0.000086",
+        amount: "0.00020000",
         source: 'ad_watch',
         description: 'Watched advertisement',
       });
@@ -539,7 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send real-time update to user
       sendRealtimeUpdate(userId, {
         type: 'ad_reward',
-        amount: "0.000086",
+        amount: "0.00020000",
         message: 'Ad reward earned! 💰',
         timestamp: new Date().toISOString()
       });

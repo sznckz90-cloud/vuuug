@@ -2471,15 +2471,15 @@ export class DatabaseStorage implements IStorage {
   
   // Fixed task configuration for the 9 sequential ads-based tasks
   private readonly TASK_CONFIG = [
-    { level: 1, required: 10, reward: "0.00015000" },
-    { level: 2, required: 12, reward: "0.00017000" },
-    { level: 3, required: 13, reward: "0.00018000" },
-    { level: 4, required: 15, reward: "0.00025000" },
-    { level: 5, required: 18, reward: "0.00028000" },
-    { level: 6, required: 20, reward: "0.00035000" },
-    { level: 7, required: 25, reward: "0.00040000" },
-    { level: 8, required: 28, reward: "0.00042000" },
-    { level: 9, required: 30, reward: "0.00055000" },
+    { level: 1, required: 20, reward: "0.00033000" },
+    { level: 2, required: 20, reward: "0.00033000" },
+    { level: 3, required: 20, reward: "0.00033000" },
+    { level: 4, required: 20, reward: "0.00033000" },
+    { level: 5, required: 20, reward: "0.00033000" },
+    { level: 6, required: 20, reward: "0.00033000" },
+    { level: 7, required: 20, reward: "0.00033000" },
+    { level: 8, required: 20, reward: "0.00033000" },
+    { level: 9, required: 20, reward: "0.00033000" },
   ];
 
   // Get current reset date in YYYY-MM-DD format (resets at 00:00 UTC)
