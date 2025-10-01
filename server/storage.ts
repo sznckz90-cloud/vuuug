@@ -1344,27 +1344,29 @@ export class DatabaseStorage implements IStorage {
 
       const userBalance = parseFloat(user.balance || '0');
       const withdrawalAmount = parseFloat(withdrawal.amount);
+      const fee = 0.1; // 0.1 TON fee
+      const totalDeduction = withdrawalAmount + fee;
       
-      if (userBalance < withdrawalAmount) {
-        return { success: false, message: 'User has insufficient balance' };
+      if (userBalance < totalDeduction) {
+        return { success: false, message: 'User has insufficient balance for withdrawal + fee' };
       }
 
-      // Deduct balance and update withdrawal status
+      // Deduct balance (withdrawal amount + fee) and update withdrawal status
       await db
         .update(users)
         .set({
-          balance: sql`COALESCE(${users.balance}, 0) - ${withdrawal.amount}`,
+          balance: sql`COALESCE(${users.balance}, 0) - ${totalDeduction.toString()}`,
           updatedAt: new Date(),
         })
         .where(eq(users.id, withdrawal.userId));
 
-      // Add withdrawal record as earnings (negative amount)
+      // Add withdrawal record as earnings (negative amount including fee)
       const paymentSystemName = withdrawal.method;
-      const description = `Payout completed: $${withdrawal.amount} via ${paymentSystemName}`;
+      const description = `Withdrawal completed: ${withdrawal.amount} TON + ${fee} TON fee via ${paymentSystemName}`;
 
       await this.addEarning({
         userId: withdrawal.userId,
-        amount: `-${withdrawal.amount}`,
+        amount: `-${totalDeduction.toString()}`,
         source: 'payout',
         description: description,
       });
