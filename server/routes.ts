@@ -133,17 +133,11 @@ const authenticateAdmin = async (req: any, res: any, next: any) => {
       console.log('🔧 Development mode: Granting admin access to test user');
       req.user = { 
         telegramUser: { 
-          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          id: '123456789',
           username: 'testuser',
           first_name: 'Test',
           last_name: 'Admin'
-        },
-        user: {
-          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-          username: 'testuser',
-          first_name: 'Test',
-          last_name: 'Admin'
-        }
+        } 
       };
       return next();
     }
@@ -558,24 +552,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error processing ad watch:", error);
       res.status(500).json({ message: "Failed to process ad reward" });
-    }
-  });
-
-  // Adexium Widget ID endpoint - provides secure widget ID for frontend
-  app.get('/api/ads/adexium-config', authenticateTelegram, async (req: any, res) => {
-    try {
-      // Use environment variable or fallback to the widget ID
-      // For security, this should be set as a Replit Secret: ADEXIUM_WIDGET_ID
-      const widgetId = process.env.ADEXIUM_WIDGET_ID || '0d36dccd-6c42-4598-b9ec-f6b5c172c8e4';
-      
-      res.json({ 
-        success: true, 
-        widgetId,
-        message: 'Adexium configuration retrieved successfully' 
-      });
-    } catch (error) {
-      console.error('Error retrieving Adexium config:', error);
-      res.status(500).json({ message: 'Failed to retrieve Adexium configuration' });
     }
   });
 
@@ -1617,123 +1593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Promotional system endpoints removed - using daily tasks system only
   
-  // User withdrawal endpoints
   
-  // Get user's withdrawal history (authenticated users)
-  app.get('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      
-      // Get user's withdrawals (only show pending and paid statuses as per requirements)
-      const userWithdrawals = await db
-        .select({
-          id: withdrawals.id,
-          amount: withdrawals.amount,
-          method: withdrawals.method,
-          status: withdrawals.status,
-          details: withdrawals.details,
-          transactionHash: withdrawals.transactionHash,
-          createdAt: withdrawals.createdAt,
-          updatedAt: withdrawals.updatedAt
-        })
-        .from(withdrawals)
-        .where(and(
-          eq(withdrawals.userId, userId),
-          sql`${withdrawals.status} IN ('pending', 'paid')`
-        ))
-        .orderBy(desc(withdrawals.createdAt));
-      
-      res.json(userWithdrawals);
-      
-    } catch (error) {
-      console.error('❌ Error fetching user withdrawals:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Failed to fetch withdrawals' 
-      });
-    }
-  });
-
-  // Create new withdrawal request (authenticated users)
-  app.post('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const { amount, paymentSystemId, paymentDetails } = req.body;
-
-      // Validation: Check minimum amount (0.5 TON)
-      const withdrawAmount = parseFloat(amount);
-      if (!amount || isNaN(withdrawAmount) || withdrawAmount < 0.5) {
-        return res.status(400).json({
-          success: false,
-          message: 'Minimum withdraw amount is 0.5 TON'
-        });
-      }
-
-      // Check if user has sufficient balance
-      const userBalance = await storage.getUserBalance(userId);
-      const currentBalance = parseFloat(userBalance?.balance || '0');
-      
-      if (currentBalance < withdrawAmount) {
-        return res.status(400).json({
-          success: false,
-          message: 'Insufficient balance'
-        });
-      }
-
-      // Check if user already has a pending withdrawal request
-      const existingPendingWithdrawal = await db
-        .select()
-        .from(withdrawals)
-        .where(and(
-          eq(withdrawals.userId, userId),
-          eq(withdrawals.status, 'pending')
-        ))
-        .limit(1);
-
-      if (existingPendingWithdrawal.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'You already have a pending withdraw request.'
-        });
-      }
-
-      // Create withdrawal request with pending status (NO balance deduction yet)
-      const withdrawalData = {
-        userId,
-        amount: amount.toString(),
-        method: 'ton_coin',
-        status: 'pending',
-        details: {
-          paymentSystemId,
-          paymentDetails,
-          fee: '0.1' // 0.1 TON fee
-        }
-      };
-
-      const newWithdrawal = await storage.createWithdrawal(withdrawalData);
-
-      console.log(`✅ Withdrawal request created: ${newWithdrawal.id} for user ${userId}, amount: ${amount} TON`);
-
-      res.json({
-        success: true,
-        message: 'Withdrawal request submitted successfully',
-        withdrawal: {
-          id: newWithdrawal.id,
-          amount: newWithdrawal.amount,
-          status: newWithdrawal.status,
-          method: newWithdrawal.method,
-          createdAt: newWithdrawal.createdAt
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Error creating withdrawal request:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Failed to create withdrawal request' 
-      });
-    }
-  });
+  
   
   // Admin withdrawal management endpoints
   
@@ -1793,18 +1654,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/withdrawals/:withdrawalId/approve', authenticateAdmin, async (req: any, res) => {
     try {
       const { withdrawalId } = req.params;
-      const { adminNotes, transactionHash } = req.body;
-      
-      // Require transaction hash for payment confirmation
-      if (!transactionHash) {
-        return res.status(400).json({
-          success: false,
-          message: 'Transaction hash is required for payment confirmation'
-        });
-      }
+      const { adminNotes } = req.body;
       
       // Approve the withdrawal using existing storage method
-      const result = await storage.approveWithdrawal(withdrawalId, adminNotes, transactionHash);
+      const result = await storage.approveWithdrawal(withdrawalId, adminNotes);
       
       if (result.success) {
         console.log(`✅ Withdrawal ${withdrawalId} approved by admin ${req.user.telegramUser.id}`);
@@ -1815,22 +1668,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: 'withdrawal_approved',
             amount: result.withdrawal.amount,
             method: result.withdrawal.method,
-            message: `Your withdrawal of ${result.withdrawal.amount} TON has been approved and processed`
+            message: `Your withdrawal of $${result.withdrawal.amount} has been approved and processed`
           });
-
-          // Send Telegram bot notification to user
-          const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
-          if (user.length > 0 && user[0].telegram_id) {
-            try {
-              await sendUserTelegramNotification(
-                user[0].telegram_id,
-                `✅ Your withdraw request of ${result.withdrawal.amount} TON has been paid. Transaction hash: ${transactionHash}`
-              );
-              console.log(`📱 Telegram notification sent to user ${user[0].telegram_id}`);
-            } catch (telegramError) {
-              console.error('❌ Failed to send Telegram notification:', telegramError);
-            }
-          }
         }
         
         res.json({
