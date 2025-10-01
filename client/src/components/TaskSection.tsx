@@ -97,7 +97,7 @@ export default function TaskSection() {
     onSuccess: (data) => {
       toast({
         title: "🎉 Task Completed!",
-        description: `You earned ${parseFloat(data.rewardAmount).toFixed(5)} TON`,
+        description: `You earned ${parseFloat(data.rewardAmount).toFixed(4)} TON`,
       });
       
       // Refresh tasks and balance
@@ -114,9 +114,9 @@ export default function TaskSection() {
     },
   });
 
-  // Format TON amount to 5 decimal places
+  // Format TON amount to 4 decimal places
   const formatTON = (amount: string) => {
-    return parseFloat(amount).toFixed(5);
+    return parseFloat(amount).toFixed(4);
   };
 
   // Get next claimable task
