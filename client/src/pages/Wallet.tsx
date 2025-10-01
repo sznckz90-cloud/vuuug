@@ -315,7 +315,7 @@ export default function Wallet() {
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span>Withdrawal Amount:</span>
-                        <span>{parseFloat(withdrawForm.amount).toFixed(8)} TON</span>
+                        <span>{parseFloat(withdrawForm.amount).toFixed(4)} TON</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Network Fee:</span>
@@ -325,7 +325,7 @@ export default function Wallet() {
                       <div className="flex justify-between font-medium">
                         <span>You will receive:</span>
                         <span className="text-primary">
-                          {Math.max(0, parseFloat(withdrawForm.amount) - 0.1).toFixed(8)} TON
+                          {Math.max(0, parseFloat(withdrawForm.amount) - 0.1).toFixed(4)} TON
                         </span>
                       </div>
                     </div>
