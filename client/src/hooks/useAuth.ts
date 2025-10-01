@@ -45,36 +45,6 @@ export function useAuth() {
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
-    queryFn: async () => {
-      // In development mode, if no Telegram data is available, create a test admin user
-      const isDevelopment = import.meta.env.DEV;
-      const initData = getTelegramInitData();
-      
-      if (isDevelopment && !initData) {
-        console.log('🔧 Development mode: Creating test admin user for frontend');
-        // Return test admin user matching backend admin ID
-        return {
-          id: "6653616672",
-          firstName: "Test",
-          lastName: "Admin", 
-          username: "testadmin",
-          balance: "999999.0000",
-          totalEarned: "0.0000",
-          adsWatched: 0,
-          dailyAdsWatched: 0,
-          level: 1,
-          banned: false,
-          createdAt: new Date().toISOString()
-        };
-      }
-      
-      // Normal authentication flow
-      const response = await fetch("/api/auth/user");
-      if (!response.ok) {
-        throw new Error("Authentication failed");
-      }
-      return response.json();
-    },
   });
 
   const telegramAuthMutation = useMutation({
