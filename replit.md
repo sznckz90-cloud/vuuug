@@ -4,6 +4,13 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
+**October 2, 2025 (Task System & Balance Display Enhancements):**
+- **Fixed task sorting**: Completed tasks now automatically move to the bottom of the list, with unclaimed/in-progress tasks showing first for better UX
+- **Implemented live task progress updates**: Task progress now updates automatically after watching ads without manual refresh (added task query invalidation)
+- **Standardized balance formatting globally**: Replaced all custom formatting with centralized formatCurrency utility - whole numbers display without decimals (100 TON), decimals show max 4 places with trailing zeros removed (0.1234 TON)
+- **Fixed withdrawal validation bug**: Corrected input step precision (0.0001), proper min value (0.5 TON), and automatic rounding to 4 decimal places to prevent "nearest valid value" browser validation errors
+- **Verified withdrawal system integrity**: Confirmed real-time status updates (pending → paid/rejected) with WebSocket notifications and Telegram alerts working correctly
+
 **October 1, 2025 (Replit Environment Setup & Configuration):**
 - **Successfully configured CashWatch for Replit environment**: Set up fresh GitHub import with all dependencies and workflows
 - **Updated ad reward system**: Changed per-ad reward from 0.000086 TON to 0.0002 TON across entire application
