@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Tv, Check, RefreshCw } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface DailyTask {
   id: number;
@@ -67,7 +68,12 @@ export default function TaskSection() {
     retry: false,
   });
   
-  const tasks = tasksResponse?.tasks || [];
+  // Sort tasks: unclaimed/in-progress first, then claimed tasks at bottom
+  const tasks = (tasksResponse?.tasks || []).sort((a, b) => {
+    if (a.claimed && !b.claimed) return 1;
+    if (!a.claimed && b.claimed) return -1;
+    return a.level - b.level;
+  });
   const adsWatchedToday = tasksResponse?.adsWatchedToday || 0;
 
   // Claim task reward mutation
@@ -97,7 +103,7 @@ export default function TaskSection() {
     onSuccess: (data) => {
       toast({
         title: "🎉 Task Completed!",
-        description: `You earned ${parseFloat(data.rewardAmount).toFixed(5)} TON`,
+        description: `You earned ${formatCurrency(data.rewardAmount)}`,
       });
       
       // Refresh tasks and balance
@@ -113,11 +119,6 @@ export default function TaskSection() {
       });
     },
   });
-
-  // Format TON amount to 5 decimal places
-  const formatTON = (amount: string) => {
-    return parseFloat(amount).toFixed(5);
-  };
 
   // Get next claimable task
   const getNextClaimableTask = () => {
@@ -155,7 +156,7 @@ export default function TaskSection() {
               variant={task.claimed ? "secondary" : task.completed ? "default" : "outline"}
               className="ml-2"
             >
-              {formatTON(task.rewardAmount)} TON
+              {formatCurrency(task.rewardAmount)}
             </Badge>
           </div>
         </CardHeader>
