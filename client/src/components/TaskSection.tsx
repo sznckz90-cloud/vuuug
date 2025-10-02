@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Tv, Check, RefreshCw } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface DailyTask {
   id: number;
@@ -67,7 +68,12 @@ export default function TaskSection() {
     retry: false,
   });
   
-  const tasks = tasksResponse?.tasks || [];
+  // Sort tasks: unclaimed/in-progress first, then claimed tasks at bottom
+  const tasks = (tasksResponse?.tasks || []).sort((a, b) => {
+    if (a.claimed && !b.claimed) return 1;
+    if (!a.claimed && b.claimed) return -1;
+    return a.level - b.level;
+  });
   const adsWatchedToday = tasksResponse?.adsWatchedToday || 0;
 
   // Claim task reward mutation
@@ -97,7 +103,7 @@ export default function TaskSection() {
     onSuccess: (data) => {
       toast({
         title: "🎉 Task Completed!",
-        description: `You earned ${parseFloat(data.rewardAmount).toFixed(4)} TON`,
+        description: `You earned ${formatCurrency(data.rewardAmount)}`,
       });
       
       // Refresh tasks and balance
@@ -113,11 +119,6 @@ export default function TaskSection() {
       });
     },
   });
-
-  // Format TON amount to 4 decimal places
-  const formatTON = (amount: string) => {
-    return parseFloat(amount).toFixed(4);
-  };
 
   // Get next claimable task
   const getNextClaimableTask = () => {
@@ -141,40 +142,22 @@ export default function TaskSection() {
     return (
       <Card key={task.id} className={`mb-4 ${!isAvailable ? 'opacity-50' : ''}`}>
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
                 <Tv size={20} />
               </div>
               <div>
-                <CardTitle className="text-lg">{task.title}</CardTitle>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Reward: {formatTON(task.rewardAmount)} TON
-                </div>
+                <CardTitle className="text-lg">🎯 Task {task.level}</CardTitle>
+                <CardDescription>{task.title}</CardDescription>
               </div>
             </div>
-            {/* CLAIM button - only show when task is completed and available */}
-            {task.claimed ? (
-              <Button disabled className="flex items-center gap-2 bg-green-600 text-white">
-                <Check size={16} />
-                ✅ Done
-              </Button>
-            ) : task.completed && isAvailable ? (
-              <Button 
-                onClick={() => claimTaskMutation.mutate(task.level)}
-                disabled={claimTaskMutation.isPending}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-              >
-                {claimTaskMutation.isPending ? (
-                  <RefreshCw size={16} className="animate-spin" />
-                ) : (
-                  <>
-                    <Check size={16} />
-                    Claim
-                  </>
-                )}
-              </Button>
-            ) : null}
+            <Badge 
+              variant={task.claimed ? "secondary" : task.completed ? "default" : "outline"}
+              className="ml-2"
+            >
+              {formatCurrency(task.rewardAmount)}
+            </Badge>
           </div>
         </CardHeader>
         
@@ -188,12 +171,31 @@ export default function TaskSection() {
             <Progress value={progressPercentage} className="h-2" />
           </div>
           
-          {/* Additional info for unavailable or incomplete tasks */}
-          {!isAvailable && (
-            <div className="text-sm text-muted-foreground text-center py-2">
-              Complete previous tasks first
-            </div>
-          )}
+          {/* Action button */}
+          <div className="flex justify-end">
+            {task.claimed ? (
+              <Button disabled className="flex items-center gap-2 bg-green-600 text-white">
+                <Check size={16} />
+                ✅ Done
+              </Button>
+            ) : task.completed && isAvailable ? (
+              <Button 
+                onClick={() => claimTaskMutation.mutate(task.level)}
+                disabled={claimTaskMutation.isPending}
+                className="flex items-center gap-2"
+              >
+                {claimTaskMutation.isPending ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : (
+                  "Claim"
+                )}
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                {!isAvailable ? "Complete previous tasks first" : `${Math.min(task.progress, task.required)}/${task.required} ads`}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );

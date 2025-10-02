@@ -29,6 +29,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/daily"] });
       
       // Show reward notification
       const event = new CustomEvent('showReward', { 
