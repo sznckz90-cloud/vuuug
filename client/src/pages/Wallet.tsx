@@ -78,7 +78,8 @@ export default function Wallet() {
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    const amount = parseFloat(withdrawForm.amount);
+    // Round amount to 4 decimal places for validation
+    const amount = parseFloat(parseFloat(withdrawForm.amount).toFixed(4));
     const userBalance = parseFloat(user?.balance || '0');
 
     if (!withdrawForm.amount || amount <= 0) {
@@ -101,8 +102,10 @@ export default function Wallet() {
 
   const withdrawMutation = useMutation({
     mutationFn: async (withdrawData: WithdrawForm) => {
+      // Round amount to 4 decimal places before sending
+      const roundedAmount = parseFloat(withdrawData.amount).toFixed(4);
       const response = await apiRequest('POST', '/api/withdrawals', {
-        amount: withdrawData.amount,
+        amount: roundedAmount,
         paymentSystemId: 'ton_coin',
         paymentDetails: withdrawData.paymentDetails
       });
@@ -284,9 +287,9 @@ export default function Wallet() {
                     <Input
                       id="amount"
                       type="number"
-                      step="0.00001"
-                      min="0.001"
-                      max={user?.balance || "0"}
+                      step="0.0001"
+                      min="0.5"
+                      max={parseFloat(user?.balance || "0").toFixed(4)}
                       value={withdrawForm.amount}
                       onChange={(e) => updateForm('amount', e.target.value)}
                       placeholder="0.5"
@@ -297,7 +300,7 @@ export default function Wallet() {
                       size="sm"
                       variant="ghost"
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
-                      onClick={() => updateForm('amount', user?.balance || '0')}
+                      onClick={() => updateForm('amount', parseFloat(user?.balance || '0').toFixed(4))}
                     >
                       Max
                     </Button>
@@ -315,17 +318,17 @@ export default function Wallet() {
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span>Withdrawal Amount:</span>
-                        <span>{parseFloat(withdrawForm.amount).toFixed(4)} TON</span>
+                        <span>{formatCurrency(withdrawForm.amount)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Network Fee:</span>
-                        <span>0.1 TON</span>
+                        <span>{formatCurrency(0.1)}</span>
                       </div>
                       <hr className="border-muted-foreground/20"/>
                       <div className="flex justify-between font-medium">
                         <span>You will receive:</span>
                         <span className="text-primary">
-                          {Math.max(0, parseFloat(withdrawForm.amount) - 0.1).toFixed(4)} TON
+                          {formatCurrency(Math.max(0, parseFloat(withdrawForm.amount) - 0.1))}
                         </span>
                       </div>
                     </div>
