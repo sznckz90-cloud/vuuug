@@ -1178,7 +1178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // One-time production database fix endpoint
   app.get('/api/fix-production-db', async (req: any, res) => {
     try {
-      const { fixProductionDatabase } = require('../fix-production-db');
+      const { fixProductionDatabase } = await import('../server/fix-production-db.js');
       console.log('🔧 Running production database fix...');
       await fixProductionDatabase();
       res.json({ 
