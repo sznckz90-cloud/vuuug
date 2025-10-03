@@ -1608,6 +1608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           method: withdrawals.method,
           status: withdrawals.status,
           details: withdrawals.details,
+          comment: withdrawals.comment,
           transactionHash: withdrawals.transactionHash,
           adminNotes: withdrawals.adminNotes,
           createdAt: withdrawals.createdAt,
@@ -1635,7 +1636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { amount, paymentSystemId, paymentDetails } = req.body;
+      const { amount, paymentSystemId, paymentDetails, comment } = req.body;
 
       // Validation: Check minimum amount (0.5 TON)
       const withdrawAmount = parseFloat(amount);
@@ -1680,10 +1681,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         amount: amount.toString(),
         method: 'ton_coin',
         status: 'pending',
+        comment: comment || null,
         details: {
           paymentSystemId,
-          paymentDetails,
-          fee: '0.1' // 0.1 TON fee
+          paymentDetails
         }
       };
 
@@ -1740,6 +1741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: withdrawals.status,
           method: withdrawals.method,
           details: withdrawals.details,
+          comment: withdrawals.comment,
           createdAt: withdrawals.createdAt,
           updatedAt: withdrawals.updatedAt,
           transactionHash: withdrawals.transactionHash,
