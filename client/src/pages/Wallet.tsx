@@ -59,6 +59,18 @@ export default function Wallet() {
     withdrawal.status === 'pending' || withdrawal.status === 'paid'
   );
 
+  // Helper function to auto-round to 4 decimal places and remove trailing zeros
+  const autoRoundAmount = (value: string | number): string => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return '0';
+    
+    // Round to 4 decimal places
+    const rounded = parseFloat(num.toFixed(4));
+    
+    // Remove trailing zeros by converting to string and using regex
+    return rounded.toString().replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+  };
+
   // TON address validation function
   const validateTONAddress = (address: string): boolean => {
     if (!address || address.length !== 48) {
@@ -80,7 +92,7 @@ export default function Wallet() {
     const newErrors: Record<string, string> = {};
     // Round amount to 4 decimal places for validation
     const amount = parseFloat(parseFloat(withdrawForm.amount).toFixed(4));
-    const userBalance = parseFloat(user?.balance || '0');
+    const userBalance = parseFloat(parseFloat(user?.balance || '0').toFixed(4));
 
     if (!withdrawForm.amount || amount <= 0) {
       newErrors.amount = 'Please enter a valid amount';
@@ -289,7 +301,7 @@ export default function Wallet() {
                       type="number"
                       step="0.0001"
                       min="0.5"
-                      max={parseFloat(user?.balance || "0").toFixed(4)}
+                      max={autoRoundAmount(user?.balance || "0")}
                       value={withdrawForm.amount}
                       onChange={(e) => updateForm('amount', e.target.value)}
                       placeholder="0.5"
@@ -300,7 +312,7 @@ export default function Wallet() {
                       size="sm"
                       variant="ghost"
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
-                      onClick={() => updateForm('amount', parseFloat(user?.balance || '0').toFixed(4))}
+                      onClick={() => updateForm('amount', autoRoundAmount(user?.balance || '0'))}
                     >
                       Max
                     </Button>
