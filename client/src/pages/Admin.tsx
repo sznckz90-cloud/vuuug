@@ -152,20 +152,27 @@ export default function AdminPage() {
                       </div>
                     ) : withdrawalsData?.withdrawals && withdrawalsData.withdrawals.length > 0 ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-5 gap-4 font-medium text-sm border-b pb-2">
+                        <div className="grid grid-cols-6 gap-4 font-medium text-sm border-b pb-2">
                           <span>User</span>
                           <span>Amount</span>
+                          <span>Wallet / Comment</span>
                           <span>Method</span>
                           <span>Status</span>
                           <span>Date</span>
                         </div>
                         {withdrawalsData.withdrawals.map((withdrawal: any) => (
-                          <div key={withdrawal.id} className="grid grid-cols-5 gap-4 items-center p-3 border rounded-lg">
+                          <div key={withdrawal.id} className="grid grid-cols-6 gap-4 items-center p-3 border rounded-lg">
                             <div>
                               <p className="font-medium">{withdrawal.user?.firstName || 'User'} {withdrawal.user?.lastName || ''}</p>
                               <p className="text-xs text-muted-foreground">@{withdrawal.user?.username || withdrawal.user?.telegram_id}</p>
                             </div>
                             <p className="font-medium text-green-600">{formatCurrency(withdrawal.amount || '0')}</p>
+                            <div className="text-sm">
+                              <p className="text-muted-foreground break-all">{withdrawal.details?.paymentDetails || 'N/A'}</p>
+                              {withdrawal.comment && (
+                                <p className="text-xs text-blue-600 mt-1">💬 {withdrawal.comment}</p>
+                              )}
+                            </div>
                             <Badge variant="outline">{withdrawal.method || 'Unknown'}</Badge>
                             <Badge 
                               variant={withdrawal.status === 'paid' ? 'default' : 'secondary'}
@@ -173,7 +180,7 @@ export default function AdminPage() {
                             >
                               {withdrawal.status === 'paid' ? 'Completed' : 'Pending'}
                             </Badge>
-                            <p className="text-sm text-muted-foreground">{new Date(withdrawal.createdAt).toLocaleDateString()}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleDateString()}</p>
                           </div>
                         ))}
                       </div>

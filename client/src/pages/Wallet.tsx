@@ -31,6 +31,7 @@ interface User {
 interface WithdrawForm {
   amount: string;
   paymentDetails: string;
+  comment?: string;
 }
 
 export default function Wallet() {
@@ -43,8 +44,9 @@ export default function Wallet() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('balance');
   const [withdrawForm, setWithdrawForm] = useState<WithdrawForm>({
-    amount: '0.5',
-    paymentDetails: ''
+    amount: '',
+    paymentDetails: '',
+    comment: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -146,7 +148,8 @@ export default function Wallet() {
       const response = await apiRequest('POST', '/api/withdrawals', {
         amount: roundedAmount,
         paymentSystemId: 'ton_coin',
-        paymentDetails: withdrawData.paymentDetails
+        paymentDetails: withdrawData.paymentDetails,
+        comment: withdrawData.comment || ''
       });
 
       return response.json();
@@ -158,7 +161,7 @@ export default function Wallet() {
       });
       
       // Reset form
-      setWithdrawForm({ amount: '0.5', paymentDetails: '' });
+      setWithdrawForm({ amount: '', paymentDetails: '', comment: '' });
       setErrors({});
       
       // Invalidate relevant queries
@@ -321,17 +324,17 @@ export default function Wallet() {
               <form onSubmit={handleSubmitWithdraw} className="space-y-4">
                 {/* Amount */}
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount ($)</Label>
+                  <Label htmlFor="amount">Amount</Label>
                   <div className="relative">
                     <Input
                       id="amount"
                       type="number"
-                      step="0.0001"
+                      step="0.00001"
                       min="0.5"
                       max={autoRoundAmount(user?.balance || "0")}
                       value={withdrawForm.amount}
                       onChange={(e) => updateForm('amount', e.target.value)}
-                      placeholder="0.5"
+                      placeholder="Amount"
                       className={errors.amount ? 'border-red-500' : ''}
                     />
                     <Button 
@@ -341,7 +344,7 @@ export default function Wallet() {
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
                       onClick={() => updateForm('amount', autoRoundAmount(user?.balance || '0'))}
                     >
-                      Max
+                      MAX
                     </Button>
                   </div>
                   {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
@@ -350,36 +353,9 @@ export default function Wallet() {
                   </p>
                 </div>
 
-                {/* Fee Calculation Display */}
-                {withdrawForm.amount && parseFloat(withdrawForm.amount) > 0 && (
-                  <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-                    <div className="text-sm font-medium text-muted-foreground">Transaction Details</div>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span>Withdrawal Amount:</span>
-                        <span>{formatCurrency(withdrawForm.amount)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Network Fee:</span>
-                        <span>{formatCurrency(0.1)}</span>
-                      </div>
-                      <hr className="border-muted-foreground/20"/>
-                      <div className="flex justify-between font-medium">
-                        <span>You will receive:</span>
-                        <span className="text-primary">
-                          {formatCurrency(Math.max(0, parseFloat(withdrawForm.amount) - 0.1))}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Minimum withdrawal: 0.5 TON
-                    </div>
-                  </div>
-                )}
-
-                {/* TON Wallet Address */}
+                {/* Wallet Address */}
                 <div className="space-y-2">
-                  <Label htmlFor="paymentDetails">Ton Wallet Address</Label>
+                  <Label htmlFor="paymentDetails">Wallet Address</Label>
                   <Input
                     id="paymentDetails"
                     value={withdrawForm.paymentDetails}
@@ -388,6 +364,18 @@ export default function Wallet() {
                     className={errors.paymentDetails ? 'border-red-500' : ''}
                   />
                   {errors.paymentDetails && <p className="text-sm text-red-500">{errors.paymentDetails}</p>}
+                </div>
+
+                {/* Comment (Optional) */}
+                <div className="space-y-2">
+                  <Label htmlFor="comment">Comment (Optional)</Label>
+                  <Input
+                    id="comment"
+                    value={withdrawForm.comment || ''}
+                    onChange={(e) => updateForm('comment', e.target.value)}
+                    placeholder="Add a note for admin"
+                    maxLength={200}
+                  />
                 </div>
 
                 {/* Submit Button */}
