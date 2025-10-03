@@ -132,7 +132,7 @@ export default function Wallet() {
     }
 
     if (!withdrawForm.paymentDetails.trim()) {
-      newErrors.paymentDetails = 'TON wallet address is required';
+      newErrors.paymentDetails = 'Wallet address is required';
     } else if (!validateTONAddress(withdrawForm.paymentDetails.trim())) {
       newErrors.paymentDetails = 'Please enter a valid TON address (format: UQ... or EQ...)';
     }
@@ -333,7 +333,7 @@ export default function Wallet() {
                       max={autoRoundAmount(user?.balance || "0")}
                       value={withdrawForm.amount}
                       onChange={(e) => updateForm('amount', e.target.value)}
-                      placeholder="Amount"
+                      placeholder="Enter amount"
                       className={errors.amount ? 'border-red-500' : ''}
                     />
                     <Button 
