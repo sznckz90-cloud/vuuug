@@ -4,6 +4,15 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
+**October 3, 2025 (Withdrawal Flow Backward Compatibility Fix):**
+- **Enhanced decimal precision**: Upgraded from 4 to 5 decimal places throughout the application (e.g., 100.000990 → "100", 100.90101 → "100.9", 2.293892 → "2.293")
+- **Fixed MAX button precision**: Updated autoRoundAmount function to use 5 decimals instead of 4, preventing browser validation errors
+- **Backward compatibility for withdrawals**: Modified admin panel query to include NULL status (`WHERE status IN ('pending', 'paid') OR status IS NULL`) ensuring ALL withdrawal requests are displayed, including older ones from Sept 28
+- **Enhanced user withdrawal history**: Updated user withdrawal query with same NULL status handling to ensure all historical requests appear correctly
+- **Added missing withdrawal fields**: Included `updatedAt`, `transactionHash`, and `adminNotes` in both admin and user withdrawal queries for complete data visibility
+- **Production deployment configured**: Set up VM deployment with proper build and run commands for production publishing
+- **Project successfully set up for Replit environment**: Fresh GitHub import with all dependencies installed and workflow running on port 5000
+
 **October 2, 2025 (Withdraw Flow & Task Section UI Improvements):**
 - **Fixed withdraw MAX button**: Implemented auto-rounding to 4 decimal places with trailing zero removal (e.g., 100.000990 → 100, 2.293892 → 2.293) to prevent browser validation errors
 - **Enhanced admin withdrawal panel**: Updated to display both pending and completed withdrawal requests with color-coded status badges (green for completed, yellow for pending)
