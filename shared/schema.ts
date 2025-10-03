@@ -99,6 +99,7 @@ export const withdrawals = pgTable("withdrawals", {
   status: varchar("status").default('pending'),
   method: varchar("method").notNull(),
   details: jsonb("details"),
+  comment: text("comment"),
   transactionHash: varchar("transaction_hash"),
   adminNotes: text("admin_notes"),
   createdAt: timestamp("created_at").defaultNow(),
