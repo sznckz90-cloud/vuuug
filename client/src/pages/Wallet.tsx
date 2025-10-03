@@ -143,10 +143,9 @@ export default function Wallet() {
 
   const withdrawMutation = useMutation({
     mutationFn: async (withdrawData: WithdrawForm) => {
-      // Round amount to 5 decimal places before sending
-      const roundedAmount = parseFloat(withdrawData.amount).toFixed(5);
+      // Send the exact amount as entered by user (preserves decimals)
       const response = await apiRequest('POST', '/api/withdrawals', {
-        amount: roundedAmount,
+        amount: withdrawData.amount,
         paymentSystemId: 'ton_coin',
         paymentDetails: withdrawData.paymentDetails,
         comment: withdrawData.comment || ''
