@@ -1638,6 +1638,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.user.id;
       const { amount, paymentSystemId, paymentDetails, comment } = req.body;
 
+      console.log('📝 Withdrawal request received:', { userId, amount, paymentSystemId, paymentDetails, comment });
+
       // Validation: Check minimum amount (0.5 TON)
       const withdrawAmount = parseFloat(amount);
       if (!amount || isNaN(withdrawAmount) || withdrawAmount < 0.5) {
@@ -1675,18 +1677,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create withdrawal request with pending status (NO balance deduction yet)
-      const withdrawalData = {
+      // Create withdrawal request with pending status (NO balance deduction, NO fees)
+      const withdrawalData: any = {
         userId,
         amount: amount.toString(),
         method: 'ton_coin',
         status: 'pending',
-        comment: comment || null,
         details: {
-          paymentSystemId,
-          paymentDetails
+          paymentSystemId: paymentSystemId || 'ton_coin',
+          paymentDetails: paymentDetails || ''
         }
       };
+
+      // Only add comment if it's not empty
+      if (comment && comment.trim() !== '') {
+        withdrawalData.comment = comment.trim();
+      }
+
+      console.log('💾 Creating withdrawal with data:', withdrawalData);
 
       const newWithdrawal = await storage.createWithdrawal(withdrawalData);
 
@@ -1706,6 +1714,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('❌ Error creating withdrawal request:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.message : String(error));
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ 
         success: false, 
         message: 'Failed to create withdrawal request' 
