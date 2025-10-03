@@ -1729,12 +1729,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Get all pending withdrawals with user details
-      const pendingWithdrawals = await db
+      // Get all pending and completed withdrawals with user details
+      const allWithdrawals = await db
         .select({
           id: withdrawals.id,
           userId: withdrawals.userId,
           amount: withdrawals.amount,
+          status: withdrawals.status,
           method: withdrawals.method,
           details: withdrawals.details,
           createdAt: withdrawals.createdAt,
@@ -1747,13 +1748,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(withdrawals)
         .leftJoin(users, eq(withdrawals.userId, users.id))
-        .where(eq(withdrawals.status, 'pending'))
+        .where(sql`${withdrawals.status} IN ('pending', 'paid')`)
         .orderBy(desc(withdrawals.createdAt));
       
       res.json({
         success: true,
-        withdrawals: pendingWithdrawals,
-        total: pendingWithdrawals.length
+        withdrawals: allWithdrawals,
+        total: allWithdrawals.length
       });
       
     } catch (error) {
