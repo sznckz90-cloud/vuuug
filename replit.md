@@ -4,7 +4,16 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes
 
-**October 2, 2025 (Task System & Balance Display Enhancements):**
+**October 2, 2025 (Withdraw Flow & Task Section UI Improvements):**
+- **Fixed withdraw MAX button**: Implemented auto-rounding to 4 decimal places with trailing zero removal (e.g., 100.000990 → 100, 2.293892 → 2.293) to prevent browser validation errors
+- **Enhanced admin withdrawal panel**: Updated to display both pending and completed withdrawal requests with color-coded status badges (green for completed, yellow for pending)
+- **Redesigned task section UI**: Removed generic "Task 1/2/3" labels and now display actual task goals as main titles (e.g., "Watch 20 Ads")
+- **Improved task reward display**: Reward amount shown as outlined badge on right side of title (e.g., "0.00033 TON"), using formatTaskReward with up to 5 decimals
+- **Relocated claim button**: Full-width green button below progress bar with lowercase "claim" text (or "Done" with check icon when claimed)
+- **Enhanced task progress display**: Shows "Progress" label on left and "0/20 ads" count on right, with visual progress bar below
+- **Final layout structure**: [Icon] [Task Title] [Reward Badge] → Progress labels → Progress bar → claim button (when complete)
+
+**Earlier October 2, 2025 (Task System & Balance Display Enhancements):**
 - **Fixed task sorting**: Completed tasks now automatically move to the bottom of the list, with unclaimed/in-progress tasks showing first for better UX
 - **Implemented live task progress updates**: Task progress now updates automatically after watching ads without manual refresh (added task query invalidation)
 - **Standardized balance formatting globally**: Replaced all custom formatting with centralized formatCurrency utility - whole numbers display without decimals (100 TON), decimals show max 4 places with trailing zeros removed (0.1234 TON)
