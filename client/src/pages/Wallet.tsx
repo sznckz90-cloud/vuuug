@@ -59,13 +59,13 @@ export default function Wallet() {
     withdrawal.status === 'pending' || withdrawal.status === 'paid'
   );
 
-  // Helper function to auto-round to 4 decimal places and remove trailing zeros
+  // Helper function to auto-round to 5 decimal places and remove trailing zeros
   const autoRoundAmount = (value: string | number): string => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     if (isNaN(num)) return '0';
     
-    // Round to 4 decimal places
-    const rounded = parseFloat(num.toFixed(4));
+    // Round to 5 decimal places
+    const rounded = parseFloat(num.toFixed(5));
     
     // Remove trailing zeros by converting to string and using regex
     return rounded.toString().replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
@@ -90,9 +90,9 @@ export default function Wallet() {
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    // Round amount to 4 decimal places for validation
-    const amount = parseFloat(parseFloat(withdrawForm.amount).toFixed(4));
-    const userBalance = parseFloat(parseFloat(user?.balance || '0').toFixed(4));
+    // Round amount to 5 decimal places for validation
+    const amount = parseFloat(parseFloat(withdrawForm.amount).toFixed(5));
+    const userBalance = parseFloat(parseFloat(user?.balance || '0').toFixed(5));
 
     if (!withdrawForm.amount || amount <= 0) {
       newErrors.amount = 'Please enter a valid amount';
@@ -114,8 +114,8 @@ export default function Wallet() {
 
   const withdrawMutation = useMutation({
     mutationFn: async (withdrawData: WithdrawForm) => {
-      // Round amount to 4 decimal places before sending
-      const roundedAmount = parseFloat(withdrawData.amount).toFixed(4);
+      // Round amount to 5 decimal places before sending
+      const roundedAmount = parseFloat(withdrawData.amount).toFixed(5);
       const response = await apiRequest('POST', '/api/withdrawals', {
         amount: roundedAmount,
         paymentSystemId: 'ton_coin',
