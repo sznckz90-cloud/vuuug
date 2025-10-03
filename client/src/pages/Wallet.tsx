@@ -59,16 +59,43 @@ export default function Wallet() {
     withdrawal.status === 'pending' || withdrawal.status === 'paid'
   );
 
-  // Helper function to auto-round to 5 decimal places and remove trailing zeros
+  // Helper function to preserve exact balance value, limit to 5 decimals, and remove trailing zeros
   const autoRoundAmount = (value: string | number): string => {
-    const num = typeof value === 'string' ? parseFloat(value) : value;
+    // Convert to string to work with original value
+    let valueStr = typeof value === 'string' ? value : value.toString();
+    
+    // Parse to check if valid number (allow zero)
+    const num = parseFloat(valueStr);
     if (isNaN(num)) return '0';
     
-    // Round to 5 decimal places
-    const rounded = parseFloat(num.toFixed(5));
+    // Return zero immediately if value is zero
+    if (num === 0) return '0';
     
-    // Remove trailing zeros by converting to string and using regex
-    return rounded.toString().replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+    // Keep working with original string (don't use num.toString() which loses precision)
+    // Handle scientific notation by converting back only if needed
+    if (valueStr.includes('e') || valueStr.includes('E')) {
+      valueStr = num.toString();
+    }
+    
+    // If there's a decimal point
+    if (valueStr.includes('.')) {
+      let [whole, decimals] = valueStr.split('.');
+      
+      // Remove trailing zeros from the FULL fractional part first
+      decimals = decimals.replace(/0+$/, '');
+      
+      // Then limit to max 5 decimal places
+      decimals = decimals.substring(0, 5);
+      
+      // If no significant decimals remain, return whole number only
+      if (decimals.length === 0 || decimals === '' || parseInt(decimals) === 0) {
+        return whole;
+      } else {
+        return `${whole}.${decimals}`;
+      }
+    }
+    
+    return valueStr;
   };
 
   // TON address validation function
