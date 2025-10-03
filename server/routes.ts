@@ -1600,7 +1600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.user.id;
       
-      // Get user's withdrawals (only show pending and paid statuses as per requirements)
+      // Get user's withdrawals (show pending and paid, handle NULL status for backward compatibility)
       const userWithdrawals = await db
         .select({
           id: withdrawals.id,
@@ -1609,13 +1609,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: withdrawals.status,
           details: withdrawals.details,
           transactionHash: withdrawals.transactionHash,
+          adminNotes: withdrawals.adminNotes,
           createdAt: withdrawals.createdAt,
           updatedAt: withdrawals.updatedAt
         })
         .from(withdrawals)
         .where(and(
           eq(withdrawals.userId, userId),
-          sql`${withdrawals.status} IN ('pending', 'paid')`
+          sql`${withdrawals.status} IN ('pending', 'paid') OR ${withdrawals.status} IS NULL`
         ))
         .orderBy(desc(withdrawals.createdAt));
       
@@ -1729,7 +1730,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Get all pending and completed withdrawals with user details
+      // Get ALL withdrawals with user details (including old requests with any status)
+      // This ensures backward compatibility and displays all withdrawal requests
       const allWithdrawals = await db
         .select({
           id: withdrawals.id,
@@ -1739,6 +1741,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           method: withdrawals.method,
           details: withdrawals.details,
           createdAt: withdrawals.createdAt,
+          updatedAt: withdrawals.updatedAt,
+          transactionHash: withdrawals.transactionHash,
+          adminNotes: withdrawals.adminNotes,
           user: {
             firstName: users.firstName,
             lastName: users.lastName,
@@ -1748,7 +1753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(withdrawals)
         .leftJoin(users, eq(withdrawals.userId, users.id))
-        .where(sql`${withdrawals.status} IN ('pending', 'paid')`)
+        .where(sql`${withdrawals.status} IN ('pending', 'paid') OR ${withdrawals.status} IS NULL`)
         .orderBy(desc(withdrawals.createdAt));
       
       res.json({
