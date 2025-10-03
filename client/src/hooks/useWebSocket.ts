@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface WebSocketMessage {
   type: string;
@@ -14,6 +15,7 @@ interface WebSocketMessage {
 export function useWebSocket() {
   const { user } = useAuth() as { user: any };
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<WebSocketMessage[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -99,6 +101,10 @@ export function useWebSocket() {
                 title: "Withdrawal Approved! ✅",
                 description: `Your withdrawal of $${message.amount} has been approved`,
               });
+              // Invalidate withdrawal queries to update UI immediately
+              queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
               break;
               
             case 'withdrawal_rejected':
@@ -107,6 +113,10 @@ export function useWebSocket() {
                 description: `Your withdrawal of $${message.amount} was rejected and balance refunded`,
                 variant: "destructive"
               });
+              // Invalidate withdrawal queries to update UI immediately
+              queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
               break;
               
             case 'referral_bonus':
