@@ -10,10 +10,22 @@ const isAdmin = (telegramId: string): boolean => {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
 
+// Utility function to format TON amounts - removes trailing zeros
+function formatTON(value: string | number): string {
+  let num = parseFloat(String(value)).toFixed(4);
+  num = num.replace(/\.?0+$/, ''); // remove trailing zeros & dot
+  return num;
+}
+
+// Escape special characters for Telegram MarkdownV2
+function escapeMarkdownV2(text: string): string {
+  return text.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&');
+}
+
 interface TelegramMessage {
   chat_id: string;
   text: string;
-  parse_mode?: 'HTML' | 'Markdown';
+  parse_mode?: 'HTML' | 'Markdown' | 'MarkdownV2';
   reply_markup?: {
     inline_keyboard: Array<Array<{
       text: string;
@@ -153,7 +165,7 @@ export async function sendTelegramMessage(message: string): Promise<boolean> {
 }
 
 
-export async function sendUserTelegramNotification(userId: string, message: string, replyMarkup?: any): Promise<boolean> {
+export async function sendUserTelegramNotification(userId: string, message: string, replyMarkup?: any, parseMode: 'HTML' | 'Markdown' | 'MarkdownV2' = 'HTML'): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
     console.error('❌ Telegram bot token not configured');
     return false;
@@ -165,7 +177,7 @@ export async function sendUserTelegramNotification(userId: string, message: stri
     const telegramMessage: TelegramMessage = {
       chat_id: userId,
       text: message,
-      parse_mode: 'HTML'
+      parse_mode: parseMode
     };
 
     if (replyMarkup) {
@@ -376,15 +388,18 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             const user = await storage.getUser(result.withdrawal.userId);
             if (user && user.telegram_id) {
               const withdrawalDetails = result.withdrawal.details as any;
-              const netAmount = withdrawalDetails?.netAmount ? parseFloat(withdrawalDetails.netAmount).toFixed(8) : parseFloat(result.withdrawal.amount).toFixed(8);
+              const amount = withdrawalDetails?.netAmount ? withdrawalDetails.netAmount : result.withdrawal.amount;
+              const formattedAmount = formatTON(amount);
+              const formattedBalance = formatTON(user.balance || 0);
+              const utcTime = result.withdrawal.createdAt ? new Date(result.withdrawal.createdAt).toUTCString() : new Date().toUTCString();
+              const txHash = result.withdrawal.transactionHash || 'N/A';
               
-              let userMessage = `✅ Your withdraw request of ${netAmount} TON has been paid.`;
+              let userMessage = `_✅ Congratulations! Your withdrawal of ${formattedAmount} TON has been successfully processed._\n\n`;
+              userMessage += `⏰ Time (UTC): ${utcTime}\n`;
+              userMessage += `💡 Remaining Balance: ${formattedBalance} TON\n`;
+              userMessage += `📝 Transaction: ${escapeMarkdownV2(txHash)}`;
               
-              if (result.withdrawal.transactionHash) {
-                userMessage += ` Transaction hash: ${result.withdrawal.transactionHash}`;
-              }
-              
-              await sendUserTelegramNotification(user.telegram_id, userMessage);
+              await sendUserTelegramNotification(user.telegram_id, userMessage, undefined, 'MarkdownV2');
             }
             
             // Update admin message
@@ -550,88 +565,13 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       // Extract parameter if present (e.g., /start REF123 or /start claim_promotionId)
       const parameter = text.split(' ')[1];
       
-      // Handle promotion task claim
+      // Handle promotion task claim (DISABLED - no promotion system)
       if (parameter && parameter.startsWith('task_')) {
-        const promotionId = parameter.replace('task_', '');
-        console.log('🎁 Processing promotion task claim for:', promotionId);
-        
-        try {
-          // Get the promotion details
-          const promotion = await storage.getPromotion(promotionId);
-          if (!promotion) {
-            const errorMessage = '❌ This promotion no longer exists.';
-            const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-            return true;
-          }
-          
-          // Check if promotion limit reached
-          if ((promotion.claimedCount || 0) >= (promotion.limit || 1000)) {
-            const limitMessage = '❌ This task is fully claimed, better luck next time.';
-            const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, limitMessage, keyboard);
-            return true;
-          }
-          
-          // Check if user already claimed this task
-          const hasClaimed = await storage.hasUserClaimedPromotion(promotionId, dbUser.id);
-          if (hasClaimed) {
-            const alreadyClaimedMessage = '❌ You already claimed this task.';
-            const keyboard = createBotKeyboard();
-            await sendUserTelegramNotification(chatId, alreadyClaimedMessage, keyboard);
-            return true;
-          }
-          
-          // Send task instructions based on promotion type
-          let taskMessage = '';
-          let inlineButton = { text: '', url: promotion.url };
-          
-          if (promotion.type === 'channel') {
-            taskMessage = `📢 Channel Task
-🚀 Join the Channel & Complete Your Task!
-💎 Fast, simple, and rewarding – don't miss out!`;
-            inlineButton.text = 'Join the channel';
-            
-            // All task claiming now happens in the App only
-          } else if (promotion.type === 'bot') {
-            taskMessage = `🤖 Bot Task
-⚡ Complete Your Task via Bot & Earn!
-💥 Easy, instant rewards – just a few taps!`;
-            inlineButton.text = 'Start bot';
-            
-            // All task claiming now happens in the App only
-          }
-          
-          const inlineKeyboard = {
-            inline_keyboard: [[inlineButton]]
-          };
-          
-          const replyKeyboard = {
-            keyboard: [
-              [
-                { text: '✅ Done' },
-                { text: '❌ Cancel' }
-              ]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          };
-          
-          // Send message with inline button
-          await sendUserTelegramNotification(chatId, taskMessage, inlineKeyboard);
-          
-          // Send follow-up message with reply keyboard
-          const followUpMessage = 'Click "✅ Done" when you have completed the task, or "❌ Cancel" to exit.';
-          await sendUserTelegramNotification(chatId, followUpMessage, replyKeyboard);
-          return true;
-          
-        } catch (error) {
-          console.error('❌ Error processing promotion task claim:', error);
-          const errorMessage = '❌ Error processing your claim. Please try again.';
-          const keyboard = createBotKeyboard();
-          await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-          return true;
-        }
+        console.log('⚠️ Promotion system disabled');
+        const errorMessage = '❌ This feature is not available.';
+        const keyboard = createBotKeyboard();
+        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
+        return true;
       }
       
       // Extract referral code if present (e.g., /start REF123)
