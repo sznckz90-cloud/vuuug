@@ -1677,12 +1677,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`💰 Balance deducted for withdrawal: ${withdrawAmount} TON. New balance: ${newBalance} TON`);
 
-        // Create withdrawal request
+        // Create withdrawal request with deducted flag set to true
         const withdrawalData: any = {
           userId,
           amount: amount.toString(),
           method: 'ton_coin',
           status: 'pending',
+          deducted: true,
+          refunded: false,
           details: {
             paymentSystemId: paymentSystemId || 'ton_coin',
             paymentDetails: paymentDetails || ''

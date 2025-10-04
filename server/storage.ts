@@ -1336,31 +1336,43 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      // Get user and check balance again
+      // Get user for logging and balance management
       const user = await this.getUser(withdrawal.userId);
       if (!user) {
         return { success: false, message: 'User not found' };
       }
 
-      const userBalance = parseFloat(user.balance || '0');
       const withdrawalAmount = parseFloat(withdrawal.amount);
-      
-      if (userBalance < withdrawalAmount) {
-        return { success: false, message: 'User has insufficient balance for withdrawal' };
+      const userBalance = parseFloat(user.balance || '0');
+
+      // Handle both NEW withdrawals (deducted=true) and LEGACY withdrawals (deducted=false)
+      if (!withdrawal.deducted) {
+        // Legacy withdrawal from OLD system - balance was never deducted during submission
+        // We need to deduct it now during approval for backward compatibility
+        console.log(`⚠️ Processing legacy withdrawal #${withdrawalId} - deducting balance during approval`);
+        
+        if (userBalance < withdrawalAmount) {
+          return { success: false, message: 'User has insufficient balance for withdrawal' };
+        }
+
+        // Deduct balance for legacy withdrawal
+        await db
+          .update(users)
+          .set({
+            balance: sql`COALESCE(${users.balance}, 0) - ${withdrawalAmount.toString()}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, withdrawal.userId));
+
+        console.log(`💰 Legacy withdrawal: Balance deducted ${withdrawalAmount} TON. New balance: ${(userBalance - withdrawalAmount).toFixed(8)} TON`);
+      } else {
+        // New withdrawal - balance was already deducted during submission
+        console.log(`✅ New withdrawal #${withdrawalId} - balance already deducted at submission`);
       }
 
-      // Deduct balance (withdrawal amount only, no fee)
-      await db
-        .update(users)
-        .set({
-          balance: sql`COALESCE(${users.balance}, 0) - ${withdrawalAmount.toString()}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, withdrawal.userId));
-
-      // Add withdrawal record as earnings (negative amount)
+      // Add withdrawal record as earnings (negative amount) for tracking
       const paymentSystemName = withdrawal.method;
-      const description = `Withdrawal completed: ${withdrawal.amount} TON via ${paymentSystemName}`;
+      const description = `Withdrawal approved: ${withdrawal.amount} TON via ${paymentSystemName}`;
 
       await this.addEarning({
         userId: withdrawal.userId,
@@ -1369,8 +1381,18 @@ export class DatabaseStorage implements IStorage {
         description: description,
       });
 
-      // Update withdrawal status to Approved
-      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'Approved', transactionHash, adminNotes);
+      // Update withdrawal status to Approved and mark as deducted
+      const updateData: any = { 
+        status: 'Approved', 
+        deducted: true,
+        updatedAt: new Date() 
+      };
+      if (transactionHash) updateData.transactionHash = transactionHash;
+      if (adminNotes) updateData.adminNotes = adminNotes;
+      
+      const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
+      
+      console.log(`✅ Withdrawal #${withdrawalId} approved with single deduction logic — OK ✅`);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
@@ -1391,29 +1413,53 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
+      // Safety check: Prevent double refund
+      if (withdrawal.refunded) {
+        console.error('⚠️ WARNING: Withdrawal already refunded! Withdrawal ID:', withdrawalId);
+        return { success: false, message: 'This withdrawal has already been refunded' };
+      }
+
       // Get user to return balance
       const user = await this.getUser(withdrawal.userId);
       if (!user) {
         return { success: false, message: 'User not found' };
       }
 
-      // Return the withdrawn amount back to user's balance
       const currentBalance = parseFloat(user.balance || '0');
       const withdrawalAmount = parseFloat(withdrawal.amount);
-      const newBalance = (currentBalance + withdrawalAmount).toFixed(8);
 
-      await db
-        .update(users)
-        .set({ 
-          balance: newBalance,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, withdrawal.userId));
+      // Handle both NEW withdrawals (deducted=true) and LEGACY withdrawals (deducted=false)
+      if (withdrawal.deducted) {
+        // New withdrawal - balance was deducted during submission, so we need to refund it
+        const newBalance = (currentBalance + withdrawalAmount).toFixed(8);
 
-      console.log(`💰 Balance returned for rejected withdrawal: ${withdrawalAmount} TON. New balance: ${newBalance} TON`);
+        await db
+          .update(users)
+          .set({ 
+            balance: newBalance,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, withdrawal.userId));
 
-      // Update withdrawal status to rejected
-      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'rejected', undefined, adminNotes);
+        console.log(`💰 Balance refunded for rejected withdrawal: ${withdrawalAmount} TON. New balance: ${newBalance} TON`);
+      } else {
+        // Legacy withdrawal - balance was NEVER deducted (old system didn't deduct on submission)
+        // No refund needed since nothing was taken
+        console.log(`⚠️ Legacy withdrawal #${withdrawalId} rejected - no refund needed (balance was never deducted)`);
+      }
+
+      // Update withdrawal status to rejected and mark as refunded (even for legacy, to prevent future issues)
+      const updateData: any = { 
+        status: 'rejected', 
+        refunded: withdrawal.deducted ? true : false,
+        deducted: false,
+        updatedAt: new Date() 
+      };
+      if (adminNotes) updateData.adminNotes = adminNotes;
+      
+      const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
+      
+      console.log(`✅ Withdrawal #${withdrawalId} rejected with correct refund logic — OK ✅`);
       
       return { success: true, message: 'Withdrawal rejected and balance returned', withdrawal: updatedWithdrawal };
     } catch (error) {

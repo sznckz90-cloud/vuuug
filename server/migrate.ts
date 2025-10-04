@@ -162,6 +162,39 @@ export async function ensureDatabaseSchema(): Promise<void> {
       console.log('ℹ️ [MIGRATION] Comment column already exists in withdrawals table');
     }
     
+    // Add deducted and refunded columns to prevent double deduction/refund bugs
+    try {
+      await db.execute(sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS deducted BOOLEAN DEFAULT false`);
+      await db.execute(sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS refunded BOOLEAN DEFAULT false`);
+      
+      // For existing withdrawals created under OLD system (balance was deducted during approval, not submission):
+      // - Approved/Completed ones: Mark as deducted=true (balance was already taken during approval)
+      // - Rejected ones: Mark as deducted=false and refunded=false (balance was never taken, or was returned)
+      // - Pending ones: Mark as deducted=false (balance will be deducted when approved with compatibility logic)
+      
+      await db.execute(sql`
+        UPDATE withdrawals 
+        SET deducted = true 
+        WHERE status IN ('Approved', 'Successfull', 'paid') AND (deducted IS NULL OR deducted = false)
+      `);
+      
+      await db.execute(sql`
+        UPDATE withdrawals 
+        SET deducted = false, refunded = false
+        WHERE status = 'rejected' AND (deducted IS NULL OR refunded IS NULL)
+      `);
+      
+      await db.execute(sql`
+        UPDATE withdrawals 
+        SET deducted = false, refunded = false
+        WHERE status = 'pending' AND (deducted IS NULL OR refunded IS NULL)
+      `);
+      
+      console.log('✅ [MIGRATION] Deducted and refunded columns added to withdrawals table with correct legacy states');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] Deducted and refunded columns already exist in withdrawals table');
+    }
+    
     // Promotions table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS promotions (
