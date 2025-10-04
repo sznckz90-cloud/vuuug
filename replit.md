@@ -4,14 +4,14 @@ CashWatch is a React-based web application that enables users to earn money by w
 
 # Recent Changes
 
-## October 4, 2025 - Telegram Notification & Balance Fixes
+## October 4, 2025 - Critical Withdrawal Flow Fix
+- **Withdrawal Balance Deduction Logic**: Fixed critical double-deduction bug by restructuring the withdrawal flow:
+  - **Withdrawal Creation**: Balance is NO LONGER deducted when user creates withdrawal request - only validates sufficient balance exists
+  - **Admin Approval**: Balance is deducted ONLY ONCE at approval time (this is the single point of deduction)
+  - **Admin Rejection**: No refund needed since balance was never deducted
+  - Added clear console logging: `💰 Deducting balance now for approved withdrawal: X TON` to track deduction events
 - **Telegram Notification Formatting**: Fixed TON value formatting to handle up to 8 decimal places and properly remove trailing zeros (e.g., 261.01175 → 261.0117, 12.00000 → 12)
 - **Plain Text Notifications**: Removed markdown formatting from all Telegram notifications for better display compatibility
-- **Balance Deduction System**: Verified and confirmed the existing balance deduction logic prevents double deduction using the `deducted` flag system:
-  - Balance is deducted once when withdrawal request is created
-  - No additional deduction occurs during approval
-  - Proper refund logic for rejected withdrawals
-  - Safety checks prevent duplicate refunds
 
 # User Preferences
 
