@@ -4,6 +4,17 @@ CashWatch is a React-based web application that enables users to earn money by w
 
 # Recent Changes
 
+## October 4, 2025 - Admin Panel React Hooks Fix
+- **Critical Bug Fixed**: Admin panel showing black screen due to React Hooks violation
+  - **Root Cause**: Conditional early returns (`if (adminLoading)` and `if (!isAdmin)`) were placed BEFORE useQuery hooks, violating the Rules of Hooks
+  - **Solution**: Moved all useQuery hooks to the top of the component before any conditional returns
+  - **Added**: `enabled: isAdmin` option to queries to prevent unnecessary API calls when user is not admin
+  - **Impact**: Admin panel now displays correctly and shows pending withdrawal requests as expected
+- **Verified**: Withdrawal creation and admin panel display flow working correctly:
+  - Withdrawals are created with status 'pending' in database
+  - Admin panel fetches pending withdrawals via `/api/admin/withdrawals/pending`
+  - Pending requests display in admin panel under "Pending Withdrawal Requests" section
+
 ## October 4, 2025 - Critical Withdrawal Flow Fix
 - **Withdrawal Balance Deduction Logic**: Fixed critical double-deduction bug by restructuring the withdrawal flow:
   - **Withdrawal Creation**: Balance is NO LONGER deducted when user creates withdrawal request - only validates sufficient balance exists
