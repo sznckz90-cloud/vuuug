@@ -1,91 +1,6 @@
 # Overview
 
-CashWatch is a React-based web application that allows users to earn money by watching advertisements. The platform features a gamified experience with daily streaks, referral systems, and withdrawal capabilities. Built with a modern full-stack architecture using React, Express, PostgreSQL, and shadcn/ui components.
-
-# Recent Changes
-
-**October 4, 2025 (Replit Environment Setup & Withdrawal Fix):**
-- **Successfully configured project for Replit environment**: Fresh GitHub import with all dependencies installed and development server running on port 5000
-- **Fixed withdrawal comment column error**: Added missing `comment TEXT` column to withdrawals table in migration script to prevent "failed to create withdrawal request" errors
-- **Database schema synchronized**: Ensured all tables including withdrawals have correct schema with comment, transaction_hash, and admin_notes columns
-- **TypeScript configuration updated**: Added @assets path alias to tsconfig.json for proper asset imports
-- **Package scripts optimized**: Updated npm scripts to use local binaries instead of npx for better reliability
-- **VM deployment configured**: Set up production deployment with proper build and start commands for continuous operation
-- **Migration system verified**: Confirmed automatic database schema creation on server startup with all required tables and indexes
-
-**October 3, 2025 (Withdrawal Flow Backward Compatibility Fix):**
-- **Enhanced decimal precision**: Upgraded from 4 to 5 decimal places throughout the application (e.g., 100.000990 → "100", 100.90101 → "100.9", 2.293892 → "2.293")
-- **Fixed MAX button precision**: Updated autoRoundAmount function to use 5 decimals instead of 4, preventing browser validation errors
-- **Backward compatibility for withdrawals**: Modified admin panel query to include NULL status (`WHERE status IN ('pending', 'paid') OR status IS NULL`) ensuring ALL withdrawal requests are displayed, including older ones from Sept 28
-- **Enhanced user withdrawal history**: Updated user withdrawal query with same NULL status handling to ensure all historical requests appear correctly
-- **Added missing withdrawal fields**: Included `updatedAt`, `transactionHash`, and `adminNotes` in both admin and user withdrawal queries for complete data visibility
-- **Production deployment configured**: Set up VM deployment with proper build and run commands for production publishing
-- **Project successfully set up for Replit environment**: Fresh GitHub import with all dependencies installed and workflow running on port 5000
-
-**October 2, 2025 (Withdraw Flow & Task Section UI Improvements):**
-- **Fixed withdraw MAX button**: Implemented auto-rounding to 4 decimal places with trailing zero removal (e.g., 100.000990 → 100, 2.293892 → 2.293) to prevent browser validation errors
-- **Enhanced admin withdrawal panel**: Updated to display both pending and completed withdrawal requests with color-coded status badges (green for completed, yellow for pending)
-- **Redesigned task section UI**: Removed generic "Task 1/2/3" labels and now display actual task goals as main titles (e.g., "Watch 20 Ads")
-- **Improved task reward display**: Reward amount shown as outlined badge on right side of title (e.g., "0.00033 TON"), using formatTaskReward with up to 5 decimals
-- **Relocated claim button**: Full-width green button below progress bar with lowercase "claim" text (or "Done" with check icon when claimed)
-- **Enhanced task progress display**: Shows "Progress" label on left and "0/20 ads" count on right, with visual progress bar below
-- **Final layout structure**: [Icon] [Task Title] [Reward Badge] → Progress labels → Progress bar → claim button (when complete)
-
-**Earlier October 2, 2025 (Task System & Balance Display Enhancements):**
-- **Fixed task sorting**: Completed tasks now automatically move to the bottom of the list, with unclaimed/in-progress tasks showing first for better UX
-- **Implemented live task progress updates**: Task progress now updates automatically after watching ads without manual refresh (added task query invalidation)
-- **Standardized balance formatting globally**: Replaced all custom formatting with centralized formatCurrency utility - whole numbers display without decimals (100 TON), decimals show max 4 places with trailing zeros removed (0.1234 TON)
-- **Fixed withdrawal validation bug**: Corrected input step precision (0.0001), proper min value (0.5 TON), and automatic rounding to 4 decimal places to prevent "nearest valid value" browser validation errors
-- **Verified withdrawal system integrity**: Confirmed real-time status updates (pending → paid/rejected) with WebSocket notifications and Telegram alerts working correctly
-
-**October 1, 2025 (Replit Environment Setup & Configuration):**
-- **Successfully configured CashWatch for Replit environment**: Set up fresh GitHub import with all dependencies and workflows
-- **Updated ad reward system**: Changed per-ad reward from 0.000086 TON to 0.0002 TON across entire application
-- **Reconfigured task system**: Updated all 9 daily tasks to require 20 ads watched for 0.00033 TON reward each
-- **Improved balance display formatting**: Changed TON balance display from 7 decimal places to 4 decimal places throughout app (e.g., 0.1234 or 1.2345 TON)
-- **Fixed admin panel visibility**: Updated useAdmin hook to check telegram_id field for proper admin access
-- **Configured deployment settings**: Set up VM deployment with build and run commands for production publishing
-- **Admin user configured**: System recognizes telegram_id 6653616672 as admin with full dashboard access
-
-**September 12, 2025 (Telegram WebApp Authentication Fix for Render):**
-- **Fixed critical Telegram WebApp authentication for Render deployment**: Resolved "Telegram authentication required" errors that prevented users from creating promotions and completing tasks when accessing through legitimate Telegram WebApp
-- **Removed unsafe initDataUnsafe fallback**: Eliminated security-breaking fallback that lacked proper HMAC hash verification, ensuring all production authentication requires valid Telegram WebApp initData
-- **Enhanced environment detection**: Improved development vs production detection for Render deployments with proper REPL_ID dependency removal
-- **Fixed task reward calculation**: Resolved hardcoded $0.00 reward display bug, now showing correct dynamic reward amounts from promotion data
-- **Strengthened authentication security**: Implemented strict HMAC signature verification using TELEGRAM_BOT_TOKEN for all production environments
-- **Production-ready for Render**: Code now fully supports Render deployment without authentication bypass issues while maintaining development mode compatibility
-
-**September 8, 2025 (Referral System Fix):**
-- **Fixed referral system database errors**: Resolved "null value in column 'referee_id'" errors by improving input validation and error handling in createReferral function
-- **Enhanced referral creation logic**: Added comprehensive user verification, duplicate checking, and self-referral prevention
-- **Improved Telegram integration**: Updated webhook handler to properly process referral codes from /start commands for new users only
-- **Enhanced affiliates API**: Extended API to return detailed referral list including referee IDs, rewards, status, and creation dates
-- **Added referral notifications**: Implemented Telegram notifications to referrers when someone uses their referral link
-- **Production testing verified**: End-to-end testing confirmed referral system works correctly in production environment
-
-**September 7, 2025 (v2.0 - Code Modernization):**
-- **Complete code modernization**: Removed all legacy authentication patterns and outdated implementations
-- **Unified authentication system**: Consolidated all authentication logic into `server/auth.ts` for better organization and maintainability  
-- **Removed deprecated routes**: Eliminated manual database setup routes (`/api/init-database`) and legacy schema fixes in favor of proper Drizzle migrations
-- **Cleaner codebase**: Removed duplicate middleware functions and consolidated authentication into a single, modern system
-- **Enhanced type safety**: Improved TypeScript usage throughout the authentication system
-- **Production-ready**: Authentication system now works seamlessly across development, Replit, and external deployment environments (like Render)
-
-**Earlier September 7, 2025:**
-- Fixed authentication for Render deployment - removed Replit OAuth dependency for non-Replit environments
-- Updated authentication system to work with Telegram WebApp authentication only on external platforms
-- Made REPLIT_DOMAINS environment variable optional for deployment flexibility
-- Added fallback authentication routes for non-Replit environments
-- Modified session management to work without OAuth tokens in production
-
-**September 5, 2025:**
-- Fixed authentication persistence - users no longer need to authenticate repeatedly
-- Automatic account creation on any bot interaction (not just /start command)  
-- Auto-generation of referral codes for new users
-- Fixed ad reward crediting system with proper authentication headers
-- Fixed streak claim functionality to work regardless of ad SDK status
-- Created comprehensive React-based admin panel with user management, withdrawal oversight, and system monitoring
-- Added admin API endpoints with proper authentication and statistics
+CashWatch is a React-based web application that enables users to earn money by watching advertisements. It offers a gamified experience including daily streaks, a referral system, and withdrawal functionalities. The platform is built using a modern full-stack architecture comprising React, Express, PostgreSQL, and shadcn/ui components. The project aims to provide a rewarding user experience and a robust backend for managing ad-based earnings.
 
 # User Preferences
 
@@ -94,64 +9,59 @@ Preferred communication style: Simple, everyday language.
 # System Architecture
 
 ## Frontend Architecture
-- **Framework**: React with TypeScript using Vite as the build tool
-- **Routing**: Wouter for client-side routing with protected routes based on authentication state
-- **State Management**: TanStack Query (React Query) for server state management and caching
-- **UI Components**: shadcn/ui component library with Radix UI primitives and Tailwind CSS for styling
-- **Form Handling**: React Hook Form with Zod validation schemas
-- **Design System**: Custom CSS variables for theming with light/dark mode support
+- **Framework**: React with TypeScript, using Vite for building.
+- **Routing**: Wouter for client-side routing with protected routes.
+- **State Management**: TanStack Query for server state and caching.
+- **UI Components**: shadcn/ui, Radix UI primitives, and Tailwind CSS for styling.
+- **Form Handling**: React Hook Form with Zod validation.
+- **Design System**: Custom CSS variables for theming, supporting light/dark modes.
 
 ## Backend Architecture
-- **Runtime**: Node.js with Express.js framework
-- **Database ORM**: Drizzle ORM with PostgreSQL dialect for type-safe database operations
-- **API Design**: RESTful API with JSON responses and proper HTTP status codes
-- **Session Management**: Express sessions with PostgreSQL session store for persistence
-- **Development Setup**: ESBuild for production bundling, tsx for development server
+- **Runtime**: Node.js with Express.js.
+- **Database ORM**: Drizzle ORM with PostgreSQL dialect.
+- **API Design**: RESTful API with JSON responses.
+- **Session Management**: Express sessions with PostgreSQL session store.
+- **Development Setup**: ESBuild for production bundling, tsx for development.
 
 ## Authentication & Authorization
-- **Authentication Provider**: Replit OAuth integration using OpenID Connect (OIDC)
-- **Session Strategy**: Server-side sessions with secure HTTP-only cookies
-- **Authorization Pattern**: Middleware-based route protection with user context injection
-- **User Management**: Automatic user creation/updates on authentication with profile sync
+- **Authentication Provider**: Replit OAuth integration using OpenID Connect (OIDC).
+- **Session Strategy**: Server-side sessions with secure HTTP-only cookies.
+- **Authorization Pattern**: Middleware-based route protection.
+- **User Management**: Automatic user creation/updates and profile synchronization on authentication.
 
 ## Data Storage
-- **Primary Database**: PostgreSQL with connection pooling via Neon serverless
-- **Schema Management**: Drizzle migrations with schema definitions in TypeScript
-- **Key Entities**:
-  - Users with balance tracking, streak counters, and referral codes
-  - Earnings history with metadata for different earning types
-  - Withdrawals with status tracking and payment method details
-  - Referral relationships for user acquisition tracking
-  - Sessions table for authentication persistence
+- **Primary Database**: PostgreSQL via Neon serverless.
+- **Schema Management**: Drizzle migrations and TypeScript schema definitions.
+- **Key Entities**: Users (balance, streaks, referrals), Earnings history, Withdrawals, Referral relationships, Sessions.
 
 ## Business Logic Features
-- **Ad Watching System**: Integration with external ad providers for reward distribution
-- **Streak System**: Daily login tracking with bonus rewards for consecutive days
-- **Referral Program**: User-generated referral codes with commission tracking
-- **Withdrawal System**: Multiple payment methods with pending/completed status tracking
-- **Earnings Analytics**: Time-based earning summaries (daily, weekly, monthly)
+- **Ad Watching System**: Integration with external ad providers for reward distribution.
+- **Streak System**: Tracks daily logins for bonus rewards.
+- **Referral Program**: User-generated referral codes with commission tracking.
+- **Withdrawal System**: Supports multiple payment methods with status tracking.
+- **Earnings Analytics**: Provides time-based earning summaries.
 
 # External Dependencies
 
 ## Core Infrastructure
-- **Database**: Neon PostgreSQL serverless database with connection pooling
-- **Authentication**: Replit OAuth/OIDC service for user authentication
-- **Session Storage**: PostgreSQL-backed session storage using connect-pg-simple
+- **Database**: Neon PostgreSQL serverless database.
+- **Authentication**: Replit OAuth/OIDC service.
+- **Session Storage**: PostgreSQL-backed session storage (connect-pg-simple).
 
 ## Frontend Libraries
-- **UI Framework**: Radix UI primitives for accessible component foundations
-- **Styling**: Tailwind CSS with custom CSS variables for theming
-- **State Management**: TanStack Query for server state caching and synchronization
-- **Form Management**: React Hook Form with Zod schema validation
-- **Date Handling**: date-fns for date manipulation and formatting
+- **UI Framework**: Radix UI primitives.
+- **Styling**: Tailwind CSS.
+- **State Management**: TanStack Query.
+- **Form Management**: React Hook Form with Zod.
+- **Date Handling**: date-fns.
 
 ## Development Tools
-- **Build System**: Vite with React plugin and TypeScript support
-- **Code Quality**: TypeScript for type safety across the entire stack
-- **Development Experience**: Replit-specific plugins for cartographer and error overlays
-- **Package Management**: npm with lockfile for dependency consistency
+- **Build System**: Vite.
+- **Code Quality**: TypeScript.
+- **Development Experience**: Replit-specific plugins.
+- **Package Management**: npm.
 
 ## Ad Integration
-- **Ad Provider**: External advertisement service accessed via global window object
-- **Reward System**: Fixed reward rates per ad view with metadata tracking
-- **Anti-Fraud**: Daily ad viewing limits and timestamp verification
+- **Ad Provider**: External advertisement service.
+- **Reward System**: Fixed reward rates per ad view.
+- **Anti-Fraud**: Daily ad viewing limits and timestamp verification.
