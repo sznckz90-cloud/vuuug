@@ -12,7 +12,7 @@ const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
 
 // Utility function to format TON amounts - removes trailing zeros
 function formatTON(value: string | number): string {
-  let num = parseFloat(String(value)).toFixed(4);
+  let num = parseFloat(String(value)).toFixed(8);
   num = num.replace(/\.?0+$/, ''); // remove trailing zeros & dot
   return num;
 }
@@ -394,12 +394,12 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const utcTime = result.withdrawal.createdAt ? new Date(result.withdrawal.createdAt).toUTCString() : new Date().toUTCString();
               const txHash = result.withdrawal.transactionHash || 'N/A';
               
-              let userMessage = `_✅ Congratulations! Your withdrawal of ${formattedAmount} TON has been successfully processed._\n\n`;
+              let userMessage = `✅ Congratulations! Your withdrawal of ${formattedAmount} TON has been successfully processed.\n\n`;
               userMessage += `⏰ Time (UTC): ${utcTime}\n`;
               userMessage += `💡 Remaining Balance: ${formattedBalance} TON\n`;
-              userMessage += `📝 Transaction: ${escapeMarkdownV2(txHash)}`;
+              userMessage += `📝 Transaction Hash: ${txHash}`;
               
-              await sendUserTelegramNotification(user.telegram_id, userMessage, undefined, 'MarkdownV2');
+              await sendUserTelegramNotification(user.telegram_id, userMessage);
             }
             
             // Update admin message

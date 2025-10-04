@@ -1861,14 +1861,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
           if (user.length > 0 && user[0].telegram_id) {
             try {
-              const currentBalance = parseFloat(user[0].balance || '0').toFixed(8);
-              const txLink = transactionHash.startsWith('http') ? transactionHash : `https://tonscan.org/tx/${transactionHash}`;
+              const currentBalance = parseFloat(user[0].balance || '0');
+              const formattedBalance = parseFloat(currentBalance.toFixed(8)).toString().replace(/\.?0+$/, '');
+              const formattedAmount = parseFloat(result.withdrawal.amount).toFixed(8).replace(/\.?0+$/, '');
               const utcTime = new Date().toUTCString();
               
-              const approvalMessage = `✅ *Congratulations!* Your withdrawal of *${result.withdrawal.amount} TON* has been successfully processed.\n\n` +
-                `📝 Transaction: ${txLink}\n` +
+              const approvalMessage = `✅ Congratulations! Your withdrawal of ${formattedAmount} TON has been successfully processed.\n\n` +
                 `⏰ Time (UTC): ${utcTime}\n` +
-                `💡 Remaining Balance: *${currentBalance} TON*`;
+                `💡 Remaining Balance: ${formattedBalance} TON\n` +
+                `📝 Transaction Hash: ${transactionHash}`;
               
               await sendUserTelegramNotification(
                 user[0].telegram_id,
@@ -1927,14 +1928,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
           if (user.length > 0 && user[0].telegram_id) {
             try {
-              const currentBalance = parseFloat(user[0].balance || '0').toFixed(8);
+              const currentBalance = parseFloat(user[0].balance || '0');
+              const formattedBalance = parseFloat(currentBalance.toFixed(8)).toString().replace(/\.?0+$/, '');
+              const formattedAmount = parseFloat(result.withdrawal.amount).toFixed(8).replace(/\.?0+$/, '');
               const rejectionReason = adminNotes || reason || 'No reason provided';
               const utcTime = new Date().toUTCString();
               
-              const rejectionMessage = `❌ *Your withdrawal of ${result.withdrawal.amount} TON was rejected.*\n\n` +
+              const rejectionMessage = `❌ Your withdrawal of ${formattedAmount} TON was rejected.\n\n` +
                 `📋 Reason: ${rejectionReason}\n` +
                 `⏰ Time (UTC): ${utcTime}\n` +
-                `💡 Remaining Balance: *${currentBalance} TON*`;
+                `💡 Remaining Balance: ${formattedBalance} TON`;
               
               await sendUserTelegramNotification(
                 user[0].telegram_id,
