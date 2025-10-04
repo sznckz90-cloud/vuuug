@@ -1350,19 +1350,11 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'User has insufficient balance for withdrawal' };
       }
 
-      // Deduct balance NOW at approval time (this is the ONLY place where balance is deducted)
-      await db
-        .update(users)
-        .set({
-          balance: sql`COALESCE(${users.balance}, 0) - ${withdrawalAmount.toString()}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, withdrawal.userId));
-
       console.log(`💰 Deducting balance now for approved withdrawal: ${withdrawalAmount} TON`);
       console.log(`💰 Previous balance: ${userBalance} TON, New balance: ${(userBalance - withdrawalAmount).toFixed(8)} TON`);
 
       // Add withdrawal record as earnings (negative amount) for tracking
+      // This will automatically deduct the balance via addEarning function
       const paymentSystemName = withdrawal.method;
       const description = `Withdrawal approved: ${withdrawal.amount} TON via ${paymentSystemName}`;
 
