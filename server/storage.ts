@@ -1391,10 +1391,31 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      // Update withdrawal status to rejected (balance remains unchanged)
+      // Get user to return balance
+      const user = await this.getUser(withdrawal.userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      // Return the withdrawn amount back to user's balance
+      const currentBalance = parseFloat(user.balance || '0');
+      const withdrawalAmount = parseFloat(withdrawal.amount);
+      const newBalance = (currentBalance + withdrawalAmount).toFixed(8);
+
+      await db
+        .update(users)
+        .set({ 
+          balance: newBalance,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, withdrawal.userId));
+
+      console.log(`💰 Balance returned for rejected withdrawal: ${withdrawalAmount} TON. New balance: ${newBalance} TON`);
+
+      // Update withdrawal status to rejected
       const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'rejected', undefined, adminNotes);
       
-      return { success: true, message: 'Withdrawal rejected', withdrawal: updatedWithdrawal };
+      return { success: true, message: 'Withdrawal rejected and balance returned', withdrawal: updatedWithdrawal };
     } catch (error) {
       console.error('Error rejecting withdrawal:', error);
       return { success: false, message: 'Error processing withdrawal rejection' };

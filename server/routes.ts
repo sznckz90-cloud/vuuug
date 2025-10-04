@@ -1865,8 +1865,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: 'withdrawal_rejected',
             amount: result.withdrawal.amount,
             method: result.withdrawal.method,
-            message: `Your withdrawal of $${result.withdrawal.amount} has been rejected and balance refunded`
+            message: `Your withdrawal of ${result.withdrawal.amount} TON has been rejected and balance refunded`
           });
+
+          // Send Telegram bot notification to user
+          const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
+          if (user.length > 0 && user[0].telegram_id) {
+            try {
+              const rejectionMessage = adminNotes || reason 
+                ? `❌ Your withdrawal request of ${result.withdrawal.amount} TON has been rejected. Reason: ${adminNotes || reason}`
+                : `❌ Your withdrawal request of ${result.withdrawal.amount} TON has been rejected.`;
+              
+              await sendUserTelegramNotification(
+                user[0].telegram_id,
+                rejectionMessage
+              );
+              console.log(`📱 Telegram notification sent to user ${user[0].telegram_id}`);
+            } catch (telegramError) {
+              console.error('❌ Failed to send Telegram notification:', telegramError);
+            }
+          }
         }
         
         res.json({
