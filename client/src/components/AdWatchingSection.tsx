@@ -19,6 +19,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isWatching, setIsWatching] = useState(false);
+  const [lastAdWatchTime, setLastAdWatchTime] = useState<number>(0);
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
@@ -30,6 +31,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/daily"] });
+      
+      // Set last ad watch time to enforce 30-second cooldown
+      setLastAdWatchTime(Date.now());
       
       // Show reward notification
       const event = new CustomEvent('showReward', { 
@@ -46,12 +50,17 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     },
   });
 
-  // Initialize auto-popup ads
+  // Initialize auto-popup ads with 30-second cooldown
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     const startAutoAds = () => {
       interval = setInterval(() => {
+        // Check if 30 seconds have passed since last ad
+        if (Date.now() - lastAdWatchTime < 30000) {
+          return; // Block early popup
+        }
+        
         if (typeof window.show_9368336 === 'function') {
           try {
             window.show_9368336();
@@ -59,17 +68,17 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
             console.log('Auto ad display:', error);
           }
         }
-      }, 15000); // Show every 15 seconds
+      }, 30000); // Check every 30 seconds
     };
     
     // Start after initial delay
-    const timer = setTimeout(startAutoAds, 15000);
+    const timer = setTimeout(startAutoAds, 30000);
     
     return () => {
       clearTimeout(timer);
       if (interval) clearInterval(interval);
     };
-  }, []);
+  }, [lastAdWatchTime]);
 
   const handleWatchAd = async () => {
     if (isWatching) return;
