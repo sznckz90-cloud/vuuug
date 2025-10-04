@@ -1737,20 +1737,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin withdrawal management endpoints
   
   // Get pending withdrawals (admin only)
-  app.get('/api/admin/withdrawals/pending', authenticateTelegram, async (req: any, res) => {
+  app.get('/api/admin/withdrawals/pending', authenticateAdmin, async (req: any, res) => {
     try {
-      const userId = req.user.user.id;
-      
-      // Check if user is admin
-      const userBalance = await storage.getUserBalance(userId);
-      const isAdmin = userBalance?.balance === '999999999' || userId === '6653616672';
-      
-      if (!isAdmin) {
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Access denied. Admin privileges required.' 
-        });
-      }
       
       // Get ALL withdrawals with user details (including old requests with any status)
       // This ensures backward compatibility and displays all withdrawal requests
