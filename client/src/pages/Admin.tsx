@@ -295,7 +295,30 @@ export default function AdminPage() {
   const { isAdmin, isLoading: adminLoading } = useAdmin();
   const queryClient = useQueryClient();
 
-  // Admin access check
+  // Fetch admin stats - hooks must be called before any conditional returns
+  const { data: stats } = useQuery<AdminStats>({
+    queryKey: ["/api/admin/stats"],
+    refetchInterval: 30000,
+    enabled: isAdmin,
+  });
+
+  // Fetch pending withdrawals
+  const { data: withdrawalsData, isLoading: withdrawalsLoading } = useQuery({
+    queryKey: ["/api/admin/withdrawals/pending"],
+    queryFn: () => apiRequest("GET", "/api/admin/withdrawals/pending").then(res => res.json()),
+    refetchInterval: 30000,
+    enabled: isAdmin,
+  });
+
+  // Fetch processed withdrawals (approved/rejected)
+  const { data: processedData, isLoading: processedLoading } = useQuery({
+    queryKey: ["/api/admin/withdrawals/processed"],
+    queryFn: () => apiRequest("GET", "/api/admin/withdrawals/processed").then(res => res.json()),
+    refetchInterval: 30000,
+    enabled: isAdmin,
+  });
+
+  // Admin access check - now after all hooks
   if (adminLoading) {
     return (
       <Layout>
@@ -329,27 +352,6 @@ export default function AdminPage() {
       </Layout>
     );
   }
-
-  // Fetch admin stats
-  const { data: stats } = useQuery<AdminStats>({
-    queryKey: ["/api/admin/stats"],
-    refetchInterval: 30000,
-  });
-
-
-  // Fetch pending withdrawals
-  const { data: withdrawalsData, isLoading: withdrawalsLoading } = useQuery({
-    queryKey: ["/api/admin/withdrawals/pending"],
-    queryFn: () => apiRequest("GET", "/api/admin/withdrawals/pending").then(res => res.json()),
-    refetchInterval: 30000,
-  });
-
-  // Fetch processed withdrawals (approved/rejected)
-  const { data: processedData, isLoading: processedLoading } = useQuery({
-    queryKey: ["/api/admin/withdrawals/processed"],
-    queryFn: () => apiRequest("GET", "/api/admin/withdrawals/processed").then(res => res.json()),
-    refetchInterval: 30000,
-  });
 
 
 
