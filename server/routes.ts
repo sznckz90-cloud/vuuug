@@ -1808,7 +1808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(withdrawals)
         .leftJoin(users, eq(withdrawals.userId, users.id))
-        .where(sql`${withdrawals.status} IN ('paid', 'rejected', 'Successfull')`)
+        .where(sql`${withdrawals.status} IN ('paid', 'rejected', 'Successfull', 'Approved')`)
         .orderBy(desc(withdrawals.updatedAt));
       
       res.json({
@@ -1861,15 +1861,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             try {
               const currentBalance = parseFloat(user[0].balance || '0').toFixed(8);
               const txLink = transactionHash.startsWith('http') ? transactionHash : `https://tonscan.org/tx/${transactionHash}`;
-              const successTime = new Date().toLocaleString('en-US', { 
-                dateStyle: 'medium', 
-                timeStyle: 'short' 
-              });
+              const utcTime = new Date().toUTCString();
               
               const approvalMessage = `✅ *Congratulations!* Your withdrawal of *${result.withdrawal.amount} TON* has been successfully processed.\n\n` +
-                `📝 Transaction link: ${txLink}\n` +
-                `⏰ Successful on: ${successTime}\n` +
-                `💡 Your remaining balance: *${currentBalance} TON*`;
+                `📝 Transaction: ${txLink}\n` +
+                `⏰ Time (UTC): ${utcTime}\n` +
+                `💡 Remaining Balance: *${currentBalance} TON*`;
               
               await sendUserTelegramNotification(
                 user[0].telegram_id,
@@ -1930,10 +1927,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             try {
               const currentBalance = parseFloat(user[0].balance || '0').toFixed(8);
               const rejectionReason = adminNotes || reason || 'No reason provided';
+              const utcTime = new Date().toUTCString();
               
-              const rejectionMessage = `❌ *Your withdrawal request of ${result.withdrawal.amount} TON was rejected.*\n\n` +
+              const rejectionMessage = `❌ *Your withdrawal of ${result.withdrawal.amount} TON was rejected.*\n\n` +
                 `📋 Reason: ${rejectionReason}\n` +
-                `💡 Your remaining balance: *${currentBalance} TON*`;
+                `⏰ Time (UTC): ${utcTime}\n` +
+                `💡 Remaining Balance: *${currentBalance} TON*`;
               
               await sendUserTelegramNotification(
                 user[0].telegram_id,

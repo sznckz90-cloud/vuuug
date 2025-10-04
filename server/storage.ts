@@ -1369,8 +1369,8 @@ export class DatabaseStorage implements IStorage {
         description: description,
       });
 
-      // Update withdrawal status to Successfull
-      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'Successfull', transactionHash, adminNotes);
+      // Update withdrawal status to Approved
+      const updatedWithdrawal = await this.updateWithdrawalStatus(withdrawalId, 'Approved', transactionHash, adminNotes);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
