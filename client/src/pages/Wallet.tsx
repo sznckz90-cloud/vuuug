@@ -190,31 +190,60 @@ export default function Wallet() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusTextColor = (status: string) => {
     switch (status) {
-      case 'paid': return 'bg-green-500';
-      case 'pending': return 'bg-yellow-500';
-      case 'rejected': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'paid':
+      case 'Approved':
+      case 'Successfull':
+        return 'text-green-600';
+      case 'pending':
+        return 'text-orange-600';
+      case 'rejected':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusBorderColor = (status: string) => {
     switch (status) {
-      case 'paid': return 'fas fa-check-circle';
-      case 'pending': return 'fas fa-clock';
-      case 'rejected': return 'fas fa-times-circle';
-      default: return 'fas fa-question-circle';
+      case 'paid':
+      case 'Approved':
+      case 'Successfull':
+        return 'border-green-600';
+      case 'pending':
+        return 'border-orange-600';
+      case 'rejected':
+        return 'border-red-600';
+      default:
+        return 'border-gray-600';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'paid': return 'Successful';
-      case 'pending': return 'Pending';
-      case 'rejected': return 'Rejected';
-      default: return 'Unknown';
+      case 'paid':
+      case 'Approved':
+      case 'Successfull':
+        return 'Successful';
+      case 'pending':
+        return 'Pending';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Unknown';
     }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getUTCDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getUTCMonth()];
+    const year = date.getUTCFullYear();
+    const hours = date.getUTCHours().toString().padStart(2, '0');
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    return `${day} ${month} ${year}, ${hours}:${minutes} UTC`;
   };
 
   if (userLoading) {
@@ -265,15 +294,15 @@ export default function Wallet() {
             </CardContent>
           </Card>
 
-          {/* Recent Withdrawals */}
+          {/* Withdrawal History */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <i className="fas fa-history text-muted-foreground"></i>
-                Recent Withdrawals
+                Withdrawal History
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {withdrawalsLoading ? (
                 <div className="text-center py-4">
                   <div className="animate-spin text-primary text-lg mb-2">
@@ -282,34 +311,28 @@ export default function Wallet() {
                   <div className="text-muted-foreground text-sm">Loading...</div>
                 </div>
               ) : withdrawals.length > 0 ? (
-                <div className="space-y-3">
-                  {withdrawals.slice(0, 5).map((withdrawal) => (
-                    <div key={withdrawal.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${getStatusColor(withdrawal.status)}`}>
-                          <i className={`${getStatusIcon(withdrawal.status)} text-white text-sm`}></i>
-                        </div>
-                        <div>
-                          <div className="font-medium">{formatCurrency(withdrawal.amount)}</div>
-                          <div className="text-sm text-muted-foreground">{withdrawal.method}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge 
-                          variant={withdrawal.status === 'paid' ? 'default' : withdrawal.status === 'rejected' ? 'destructive' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {getStatusLabel(withdrawal.status)}
-                        </Badge>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {new Date(withdrawal.createdAt).toLocaleDateString()}
+                <div className="max-h-[200px] overflow-y-auto p-4 space-y-3">
+                  {[...withdrawals].reverse().map((withdrawal) => (
+                    <div key={withdrawal.id} className="flex items-start justify-between py-2">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className={`w-3 h-3 rounded-full border-2 ${getStatusBorderColor(withdrawal.status)} mt-1 flex-shrink-0`}></div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-foreground">{formatCurrency(withdrawal.amount)}</span>
+                            <span className={`text-sm font-medium ${getStatusTextColor(withdrawal.status)}`}>
+                              {getStatusLabel(withdrawal.status)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            ⏰ {formatDateTime(withdrawal.createdAt)}
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-6">
+                <div className="text-center py-6 px-4">
                   <i className="fas fa-receipt text-3xl text-muted-foreground mb-3"></i>
                   <div className="text-muted-foreground">No withdrawal history</div>
                 </div>
