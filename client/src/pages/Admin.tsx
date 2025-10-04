@@ -40,6 +40,251 @@ interface AdminStats {
   totalAdsWatched: number;
 }
 
+function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUpdate: () => void }) {
+  const { toast } = useToast();
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [transactionHash, setTransactionHash] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+
+  const handleApprove = async () => {
+    if (!transactionHash.trim()) {
+      toast({
+        title: "Transaction Hash Required",
+        description: "Please enter the transaction hash to approve payment",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      const response = await apiRequest('POST', `/api/admin/withdrawals/${withdrawal.id}/approve`, {
+        transactionHash: transactionHash.trim(),
+        adminNotes: 'Payment processed'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "✅ Payment Approved",
+          description: `Withdrawal of ${formatCurrency(withdrawal.amount)} has been approved and user notified`,
+        });
+        setShowApproveDialog(false);
+        setTransactionHash('');
+        onUpdate();
+      } else {
+        throw new Error(result.message || 'Failed to approve withdrawal');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Approval Failed",
+        description: error.message || "Failed to approve withdrawal",
+        variant: "destructive",
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setIsRejecting(true);
+    try {
+      const response = await apiRequest('POST', `/api/admin/withdrawals/${withdrawal.id}/reject`, {
+        adminNotes: rejectionReason.trim() || 'No reason provided',
+        reason: rejectionReason.trim() || 'No reason provided'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "❌ Payment Rejected",
+          description: `Withdrawal request has been rejected and user notified`,
+        });
+        setShowRejectDialog(false);
+        setRejectionReason('');
+        onUpdate();
+      } else {
+        throw new Error(result.message || 'Failed to reject withdrawal');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Rejection Failed",
+        description: error.message || "Failed to reject withdrawal",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const getStatusBadge = () => {
+    switch (withdrawal.status) {
+      case 'paid':
+        return <Badge className="bg-green-600">Successful</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-600">Rejected</Badge>;
+      default:
+        return <Badge className="bg-yellow-600">Pending</Badge>;
+    }
+  };
+
+  return (
+    <Card className="border-l-4 border-l-orange-500">
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2 flex-1">
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">User:</span>
+                <p className="font-semibold">@{withdrawal.user?.username || withdrawal.user?.telegram_id}</p>
+              </div>
+              
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Amount:</span>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(withdrawal.amount || '0')}</p>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Wallet Address:</span>
+                <p className="text-sm break-all font-mono bg-muted p-2 rounded">{withdrawal.details?.paymentDetails || 'N/A'}</p>
+              </div>
+
+              {withdrawal.comment && (
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Comment:</span>
+                  <p className="text-sm text-blue-600">💬 {withdrawal.comment}</p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4">
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Method:</span>
+                  <Badge variant="outline" className="ml-2">{withdrawal.method || 'Unknown'}</Badge>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Status:</span>
+                  <span className="ml-2">{getStatusBadge()}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Date:</span>
+                <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleDateString()}</p>
+              </div>
+            </div>
+          </div>
+
+          {withdrawal.status === 'pending' && (
+            <div className="flex gap-2 pt-2 border-t">
+              {!showApproveDialog && !showRejectDialog ? (
+                <>
+                  <Button 
+                    onClick={() => setShowApproveDialog(true)}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    <i className="fas fa-check mr-2"></i>
+                    Approve Payment
+                  </Button>
+                  <Button 
+                    onClick={() => setShowRejectDialog(true)}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    <i className="fas fa-times mr-2"></i>
+                    Reject Payment
+                  </Button>
+                </>
+              ) : showApproveDialog ? (
+                <div className="w-full space-y-2">
+                  <Label htmlFor="txHash">Transaction Hash / Payment Link</Label>
+                  <Input
+                    id="txHash"
+                    value={transactionHash}
+                    onChange={(e) => setTransactionHash(e.target.value)}
+                    placeholder="Enter transaction hash..."
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleApprove}
+                      disabled={isApproving || !transactionHash.trim()}
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      {isApproving ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin mr-2"></i>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-check mr-2"></i>
+                          Confirm Approval
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowApproveDialog(false);
+                        setTransactionHash('');
+                      }}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full space-y-2">
+                  <Label htmlFor="reason">Rejection Reason (Optional)</Label>
+                  <Textarea
+                    id="reason"
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Enter rejection reason..."
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleReject}
+                      disabled={isRejecting}
+                      variant="destructive"
+                      className="flex-1"
+                    >
+                      {isRejecting ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin mr-2"></i>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-times mr-2"></i>
+                          Confirm Rejection
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowRejectDialog(false);
+                        setRejectionReason('');
+                      }}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AdminPage() {
   const { toast } = useToast();
@@ -152,36 +397,14 @@ export default function AdminPage() {
                       </div>
                     ) : withdrawalsData?.withdrawals && withdrawalsData.withdrawals.length > 0 ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-6 gap-4 font-medium text-sm border-b pb-2">
-                          <span>User</span>
-                          <span>Amount</span>
-                          <span>Wallet / Comment</span>
-                          <span>Method</span>
-                          <span>Status</span>
-                          <span>Date</span>
-                        </div>
                         {withdrawalsData.withdrawals.map((withdrawal: any) => (
-                          <div key={withdrawal.id} className="grid grid-cols-6 gap-4 items-center p-3 border rounded-lg">
-                            <div>
-                              <p className="font-medium">{withdrawal.user?.firstName || 'User'} {withdrawal.user?.lastName || ''}</p>
-                              <p className="text-xs text-muted-foreground">@{withdrawal.user?.username || withdrawal.user?.telegram_id}</p>
-                            </div>
-                            <p className="font-medium text-green-600">{formatCurrency(withdrawal.amount || '0')}</p>
-                            <div className="text-sm">
-                              <p className="text-muted-foreground break-all">{withdrawal.details?.paymentDetails || 'N/A'}</p>
-                              {withdrawal.comment && (
-                                <p className="text-xs text-blue-600 mt-1">💬 {withdrawal.comment}</p>
-                              )}
-                            </div>
-                            <Badge variant="outline">{withdrawal.method || 'Unknown'}</Badge>
-                            <Badge 
-                              variant={withdrawal.status === 'paid' ? 'default' : 'secondary'}
-                              className={withdrawal.status === 'paid' ? 'bg-green-600' : 'bg-yellow-600'}
-                            >
-                              {withdrawal.status === 'paid' ? 'Completed' : 'Pending'}
-                            </Badge>
-                            <p className="text-sm text-muted-foreground">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleDateString()}</p>
-                          </div>
+                          <WithdrawalRequestCard 
+                            key={withdrawal.id} 
+                            withdrawal={withdrawal}
+                            onUpdate={() => {
+                              queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
+                            }}
+                          />
                         ))}
                       </div>
                     ) : (

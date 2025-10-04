@@ -56,10 +56,8 @@ export default function Wallet() {
     retry: false,
   });
 
-  // Filter withdrawals to only show 'pending' and 'paid' statuses (hide 'rejected' from user view)
-  const withdrawals = withdrawalsData.filter(withdrawal => 
-    withdrawal.status === 'pending' || withdrawal.status === 'paid'
-  );
+  // Show all withdrawal requests in user's history
+  const withdrawals = withdrawalsData;
 
   // Helper function to preserve exact balance value, limit to 5 decimals, and remove trailing zeros
   const autoRoundAmount = (value: string | number): string => {
@@ -196,6 +194,7 @@ export default function Wallet() {
     switch (status) {
       case 'paid': return 'bg-green-500';
       case 'pending': return 'bg-yellow-500';
+      case 'rejected': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -204,7 +203,17 @@ export default function Wallet() {
     switch (status) {
       case 'paid': return 'fas fa-check-circle';
       case 'pending': return 'fas fa-clock';
+      case 'rejected': return 'fas fa-times-circle';
       default: return 'fas fa-question-circle';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'paid': return 'Successful';
+      case 'pending': return 'Pending';
+      case 'rejected': return 'Rejected';
+      default: return 'Unknown';
     }
   };
 
@@ -287,10 +296,10 @@ export default function Wallet() {
                       </div>
                       <div className="text-right">
                         <Badge 
-                          variant={withdrawal.status === 'paid' ? 'default' : 'secondary'}
+                          variant={withdrawal.status === 'paid' ? 'default' : withdrawal.status === 'rejected' ? 'destructive' : 'secondary'}
                           className="text-xs"
                         >
-                          {withdrawal.status === 'paid' ? 'Paid' : 'Pending'}
+                          {getStatusLabel(withdrawal.status)}
                         </Badge>
                         <div className="text-xs text-muted-foreground mt-1">
                           {new Date(withdrawal.createdAt).toLocaleDateString()}
