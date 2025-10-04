@@ -1740,9 +1740,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/withdrawals/pending', authenticateAdmin, async (req: any, res) => {
     try {
       
-      // Get ALL withdrawals with user details (including old requests with any status)
-      // This ensures backward compatibility and displays all withdrawal requests
-      const allWithdrawals = await db
+      // Get pending withdrawals only
+      const pendingWithdrawals = await db
         .select({
           id: withdrawals.id,
           userId: withdrawals.userId,
@@ -1764,13 +1763,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(withdrawals)
         .leftJoin(users, eq(withdrawals.userId, users.id))
-        .where(sql`${withdrawals.status} IN ('pending', 'paid') OR ${withdrawals.status} IS NULL`)
+        .where(eq(withdrawals.status, 'pending'))
         .orderBy(desc(withdrawals.createdAt));
       
       res.json({
         success: true,
-        withdrawals: allWithdrawals,
-        total: allWithdrawals.length
+        withdrawals: pendingWithdrawals,
+        total: pendingWithdrawals.length
       });
       
     } catch (error) {
@@ -1778,6 +1777,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: 'Failed to fetch pending withdrawals' 
+      });
+    }
+  });
+
+  // Get processed withdrawals (approved/rejected) - admin only
+  app.get('/api/admin/withdrawals/processed', authenticateAdmin, async (req: any, res) => {
+    try {
+      
+      // Get all processed withdrawals (approved and rejected)
+      const processedWithdrawals = await db
+        .select({
+          id: withdrawals.id,
+          userId: withdrawals.userId,
+          amount: withdrawals.amount,
+          status: withdrawals.status,
+          method: withdrawals.method,
+          details: withdrawals.details,
+          comment: withdrawals.comment,
+          createdAt: withdrawals.createdAt,
+          updatedAt: withdrawals.updatedAt,
+          transactionHash: withdrawals.transactionHash,
+          adminNotes: withdrawals.adminNotes,
+          user: {
+            firstName: users.firstName,
+            lastName: users.lastName,
+            username: users.username,
+            telegram_id: users.telegram_id
+          }
+        })
+        .from(withdrawals)
+        .leftJoin(users, eq(withdrawals.userId, users.id))
+        .where(sql`${withdrawals.status} IN ('paid', 'rejected', 'Successfull')`)
+        .orderBy(desc(withdrawals.updatedAt));
+      
+      res.json({
+        success: true,
+        withdrawals: processedWithdrawals,
+        total: processedWithdrawals.length
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fetching processed withdrawals:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch processed withdrawals' 
       });
     }
   });
@@ -1815,9 +1859,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
           if (user.length > 0 && user[0].telegram_id) {
             try {
+              const currentBalance = parseFloat(user[0].balance || '0').toFixed(8);
+              const txLink = transactionHash.startsWith('http') ? transactionHash : `https://tonscan.org/tx/${transactionHash}`;
+              const successTime = new Date().toLocaleString('en-US', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short' 
+              });
+              
+              const approvalMessage = `✅ *Congratulations!* Your withdrawal of *${result.withdrawal.amount} TON* has been successfully processed.\n\n` +
+                `📝 Transaction link: ${txLink}\n` +
+                `⏰ Successful on: ${successTime}\n` +
+                `💡 Your remaining balance: *${currentBalance} TON*`;
+              
               await sendUserTelegramNotification(
                 user[0].telegram_id,
-                `✅ Your withdraw request of ${result.withdrawal.amount} TON has been paid. Transaction hash: ${transactionHash}`
+                approvalMessage
               );
               console.log(`📱 Telegram notification sent to user ${user[0].telegram_id}`);
             } catch (telegramError) {
@@ -1872,9 +1928,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
           if (user.length > 0 && user[0].telegram_id) {
             try {
-              const rejectionMessage = adminNotes || reason 
-                ? `❌ Your withdrawal request of ${result.withdrawal.amount} TON has been rejected. Reason: ${adminNotes || reason}`
-                : `❌ Your withdrawal request of ${result.withdrawal.amount} TON has been rejected.`;
+              const currentBalance = parseFloat(user[0].balance || '0').toFixed(8);
+              const rejectionReason = adminNotes || reason || 'No reason provided';
+              
+              const rejectionMessage = `❌ *Your withdrawal request of ${result.withdrawal.amount} TON was rejected.*\n\n` +
+                `📋 Reason: ${rejectionReason}\n` +
+                `💡 Your remaining balance: *${currentBalance} TON*`;
               
               await sendUserTelegramNotification(
                 user[0].telegram_id,
