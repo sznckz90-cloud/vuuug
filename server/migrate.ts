@@ -132,12 +132,21 @@ export async function ensureDatabaseSchema(): Promise<void> {
         status VARCHAR DEFAULT 'pending',
         method VARCHAR NOT NULL,
         details JSONB,
+        comment TEXT,
         transaction_hash VARCHAR,
         admin_notes TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Add comment column to existing withdrawals table if missing
+    try {
+      await db.execute(sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS comment TEXT`);
+      console.log('✅ [MIGRATION] Comment column added to withdrawals table');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] Comment column already exists in withdrawals table');
+    }
     
     // Promotions table
     await db.execute(sql`
