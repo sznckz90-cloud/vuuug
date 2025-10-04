@@ -123,6 +123,20 @@ export async function ensureDatabaseSchema(): Promise<void> {
       )
     `);
     
+    // Transactions table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        amount DECIMAL(12, 8) NOT NULL,
+        type VARCHAR NOT NULL,
+        source VARCHAR NOT NULL,
+        description TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     // Withdrawals table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS withdrawals (

@@ -1649,54 +1649,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Check if user has sufficient balance
-      const userBalance = await storage.getUserBalance(userId);
-      const currentBalance = parseFloat(userBalance?.balance || '0');
-      
-      if (currentBalance < withdrawAmount) {
-        return res.status(400).json({
-          success: false,
-          message: 'Insufficient balance'
-        });
-      }
-
-      // Check if user already has a pending withdrawal request
-      const existingPendingWithdrawal = await db
-        .select()
-        .from(withdrawals)
-        .where(and(
-          eq(withdrawals.userId, userId),
-          eq(withdrawals.status, 'pending')
-        ))
-        .limit(1);
-
-      if (existingPendingWithdrawal.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'You already have a pending withdraw request.'
-        });
-      }
-
-      // Create withdrawal request with pending status (NO balance deduction, NO fees)
-      const withdrawalData: any = {
-        userId,
-        amount: amount.toString(),
-        method: 'ton_coin',
-        status: 'pending',
-        details: {
-          paymentSystemId: paymentSystemId || 'ton_coin',
-          paymentDetails: paymentDetails || ''
+      // Use transaction to ensure atomicity and prevent race conditions
+      const newWithdrawal = await db.transaction(async (tx) => {
+        // Lock user row and check balance (SELECT FOR UPDATE)
+        const [user] = await tx
+          .select({ balance: users.balance })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) {
+          throw new Error('User not found');
         }
-      };
 
-      // Only add comment if it's not empty
-      if (comment && comment.trim() !== '') {
-        withdrawalData.comment = comment.trim();
-      }
+        const currentBalance = parseFloat(user.balance || '0');
+        
+        if (currentBalance < withdrawAmount) {
+          throw new Error('Insufficient balance');
+        }
 
-      console.log('💾 Creating withdrawal with data:', withdrawalData);
+        // Deduct balance atomically
+        const newBalance = (currentBalance - withdrawAmount).toFixed(8);
+        await tx
+          .update(users)
+          .set({ balance: newBalance })
+          .where(eq(users.id, userId));
 
-      const newWithdrawal = await storage.createWithdrawal(withdrawalData);
+        console.log(`💰 Balance deducted for withdrawal: ${withdrawAmount} TON. New balance: ${newBalance} TON`);
+
+        // Create withdrawal request
+        const withdrawalData: any = {
+          userId,
+          amount: amount.toString(),
+          method: 'ton_coin',
+          status: 'pending',
+          details: {
+            paymentSystemId: paymentSystemId || 'ton_coin',
+            paymentDetails: paymentDetails || ''
+          }
+        };
+
+        if (comment && comment.trim() !== '') {
+          withdrawalData.comment = comment.trim();
+        }
+
+        const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
+        
+        return withdrawal;
+      });
 
       console.log(`✅ Withdrawal request created: ${newWithdrawal.id} for user ${userId}, amount: ${amount} TON`);
 
@@ -1716,6 +1716,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ Error creating withdrawal request:', error);
       console.error('❌ Error details:', error instanceof Error ? error.message : String(error));
       console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create withdrawal request';
+      
+      // Return 400 for validation errors, 500 for others
+      if (errorMessage === 'Insufficient balance' || errorMessage === 'User not found') {
+        return res.status(400).json({ 
+          success: false, 
+          message: errorMessage
+        });
+      }
+      
       res.status(500).json({ 
         success: false, 
         message: 'Failed to create withdrawal request' 
