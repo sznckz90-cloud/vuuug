@@ -1668,22 +1668,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('Insufficient balance');
         }
 
-        // Deduct balance atomically
-        const newBalance = (currentBalance - withdrawAmount).toFixed(8);
-        await tx
-          .update(users)
-          .set({ balance: newBalance })
-          .where(eq(users.id, userId));
+        // DO NOT deduct balance here - only verify user has enough
+        // Balance will be deducted when admin approves the withdrawal
+        console.log(`✅ Withdrawal request validated. User has sufficient balance: ${currentBalance} TON`);
 
-        console.log(`💰 Balance deducted for withdrawal: ${withdrawAmount} TON. New balance: ${newBalance} TON`);
-
-        // Create withdrawal request with deducted flag set to true
+        // Create withdrawal request with deducted flag set to FALSE
+        // Balance will be deducted on admin approval
         const withdrawalData: any = {
           userId,
           amount: amount.toString(),
           method: 'ton_coin',
           status: 'pending',
-          deducted: true,
+          deducted: false,
           refunded: false,
           details: {
             paymentSystemId: paymentSystemId || 'ton_coin',
@@ -1921,7 +1917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: 'withdrawal_rejected',
             amount: result.withdrawal.amount,
             method: result.withdrawal.method,
-            message: `Your withdrawal of ${result.withdrawal.amount} TON has been rejected and balance refunded`
+            message: `Your withdrawal of ${result.withdrawal.amount} TON has been rejected`
           });
 
           // Send Telegram bot notification to user
