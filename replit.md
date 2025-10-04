@@ -2,6 +2,17 @@
 
 CashWatch is a React-based web application that enables users to earn money by watching advertisements. It offers a gamified experience including daily streaks, a referral system, and withdrawal functionalities. The platform is built using a modern full-stack architecture comprising React, Express, PostgreSQL, and shadcn/ui components. The project aims to provide a rewarding user experience and a robust backend for managing ad-based earnings.
 
+# Recent Changes
+
+## October 4, 2025 - Telegram Notification & Balance Fixes
+- **Telegram Notification Formatting**: Fixed TON value formatting to handle up to 8 decimal places and properly remove trailing zeros (e.g., 261.01175 → 261.0117, 12.00000 → 12)
+- **Plain Text Notifications**: Removed markdown formatting from all Telegram notifications for better display compatibility
+- **Balance Deduction System**: Verified and confirmed the existing balance deduction logic prevents double deduction using the `deducted` flag system:
+  - Balance is deducted once when withdrawal request is created
+  - No additional deduction occurs during approval
+  - Proper refund logic for rejected withdrawals
+  - Safety checks prevent duplicate refunds
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
