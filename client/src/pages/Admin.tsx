@@ -125,6 +125,7 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
   const getStatusBadge = () => {
     switch (withdrawal.status) {
       case 'paid':
+      case 'Successfull':
         return <Badge className="bg-green-600">Successful</Badge>;
       case 'rejected':
         return <Badge className="bg-red-600">Rejected</Badge>;
@@ -172,20 +173,26 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                 </div>
               </div>
 
-              <div>
-                <span className="text-sm font-medium text-muted-foreground">Date:</span>
-                <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleDateString()}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Date:</span>
+                  <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Time:</span>
+                  <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleTimeString()}</p>
+                </div>
               </div>
             </div>
           </div>
 
           {withdrawal.status === 'pending' && (
-            <div className="flex gap-2 pt-2 border-t">
+            <div className="space-y-2 pt-2 border-t">
               {!showApproveDialog && !showRejectDialog ? (
-                <>
+                <div className="space-y-2">
                   <Button 
                     onClick={() => setShowApproveDialog(true)}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700"
                   >
                     <i className="fas fa-check mr-2"></i>
                     Approve Payment
@@ -193,12 +200,12 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                   <Button 
                     onClick={() => setShowRejectDialog(true)}
                     variant="destructive"
-                    className="flex-1"
+                    className="w-full"
                   >
                     <i className="fas fa-times mr-2"></i>
                     Reject Payment
                   </Button>
-                </>
+                </div>
               ) : showApproveDialog ? (
                 <div className="w-full space-y-2">
                   <Label htmlFor="txHash">Transaction Hash / Payment Link</Label>
@@ -208,11 +215,11 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                     onChange={(e) => setTransactionHash(e.target.value)}
                     placeholder="Enter transaction hash..."
                   />
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <Button 
                       onClick={handleApprove}
                       disabled={isApproving || !transactionHash.trim()}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      className="w-full bg-green-600 hover:bg-green-700"
                     >
                       {isApproving ? (
                         <>
@@ -232,6 +239,7 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                         setTransactionHash('');
                       }}
                       variant="outline"
+                      className="w-full"
                     >
                       Cancel
                     </Button>
@@ -247,12 +255,12 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                     placeholder="Enter rejection reason..."
                     rows={2}
                   />
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <Button 
                       onClick={handleReject}
                       disabled={isRejecting}
                       variant="destructive"
-                      className="flex-1"
+                      className="w-full"
                     >
                       {isRejecting ? (
                         <>
@@ -272,6 +280,7 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                         setRejectionReason('');
                       }}
                       variant="outline"
+                      className="w-full"
                     >
                       Cancel
                     </Button>
@@ -340,6 +349,13 @@ export default function AdminPage() {
     refetchInterval: 30000,
   });
 
+  // Fetch processed withdrawals (approved/rejected)
+  const { data: processedData, isLoading: processedLoading } = useQuery({
+    queryKey: ["/api/admin/withdrawals/processed"],
+    queryFn: () => apiRequest("GET", "/api/admin/withdrawals/processed").then(res => res.json()),
+    refetchInterval: 30000,
+  });
+
 
 
 
@@ -382,12 +398,12 @@ export default function AdminPage() {
             <TabsContent value="withdrawals" className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold mb-4 flex items-center">
-                  <i className="fas fa-money-bill-wave mr-2 text-orange-600"></i>
-                  Withdrawal Management
+                  <i className="fas fa-clock mr-2 text-orange-600"></i>
+                  Pending Withdrawal Requests
                 </h2>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Withdrawal Requests</CardTitle>
+                    <CardTitle>Pending Withdrawals</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {withdrawalsLoading ? (
@@ -403,6 +419,7 @@ export default function AdminPage() {
                             withdrawal={withdrawal}
                             onUpdate={() => {
                               queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
+                              queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
                             }}
                           />
                         ))}
@@ -410,8 +427,46 @@ export default function AdminPage() {
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
                         <i className="fas fa-inbox text-4xl mb-4 opacity-50"></i>
-                        <p>No withdrawal requests</p>
-                        <p className="text-sm">Withdrawal requests will appear here</p>
+                        <p>No pending withdrawal requests</p>
+                        <p className="text-sm">Pending requests will appear here</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <i className="fas fa-history mr-2 text-indigo-600"></i>
+                  Processed Withdrawals
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Approved & Rejected Withdrawals</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {processedLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
+                        <p className="ml-2 text-muted-foreground">Loading processed withdrawals...</p>
+                      </div>
+                    ) : processedData?.withdrawals && processedData.withdrawals.length > 0 ? (
+                      <div className="space-y-4">
+                        {processedData.withdrawals.map((withdrawal: any) => (
+                          <WithdrawalRequestCard 
+                            key={withdrawal.id} 
+                            withdrawal={withdrawal}
+                            onUpdate={() => {
+                              queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <i className="fas fa-check-circle text-4xl mb-4 opacity-50"></i>
+                        <p>No processed withdrawals</p>
+                        <p className="text-sm">Approved and rejected requests will appear here</p>
                       </div>
                     )}
                   </CardContent>
