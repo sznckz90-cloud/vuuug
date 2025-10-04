@@ -126,7 +126,8 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
     switch (withdrawal.status) {
       case 'paid':
       case 'Successfull':
-        return <Badge className="bg-green-600">Successful</Badge>;
+      case 'Approved':
+        return <Badge className="bg-green-600">Approved</Badge>;
       case 'rejected':
         return <Badge className="bg-red-600">Rejected</Badge>;
       default:
@@ -173,15 +174,9 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Date:</span>
-                  <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Time:</span>
-                  <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toLocaleTimeString()}</p>
-                </div>
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Date/Time (UTC):</span>
+                <p className="text-sm">{new Date(withdrawal.createdAt || withdrawal.created_on).toUTCString()}</p>
               </div>
             </div>
           </div>
@@ -405,32 +400,34 @@ export default function AdminPage() {
                   <CardHeader>
                     <CardTitle>Pending Withdrawals</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    {withdrawalsLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
-                        <p className="ml-2 text-muted-foreground">Loading withdrawals...</p>
-                      </div>
-                    ) : withdrawalsData?.withdrawals && withdrawalsData.withdrawals.length > 0 ? (
-                      <div className="space-y-4">
-                        {withdrawalsData.withdrawals.map((withdrawal: any) => (
-                          <WithdrawalRequestCard 
-                            key={withdrawal.id} 
-                            withdrawal={withdrawal}
-                            onUpdate={() => {
-                              queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
-                              queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
-                            }}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <i className="fas fa-inbox text-4xl mb-4 opacity-50"></i>
-                        <p>No pending withdrawal requests</p>
-                        <p className="text-sm">Pending requests will appear here</p>
-                      </div>
-                    )}
+                  <CardContent className="p-0">
+                    <div className="max-h-[600px] overflow-y-auto p-4">
+                      {withdrawalsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
+                          <p className="ml-2 text-muted-foreground">Loading withdrawals...</p>
+                        </div>
+                      ) : withdrawalsData?.withdrawals && withdrawalsData.withdrawals.length > 0 ? (
+                        <div className="space-y-4">
+                          {withdrawalsData.withdrawals.map((withdrawal: any) => (
+                            <WithdrawalRequestCard 
+                              key={withdrawal.id} 
+                              withdrawal={withdrawal}
+                              onUpdate={() => {
+                                queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
+                                queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <i className="fas fa-inbox text-4xl mb-4 opacity-50"></i>
+                          <p>No pending withdrawal requests</p>
+                          <p className="text-sm">Pending requests will appear here</p>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -444,31 +441,33 @@ export default function AdminPage() {
                   <CardHeader>
                     <CardTitle>Approved & Rejected Withdrawals</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    {processedLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
-                        <p className="ml-2 text-muted-foreground">Loading processed withdrawals...</p>
-                      </div>
-                    ) : processedData?.withdrawals && processedData.withdrawals.length > 0 ? (
-                      <div className="space-y-4">
-                        {processedData.withdrawals.map((withdrawal: any) => (
-                          <WithdrawalRequestCard 
-                            key={withdrawal.id} 
-                            withdrawal={withdrawal}
-                            onUpdate={() => {
-                              queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
-                            }}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <i className="fas fa-check-circle text-4xl mb-4 opacity-50"></i>
-                        <p>No processed withdrawals</p>
-                        <p className="text-sm">Approved and rejected requests will appear here</p>
-                      </div>
-                    )}
+                  <CardContent className="p-0">
+                    <div className="max-h-[600px] overflow-y-auto p-4">
+                      {processedLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
+                          <p className="ml-2 text-muted-foreground">Loading processed withdrawals...</p>
+                        </div>
+                      ) : processedData?.withdrawals && processedData.withdrawals.length > 0 ? (
+                        <div className="space-y-4">
+                          {processedData.withdrawals.map((withdrawal: any) => (
+                            <WithdrawalRequestCard 
+                              key={withdrawal.id} 
+                              withdrawal={withdrawal}
+                              onUpdate={() => {
+                                queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <i className="fas fa-check-circle text-4xl mb-4 opacity-50"></i>
+                          <p>No processed withdrawals</p>
+                          <p className="text-sm">Approved and rejected requests will appear here</p>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
