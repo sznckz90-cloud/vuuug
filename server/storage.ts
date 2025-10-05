@@ -563,7 +563,7 @@ export class DatabaseStorage implements IStorage {
     return bucketStart;
   }
 
-  async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string }> {
+  async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string; isBonusDay: boolean }> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
     if (!user) {
@@ -571,54 +571,55 @@ export class DatabaseStorage implements IStorage {
     }
 
     const now = new Date();
-    const today = this.getDayBucketStart(now);
-    
     const lastStreakDate = user.lastStreakDate;
     let newStreak = 1;
     let rewardEarned = "0";
+    let isBonusDay = false;
 
     if (lastStreakDate) {
-      const lastStreakBucket = this.getDayBucketStart(new Date(lastStreakDate));
+      const lastClaim = new Date(lastStreakDate);
+      const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60);
       
-      const dayDiff = Math.floor((today.getTime() - lastStreakBucket.getTime()) / (24 * 60 * 60 * 1000));
-      
-      if (dayDiff === 1) {
-        // Consecutive day
-        newStreak = (user.currentStreak || 0) + 1;
-      } else if (dayDiff === 0) {
-        // Same day, no change
-        newStreak = user.currentStreak || 1;
-        return { newStreak, rewardEarned: "0" };
+      if (hoursSinceLastClaim < 24) {
+        return { newStreak: user.currentStreak || 0, rewardEarned: "0", isBonusDay: false };
       }
-      // If dayDiff > 1, streak resets to 1
+      
+      const daysSinceLastClaim = Math.floor(hoursSinceLastClaim / 24);
+      
+      if (daysSinceLastClaim === 1 || (daysSinceLastClaim < 2 && hoursSinceLastClaim >= 24)) {
+        newStreak = (user.currentStreak || 0) + 1;
+      } else {
+        newStreak = 1;
+      }
     }
 
-    // Calculate streak reward (daily streak bonus)
-    if (newStreak > 0) {
-      rewardEarned = "0.00035"; // 0.00035 TON daily streak bonus
+    if (newStreak === 5) {
+      rewardEarned = "0.0003";
+      isBonusDay = true;
+      newStreak = 0;
+    } else {
+      rewardEarned = "0.0001";
     }
 
-    // Update user streak
     await db
       .update(users)
       .set({
         currentStreak: newStreak,
-        lastStreakDate: today,
+        lastStreakDate: now,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
 
-    // Add streak bonus earning if applicable
     if (parseFloat(rewardEarned) > 0) {
       await this.addEarning({
         userId,
         amount: rewardEarned,
-        source: 'streak_bonus',
-        description: `Daily streak bonus`,
+        source: isBonusDay ? 'streak_bonus_5day' : 'daily_streak',
+        description: isBonusDay ? '5-day streak bonus completed!' : `Daily streak claim`,
       });
     }
 
-    return { newStreak, rewardEarned };
+    return { newStreak, rewardEarned, isBonusDay };
   }
 
   // Helper function for consistent 12:00 PM UTC reset date calculation

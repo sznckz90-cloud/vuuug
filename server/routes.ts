@@ -562,6 +562,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       
       if (!botToken) {
+        if (process.env.NODE_ENV === 'development') {
+          return res.json({ 
+            success: true,
+            isMember: true,
+            channelUsername: '@PaidAdsNews',
+            message: 'Development mode: membership check bypassed'
+          });
+        }
+        
         console.error('❌ TELEGRAM_BOT_TOKEN not configured');
         return res.status(500).json({ 
           isMember: false, 
@@ -613,15 +622,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
             requiresChannelJoin: true
           });
         }
+      } else if (process.env.NODE_ENV !== 'development') {
+        return res.status(500).json({ 
+          success: false,
+          message: 'Channel verification not available. Please contact support.'
+        });
       }
       
       const result = await storage.updateUserStreak(userId);
+      
+      if (parseFloat(result.rewardEarned) === 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'You have already claimed your daily reward. Come back in 24 hours!'
+        });
+      }
+      
+      sendRealtimeUpdate(userId, {
+        type: 'streak_reward',
+        amount: result.rewardEarned,
+        message: result.isBonusDay ? '🎉 5-day streak bonus!' : '✅ Daily streak claimed!',
+        timestamp: new Date().toISOString()
+      });
       
       res.json({ 
         success: true,
         newStreak: result.newStreak,
         rewardEarned: result.rewardEarned,
-        message: 'Streak updated successfully' 
+        isBonusDay: result.isBonusDay,
+        message: result.isBonusDay ? 'Congratulations! You completed a 5-day streak!' : 'Streak updated successfully'
       });
     } catch (error) {
       console.error("Error processing streak:", error);
