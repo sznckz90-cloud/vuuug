@@ -190,7 +190,7 @@ export default function StreakCard({ user }: StreakCardProps) {
             Daily Streak Rewards
           </h2>
           <p className="text-muted-foreground text-xs">
-            Earn 0.0001 TON daily • 0.0003 TON bonus on 5th day
+            Earn 0.0001 TON daily • 0.0015 TON bonus on 5th day
           </p>
         </div>
         
@@ -201,16 +201,11 @@ export default function StreakCard({ user }: StreakCardProps) {
           </span>
         </div>
         
-        <div className="bg-muted rounded-full h-2 mb-2 overflow-hidden">
+        <div className="bg-muted rounded-full h-2 mb-4 overflow-hidden">
           <div 
             className="bg-gradient-to-r from-primary to-secondary h-full rounded-full transition-all duration-500" 
             style={{ width: `${streakProgress}%` }}
           ></div>
-        </div>
-        
-        <div className="flex justify-between text-xs text-muted-foreground mb-4">
-          <span>0 days</span>
-          <span className="font-semibold">Bonus at 5 days</span>
         </div>
         
         {!isMember ? (
