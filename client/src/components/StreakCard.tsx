@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { formatCurrency } from "@/lib/utils";
 
 declare global {
   interface Window {
@@ -28,17 +26,16 @@ export default function StreakCard({ user }: StreakCardProps) {
   const [isClaiming, setIsClaiming] = useState(false);
   const [timeUntilNextClaim, setTimeUntilNextClaim] = useState<string>("");
 
-  // Check channel membership
   const { data: membershipData, refetch: refetchMembership } = useQuery({
     queryKey: ["/api/streak/check-membership"],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/streak/check-membership");
       return response.json();
     },
-    refetchInterval: 30000, // Recheck every 30 seconds
+    refetchInterval: 5000,
   });
 
-  const isMember = membershipData?.isMember ?? false; // Default to false until verified
+  const isMember = membershipData?.isMember ?? false;
 
   const claimStreakMutation = useMutation({
     mutationFn: async () => {
@@ -55,17 +52,23 @@ export default function StreakCard({ user }: StreakCardProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       
       if (parseFloat(data.rewardEarned) > 0) {
-        // Show reward notification
         const event = new CustomEvent('showReward', { 
           detail: { amount: parseFloat(data.rewardEarned) } 
         });
         window.dispatchEvent(event);
+        
+        if (data.isBonusDay) {
+          toast({
+            title: "🎉 Congratulations!",
+            description: `You completed a 5-day streak! You received ${data.rewardEarned} TON bonus!`,
+          });
+        } else {
+          toast({
+            title: "✅ Daily Streak Claimed!",
+            description: `You earned ${data.rewardEarned} TON for your daily streak claim!`,
+          });
+        }
       }
-      
-      toast({
-        title: "Streak Updated!",
-        description: `Your streak is now ${data.newStreak} days`,
-      });
     },
     onError: (error: any) => {
       if (error.message?.includes('channel')) {
@@ -75,25 +78,30 @@ export default function StreakCard({ user }: StreakCardProps) {
           variant: "destructive",
         });
         refetchMembership();
+      } else if (error.message?.includes('already claimed')) {
+        toast({
+          title: "Already Claimed",
+          description: "You have already claimed your daily reward. Come back in 24 hours!",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Error",
-          description: "Failed to claim streak reward. Please try again.",
+          description: error.message || "Failed to claim streak reward. Please try again.",
           variant: "destructive",
         });
       }
     },
   });
 
-  // Calculate time until next claim (24 hours from last claim)
   useEffect(() => {
     const updateTimer = () => {
-      if (!user?.lastStreakClaim) {
+      if (!user?.lastStreakDate) {
         setTimeUntilNextClaim("Available now");
         return;
       }
 
-      const lastClaim = new Date(user.lastStreakClaim);
+      const lastClaim = new Date(user.lastStreakDate);
       const nextClaim = new Date(lastClaim.getTime() + 24 * 60 * 60 * 1000);
       const now = new Date();
       const diff = nextClaim.getTime() - now.getTime();
@@ -108,34 +116,30 @@ export default function StreakCard({ user }: StreakCardProps) {
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
       setTimeUntilNextClaim(
-        `${hours.toString().padStart(2, '0')}h:${minutes.toString().padStart(2, '0')}m:${seconds.toString().padStart(2, '0')}s`
+        `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
       );
     };
 
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [user?.lastStreakClaim]);
+  }, [user?.lastStreakDate]);
 
   const handleJoinChannel = () => {
-    // Use Telegram WebApp API to open channel
     if (window.Telegram?.WebApp?.openTelegramLink) {
       window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsNews');
     } else {
-      // Fallback: open in new tab
       window.open('https://t.me/PaidAdsNews', '_blank');
     }
     
-    // Recheck membership after a short delay
     setTimeout(() => {
       refetchMembership();
-    }, 2000);
+    }, 1000);
   };
 
   const handleClaimStreak = async () => {
     if (isClaiming) return;
     
-    // Check membership again before claim
     if (!isMember) {
       toast({
         title: "Channel Membership Required",
@@ -149,41 +153,45 @@ export default function StreakCard({ user }: StreakCardProps) {
     
     try {
       if (typeof window.show_9368336 === 'function') {
-        try {
-          await window.show_9368336('pop');
-        } catch (adError) {
-          console.log('Ad display failed, but proceeding with streak claim:', adError);
-        }
+        await window.show_9368336();
+        setTimeout(() => {
+          claimStreakMutation.mutate();
+        }, 1000);
       } else {
-        console.log('Ad SDK not loaded, proceeding with streak claim anyway');
+        setTimeout(() => {
+          claimStreakMutation.mutate();
+          toast({
+            title: "Ad Completed!",
+            description: "Processing your daily streak reward...",
+          });
+        }, 2000);
       }
-      
-      // Always process streak claim regardless of ad success/failure
-      claimStreakMutation.mutate();
     } catch (error) {
-      console.error('Streak claim failed:', error);
-      toast({
-        title: "Error",
-        description: "Failed to claim streak. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Ad watching failed:', error);
+      claimStreakMutation.mutate();
     } finally {
-      setIsClaiming(false);
+      setTimeout(() => {
+        setIsClaiming(false);
+      }, 2000);
     }
   };
 
   const currentStreak = user?.currentStreak || 0;
-  const streakProgress = Math.min((currentStreak % 5) / 5 * 100, 100);
+  const daysUntilBonus = 5 - (currentStreak % 5);
+  const streakProgress = ((currentStreak % 5) / 5) * 100;
   const canClaim = timeUntilNextClaim === "Available now";
 
   return (
     <Card className="rounded-xl shadow-sm border border-border mt-3">
       <CardContent className="p-3">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-base font-semibold text-foreground">Daily Streak</h3>
-          <div className="text-secondary text-xl streak-fire">
-            <i className="fas fa-fire"></i>
-          </div>
+        <div className="text-center mb-3">
+          <h2 className="text-lg font-bold text-foreground mb-1 flex items-center justify-center">
+            <i className="fas fa-fire text-secondary mr-2"></i>
+            Daily Streak Rewards
+          </h2>
+          <p className="text-muted-foreground text-xs">
+            Earn 0.0001 TON daily • 0.0003 TON bonus on 5th day
+          </p>
         </div>
         
         <div className="flex justify-between items-center mb-2">
@@ -193,7 +201,7 @@ export default function StreakCard({ user }: StreakCardProps) {
           </span>
         </div>
         
-        <div className="bg-muted rounded-full h-1.5 mb-3 overflow-hidden">
+        <div className="bg-muted rounded-full h-2 mb-2 overflow-hidden">
           <div 
             className="bg-gradient-to-r from-primary to-secondary h-full rounded-full transition-all duration-500" 
             style={{ width: `${streakProgress}%` }}
@@ -202,10 +210,10 @@ export default function StreakCard({ user }: StreakCardProps) {
         
         <div className="flex justify-between text-xs text-muted-foreground mb-4">
           <span>0 days</span>
-          <span>5 days bonus</span>
+          <span className="font-semibold">Bonus at 5 days</span>
         </div>
         
-        {!isMember && (
+        {!isMember ? (
           <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
             <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
               ⚠️ Channel membership required!
@@ -221,33 +229,31 @@ export default function StreakCard({ user }: StreakCardProps) {
               Join Channel
             </Button>
           </div>
+        ) : (
+          <Button
+            onClick={handleClaimStreak}
+            disabled={isClaiming || !canClaim}
+            className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground py-2.5 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+            data-testid="button-claim-streak"
+          >
+            {isClaiming ? (
+              <>
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                Watching Ad...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-play-circle mr-2"></i>
+                Watch Ad + Claim Reward
+              </>
+            )}
+          </Button>
         )}
         
-        <Button
-          onClick={handleClaimStreak}
-          disabled={isClaiming || !isMember || !canClaim}
-          className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground py-2 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          data-testid="button-claim-streak"
-        >
-          {isClaiming ? (
-            <>
-              <i className="fas fa-spinner fa-spin mr-2"></i>
-              Loading Ad...
-            </>
-          ) : (
-            <>
-              <i className="fas fa-gift mr-2"></i>
-              Claim Daily Reward
-            </>
-          )}
-        </Button>
-        
-        {timeUntilNextClaim && (
-          <div className="mt-3 text-center text-xs text-muted-foreground">
-            <i className="fas fa-clock mr-1"></i>
-            Next claim in: <span className="font-semibold">{timeUntilNextClaim}</span> (UTC)
-          </div>
-        )}
+        <div className="text-center text-xs text-muted-foreground">
+          <i className="fas fa-clock mr-1"></i>
+          Next claim in: <span className="font-semibold">{timeUntilNextClaim}</span> (UTC)
+        </div>
       </CardContent>
     </Card>
   );
