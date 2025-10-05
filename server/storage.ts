@@ -594,7 +594,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (newStreak === 5) {
-      rewardEarned = "0.0003";
+      rewardEarned = "0.0015";
       isBonusDay = true;
       newStreak = 0;
     } else {
