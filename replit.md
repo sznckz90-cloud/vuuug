@@ -41,10 +41,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Business Logic Features
 - **Ad Watching System**: Integration with external ad providers for reward distribution
-- **Streak System**: Daily login tracking with bonus rewards for consecutive days
-  - **Channel Membership Verification**: Users must join @PaidAdsNews Telegram channel to claim daily streak rewards
-  - **Real-time Countdown Timer**: Live UTC-based countdown showing time until next claim available
-  - **Automatic Verification**: Backend verifies channel membership via Telegram Bot API before allowing claims
+  - Earns 0.0002 TON per ad watched
+  - Daily limit of 160 ads
+  - 30-second cooldown between ads
+- **Daily Streak Rewards System**: Gamified consecutive day tracking with ad-based rewards
+  - **Normal Reward**: 0.0001 TON per daily claim
+  - **5-Day Bonus**: 0.0003 TON bonus on the 5th consecutive day, then streak resets to 0
+  - **Ad Integration**: Users must watch an ad before claiming their daily reward (same format as Watch-to-Earn)
+  - **Channel Membership**: Must join @PaidAdsNews Telegram channel to claim rewards
+  - **Real-time Verification**: Channel membership checked every 5 seconds with instant unlock
+  - **Live Timer**: 24-hour UTC-based countdown showing time until next claim
+  - **Streak Tracking**: Consecutive day logic with proper reset on missed days
 - **Referral Program**: User-generated referral codes with commission tracking
 - **Withdrawal System**: Multiple payment methods with pending/completed status tracking
 - **Earnings Analytics**: Time-based earning summaries (daily, weekly, monthly)
