@@ -246,7 +246,7 @@ export default function TaskSection() {
 
       {/* Task cards */}
       {tasks.length > 0 ? (
-        <div>
+        <div className="max-h-[400px] overflow-y-auto p-1">
           {tasks.map(renderTaskCard)}
         </div>
       ) : (
