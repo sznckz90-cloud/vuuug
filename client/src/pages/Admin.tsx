@@ -371,9 +371,27 @@ export default function AdminPage() {
               </h1>
               <p className="text-muted-foreground">Manage your crypto earning platform</p>
             </div>
-            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-              Administrator
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/promotions/pending"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
+                  toast({ title: "Data refreshed successfully" });
+                }}
+                data-testid="button-refresh-data"
+                className="h-8 w-8 p-0"
+              >
+                <i className="fas fa-sync-alt"></i>
+              </Button>
+              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                Administrator
+              </Badge>
+            </div>
           </div>
 
           <Tabs defaultValue="analytics" className="w-full">
@@ -399,11 +417,8 @@ export default function AdminPage() {
                   Pending Withdrawal Requests
                 </h2>
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Pending Withdrawals</CardTitle>
-                  </CardHeader>
                   <CardContent className="p-0">
-                    <div className="max-h-[600px] overflow-y-auto p-4">
+                    <div className="max-h-[280px] overflow-y-auto p-4">
                       {withdrawalsLoading ? (
                         <div className="flex items-center justify-center py-8">
                           <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
@@ -440,11 +455,8 @@ export default function AdminPage() {
                   Processed Withdrawals
                 </h2>
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Approved & Rejected Withdrawals</CardTitle>
-                  </CardHeader>
                   <CardContent className="p-0">
-                    <div className="max-h-[600px] overflow-y-auto p-4">
+                    <div className="max-h-[280px] overflow-y-auto p-4">
                       {processedLoading ? (
                         <div className="flex items-center justify-center py-8">
                           <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
@@ -721,37 +733,6 @@ export default function AdminPage() {
               </div>
             </TabsContent>
           </Tabs>
-          
-          {/* Quick Actions */}
-          <div className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <i className="fas fa-bolt mr-2 text-yellow-600"></i>
-                  Quick Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button 
-                    variant="outline"
-                    className="flex items-center justify-center gap-2"
-                    onClick={() => {
-                      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-                      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                      queryClient.invalidateQueries({ queryKey: ["/api/admin/promotions/pending"] });
-                      queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
-                      toast({ title: "Data refreshed successfully" });
-                    }}
-                    data-testid="button-refresh-data"
-                  >
-                    <i className="fas fa-sync-alt"></i>
-                    Refresh Data
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </main>
     </Layout>

@@ -296,7 +296,7 @@ export default function Wallet() {
 
           {/* Withdrawal History */}
           <Card>
-            <CardHeader>
+            <CardHeader className="py-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <i className="fas fa-history text-muted-foreground"></i>
                 Withdrawal History
