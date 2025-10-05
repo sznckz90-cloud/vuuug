@@ -1600,7 +1600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.user.id;
       
-      // Get user's withdrawals (show pending and paid, handle NULL status for backward compatibility)
+      // Get all user's withdrawals (show all statuses: pending, Approved, paid, rejected, etc.)
       const userWithdrawals = await db
         .select({
           id: withdrawals.id,
@@ -1615,10 +1615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updatedAt: withdrawals.updatedAt
         })
         .from(withdrawals)
-        .where(and(
-          eq(withdrawals.userId, userId),
-          sql`${withdrawals.status} IN ('pending', 'paid') OR ${withdrawals.status} IS NULL`
-        ))
+        .where(eq(withdrawals.userId, userId))
         .orderBy(desc(withdrawals.createdAt));
       
       res.json(userWithdrawals);
