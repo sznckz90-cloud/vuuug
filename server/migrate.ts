@@ -51,7 +51,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         last_streak_date TIMESTAMP,
         level INTEGER DEFAULT 1,
         referred_by VARCHAR,
-        referral_code TEXT NOT NULL,
+        referral_code TEXT,
         flagged BOOLEAN DEFAULT false,
         flag_reason TEXT,
         banned BOOLEAN DEFAULT false,
