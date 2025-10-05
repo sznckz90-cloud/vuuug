@@ -555,10 +555,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check channel membership endpoint
+  app.get('/api/streak/check-membership', authenticateTelegram, async (req: any, res) => {
+    try {
+      const telegramId = req.user.user.telegram_id;
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      
+      if (!botToken) {
+        console.error('❌ TELEGRAM_BOT_TOKEN not configured');
+        return res.status(500).json({ 
+          isMember: false, 
+          message: 'Bot token not configured' 
+        });
+      }
+      
+      // Check membership for @PaidAdsNews channel
+      const isMember = await verifyChannelMembership(
+        parseInt(telegramId), 
+        '@PaidAdsNews', 
+        botToken
+      );
+      
+      res.json({ 
+        success: true,
+        isMember,
+        channelUsername: '@PaidAdsNews'
+      });
+    } catch (error) {
+      console.error("Error checking channel membership:", error);
+      res.json({ 
+        success: false,
+        isMember: false,
+        message: 'Failed to verify membership' 
+      });
+    }
+  });
+
   // Streak claim endpoint
   app.post('/api/streak/claim', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
+      const telegramId = req.user.user.telegram_id;
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      
+      // Verify channel membership before allowing claim
+      if (botToken) {
+        const isMember = await verifyChannelMembership(
+          parseInt(telegramId), 
+          '@PaidAdsNews', 
+          botToken
+        );
+        
+        if (!isMember) {
+          return res.status(403).json({ 
+            success: false,
+            message: 'You must join our channel to claim daily rewards',
+            requiresChannelJoin: true
+          });
+        }
+      }
       
       const result = await storage.updateUserStreak(userId);
       
