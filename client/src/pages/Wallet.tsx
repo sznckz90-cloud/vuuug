@@ -312,7 +312,7 @@ export default function Wallet() {
                 </div>
               ) : withdrawals.length > 0 ? (
                 <div className="max-h-[200px] overflow-y-auto p-4 space-y-3 bg-secondary/20 rounded-xl">
-                  {[...withdrawals].reverse().map((withdrawal) => (
+                  {[...withdrawals].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((withdrawal) => (
                     <div key={withdrawal.id} className="flex items-start justify-between py-2">
                       <div className="flex items-start gap-3 flex-1">
                         <div className={`w-[10px] h-[10px] rounded-full mt-1 flex-shrink-0 ${
