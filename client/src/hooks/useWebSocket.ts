@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
-import { useToast } from './use-toast';
+import { showNotification } from '@/components/AppNotification';
 import { apiRequest } from '@/lib/queryClient';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +14,6 @@ interface WebSocketMessage {
 
 export function useWebSocket() {
   const { user } = useAuth() as { user: any };
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<WebSocketMessage[]>([]);
@@ -74,33 +73,19 @@ export function useWebSocket() {
               
             case 'auth_error':
               console.error('❌ WebSocket authentication error:', message.message);
-              toast({
-                title: "Connection Error",
-                description: "Failed to authenticate real-time connection",
-                variant: "destructive"
-              });
+              showNotification("⚠️ Connection error", "error");
               break;
               
             case 'ad_reward':
-              // Show purple reward notification for consistency
-              const adRewardEvent = new CustomEvent('showReward', { 
-                detail: { amount: parseFloat(message.amount || '0') } 
-              });
-              window.dispatchEvent(adRewardEvent);
+              showNotification("🎉 Reward added!", "success", parseFloat(message.amount || '0'));
               break;
               
             case 'withdrawal_requested':
-              toast({
-                title: "Withdrawal Requested ⏳", 
-                description: `Withdrawal of $${message.amount} submitted`,
-              });
+              showNotification("⏳ Withdrawal requested", "info");
               break;
               
             case 'withdrawal_approved':
-              toast({
-                title: "Withdrawal Approved! ✅",
-                description: `Your withdrawal of $${message.amount} has been approved`,
-              });
+              showNotification("✅ Withdrawal approved!", "success");
               // Invalidate withdrawal queries to update UI immediately
               queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
               queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
@@ -108,11 +93,7 @@ export function useWebSocket() {
               break;
               
             case 'withdrawal_rejected':
-              toast({
-                title: "Withdrawal Rejected ❌",
-                description: `Your withdrawal of $${message.amount} was rejected and balance refunded`,
-                variant: "destructive"
-              });
+              showNotification("❌ Withdrawal rejected", "error");
               // Invalidate withdrawal queries to update UI immediately
               queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
               queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
@@ -120,42 +101,23 @@ export function useWebSocket() {
               break;
               
             case 'referral_bonus':
-              // Show purple reward notification for consistency  
-              const referralRewardEvent = new CustomEvent('showReward', { 
-                detail: { amount: parseFloat(message.amount || '0') } 
-              });
-              window.dispatchEvent(referralRewardEvent);
+              showNotification("🎉 Referral bonus!", "success", parseFloat(message.amount || '0'));
               break;
               
             case 'balance_update':
-              // Show purple reward notification for consistent styling
-              const rewardEvent = new CustomEvent('showReward', { 
-                detail: { amount: parseFloat((message as any).delta || message.amount || '0') } 
-              });
-              window.dispatchEvent(rewardEvent);
+              showNotification("🎉 Balance updated!", "success", parseFloat((message as any).delta || message.amount || '0'));
               break;
               
             case 'promotion_approved':
-              toast({
-                title: "Promotion Approved! ✅",
-                description: `Your promotion "${(message as any).title}" has been approved and is now live!`,
-              });
+              showNotification("✅ Promotion approved!", "success");
               break;
               
             case 'promotion_rejected':
-              toast({
-                title: "Promotion Rejected ❌",
-                description: `Your promotion "${(message as any).title}" has been rejected` + ((message as any).refunded ? ' and you have been refunded' : ''),
-                variant: "destructive"
-              });
+              showNotification("❌ Promotion rejected", "error");
               break;
               
             case 'task_deleted':
-              toast({
-                title: "Task Deleted 🗑️",
-                description: `Your task "${(message as any).title}" has been deleted by admin` + ((message as any).refunded ? ` (refund: $${(message as any).refundAmount})` : ''),
-                variant: "destructive"
-              });
+              showNotification("🗑️ Task deleted", "error");
               break;
               
             case 'task_removed':
