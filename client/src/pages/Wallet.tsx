@@ -311,11 +311,17 @@ export default function Wallet() {
                   <div className="text-muted-foreground text-sm">Loading...</div>
                 </div>
               ) : withdrawals.length > 0 ? (
-                <div className="max-h-[200px] overflow-y-auto p-4 space-y-3">
+                <div className="max-h-[200px] overflow-y-auto p-4 space-y-3 bg-secondary/20 rounded-xl">
                   {[...withdrawals].reverse().map((withdrawal) => (
                     <div key={withdrawal.id} className="flex items-start justify-between py-2">
                       <div className="flex items-start gap-3 flex-1">
-                        <div className={`w-3 h-3 rounded-full border-2 ${getStatusBorderColor(withdrawal.status)} mt-1 flex-shrink-0`}></div>
+                        <div className={`w-[10px] h-[10px] rounded-full mt-1 flex-shrink-0 ${
+                          withdrawal.status === 'paid' || withdrawal.status === 'Approved' || withdrawal.status === 'Successfull' 
+                            ? 'bg-green-500' 
+                            : withdrawal.status === 'pending' 
+                            ? 'bg-orange-500' 
+                            : 'bg-red-500'
+                        }`}></div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-bold text-foreground">{formatCurrency(withdrawal.amount)}</span>
