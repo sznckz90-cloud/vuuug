@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { showNotification } from "@/components/AppNotification";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
 declare global {
@@ -16,7 +16,6 @@ interface AdWatchingSectionProps {
 }
 
 export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isWatching, setIsWatching] = useState(false);
   const [lastAdWatchTime, setLastAdWatchTime] = useState<number>(0);
@@ -36,17 +35,10 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       setLastAdWatchTime(Date.now());
       
       // Show reward notification
-      const event = new CustomEvent('showReward', { 
-        detail: { amount: 0.0002 } 
-      });
-      window.dispatchEvent(event);
+      showNotification("🎉 Reward added!", "success", 0.0002);
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to process ad reward. Please try again.",
-        variant: "destructive",
-      });
+      showNotification("⚠️ Failed to process ad reward", "error");
     },
   });
 
@@ -96,20 +88,14 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         // Fallback: simulate ad for development
         setTimeout(() => {
           watchAdMutation.mutate('rewarded');
-          toast({
-            title: "Ad Completed!",
-            description: "You earned 0.0002 TON",
-          });
+          showNotification("✓ Ad completed!", "info");
         }, 2000);
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
       // Still reward user for attempting
       watchAdMutation.mutate('rewarded');
-      toast({
-        title: "Ad Completed!",
-        description: "You earned 0.0002 TON",
-      });
+      showNotification("✓ Ad completed!", "info");
     } finally {
       setTimeout(() => {
         setIsWatching(false);
