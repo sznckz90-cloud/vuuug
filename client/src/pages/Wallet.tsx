@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
 import { apiRequest } from '@/lib/queryClient';
 import { formatCurrency } from '@/lib/utils';
@@ -40,7 +40,6 @@ export default function Wallet() {
     queryKey: ['/api/auth/user'],
     retry: false,
   });
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('balance');
   const [withdrawForm, setWithdrawForm] = useState<WithdrawForm>({
@@ -152,10 +151,7 @@ export default function Wallet() {
       return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Withdrawal Request Submitted! ✅",
-        description: "Your withdrawal request has been sent to admin for approval.",
-      });
+      showNotification("💸 Withdrawal request sent!", "success");
       
       // Reset form
       setWithdrawForm({ amount: '', paymentDetails: '', comment: '' });
@@ -167,11 +163,7 @@ export default function Wallet() {
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Withdrawal Failed",
-        description: error.message || "Failed to submit withdrawal request",
-        variant: "destructive",
-      });
+      showNotification("⚠️ " + (error.message || "Withdrawal failed"), "error");
     },
   });
 

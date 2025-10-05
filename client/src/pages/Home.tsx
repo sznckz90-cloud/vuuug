@@ -4,7 +4,6 @@ import Layout from "@/components/Layout";
 import BalanceCard from "@/components/BalanceCard";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
-import RewardNotification from "@/components/RewardNotification";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -98,12 +97,7 @@ export default function Home() {
 
         {/* Streak Section */}
         <StreakCard user={user as User} />
-
-
-
       </main>
-
-      <RewardNotification />
     </Layout>
   );
 }
