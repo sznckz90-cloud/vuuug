@@ -42,6 +42,9 @@ Preferred communication style: Simple, everyday language.
 ## Business Logic Features
 - **Ad Watching System**: Integration with external ad providers for reward distribution
 - **Streak System**: Daily login tracking with bonus rewards for consecutive days
+  - **Channel Membership Verification**: Users must join @PaidAdsNews Telegram channel to claim daily streak rewards
+  - **Real-time Countdown Timer**: Live UTC-based countdown showing time until next claim available
+  - **Automatic Verification**: Backend verifies channel membership via Telegram Bot API before allowing claims
 - **Referral Program**: User-generated referral codes with commission tracking
 - **Withdrawal System**: Multiple payment methods with pending/completed status tracking
 - **Earnings Analytics**: Time-based earning summaries (daily, weekly, monthly)
@@ -52,6 +55,9 @@ Preferred communication style: Simple, everyday language.
 - **Database**: Neon PostgreSQL serverless database with connection pooling
 - **Authentication**: Replit OAuth/OIDC service for user authentication
 - **Session Storage**: PostgreSQL-backed session storage using connect-pg-simple
+- **Telegram Bot API**: Channel membership verification using node-telegram-bot-api
+  - Required for daily streak channel verification
+  - Bot must be added as admin to @PaidAdsNews channel for membership checks
 
 ## Frontend Libraries
 - **UI Framework**: Radix UI primitives for accessible component foundations
