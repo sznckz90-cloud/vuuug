@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
+import { showNotification } from '@/components/AppNotification';
 import { apiRequest } from '@/lib/queryClient';
 import { Tv, Check, RefreshCw } from 'lucide-react';
 import { formatCurrency, formatTaskReward } from '@/lib/utils';
@@ -52,7 +52,6 @@ const getTelegramInitData = (): string | null => {
 };
 
 export default function TaskSection() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
 
@@ -101,10 +100,7 @@ export default function TaskSection() {
       return response.json();
     },
     onSuccess: (data) => {
-      toast({
-        title: "🎉 Task Completed!",
-        description: `You earned ${formatCurrency(data.rewardAmount)}`,
-      });
+      showNotification("🎉 Task completed!", "success", parseFloat(data.rewardAmount));
       
       // Refresh tasks and balance
       refetch();
@@ -112,11 +108,7 @@ export default function TaskSection() {
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Claim Failed",
-        description: error.message || "Failed to claim task reward",
-        variant: "destructive",
-      });
+      showNotification("⚠️ " + (error.message || "Failed to claim task"), "error");
     },
   });
 

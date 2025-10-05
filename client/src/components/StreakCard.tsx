@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { showNotification } from "@/components/AppNotification";
 
 declare global {
   interface Window {
@@ -21,7 +21,6 @@ interface StreakCardProps {
 }
 
 export default function StreakCard({ user }: StreakCardProps) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isClaiming, setIsClaiming] = useState(false);
   const [timeUntilNextClaim, setTimeUntilNextClaim] = useState<string>("");
@@ -52,44 +51,21 @@ export default function StreakCard({ user }: StreakCardProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       
       if (parseFloat(data.rewardEarned) > 0) {
-        const event = new CustomEvent('showReward', { 
-          detail: { amount: parseFloat(data.rewardEarned) } 
-        });
-        window.dispatchEvent(event);
-        
         if (data.isBonusDay) {
-          toast({
-            title: "🎉 Congratulations!",
-            description: `You completed a 5-day streak! You received ${data.rewardEarned} TON bonus!`,
-          });
+          showNotification("🎉 5-day streak bonus!", "success", parseFloat(data.rewardEarned));
         } else {
-          toast({
-            title: "✅ Daily Streak Claimed!",
-            description: `You earned ${data.rewardEarned} TON for your daily streak claim!`,
-          });
+          showNotification("🔥 Daily streak claimed!", "success", parseFloat(data.rewardEarned));
         }
       }
     },
     onError: (error: any) => {
       if (error.message?.includes('channel')) {
-        toast({
-          title: "Channel Membership Required",
-          description: "Please join our channel to claim daily rewards.",
-          variant: "destructive",
-        });
+        showNotification("⚠️ Channel membership required", "error");
         refetchMembership();
       } else if (error.message?.includes('already claimed')) {
-        toast({
-          title: "Already Claimed",
-          description: "You have already claimed your daily reward. Come back in 24 hours!",
-          variant: "destructive",
-        });
+        showNotification("⚠️ Already claimed today", "error");
       } else {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to claim streak reward. Please try again.",
-          variant: "destructive",
-        });
+        showNotification("⚠️ Failed to claim streak", "error");
       }
     },
   });
@@ -141,11 +117,7 @@ export default function StreakCard({ user }: StreakCardProps) {
     if (isClaiming) return;
     
     if (!isMember) {
-      toast({
-        title: "Channel Membership Required",
-        description: "Please join our channel first to claim rewards.",
-        variant: "destructive",
-      });
+      showNotification("⚠️ Join channel first", "error");
       return;
     }
     
@@ -160,10 +132,7 @@ export default function StreakCard({ user }: StreakCardProps) {
       } else {
         setTimeout(() => {
           claimStreakMutation.mutate();
-          toast({
-            title: "Ad Completed!",
-            description: "Processing your daily streak reward...",
-          });
+          showNotification("✓ Ad completed!", "info");
         }, 2000);
       }
     } catch (error) {
