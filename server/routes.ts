@@ -17,7 +17,10 @@ import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
 import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership } from "./telegram";
 import { authenticateTelegram, requireAuth } from "./auth";
-import { connectedUsers, sendRealtimeUpdate } from "./realtime";
+
+// Store WebSocket connections for real-time updates
+// Map: sessionId -> { socket: WebSocket, userId: string }
+const connectedUsers = new Map<string, { socket: WebSocket; userId: string }>();
 
 // Function to verify session token against PostgreSQL sessions table
 async function verifySessionToken(sessionToken: string): Promise<{ isValid: boolean; userId?: string }> {
@@ -77,6 +80,28 @@ async function verifySessionToken(sessionToken: string): Promise<{ isValid: bool
   }
 }
 
+// Helper function to send real-time updates to a user
+function sendRealtimeUpdate(userId: string, update: any) {
+  let messagesSent = 0;
+  
+  // Find ALL sessions for this user and send to each one
+  for (const [sessionId, connection] of connectedUsers.entries()) {
+    if (connection.userId === userId && connection.socket.readyState === WebSocket.OPEN) {
+      try {
+        connection.socket.send(JSON.stringify(update));
+        messagesSent++;
+        console.log(`📤 Sent update to user ${userId}, session ${sessionId}`);
+      } catch (error) {
+        console.error(`❌ Failed to send update to user ${userId}, session ${sessionId}:`, error);
+        // Remove dead connection
+        connectedUsers.delete(sessionId);
+      }
+    }
+  }
+  
+  console.log(`📊 Sent real-time update to ${messagesSent} sessions for user ${userId}`);
+  return messagesSent > 0;
+}
 
 // Broadcast update to all connected users
 function broadcastUpdate(update: any) {
