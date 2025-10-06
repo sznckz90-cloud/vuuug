@@ -813,15 +813,28 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          // Award 0.002 TON referral bonus to referrer
+          // Award 0.0005 TON referral bonus to referrer
           await this.addEarning({
             userId: referral.referrerId,
-            amount: "0.002",
+            amount: "0.0005",
             source: 'referral',
             description: `Referral bonus - friend completed first ad`,
           });
 
-          console.log(`✅ First ad referral bonus: 0.002 TON awarded to ${referral.referrerId} from ${userId}'s first ad`);
+          console.log(`✅ First ad referral bonus: 0.0005 TON awarded to ${referral.referrerId} from ${userId}'s first ad`);
+          
+          // Send real-time notification to referrer
+          try {
+            const { sendRealtimeUpdate } = await import('./realtime');
+            sendRealtimeUpdate(referral.referrerId, {
+              type: 'referral_bonus',
+              amount: "0.0005",
+              message: '🎉 New Referral Bonus!\n\nYour friend just watched their first ad!\nYou\'ve earned 0.0005 TON as a referral reward 🎁\nKeep inviting to earn more! 🚀',
+              timestamp: new Date().toISOString()
+            });
+          } catch (error) {
+            console.error('Failed to send referral bonus notification:', error);
+          }
         }
       }
     } catch (error) {
@@ -1116,8 +1129,8 @@ export class DatabaseStorage implements IStorage {
         return;
       }
 
-      // Calculate 8% commission on ad earnings only
-      const commissionAmount = (parseFloat(earningAmount) * 0.08).toFixed(8);
+      // Calculate 10% commission on ad earnings only
+      const commissionAmount = (parseFloat(earningAmount) * 0.10).toFixed(8);
       
       // Record the referral commission
       await db.insert(referralCommissions).values({
@@ -1132,7 +1145,7 @@ export class DatabaseStorage implements IStorage {
         userId: referralInfo.referrerId,
         amount: commissionAmount,
         source: 'referral_commission',
-        description: `8% commission from referred user's ad earnings`,
+        description: `10% commission from referred user's ad earnings`,
       });
 
       // Log commission transaction
@@ -1141,15 +1154,28 @@ export class DatabaseStorage implements IStorage {
         amount: commissionAmount,
         type: 'addition',
         source: 'referral_commission',
-        description: `8% commission from referred user's ad earnings`,
+        description: `10% commission from referred user's ad earnings`,
         metadata: { 
           originalEarningId, 
           referredUserId: userId,
-          commissionRate: '8%'
+          commissionRate: '10%'
         }
       });
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
+      
+      // Send real-time notification to referrer
+      try {
+        const { sendRealtimeUpdate } = await import('./realtime');
+        sendRealtimeUpdate(referralInfo.referrerId, {
+          type: 'referral_commission',
+          amount: commissionAmount,
+          message: `💰 Referral Earnings Update!\n\nYour friend just watched an ad.\nYou earned 10% = ${commissionAmount} TON 💎\nKeep earning passively as your friend keeps watching ads! 🔥`,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Failed to send commission notification:', error);
+      }
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
