@@ -10,9 +10,9 @@ const isAdmin = (telegramId: string): boolean => {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
 
-// Utility function to format TON amounts - removes trailing zeros
+// Utility function to format TON amounts - removes trailing zeros, max 5 decimals
 function formatTON(value: string | number): string {
-  let num = parseFloat(String(value)).toFixed(8);
+  let num = parseFloat(String(value)).toFixed(5);
   num = num.replace(/\.?0+$/, ''); // remove trailing zeros & dot
   return num;
 }
@@ -391,15 +391,33 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const amount = withdrawalDetails?.netAmount ? withdrawalDetails.netAmount : result.withdrawal.amount;
               const formattedAmount = formatTON(amount);
               const formattedBalance = formatTON(user.balance || 0);
-              const utcTime = result.withdrawal.createdAt ? new Date(result.withdrawal.createdAt).toUTCString() : new Date().toUTCString();
+              const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
               const txHash = result.withdrawal.transactionHash || 'N/A';
               
-              let userMessage = `✅ Congratulations! Your withdrawal of ${formattedAmount} TON has been successfully processed.\n\n`;
-              userMessage += `⏰ Time (UTC): ${utcTime}\n`;
-              userMessage += `💡 Remaining Balance: ${formattedBalance} TON\n`;
-              userMessage += `📝 Transaction Hash: ${txHash}`;
+              const now = new Date();
+              const utcHours = String(now.getUTCHours()).padStart(2, '0');
+              const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
+              const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
+              const utcTime = `${utcHours}:${utcMinutes}:${utcSeconds} GMT`;
               
-              await sendUserTelegramNotification(user.telegram_id, userMessage);
+              const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              const weekday = weekdays[now.getUTCDay()];
+              const day = now.getUTCDate();
+              const month = months[now.getUTCMonth()];
+              const year = now.getUTCFullYear();
+              const utcDate = `${weekday}, ${day} ${month} ${year}`;
+              
+              let userMessage = `🎉 *Withdrawal Successful!* ✅\n\n`;
+              userMessage += `🔔 *Payout:* ${formattedAmount} TON\n`;
+              userMessage += `💳 *Wallet:* ${walletAddress}\n\n`;
+              userMessage += `⏰ *Time (UTC):* ${utcTime}\n`;
+              userMessage += `📆 *Date:* ${utcDate}\n\n`;
+              userMessage += `💡 *Remaining Balance:* ${formattedBalance} TON\n`;
+              userMessage += `📝 *Txn Hash:* ${txHash}\n\n`;
+              userMessage += `✨ Keep earning & growing! Your journey to success continues… 💪`;
+              
+              await sendUserTelegramNotification(user.telegram_id, userMessage, null, 'Markdown');
             }
             
             // Update admin message
