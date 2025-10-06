@@ -17,6 +17,7 @@ const DUPLICATE_PREVENTION_WINDOW = 2000; // 2 seconds
 
 export default function AppNotification() {
   const [isVisible, setIsVisible] = useState(false);
+  const [isHiding, setIsHiding] = useState(false);
   const [message, setMessage] = useState("");
   const [type, setType] = useState<NotificationType>("success");
 
@@ -30,13 +31,17 @@ export default function AppNotification() {
     
     setMessage(notification.message);
     setType(notification.type || "success");
+    setIsHiding(false);
     setIsVisible(true);
 
     setTimeout(() => {
-      setIsVisible(false);
+      setIsHiding(true);
       setTimeout(() => {
-        isDisplaying = false;
-        showNextNotification();
+        setIsVisible(false);
+        setTimeout(() => {
+          isDisplaying = false;
+          showNextNotification();
+        }, 50);
       }, 300);
     }, 1000);
   };
@@ -111,9 +116,9 @@ export default function AppNotification() {
 
   return (
     <div 
-      className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 rounded-xl shadow-2xl ${getBackgroundColor()} text-white font-medium text-sm flex items-center gap-2 animate-slideDown max-w-[90vw]`}
+      className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 rounded-xl shadow-2xl ${getBackgroundColor()} text-white font-medium text-sm flex items-center gap-2 max-w-[90vw]`}
       style={{
-        animation: isVisible ? "slideDown 0.3s ease-out" : "slideUp 0.3s ease-out"
+        animation: isHiding ? "slideUp 0.3s ease-out forwards" : "slideDown 0.3s ease-out forwards"
       }}
     >
       <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 flex-shrink-0">
