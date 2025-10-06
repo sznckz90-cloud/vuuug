@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { showNotification } from '@/components/AppNotification';
@@ -353,7 +352,6 @@ export default function Wallet() {
               <form onSubmit={handleSubmitWithdraw} className="space-y-4">
                 {/* Amount */}
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount</Label>
                   <div className="relative">
                     <Input
                       id="amount"
@@ -384,12 +382,11 @@ export default function Wallet() {
 
                 {/* Wallet Address */}
                 <div className="space-y-2">
-                  <Label htmlFor="paymentDetails">Wallet Address</Label>
                   <Input
                     id="paymentDetails"
                     value={withdrawForm.paymentDetails}
                     onChange={(e) => updateForm('paymentDetails', e.target.value)}
-                    placeholder="UQD..."
+                    placeholder="Address"
                     className={errors.paymentDetails ? 'border-red-500' : ''}
                   />
                   {errors.paymentDetails && <p className="text-sm text-red-500">{errors.paymentDetails}</p>}
@@ -397,12 +394,11 @@ export default function Wallet() {
 
                 {/* Comment (Optional) */}
                 <div className="space-y-2">
-                  <Label htmlFor="comment">Comment (Optional)</Label>
                   <Input
                     id="comment"
                     value={withdrawForm.comment || ''}
                     onChange={(e) => updateForm('comment', e.target.value)}
-                    placeholder="Add a note for admin"
+                    placeholder="Comment (optional)"
                     maxLength={200}
                   />
                 </div>
