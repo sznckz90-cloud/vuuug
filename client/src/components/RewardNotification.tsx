@@ -7,21 +7,16 @@ interface RewardData {
 
 export default function RewardNotification() {
   const [isVisible, setIsVisible] = useState(false);
-  const [isHiding, setIsHiding] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
 
   useEffect(() => {
     const handleShowReward = (event: CustomEvent<RewardData>) => {
       setRewardAmount(event.detail.amount);
-      setIsHiding(false);
       setIsVisible(true);
       
       setTimeout(() => {
-        setIsHiding(true);
-        setTimeout(() => {
-          setIsVisible(false);
-        }, 500);
-      }, 1000);
+        setIsVisible(false);
+      }, 3000);
     };
 
     window.addEventListener('showReward', handleShowReward as EventListener);
@@ -34,14 +29,7 @@ export default function RewardNotification() {
   if (!isVisible) return null;
 
   return (
-    <div 
-      className="fixed top-20 left-4 right-4 max-w-md mx-auto bg-primary text-primary-foreground p-4 rounded-lg shadow-lg z-50 transition-all duration-500"
-      style={{
-        animation: isHiding ? "slideOutDown 0.5s ease-out forwards" : "slideInUp 0.5s ease-out forwards",
-        opacity: isHiding ? 0 : 1,
-        transform: isHiding ? "translateY(100px)" : "translateY(0)"
-      }}
-    >
+    <div className="fixed top-20 left-4 right-4 max-w-md mx-auto bg-primary text-primary-foreground p-4 rounded-lg shadow-lg animate-slideInUp z-50">
       <div className="flex items-center gap-3">
         <i className="fas fa-check-circle text-xl"></i>
         <div>
