@@ -413,7 +413,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const utcHours = String(now.getUTCHours()).padStart(2, '0');
               const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
               const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
-              const utcTime = `${utcHours}:${utcMinutes}:${utcSeconds} GMT`;
+              const utcTime = `${utcHours}:${utcMinutes}:${utcSeconds}`;
               
               const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
               const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -423,16 +423,21 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const year = now.getUTCFullYear();
               const utcDate = `${weekday}, ${day} ${month} ${year}`;
               
-              let userMessage = `🎉 *Withdrawal Successful!* ✅\n\n`;
-              userMessage += `🔔 *Payout:* ${formattedAmount} TON\n`;
-              userMessage += `💳 *Wallet:* ${walletAddress}\n\n`;
-              userMessage += `⏰ *Time (UTC):* ${utcTime}\n`;
-              userMessage += `📆 *Date:* ${utcDate}\n\n`;
-              userMessage += `💡 *Remaining Balance:* ${formattedBalance} TON\n`;
-              userMessage += `📝 *Txn Hash:* ${txHash}\n\n`;
+              // Create clickable transaction hash link if available
+              const txHashDisplay = (txHash && txHash !== 'N/A') 
+                ? `<a href="https://tonviewer.com/transaction/${txHash}">${txHash}</a>`
+                : txHash;
+              
+              let userMessage = `🎉 Withdrawal Successful! ✅\n\n`;
+              userMessage += `🔔 Payout: ${formattedAmount} TON\n`;
+              userMessage += `💳 Wallet: ${walletAddress}\n\n`;
+              userMessage += `⏰ Time (UTC): ${utcTime}\n`;
+              userMessage += `📆 Date: ${utcDate}\n\n`;
+              userMessage += `💡 Remaining Balance: ${formattedBalance} TON\n`;
+              userMessage += `📝 Txn Hash: ${txHashDisplay}\n\n`;
               userMessage += `✨ Keep earning & growing! Your journey to success continues… 💪`;
               
-              await sendUserTelegramNotification(user.telegram_id, userMessage, null, 'Markdown');
+              await sendUserTelegramNotification(user.telegram_id, userMessage, null, 'HTML');
             }
             
             // Update admin message

@@ -1116,8 +1116,8 @@ export class DatabaseStorage implements IStorage {
         return;
       }
 
-      // Calculate 8% commission on ad earnings only
-      const commissionAmount = (parseFloat(earningAmount) * 0.08).toFixed(8);
+      // Calculate 10% commission on ad earnings only
+      const commissionAmount = (parseFloat(earningAmount) * 0.10).toFixed(8);
       
       // Record the referral commission
       await db.insert(referralCommissions).values({
@@ -1132,7 +1132,7 @@ export class DatabaseStorage implements IStorage {
         userId: referralInfo.referrerId,
         amount: commissionAmount,
         source: 'referral_commission',
-        description: `8% commission from referred user's ad earnings`,
+        description: `10% commission from referred user's ad earnings`,
       });
 
       // Log commission transaction
@@ -1141,15 +1141,33 @@ export class DatabaseStorage implements IStorage {
         amount: commissionAmount,
         type: 'addition',
         source: 'referral_commission',
-        description: `8% commission from referred user's ad earnings`,
+        description: `10% commission from referred user's ad earnings`,
         metadata: { 
           originalEarningId, 
           referredUserId: userId,
-          commissionRate: '8%'
+          commissionRate: '10%'
         }
       });
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
+      
+      // Send Telegram notification to referrer about the commission
+      try {
+        const { sendReferralCommissionNotification } = await import('./telegram');
+        const referrer = await this.getUser(referralInfo.referrerId);
+        const referredUser = await this.getUser(userId);
+        
+        if (referrer && referrer.telegram_id && referredUser) {
+          await sendReferralCommissionNotification(
+            referrer.telegram_id,
+            referredUser.username || referredUser.firstName || 'your friend',
+            commissionAmount
+          );
+        }
+      } catch (error) {
+        console.error('❌ Error sending referral commission notification:', error);
+        // Don't throw error to avoid disrupting the main earning process
+      }
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
