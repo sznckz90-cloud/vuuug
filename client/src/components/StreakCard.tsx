@@ -72,28 +72,44 @@ export default function StreakCard({ user }: StreakCardProps) {
 
   useEffect(() => {
     const updateTimer = () => {
-      if (!user?.lastStreakDate) {
-        setTimeUntilNextClaim("Available now");
-        return;
-      }
-
-      const lastClaim = new Date(user.lastStreakDate);
-      const nextClaim = new Date(lastClaim.getTime() + 24 * 60 * 60 * 1000);
       const now = new Date();
-      const diff = nextClaim.getTime() - now.getTime();
+      
+      // Check if user has claimed today (same UTC date)
+      if (user?.lastStreakDate) {
+        const lastClaim = new Date(user.lastStreakDate);
+        const lastClaimUTCDate = new Date(Date.UTC(
+          lastClaim.getUTCFullYear(),
+          lastClaim.getUTCMonth(),
+          lastClaim.getUTCDate()
+        ));
+        const todayUTCDate = new Date(Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate()
+        ));
+        
+        // If already claimed today, calculate time until next UTC 00:00
+        if (lastClaimUTCDate.getTime() === todayUTCDate.getTime()) {
+          const nextMidnight = new Date(Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate() + 1
+          ));
+          const diff = nextMidnight.getTime() - now.getTime();
 
-      if (diff <= 0) {
-        setTimeUntilNextClaim("Available now");
-        return;
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+          setTimeUntilNextClaim(
+            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+          );
+          return;
+        }
       }
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setTimeUntilNextClaim(
-        `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
-      );
+      
+      // If not claimed today or never claimed, show available
+      setTimeUntilNextClaim("Available now");
     };
 
     updateTimer();
@@ -122,6 +138,21 @@ export default function StreakCard({ user }: StreakCardProps) {
     }
     
     setIsClaiming(true);
+    
+    // Immediately set countdown to disable button until next UTC midnight
+    const now = new Date();
+    const nextMidnight = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1
+    ));
+    const diff = nextMidnight.getTime() - now.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    setTimeUntilNextClaim(
+      `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    );
     
     try {
       if (typeof window.show_9368336 === 'function') {
@@ -197,7 +228,7 @@ export default function StreakCard({ user }: StreakCardProps) {
           <Button
             onClick={handleClaimStreak}
             disabled={isClaiming || !canClaim}
-            className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground py-2.5 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+            className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground py-3 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
             data-testid="button-claim-streak"
           >
             {isClaiming ? (
@@ -205,19 +236,18 @@ export default function StreakCard({ user }: StreakCardProps) {
                 <i className="fas fa-spinner fa-spin mr-2"></i>
                 Watching Ad...
               </>
+            ) : canClaim ? (
+              <span className="flex items-center">
+                <i className="fas fa-fire mr-2"></i>
+                Claim Streak
+              </span>
             ) : (
-              <>
-                <i className="fas fa-play-circle mr-2"></i>
-                Watch Ad + Claim Reward
-              </>
+              <span className="text-xs font-normal opacity-80">
+                Next claim in: {timeUntilNextClaim} UTC
+              </span>
             )}
           </Button>
         )}
-        
-        <div className="text-center text-xs text-muted-foreground">
-          <i className="fas fa-clock mr-1"></i>
-          Next claim in: <span className="font-semibold">{timeUntilNextClaim}</span> (UTC)
-        </div>
       </CardContent>
     </Card>
   );
