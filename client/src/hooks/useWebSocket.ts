@@ -101,7 +101,27 @@ export function useWebSocket() {
               break;
               
             case 'referral_bonus':
-              showNotification("🎉 Referral bonus!", "success", parseFloat(message.amount || '0'));
+              // Use custom message from backend or fallback to default
+              showNotification(
+                message.message || "🎉 Referral bonus!", 
+                "success", 
+                parseFloat(message.amount || '0')
+              );
+              // Invalidate queries to update balance
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+              break;
+              
+            case 'referral_commission':
+              // Use custom message from backend for commission notifications
+              showNotification(
+                message.message || "💰 Referral commission earned!", 
+                "success", 
+                parseFloat(message.amount || '0')
+              );
+              // Invalidate queries to update balance
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
               break;
               
             case 'balance_update':
