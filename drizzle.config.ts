@@ -1,7 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set. For Neon: get your connection string from Neon dashboard. For Replit: ensure database is provisioned.");
+  console.warn("DATABASE_URL not set - database operations may fail");
 }
 
 // Determine SSL configuration for Neon database  
