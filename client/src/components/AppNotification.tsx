@@ -38,7 +38,7 @@ export default function AppNotification() {
         isDisplaying = false;
         showNextNotification();
       }, 300);
-    }, 1000);
+    }, 2000);
   };
 
   useEffect(() => {
