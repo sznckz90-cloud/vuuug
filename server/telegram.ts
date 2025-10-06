@@ -127,6 +127,21 @@ export async function sendTaskCompletionNotification(userId: string, rewardAmoun
   }
 }
 
+// Send referral commission notification when friend watches an ad
+export async function sendReferralCommissionNotification(referrerTelegramId: string, friendUsername: string, commissionAmount: string): Promise<boolean> {
+  try {
+    const formattedAmount = formatTON(commissionAmount);
+    const notificationMessage = `🎉 Your friend @${friendUsername} just watched an ad!\n💰 You earned ${formattedAmount} TON`;
+
+    const success = await sendUserTelegramNotification(referrerTelegramId, notificationMessage);
+    console.log(`✅ Referral commission notification sent to ${referrerTelegramId}:`, success);
+    return success;
+  } catch (error) {
+    console.error('❌ Error sending referral commission notification:', error);
+    return false;
+  }
+}
+
 // Promotion posting features removed - no longer needed
 
 export async function sendTelegramMessage(message: string): Promise<boolean> {
@@ -776,11 +791,15 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
       const referralLink = `https://t.me/${botUsername}?start=${finalUser.referralCode}`;
       
-      const affiliatesMessage = `🔗 Your Personal Invite Link:
+      const affiliatesMessage = `👥 Invite friends & Earn Rewards!
+
+💰 Get 0.002 TON + 10% commission
+🚀 Share now and start building your earnings instantly.
+
+🔗 Your Personal Invite Link:
 ${referralLink}
 
-💵 Get $0.01 for every friend who joins!
-🚀 Share now and start building your earnings instantly.`;
+📌 Reminder: Invite real people only. Avoid fake or duplicate accounts to prevent penalties or bans.`;
       
       const keyboard = createBotKeyboard();
       const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, keyboard);
