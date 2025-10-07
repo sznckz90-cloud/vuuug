@@ -65,6 +65,11 @@ export const users = pgTable("users", {
   channelVisited: boolean("channel_visited").default(false),
   appShared: boolean("app_shared").default(false),
   lastResetDate: timestamp("last_reset_date"),
+  // Spin Section tracking
+  freeSpinsAvailable: integer("free_spins_available").default(0),
+  extraSpinsUsed: integer("extra_spins_used").default(0),
+  totalSpinsUsed: integer("total_spins_used").default(0),
+  lastSpinDate: timestamp("last_spin_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
