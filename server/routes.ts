@@ -674,6 +674,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Referral stats endpoint
+  app.get('/api/referrals/stats', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Get referral count
+      const referralsList = await storage.getUserReferrals(userId);
+      const referralCount = referralsList?.length || 0;
+      
+      // Get total referral earnings
+      const referralEarnings = await storage.getUserReferralEarnings(userId);
+      
+      res.json({
+        referralCount,
+        referralEarnings
+      });
+    } catch (error) {
+      console.error("Error fetching referral stats:", error);
+      res.status(500).json({ message: "Failed to fetch referral stats" });
+    }
+  });
+
   // Earnings history endpoint
   app.get('/api/earnings', authenticateTelegram, async (req: any, res) => {
     try {

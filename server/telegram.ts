@@ -283,6 +283,60 @@ export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   return welcomeSent && keyboardSent;
 }
 
+// Format account dashboard with refresh button
+export async function formatAccountDashboard(userId: string): Promise<{ message: string; inlineKeyboard: any }> {
+  const user = await storage.getUser(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  // Get user stats from database
+  const referralStats = await storage.getUserReferrals(userId);
+  
+  // Calculate referral earnings (total from all referral sources)
+  const referralEarnings = await storage.getUserReferralEarnings(userId);
+  
+  // Format username
+  const username = user.username ? `@${user.username}` : user.firstName || 'User';
+  
+  // Format join date
+  const joinDate = user.createdAt ? new Date(user.createdAt.toString()).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }) : 'Unknown';
+  
+  // Get daily earnings (default to 0 if null)
+  const dailyEarnings = formatTON(user.dailyEarnings || '0');
+  const totalEarnings = formatTON(user.totalEarned || '0');
+  const balance = formatTON(user.balance || '0');
+  const refEarnings = formatTON(referralEarnings || '0');
+  
+  const message = `📊 My Earnings Dashboard
+
+👤 Username: ${username}
+🆔 User ID: ${user.telegram_id}
+
+📅 Joined on: ${joinDate}
+💵 Balance: ${balance} TON
+
+💰 Earned today: ${dailyEarnings} TON
+💰 Earned total: ${totalEarnings} TON
+
+👥 Referrals: ${referralStats?.length || 0}
+💰 Referral Income: ${refEarnings} TON`;
+  
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [
+        { text: "🔄 Refresh", callback_data: "refresh_account" }
+      ]
+    ]
+  };
+  
+  return { message, inlineKeyboard };
+}
+
 // Admin broadcast functionality
 export async function sendBroadcastMessage(message: string, adminTelegramId: string): Promise<{ success: number; failed: number }> {
   if (!isAdmin(adminTelegramId)) {
@@ -478,6 +532,62 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             body: JSON.stringify({ 
               callback_query_id: callbackQuery.id,
               text: 'Error processing approval',
+              show_alert: true
+            })
+          });
+        }
+        return true;
+      }
+      
+      // Handle account refresh button
+      if (data === 'refresh_account') {
+        try {
+          // Get user from database
+          const user = await storage.getUserByTelegramId(chatId);
+          if (!user) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'User not found',
+                show_alert: true
+              })
+            });
+            return true;
+          }
+          
+          // Get refreshed account dashboard data
+          const { message: accountMessage, inlineKeyboard } = await formatAccountDashboard(user.id);
+          
+          // Update the message with refreshed data
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              message_id: callbackQuery.message.message_id,
+              text: accountMessage,
+              reply_markup: inlineKeyboard
+            })
+          });
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: '✅ Dashboard refreshed'
+            })
+          });
+        } catch (error) {
+          console.error('Error refreshing account dashboard:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error refreshing dashboard',
               show_alert: true
             })
           });
@@ -733,43 +843,16 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       console.log('⌨️ Processing Account button press');
       
       try {
-        // Get user stats from database
-        const referralStats = await storage.getUserReferrals(dbUser.id);
+        // Get account dashboard data
+        const { message: accountMessage, inlineKeyboard } = await formatAccountDashboard(dbUser.id);
         
-        // Calculate referral earnings
-        const referralEarnings = await storage.getUserReferralEarnings(dbUser.id);
-        
-        // Format username
-        const username = dbUser.username ? `@${dbUser.username}` : dbUser.firstName || 'User';
-        
-        // Format join date
-        const joinDate = dbUser.createdAt ? new Date(dbUser.createdAt.toString()).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric'
-        }) : 'Unknown';
-        
-        const profileMessage = `📊 Your Earnings Dashboard
-
-👤 Username: ${username}
-🆔 User ID: ${dbUser.telegram_id}
-
-👥 Total Friends Invited: ${referralStats?.length || 0}
-💰 Total Earnings: $${parseFloat(dbUser.totalEarned || '0').toFixed(2)}
-💎 Current Balance: $${parseFloat(dbUser.balance || '0').toFixed(2)}
-🎁 Earnings from Referrals: $${parseFloat(referralEarnings || '0').toFixed(2)}
-📅 Joined On: ${joinDate}
-
-🚀 Keep sharing your invite link daily and multiply your earnings!`;
-        
-        const keyboard = createBotKeyboard();
-        const messageSent = await sendUserTelegramNotification(chatId, profileMessage, keyboard);
-        console.log('📧 Profile message sent successfully:', messageSent);
+        const messageSent = await sendUserTelegramNotification(chatId, accountMessage, inlineKeyboard);
+        console.log('📧 Account dashboard sent successfully:', messageSent);
         
         return true;
       } catch (error) {
-        console.error('❌ Error fetching profile data:', error);
-        const errorMessage = '❌ Sorry, there was an error fetching your profile data. Please try again later.';
+        console.error('❌ Error fetching account data:', error);
+        const errorMessage = '❌ Sorry, there was an error fetching your account data. Please try again later.';
         const keyboard = createBotKeyboard();
         await sendUserTelegramNotification(chatId, errorMessage, keyboard);
         return true;

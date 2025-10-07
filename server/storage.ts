@@ -1151,23 +1151,24 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
       
-      // Send Telegram notification to referrer about the commission
-      try {
-        const { sendReferralCommissionNotification } = await import('./telegram');
-        const referrer = await this.getUser(referralInfo.referrerId);
-        const referredUser = await this.getUser(userId);
-        
-        if (referrer && referrer.telegram_id && referredUser) {
-          await sendReferralCommissionNotification(
-            referrer.telegram_id,
-            referredUser.username || referredUser.firstName || 'your friend',
-            commissionAmount
-          );
-        }
-      } catch (error) {
-        console.error('❌ Error sending referral commission notification:', error);
-        // Don't throw error to avoid disrupting the main earning process
-      }
+      // DISABLED: Real-time notifications removed to prevent spam
+      // Users can see their total referral income in the account dashboard
+      // try {
+      //   const { sendReferralCommissionNotification } = await import('./telegram');
+      //   const referrer = await this.getUser(referralInfo.referrerId);
+      //   const referredUser = await this.getUser(userId);
+      //   
+      //   if (referrer && referrer.telegram_id && referredUser) {
+      //     await sendReferralCommissionNotification(
+      //       referrer.telegram_id,
+      //       referredUser.username || referredUser.firstName || 'your friend',
+      //       commissionAmount
+      //     );
+      //   }
+      // } catch (error) {
+      //   console.error('❌ Error sending referral commission notification:', error);
+      //   // Don't throw error to avoid disrupting the main earning process
+      // }
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
