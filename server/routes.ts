@@ -555,6 +555,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Watch ad specifically for extra spins (separate from regular ads)
+  app.post('/api/spin/watch-ad', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      const result = await storage.watchSpinAd(userId);
+      
+      if (result.success) {
+        // Refresh spin status
+        await storage.getUserSpinStatus(userId);
+        
+        // Send real-time update to user
+        sendRealtimeUpdate(userId, {
+          type: 'extra_spin_ad',
+          message: result.message,
+          extraSpinsEarned: result.extraSpinsEarned || 0,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error watching spin ad:", error);
+      res.status(500).json({ success: false, message: "Failed to watch ad for spin" });
+    }
+  });
+
   // Get spin status
   app.get('/api/spin/status', authenticateTelegram, async (req: any, res) => {
     try {

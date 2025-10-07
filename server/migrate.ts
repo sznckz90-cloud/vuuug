@@ -85,7 +85,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
     // Add Spin Section columns
     try {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS free_spins_available INTEGER DEFAULT 0`);
-      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_spins_used INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_spin_ads_watched INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_spins INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS spins_used_today INTEGER DEFAULT 0`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_spins_used INTEGER DEFAULT 0`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_spin_date TIMESTAMP`);
       console.log('✅ [MIGRATION] Spin Section columns added');
