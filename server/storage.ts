@@ -671,6 +671,9 @@ export class DatabaseStorage implements IStorage {
 
     // NEW: Update task progress for the new task system
     await this.updateTaskProgress(userId, adsCount);
+    
+    // Update free spins for Spin Section (1 spin per 10 ads)
+    await this.updateFreeSpins(userId);
   }
 
   async resetDailyAdsCount(userId: string): Promise<void> {
@@ -2767,10 +2770,13 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`🔄 Resetting ${usersNeedingReset.length} users for ${currentDateString}`);
       
-      // Reset all users' daily counters
+      // Reset all users' daily counters including spin counters
       await db.update(users)
         .set({ 
           adsWatchedToday: 0,
+          freeSpinsAvailable: 0,
+          extraSpinsUsed: 0,
+          totalSpinsUsed: 0,
           lastResetDate: currentDate,
           updatedAt: new Date(),
         })
@@ -2799,6 +2805,181 @@ export class DatabaseStorage implements IStorage {
       console.error('❌ Error checking daily reset:', error);
       // Don't throw to avoid disrupting the interval
     }
+  }
+
+  // ===== SPIN SECTION =====
+  
+  // Spin reward configuration with weighted probabilities
+  private readonly SPIN_REWARDS = [
+    { amount: "0.000071", weight: 40 },  // Very high probability
+    { amount: "0.00029", weight: 25 },   // High probability
+    { amount: "0.0006", weight: 15 },    // Medium probability
+    { amount: "0.0013", weight: 10 },    // Medium-low probability
+    { amount: "0.0062", weight: 6 },     // Low probability
+    { amount: "0.031", weight: 3 },      // Very low probability
+    { amount: "0.52", weight: 0.9 },     // Extremely low probability
+    { amount: "1", weight: 0.1 }         // Ultra rare probability
+  ];
+
+  // Calculate free spins based on ads watched (1 spin per 10 ads)
+  async calculateFreeSpins(userId: string): Promise<number> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return 0;
+
+    const adsWatched = user.adsWatchedToday || 0;
+    const freeSpins = Math.floor(adsWatched / 10);
+    
+    return freeSpins;
+  }
+
+  // Update free spins after watching ads
+  async updateFreeSpins(userId: string): Promise<void> {
+    const freeSpins = await this.calculateFreeSpins(userId);
+    
+    await db.update(users)
+      .set({ 
+        freeSpinsAvailable: freeSpins,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  // Get weighted random spin reward
+  private getSpinReward(): string {
+    const totalWeight = this.SPIN_REWARDS.reduce((sum, reward) => sum + reward.weight, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (const reward of this.SPIN_REWARDS) {
+      random -= reward.weight;
+      if (random <= 0) {
+        return reward.amount;
+      }
+    }
+    
+    return this.SPIN_REWARDS[0].amount; // Fallback to smallest reward
+  }
+
+  // Check if user can spin (has free spins or can use extra spins)
+  async canSpin(userId: string): Promise<{ canSpin: boolean; freeSpins: number; extraSpinsUsed: number; reason?: string }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      return { canSpin: false, freeSpins: 0, extraSpinsUsed: 0, reason: 'User not found' };
+    }
+
+    const freeSpins = user.freeSpinsAvailable || 0;
+    const extraSpinsUsed = user.extraSpinsUsed || 0;
+
+    return {
+      canSpin: freeSpins > 0,
+      freeSpins,
+      extraSpinsUsed
+    };
+  }
+
+  // Perform a spin and return the reward
+  async performSpin(userId: string, isExtraSpin: boolean = false): Promise<{ success: boolean; reward?: string; message?: string }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    const freeSpins = user.freeSpinsAvailable || 0;
+    const extraSpinsUsed = user.extraSpinsUsed || 0;
+    const totalSpinsUsed = user.totalSpinsUsed || 0;
+
+    // Check if user has free spins
+    if (!isExtraSpin && freeSpins <= 0) {
+      return { success: false, message: 'No free spins available' };
+    }
+
+    // Check if extra spin is allowed (max 10 per day)
+    if (isExtraSpin && extraSpinsUsed >= 10) {
+      return { success: false, message: 'Daily extra spin limit reached (10 spins)' };
+    }
+
+    // Get reward amount
+    const rewardAmount = this.getSpinReward();
+
+    // Update user's spin counters and balance
+    const updates: any = {
+      totalSpinsUsed: totalSpinsUsed + 1,
+      lastSpinDate: new Date(),
+      updatedAt: new Date()
+    };
+
+    if (isExtraSpin) {
+      updates.extraSpinsUsed = extraSpinsUsed + 1;
+    } else {
+      updates.freeSpinsAvailable = freeSpins - 1;
+    }
+
+    await db.update(users).set(updates).where(eq(users.id, userId));
+
+    // Add earning for the spin reward
+    await this.addEarning({
+      userId,
+      amount: rewardAmount,
+      source: isExtraSpin ? 'spin_extra' : 'spin_free',
+      description: `Spin wheel reward: ${rewardAmount} TON`
+    });
+
+    // Record transaction
+    await this.addTransaction({
+      userId,
+      amount: rewardAmount,
+      type: 'addition',
+      source: isExtraSpin ? 'spin_extra' : 'spin_free',
+      description: `Spin wheel reward: ${rewardAmount} TON`,
+      metadata: { spinType: isExtraSpin ? 'extra' : 'free' }
+    });
+
+    return { 
+      success: true, 
+      reward: rewardAmount,
+      message: `You won ${rewardAmount} TON!`
+    };
+  }
+
+  // Get user's spin status
+  async getUserSpinStatus(userId: string): Promise<{ freeSpins: number; extraSpinsUsed: number; totalSpinsUsed: number; canEarnExtraSpin: boolean }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      return { freeSpins: 0, extraSpinsUsed: 0, totalSpinsUsed: 0, canEarnExtraSpin: false };
+    }
+
+    const adsWatched = user.adsWatchedToday || 0;
+    const extraSpinsUsed = user.extraSpinsUsed || 0;
+    
+    // Can earn extra spin if watched at least 2 ads and under daily limit
+    const canEarnExtraSpin = adsWatched >= 2 && extraSpinsUsed < 10;
+
+    return {
+      freeSpins: user.freeSpinsAvailable || 0,
+      extraSpinsUsed: user.extraSpinsUsed || 0,
+      totalSpinsUsed: user.totalSpinsUsed || 0,
+      canEarnExtraSpin
+    };
+  }
+
+  // Earn extra spin by watching 2 ads
+  async earnExtraSpin(userId: string): Promise<{ success: boolean; message: string }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    const adsWatched = user.adsWatchedToday || 0;
+    const extraSpinsUsed = user.extraSpinsUsed || 0;
+
+    if (extraSpinsUsed >= 10) {
+      return { success: false, message: 'Daily extra spin limit reached (10 spins)' };
+    }
+
+    if (adsWatched < 2) {
+      return { success: false, message: 'Need to watch 2 ads to earn an extra spin' };
+    }
+
+    return { success: true, message: 'Ready to earn extra spin! Watch 2 more ads.' };
   }
 }
 
