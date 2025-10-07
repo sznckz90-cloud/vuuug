@@ -4,6 +4,36 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes (October 2025)
 
+## Spin & Win Feature (October 7, 2025)
+- **New Standalone Page**: Created `/spin` page accessible from bottom navigation with dedicated Spin & Win functionality
+- **Ad Watching Integration**: Users can watch ads directly on the Spin page to earn both TON rewards and free spins
+- **Earning Mechanics**:
+  - 1 free spin earned per 10 ads watched
+  - Maximum 26 daily spins (160 ads = 16 free spins + 10 extra spins)
+  - Each ad watched earns 0.0002 TON + progress toward spins
+- **Weighted Random Rewards**: 8 reward tiers from 0.000071 to 1 TON with probability-based selection
+  - Very High: 0.000071 TON (40% chance)
+  - High: 0.00029 TON (30% chance)
+  - Medium: 0.0006 TON (15% chance)
+  - Medium-Low: 0.0013 TON (8% chance)
+  - Low: 0.0062 TON (4% chance)
+  - Very Low: 0.031 TON (2% chance)
+  - Extremely Low: 0.52 TON (0.9% chance)
+  - Ultra Rare: 1 TON (0.1% chance)
+- **Database Schema**: Added spin tracking columns (freeSpinsAvailable, extraSpinsUsed, totalSpinsUsed, lastSpinDate)
+- **Daily Reset**: All spin counters automatically reset at 00:00 UTC alongside other daily metrics
+- **UI Features**:
+  - Visual progress bar showing ads watched toward next spin
+  - Animated spin wheel with TON coin icon (💎)
+  - Comprehensive reward probability table
+  - Real-time spin availability display
+- **Files**:
+  - `client/src/pages/Spin.tsx` (new standalone page with ad watching)
+  - `server/routes.ts` (added `/api/spin/status` and `/api/spin/perform` endpoints)
+  - `server/storage.ts` (spin logic, weighted random selection, daily reset integration)
+  - `shared/schema.ts` (database schema updates)
+  - `server/migrate.ts` (automatic migration for spin columns)
+
 ## Bot Account Dashboard Update
 - **New Dashboard Format**: Updated the Telegram bot's `/account` command to display a clean, emoji-free dashboard
 - **Format**: Shows Username, User ID, Joined date, Balance (TON), Earned today (TON), Earned total (TON), Referrals count, and Referral Income (TON)
@@ -71,6 +101,14 @@ Preferred communication style: Simple, everyday language.
   - Earns 0.0002 TON per ad watched
   - Daily limit of 160 ads
   - 30-second cooldown between ads
+  - Integrated with Spin & Win system (1 free spin per 10 ads)
+- **Spin & Win System**: Gamified reward system with weighted random selection
+  - Free spins: 1 spin per 10 ads watched (max 16 from 160 ads)
+  - Extra spins: 1 spin per 2 ads watched (max 10 extra spins)
+  - Total daily maximum: 26 spins
+  - Reward tiers: 8 different TON amounts from 0.000071 to 1 TON
+  - Probability-weighted selection ensures rare big rewards
+  - All spin data resets daily at 00:00 UTC
 - **Daily Streak Rewards System**: Gamified consecutive day tracking with ad-based rewards
   - **Normal Reward**: 0.0001 TON per daily claim
   - **5-Day Bonus**: 0.0003 TON bonus on the 5th consecutive day, then streak resets to 0

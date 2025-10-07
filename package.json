@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development ./node_modules/.bin/tsx server/index.ts",
+    "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:node-telegram-bot-api --alias:@shared=./shared",
     "start": "NODE_ENV=production node dist/index.js",
     "postbuild": "npm run db:push",
