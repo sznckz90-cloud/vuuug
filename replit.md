@@ -1,6 +1,33 @@
 # Overview
 
-CashWatch is a React-based web application that allows users to earn money by watching advertisements. The platform features a gamified experience with daily streaks, referral systems, and withdrawal capabilities. Built with a modern full-stack architecture using React, Express, PostgreSQL, and shadcn/ui components.
+CashWatch is a React-based web application that allows users to earn money by watching advertisements. The platform features a gamified experience with daily streaks, referral systems, and withdrawal capabilities. Built with a modern full-stack architecture using React, Express, PostgreSQL, shadcn/ui components, and Telegram Bot integration.
+
+# Recent Changes (October 2025)
+
+## Bot Account Dashboard Update
+- **New Dashboard Format**: Updated the Telegram bot's `/account` command to display a clean, emoji-free dashboard
+- **Format**: Shows Username, User ID, Joined date, Balance (TON), Earned today (TON), Earned total (TON), Referrals count, and Referral Income (TON)
+- **Refresh Button**: Added inline "🔄 Refresh" button that updates all data in real-time without spam
+- **Implementation**: New `formatAccountDashboard()` function in `server/telegram.ts` with callback handler for refresh
+
+## Referral System Anti-Spam Fix
+- **Disabled Real-time Notifications**: Removed instant bot messages when referred friends watch ads
+- **Data Still Tracked**: All referral commissions (10% of ad earnings) continue to be calculated and stored in the database
+- **View Total**: Users can see their total referral income via the dashboard refresh button or app
+- **Location**: Modified `processReferralCommission()` in `server/storage.ts`
+
+## Affiliates Page (App Integration)
+- **New Page**: Created `/affiliates` page accessible from bottom navigation
+- **Features**:
+  - Displays referral link with copy and share functionality
+  - Shows total referral count and total referral income in real-time
+  - Explains reward structure: 0.002 TON instant bonus + 10% lifetime commission
+  - Includes warning about avoiding fake accounts
+- **Files**: 
+  - `client/src/pages/Affiliates.tsx` (new page)
+  - `client/src/App.tsx` (added route)
+  - `client/src/components/Layout.tsx` (added navigation item)
+  - `server/routes.ts` (added `/api/referrals/stats` endpoint)
 
 # User Preferences
 
