@@ -82,6 +82,17 @@ export async function ensureDatabaseSchema(): Promise<void> {
       console.log('ℹ️ [MIGRATION] User task columns already exist or cannot be added');
     }
     
+    // Add Spin Section columns
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS free_spins_available INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_spins_used INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_spins_used INTEGER DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_spin_date TIMESTAMP`);
+      console.log('✅ [MIGRATION] Spin Section columns added');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] Spin Section columns already exist');
+    }
+    
     // Ensure referral_code column exists and has proper constraints
     try {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`);
