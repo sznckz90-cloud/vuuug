@@ -67,7 +67,9 @@ export const users = pgTable("users", {
   lastResetDate: timestamp("last_reset_date"),
   // Spin Section tracking
   freeSpinsAvailable: integer("free_spins_available").default(0),
-  extraSpinsUsed: integer("extra_spins_used").default(0),
+  extraSpinAdsWatched: integer("extra_spin_ads_watched").default(0),
+  extraSpins: integer("extra_spins").default(0),
+  spinsUsedToday: integer("spins_used_today").default(0),
   totalSpinsUsed: integer("total_spins_used").default(0),
   lastSpinDate: timestamp("last_spin_date"),
   createdAt: timestamp("created_at").defaultNow(),
