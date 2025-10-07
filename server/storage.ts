@@ -2809,118 +2809,40 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ===== SPIN SECTION =====
-  
-  // Spin reward configuration with weighted probabilities
-  private readonly SPIN_REWARDS = [
-    { amount: "0.000071", weight: 40 },  // Very high probability
-    { amount: "0.00029", weight: 25 },   // High probability
-    { amount: "0.0006", weight: 15 },    // Medium probability
-    { amount: "0.0013", weight: 10 },    // Medium-low probability
-    { amount: "0.0062", weight: 6 },     // Low probability
-    { amount: "0.031", weight: 3 },      // Very low probability
-    { amount: "0.52", weight: 0.9 },     // Extremely low probability
-    { amount: "1", weight: 0.1 }         // Ultra rare probability
-  ];
 
-  // Calculate free spins based on ads watched (1 spin per 10 ads, max 16)
-  async calculateFreeSpins(userId: string): Promise<number> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) return 0;
-
-    const adsWatched = user.adsWatchedToday || 0;
-    const freeSpins = Math.floor(adsWatched / 10);
-    
-    // Max 16 free spins daily (160 ads / 10)
-    return Math.min(freeSpins, 16);
-  }
-
-  // Update free spins after watching ads
-  async updateFreeSpins(userId: string): Promise<void> {
-    const freeSpins = await this.calculateFreeSpins(userId);
-    
-    await db.update(users)
-      .set({ 
-        freeSpinsAvailable: freeSpins,
-        updatedAt: new Date()
-      })
-      .where(eq(users.id, userId));
-  }
-
-  // Get spin reward - always returns fixed amount
+  // Get random spin reward between 0.00001 and 0.0001 TON
   private getSpinReward(): string {
-    // Fixed reward: always 0.00007 TON
-    return "0.00007";
+    const reward = Math.random() * (0.0001 - 0.00001) + 0.00001;
+    return reward.toFixed(6);
   }
 
-  // Check if user can spin (has free spins or extra spins)
-  async canSpin(userId: string): Promise<{ canSpin: boolean; freeSpins: number; extraSpins: number; reason?: string }> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) {
-      return { canSpin: false, freeSpins: 0, extraSpins: 0, reason: 'User not found' };
-    }
-
-    const freeSpins = user.freeSpinsAvailable || 0;
-    const extraSpins = user.extraSpins || 0;
-    const totalSpins = freeSpins + extraSpins;
-
-    return {
-      canSpin: totalSpins > 0,
-      freeSpins,
-      extraSpins
-    };
-  }
-
-  // Perform a spin and return the reward
-  async performSpin(userId: string, isExtraSpin: boolean = false): Promise<{ success: boolean; reward?: string; message?: string }> {
+  // Perform a spin and return the reward (simple ad-watch-spin model)
+  async performSpin(userId: string): Promise<{ success: boolean; reward?: string; message?: string }> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) {
       return { success: false, message: 'User not found' };
     }
 
-    const freeSpins = user.freeSpinsAvailable || 0;
-    const extraSpins = user.extraSpins || 0;
-    const spinsUsedToday = user.spinsUsedToday || 0;
     const totalSpinsUsed = user.totalSpinsUsed || 0;
 
-    // Check total daily limit (16 free + 10 extra = 26 max)
-    if (spinsUsedToday >= 26) {
-      return { success: false, message: 'Daily spin limit reached (26 spins)' };
-    }
-
-    // Check if user has free spins or extra spins
-    if (!isExtraSpin && freeSpins <= 0) {
-      return { success: false, message: 'No free spins available' };
-    }
-
-    if (isExtraSpin && extraSpins <= 0) {
-      return { success: false, message: 'No extra spins available' };
-    }
-
-    // Get reward amount (always 0.00007 TON)
+    // Get random reward amount between 0.00001 and 0.0001 TON
     const rewardAmount = this.getSpinReward();
 
-    // Update user's spin counters and balance
-    const updates: any = {
-      spinsUsedToday: spinsUsedToday + 1,
-      totalSpinsUsed: totalSpinsUsed + 1,
-      lastSpinDate: new Date(),
-      updatedAt: new Date()
-    };
-
-    if (isExtraSpin) {
-      updates.extraSpins = extraSpins - 1;
-    } else {
-      updates.freeSpinsAvailable = freeSpins - 1;
-    }
-
-    await db.update(users).set(updates).where(eq(users.id, userId));
+    // Update user's total spins counter
+    await db.update(users)
+      .set({
+        totalSpinsUsed: totalSpinsUsed + 1,
+        lastSpinDate: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
 
     // Add earning for the spin reward
     await this.addEarning({
       userId,
       amount: rewardAmount,
-      source: isExtraSpin ? 'spin_extra' : 'spin_free',
-      description: `Spin wheel reward: ${rewardAmount} TON`
+      source: 'spin',
+      description: `Spin reward: ${rewardAmount} TON`
     });
 
     // Record transaction
@@ -2928,9 +2850,9 @@ export class DatabaseStorage implements IStorage {
       userId,
       amount: rewardAmount,
       type: 'addition',
-      source: isExtraSpin ? 'spin_extra' : 'spin_free',
-      description: `Spin wheel reward: ${rewardAmount} TON`,
-      metadata: { spinType: isExtraSpin ? 'extra' : 'free' }
+      source: 'spin',
+      description: `Spin reward: ${rewardAmount} TON`,
+      metadata: { reward: rewardAmount }
     });
 
     return { 
@@ -2940,91 +2862,6 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // Get user's spin status
-  async getUserSpinStatus(userId: string): Promise<{ 
-    freeSpins: number; 
-    extraSpins: number; 
-    spinsUsedToday: number;
-    totalSpinsUsed: number; 
-    adsWatchedToday: number;
-    extraSpinAdsWatched: number;
-    canWatchForExtraSpin: boolean;
-  }> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) {
-      return { 
-        freeSpins: 0, 
-        extraSpins: 0, 
-        spinsUsedToday: 0,
-        totalSpinsUsed: 0, 
-        adsWatchedToday: 0,
-        extraSpinAdsWatched: 0,
-        canWatchForExtraSpin: false 
-      };
-    }
-
-    const extraSpins = user.extraSpins || 0;
-    const extraSpinAdsWatched = user.extraSpinAdsWatched || 0;
-    
-    // Can watch ads for extra spin if under daily limit (max 10 extra spins)
-    const canWatchForExtraSpin = extraSpins < 10;
-
-    return {
-      freeSpins: user.freeSpinsAvailable || 0,
-      extraSpins: user.extraSpins || 0,
-      spinsUsedToday: user.spinsUsedToday || 0,
-      totalSpinsUsed: user.totalSpinsUsed || 0,
-      adsWatchedToday: user.adsWatchedToday || 0,
-      extraSpinAdsWatched: user.extraSpinAdsWatched || 0,
-      canWatchForExtraSpin
-    };
-  }
-
-  // Watch ad specifically for extra spins (2 ads = 1 extra spin, max 10)
-  async watchSpinAd(userId: string): Promise<{ success: boolean; message: string; extraSpinsEarned?: number }> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) {
-      return { success: false, message: 'User not found' };
-    }
-
-    const extraSpins = user.extraSpins || 0;
-    const extraSpinAdsWatched = user.extraSpinAdsWatched || 0;
-
-    // Check if user has reached max extra spins (10 per day)
-    if (extraSpins >= 10) {
-      return { success: false, message: 'Daily extra spin limit reached (10 spins)' };
-    }
-
-    // Increment extra spin ad watch counter
-    const newExtraSpinAdsWatched = extraSpinAdsWatched + 1;
-    
-    // Calculate how many extra spins should be awarded (1 per 2 ads)
-    const newExtraSpins = Math.min(Math.floor(newExtraSpinAdsWatched / 2), 10);
-    
-    await db.update(users)
-      .set({ 
-        extraSpinAdsWatched: newExtraSpinAdsWatched,
-        extraSpins: newExtraSpins,
-        updatedAt: new Date()
-      })
-      .where(eq(users.id, userId));
-
-    // Check if user just earned a new extra spin
-    const spinsEarned = newExtraSpins - extraSpins;
-    
-    if (spinsEarned > 0) {
-      return { 
-        success: true, 
-        message: `You earned ${spinsEarned} extra spin! (${newExtraSpinAdsWatched % 2}/2 ads for next spin)`,
-        extraSpinsEarned: spinsEarned
-      };
-    } else {
-      return { 
-        success: true, 
-        message: `Ad watched! (${newExtraSpinAdsWatched % 2}/2 ads for next extra spin)`
-      };
-    }
-  }
 }
 
 export const storage = new DatabaseStorage();

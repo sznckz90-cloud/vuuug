@@ -555,60 +555,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Watch ad specifically for extra spins (separate from regular ads)
-  app.post('/api/spin/watch-ad', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      
-      const result = await storage.watchSpinAd(userId);
-      
-      if (result.success) {
-        // Refresh spin status
-        await storage.getUserSpinStatus(userId);
-        
-        // Send real-time update to user
-        sendRealtimeUpdate(userId, {
-          type: 'extra_spin_ad',
-          message: result.message,
-          extraSpinsEarned: result.extraSpinsEarned || 0,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      res.json(result);
-    } catch (error) {
-      console.error("Error watching spin ad:", error);
-      res.status(500).json({ success: false, message: "Failed to watch ad for spin" });
-    }
-  });
-
-  // Get spin status
-  app.get('/api/spin/status', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const status = await storage.getUserSpinStatus(userId);
-      
-      res.json({ success: true, ...status });
-    } catch (error) {
-      console.error("Error getting spin status:", error);
-      res.status(500).json({ message: "Failed to get spin status" });
-    }
-  });
-
-  // Perform a spin
+  // Perform a spin (watch ad first, then spin)
   app.post('/api/spin/perform', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { isExtraSpin } = req.body;
       
-      const result = await storage.performSpin(userId, isExtraSpin || false);
+      const result = await storage.performSpin(userId);
       
       if (result.success) {
         // Send real-time update to user
         sendRealtimeUpdate(userId, {
           type: 'spin_reward',
           amount: result.reward,
-          message: `🎉 Spin Reward! You won: ${result.reward} TON`,
+          message: `🎉 You won: ${result.reward} TON`,
           timestamp: new Date().toISOString()
         });
       }
