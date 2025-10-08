@@ -72,6 +72,9 @@ export const users = pgTable("users", {
   spinsUsedToday: integer("spins_used_today").default(0),
   totalSpinsUsed: integer("total_spins_used").default(0),
   lastSpinDate: timestamp("last_spin_date"),
+  // New ticket-based spin system
+  spinTickets: integer("spin_tickets").default(0),
+  spinCoins: integer("spin_coins").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
