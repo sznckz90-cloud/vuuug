@@ -65,16 +65,6 @@ export const users = pgTable("users", {
   channelVisited: boolean("channel_visited").default(false),
   appShared: boolean("app_shared").default(false),
   lastResetDate: timestamp("last_reset_date"),
-  // Spin Section tracking
-  freeSpinsAvailable: integer("free_spins_available").default(0),
-  extraSpinAdsWatched: integer("extra_spin_ads_watched").default(0),
-  extraSpins: integer("extra_spins").default(0),
-  spinsUsedToday: integer("spins_used_today").default(0),
-  totalSpinsUsed: integer("total_spins_used").default(0),
-  lastSpinDate: timestamp("last_spin_date"),
-  // New ticket-based spin system
-  spinTickets: integer("spin_tickets").default(0),
-  spinCoins: integer("spin_coins").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
