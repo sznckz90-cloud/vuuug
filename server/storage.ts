@@ -2808,57 +2808,139 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // ===== SPIN SECTION =====
+  // ===== SPIN SECTION (NEW TICKET & COIN SYSTEM) =====
 
-  // Get random spin reward between 0.00001 and 0.0001 TON
-  private getSpinReward(): string {
-    const reward = Math.random() * (0.0001 - 0.00001) + 0.00001;
-    return reward.toFixed(6);
+  // Get weighted random coin reward (1-100)
+  // Higher probability for lower values, rare chance for high values
+  private getWeightedCoinReward(): number {
+    const rand = Math.random();
+    
+    // 50% chance: 1-10 coins
+    if (rand < 0.5) {
+      return Math.floor(Math.random() * 10) + 1;
+    }
+    // 30% chance: 11-30 coins
+    else if (rand < 0.8) {
+      return Math.floor(Math.random() * 20) + 11;
+    }
+    // 15% chance: 31-60 coins
+    else if (rand < 0.95) {
+      return Math.floor(Math.random() * 30) + 31;
+    }
+    // 4% chance: 61-90 coins
+    else if (rand < 0.99) {
+      return Math.floor(Math.random() * 30) + 61;
+    }
+    // 1% chance: 91-100 coins
+    else {
+      return Math.floor(Math.random() * 10) + 91;
+    }
   }
 
-  // Perform a spin and return the reward (simple ad-watch-spin model)
-  async performSpin(userId: string): Promise<{ success: boolean; reward?: string; message?: string }> {
+  // Perform a spin (requires 1 ticket, gives coins)
+  async performSpin(userId: string): Promise<{ success: boolean; reward?: number; message?: string }> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) {
       return { success: false, message: 'User not found' };
     }
 
-    const totalSpinsUsed = user.totalSpinsUsed || 0;
+    // Check if user has tickets
+    const tickets = user.spinTickets || 0;
+    if (tickets <= 0) {
+      return { success: false, message: 'No spin tickets available' };
+    }
 
-    // Get random reward amount between 0.00001 and 0.0001 TON
-    const rewardAmount = this.getSpinReward();
+    // Get weighted random coin reward
+    const coinReward = this.getWeightedCoinReward();
 
-    // Update user's total spins counter
+    // Update user: consume 1 ticket, add coins, update counters
     await db.update(users)
       .set({
-        totalSpinsUsed: totalSpinsUsed + 1,
+        spinTickets: tickets - 1,
+        spinCoins: (user.spinCoins || 0) + coinReward,
+        totalSpinsUsed: (user.totalSpinsUsed || 0) + 1,
         lastSpinDate: new Date(),
         updatedAt: new Date()
       })
       .where(eq(users.id, userId));
 
-    // Add earning for the spin reward
+    return { 
+      success: true, 
+      reward: coinReward,
+      message: `You won ${coinReward} coins!`
+    };
+  }
+
+  // Add spin tickets (watch ad = 1 ticket, invite friend = 10 tickets)
+  async addSpinTickets(userId: string, amount: number, source: 'ad' | 'invite'): Promise<{ success: boolean; tickets?: number }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      return { success: false };
+    }
+
+    const newTickets = (user.spinTickets || 0) + amount;
+
+    await db.update(users)
+      .set({
+        spinTickets: newTickets,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+
+    return { success: true, tickets: newTickets };
+  }
+
+  // Exchange coins for TON (1,000,000 coins = 1 TON, min 100 coins)
+  async exchangeCoinsForTON(userId: string, coinsToExchange: number): Promise<{ success: boolean; tonAmount?: string; message?: string }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    // Validate minimum exchange
+    if (coinsToExchange < 100) {
+      return { success: false, message: 'Minimum exchange is 100 coins' };
+    }
+
+    // Check if user has enough coins
+    const availableCoins = user.spinCoins || 0;
+    if (availableCoins < coinsToExchange) {
+      return { success: false, message: 'Insufficient coins' };
+    }
+
+    // Calculate TON amount (1,000,000 coins = 1 TON)
+    const tonAmount = (coinsToExchange / 1000000).toFixed(6);
+
+    // Update user: deduct coins, add TON to balance
+    await db.update(users)
+      .set({
+        spinCoins: availableCoins - coinsToExchange,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+
+    // Add earning for the exchange
     await this.addEarning({
       userId,
-      amount: rewardAmount,
-      source: 'spin',
-      description: `Spin reward: ${rewardAmount} TON`
+      amount: tonAmount,
+      source: 'coin_exchange',
+      description: `Exchanged ${coinsToExchange} coins for ${tonAmount} TON`
     });
 
     // Record transaction
     await this.addTransaction({
       userId,
-      amount: rewardAmount,
+      amount: tonAmount,
       type: 'addition',
-      source: 'spin',
-      description: `Spin reward: ${rewardAmount} TON`,
-      metadata: { reward: rewardAmount }
+      source: 'coin_exchange',
+      description: `Exchanged ${coinsToExchange} coins for ${tonAmount} TON`,
+      metadata: { coins: coinsToExchange, ton: tonAmount }
     });
 
     return { 
       success: true, 
-      reward: rewardAmount,
-      message: `You won ${rewardAmount} TON!`
+      tonAmount,
+      message: `Successfully exchanged ${coinsToExchange} coins for ${tonAmount} TON!`
     };
   }
 

@@ -555,7 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Perform a spin (watch ad first, then spin)
+  // Perform a spin (requires ticket, gives coins)
   app.post('/api/spin/perform', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
@@ -567,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sendRealtimeUpdate(userId, {
           type: 'spin_reward',
           amount: result.reward,
-          message: `🎉 You won: ${result.reward} TON`,
+          message: `🎉 You won ${result.reward} coins!`,
           timestamp: new Date().toISOString()
         });
       }
@@ -576,6 +576,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error performing spin:", error);
       res.status(500).json({ success: false, message: "Failed to perform spin" });
+    }
+  });
+
+  // Add spin tickets (watch ad = 1 ticket)
+  app.post('/api/spin/add-ticket', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      const result = await storage.addSpinTickets(userId, 1, 'ad');
+      
+      if (result.success) {
+        sendRealtimeUpdate(userId, {
+          type: 'spin_ticket',
+          tickets: result.tickets,
+          message: `✅ You earned 1 spin ticket!`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error adding spin ticket:", error);
+      res.status(500).json({ success: false, message: "Failed to add spin ticket" });
+    }
+  });
+
+  // Exchange coins for TON
+  app.post('/api/spin/exchange', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { coins } = req.body;
+      
+      if (!coins || typeof coins !== 'number') {
+        return res.status(400).json({ success: false, message: 'Invalid coins amount' });
+      }
+      
+      const result = await storage.exchangeCoinsForTON(userId, coins);
+      
+      if (result.success) {
+        sendRealtimeUpdate(userId, {
+          type: 'coin_exchange',
+          tonAmount: result.tonAmount,
+          message: `💎 Exchanged ${coins} coins for ${result.tonAmount} TON!`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error exchanging coins:", error);
+      res.status(500).json({ success: false, message: "Failed to exchange coins" });
     }
   });
 
