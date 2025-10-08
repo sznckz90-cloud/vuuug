@@ -36,7 +36,7 @@ export default function Affiliates() {
   const isLoading = userLoading || statsLoading;
 
   // Generate referral link
-  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'LightningSatsbot';
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
   const referralLink = user?.referralCode 
     ? `https://t.me/${botUsername}?start=${user.referralCode}`
     : '';
