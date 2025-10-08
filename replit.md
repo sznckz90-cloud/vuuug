@@ -4,6 +4,39 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes (October 2025)
 
+## Telegram Bot Interface Simplification (October 8, 2025)
+- **Simplified Welcome Message**: Updated bot welcome message with cleaner text format
+- **Inline Buttons Only**: Bot now uses only 3 inline buttons for core actions:
+  - "👨‍💻 Start Earning" - Opens the web app
+  - "📢 Project News" - Links to @PaidAdsNews channel
+  - "💁‍♂️ Technical Support" - Links to @szxzyz support chat
+- **Removed Bottom Buttons**: Eliminated all reply keyboard buttons (Account, Affiliates, How-to)
+- **Streamlined UX**: Users interact exclusively through inline buttons and the web app
+- **Referral System Security**: Verified and confirmed secure referral tracking:
+  - Referrer ID assigned immediately when user joins via referral link
+  - Self-referrals prevented by user ID comparison
+  - 10% commission awarded instantly when referred user watches ads
+  - 0.002 TON bonus awarded when friend watches first ad
+- **Files Modified**: `server/telegram.ts`
+
+## Modern Curved Bottom Navigation (October 8, 2025)
+- **New Navigation Design**: Completely redesigned bottom navigation bar inspired by modern mobile apps
+- **Visual Features**:
+  - Curved, rounded corners (2rem border radius) with translucent background and backdrop blur
+  - Shadow effects and gradient overlays for depth
+  - Active tab with pill-shaped background highlight
+  - Pulsing glow effect on active icons
+- **Animation Features**:
+  - Smooth page transitions with slide/fade effects (opacity + horizontal movement)
+  - Navigation bar entry animation with spring physics
+  - Active tab indicator morphs between items using Framer Motion's layoutId
+  - Bounce and scaling effects on tab switches
+  - Icon lift animation when active
+  - Tap scale feedback for better interaction
+- **Modern Icons**: Migrated to Lucide React icons (Home, CheckSquare, Users, Wallet)
+- **Implementation**: Built with Framer Motion for fluid animations and gestures
+- **File**: `client/src/components/Layout.tsx`
+
 ## Spin & Win Feature (October 7, 2025)
 - **New Standalone Page**: Created `/spin` page accessible from bottom navigation with dedicated Spin & Win functionality
 - **Ad Watching Integration**: Users can watch ads directly on the Spin page to earn both TON rewards and free spins
