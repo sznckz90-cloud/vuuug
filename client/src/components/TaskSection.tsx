@@ -132,52 +132,50 @@ export default function TaskSection() {
     const isAvailable = isTaskAvailable(task);
     
     return (
-      <Card key={task.id} className={`mb-4 ${!isAvailable ? 'opacity-50' : ''}`}>
-        <CardHeader className="pb-3">
+      <Card key={task.id} className={`mb-2 ${!isAvailable ? 'opacity-50' : ''}`}>
+        <CardHeader className="pb-1.5 pt-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-                <Tv size={20} />
-              </div>
-              <CardTitle className="text-lg">{task.title}</CardTitle>
+            <div className="flex items-center gap-2">
+              <Tv className="text-primary" size={18} />
+              <CardTitle className="text-base">{task.title}</CardTitle>
             </div>
-            <Badge variant="outline" className="px-3 py-1">
+            <Badge variant="outline" className="px-2 py-0.5 text-xs">
               {formatTaskReward(task.rewardAmount)}
             </Badge>
           </div>
         </CardHeader>
         
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 pb-2.5">
           {/* Progress bar */}
-          <div className="mb-3">
-            <div className="flex justify-between text-sm text-muted-foreground mb-1">
+          <div className="mb-2">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span>Progress</span>
               <span>{Math.min(task.progress, task.required)}/{task.required} ads</span>
             </div>
-            <Progress value={progressPercentage} className="h-2" />
+            <Progress value={progressPercentage} className="h-1.5" />
           </div>
           
           {/* Show message if task is locked */}
           {!isAvailable && !task.claimed && (
-            <div className="text-sm text-muted-foreground text-center py-2">
+            <div className="text-xs text-muted-foreground text-center py-1">
               Complete previous tasks first
             </div>
           )}
 
           {/* Claim button */}
           {task.claimed ? (
-            <Button disabled className="w-full flex items-center gap-2 bg-green-600 text-white">
-              <Check size={16} />
+            <Button disabled className="w-full h-8 flex items-center gap-2 bg-green-600 text-white text-sm">
+              <Check size={14} />
               Done
             </Button>
           ) : task.completed && isAvailable ? (
             <Button 
               onClick={() => claimTaskMutation.mutate(task.level)}
               disabled={claimTaskMutation.isPending}
-              className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+              className="w-full h-8 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm"
             >
               {claimTaskMutation.isPending ? (
-                <RefreshCw size={16} className="animate-spin" />
+                <RefreshCw size={14} className="animate-spin" />
               ) : (
                 "claim"
               )}
@@ -198,38 +196,39 @@ export default function TaskSection() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Show warning if Telegram WebApp is not available */}
       {!telegramInitData && (
-        <Alert className="mb-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
-          <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-            ⚠️ Please open this app inside Telegram to complete tasks and earn rewards.
+        <Alert className="mb-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-2">
+          <AlertDescription className="text-yellow-800 dark:text-yellow-200 text-xs">
+            ⚠️ Open in Telegram to complete tasks and earn rewards.
           </AlertDescription>
         </Alert>
       )}
       
       {/* Task list header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Reset at 00:00 UTC</span>
+        <span className="text-xs text-muted-foreground">Reset at 00:00 UTC</span>
         <Button 
           variant="outline" 
           size="sm" 
           onClick={() => refetch()}
           disabled={tasksLoading}
+          className="h-7"
         >
-          <RefreshCw size={16} className={tasksLoading ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={tasksLoading ? "animate-spin" : ""} />
         </Button>
       </div>
 
       {/* Ads counter display */}
       <Card className="bg-muted/50">
-        <CardContent className="p-4">
+        <CardContent className="p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Tv className="text-purple-600" size={20} />
-              <span className="font-medium">Ads Watched Today</span>
+              <Tv className="text-primary" size={18} />
+              <span className="font-medium text-sm">Ads Watched Today</span>
             </div>
-            <Badge variant="secondary" className="text-lg px-3 py-1">
+            <Badge variant="secondary" className="text-base px-2.5 py-0.5">
               {adsWatchedToday}/160
             </Badge>
           </div>
@@ -238,7 +237,7 @@ export default function TaskSection() {
 
       {/* Task cards */}
       {tasks.length > 0 ? (
-        <div className="max-h-[400px] overflow-y-auto p-1">
+        <div className="space-y-0">
           {tasks.map(renderTaskCard)}
         </div>
       ) : (
