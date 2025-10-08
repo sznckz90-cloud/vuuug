@@ -671,9 +671,6 @@ export class DatabaseStorage implements IStorage {
 
     // NEW: Update task progress for the new task system
     await this.updateTaskProgress(userId, adsCount);
-    
-    // Update free spins for Spin Section (1 spin per 10 ads)
-    await this.updateFreeSpins(userId);
   }
 
   async resetDailyAdsCount(userId: string): Promise<void> {
@@ -1154,24 +1151,23 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
       
-      // DISABLED: Real-time notifications removed to prevent spam
-      // Users can see their total referral income in the account dashboard
-      // try {
-      //   const { sendReferralCommissionNotification } = await import('./telegram');
-      //   const referrer = await this.getUser(referralInfo.referrerId);
-      //   const referredUser = await this.getUser(userId);
-      //   
-      //   if (referrer && referrer.telegram_id && referredUser) {
-      //     await sendReferralCommissionNotification(
-      //       referrer.telegram_id,
-      //       referredUser.username || referredUser.firstName || 'your friend',
-      //       commissionAmount
-      //     );
-      //   }
-      // } catch (error) {
-      //   console.error('❌ Error sending referral commission notification:', error);
-      //   // Don't throw error to avoid disrupting the main earning process
-      // }
+      // Send Telegram notification to referrer about the commission
+      try {
+        const { sendReferralCommissionNotification } = await import('./telegram');
+        const referrer = await this.getUser(referralInfo.referrerId);
+        const referredUser = await this.getUser(userId);
+        
+        if (referrer && referrer.telegram_id && referredUser) {
+          await sendReferralCommissionNotification(
+            referrer.telegram_id,
+            referredUser.username || referredUser.firstName || 'your friend',
+            commissionAmount
+          );
+        }
+      } catch (error) {
+        console.error('❌ Error sending referral commission notification:', error);
+        // Don't throw error to avoid disrupting the main earning process
+      }
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
@@ -2770,14 +2766,10 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`🔄 Resetting ${usersNeedingReset.length} users for ${currentDateString}`);
       
-      // Reset all users' daily counters including spin counters
+      // Reset all users' daily counters
       await db.update(users)
         .set({ 
           adsWatchedToday: 0,
-          freeSpinsAvailable: 0,
-          extraSpinAdsWatched: 0,
-          extraSpins: 0,
-          spinsUsedToday: 0,
           lastResetDate: currentDate,
           updatedAt: new Date(),
         })
@@ -2807,143 +2799,6 @@ export class DatabaseStorage implements IStorage {
       // Don't throw to avoid disrupting the interval
     }
   }
-
-  // ===== SPIN SECTION (NEW TICKET & COIN SYSTEM) =====
-
-  // Get weighted random coin reward (1-100)
-  // Higher probability for lower values, rare chance for high values
-  private getWeightedCoinReward(): number {
-    const rand = Math.random();
-    
-    // 50% chance: 1-10 coins
-    if (rand < 0.5) {
-      return Math.floor(Math.random() * 10) + 1;
-    }
-    // 30% chance: 11-30 coins
-    else if (rand < 0.8) {
-      return Math.floor(Math.random() * 20) + 11;
-    }
-    // 15% chance: 31-60 coins
-    else if (rand < 0.95) {
-      return Math.floor(Math.random() * 30) + 31;
-    }
-    // 4% chance: 61-90 coins
-    else if (rand < 0.99) {
-      return Math.floor(Math.random() * 30) + 61;
-    }
-    // 1% chance: 91-100 coins
-    else {
-      return Math.floor(Math.random() * 10) + 91;
-    }
-  }
-
-  // Perform a spin (requires 1 ticket, gives coins)
-  async performSpin(userId: string): Promise<{ success: boolean; reward?: number; message?: string }> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) {
-      return { success: false, message: 'User not found' };
-    }
-
-    // Check if user has tickets
-    const tickets = user.spinTickets || 0;
-    if (tickets <= 0) {
-      return { success: false, message: 'No spin tickets available' };
-    }
-
-    // Get weighted random coin reward
-    const coinReward = this.getWeightedCoinReward();
-
-    // Update user: consume 1 ticket, add coins, update counters
-    await db.update(users)
-      .set({
-        spinTickets: tickets - 1,
-        spinCoins: (user.spinCoins || 0) + coinReward,
-        totalSpinsUsed: (user.totalSpinsUsed || 0) + 1,
-        lastSpinDate: new Date(),
-        updatedAt: new Date()
-      })
-      .where(eq(users.id, userId));
-
-    return { 
-      success: true, 
-      reward: coinReward,
-      message: `You won ${coinReward} coins!`
-    };
-  }
-
-  // Add spin tickets (watch ad = 1 ticket, invite friend = 10 tickets)
-  async addSpinTickets(userId: string, amount: number, source: 'ad' | 'invite'): Promise<{ success: boolean; tickets?: number }> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) {
-      return { success: false };
-    }
-
-    const newTickets = (user.spinTickets || 0) + amount;
-
-    await db.update(users)
-      .set({
-        spinTickets: newTickets,
-        updatedAt: new Date()
-      })
-      .where(eq(users.id, userId));
-
-    return { success: true, tickets: newTickets };
-  }
-
-  // Exchange coins for TON (1,000,000 coins = 1 TON, min 100 coins)
-  async exchangeCoinsForTON(userId: string, coinsToExchange: number): Promise<{ success: boolean; tonAmount?: string; message?: string }> {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) {
-      return { success: false, message: 'User not found' };
-    }
-
-    // Validate minimum exchange
-    if (coinsToExchange < 100) {
-      return { success: false, message: 'Minimum exchange is 100 coins' };
-    }
-
-    // Check if user has enough coins
-    const availableCoins = user.spinCoins || 0;
-    if (availableCoins < coinsToExchange) {
-      return { success: false, message: 'Insufficient coins' };
-    }
-
-    // Calculate TON amount (1,000,000 coins = 1 TON)
-    const tonAmount = (coinsToExchange / 1000000).toFixed(6);
-
-    // Update user: deduct coins, add TON to balance
-    await db.update(users)
-      .set({
-        spinCoins: availableCoins - coinsToExchange,
-        updatedAt: new Date()
-      })
-      .where(eq(users.id, userId));
-
-    // Add earning for the exchange
-    await this.addEarning({
-      userId,
-      amount: tonAmount,
-      source: 'coin_exchange',
-      description: `Exchanged ${coinsToExchange} coins for ${tonAmount} TON`
-    });
-
-    // Record transaction
-    await this.addTransaction({
-      userId,
-      amount: tonAmount,
-      type: 'addition',
-      source: 'coin_exchange',
-      description: `Exchanged ${coinsToExchange} coins for ${tonAmount} TON`,
-      metadata: { coins: coinsToExchange, ton: tonAmount }
-    });
-
-    return { 
-      success: true, 
-      tonAmount,
-      message: `Successfully exchanged ${coinsToExchange} coins for ${tonAmount} TON!`
-    };
-  }
-
 }
 
 export const storage = new DatabaseStorage();
