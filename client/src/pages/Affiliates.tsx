@@ -53,10 +53,18 @@ export default function Affiliates() {
     }
   };
 
-  // Share referral link via Telegram
+  // Share referral link via Telegram with new message template
   const shareViaWebApp = () => {
     if (referralLink && window.Telegram?.WebApp) {
-      const shareText = `🚀 Join me on Lightning Sats and start earning TON!\n\n💰 Watch ads, complete tasks, and get paid!\n\n👉 ${referralLink}`;
+      const shareText = `🚀 Join me on *Paid Ads* and start earning TON instantly!
+
+💸 Watch ads, complete simple tasks, and get rewarded every day.
+🎁 Plus — earn bonuses when your friends join using your link!
+
+🔗 My Invite Link:
+${referralLink}
+
+Let's grow together! 💪`;
       
       window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`);
     } else {
@@ -90,69 +98,38 @@ export default function Affiliates() {
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-20 pt-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground mb-2">👥 Affiliates</h1>
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-foreground mb-1">👥 Affiliates</h1>
           <p className="text-muted-foreground text-sm">
             Invite friends and earn rewards
           </p>
         </div>
 
-        {/* Earnings Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">💰 Referral Income</CardTitle>
+        {/* How It Works - Moved to top */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">💡 How It Works</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Total Referrals</span>
-                <span className="text-2xl font-bold text-primary">
-                  {stats?.referralCount || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Total Earned</span>
-                <span className="text-2xl font-bold text-primary">
-                  {formatTON(stats?.referralEarnings || '0')} TON
-                </span>
-              </div>
-              <Button 
-                onClick={() => refetchStats()} 
-                variant="outline" 
-                className="w-full"
-              >
-                <i className="fas fa-sync-alt mr-2"></i>
-                Refresh Stats
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* How It Works */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">💡 How It Works</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-start gap-3">
-                <div className="bg-primary/10 rounded-full p-2 mt-1">
-                  <i className="fas fa-gift text-primary text-sm"></i>
+          <CardContent className="pt-0">
+            <div className="space-y-2.5 text-sm">
+              <div className="flex items-start gap-2.5">
+                <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
+                  <i className="fas fa-gift text-primary text-xs"></i>
                 </div>
                 <div>
-                  <p className="font-medium text-foreground">Instant Bonus</p>
-                  <p className="text-muted-foreground">
+                  <p className="font-medium text-foreground text-sm">Instant Bonus</p>
+                  <p className="text-muted-foreground text-xs">
                     Get <span className="text-primary font-semibold">0.002 TON</span> when your friend watches their first ad
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="bg-primary/10 rounded-full p-2 mt-1">
-                  <i className="fas fa-percent text-primary text-sm"></i>
+              <div className="flex items-start gap-2.5">
+                <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
+                  <i className="fas fa-percent text-primary text-xs"></i>
                 </div>
                 <div>
-                  <p className="font-medium text-foreground">Lifetime Commission</p>
-                  <p className="text-muted-foreground">
+                  <p className="font-medium text-foreground text-sm">Lifetime Commission</p>
+                  <p className="text-muted-foreground text-xs">
                     Earn <span className="text-primary font-semibold">10% commission</span> on every ad your friends watch
                   </p>
                 </div>
@@ -161,50 +138,58 @@ export default function Affiliates() {
           </CardContent>
         </Card>
 
-        {/* Referral Link Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">🔗 Your Referral Link</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="bg-muted p-3 rounded-lg break-all text-sm font-mono">
-                {referralLink || 'Loading...'}
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={copyReferralLink} 
-                  variant="outline" 
-                  className="flex-1"
-                  disabled={!referralLink}
-                >
-                  <i className="fas fa-copy mr-2"></i>
-                  Copy Link
-                </Button>
-                <Button 
-                  onClick={shareViaWebApp} 
-                  className="flex-1"
-                  disabled={!referralLink}
-                >
-                  <i className="fas fa-share mr-2"></i>
-                  Share
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Referral Link - Right below "How It Works" */}
+        <div className="mb-4 space-y-2">
+          <label className="text-sm font-medium text-foreground">🔗 Your Invite Link</label>
+          <div className="bg-muted p-2.5 rounded-lg break-all text-xs font-mono">
+            {referralLink || 'Loading...'}
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={copyReferralLink} 
+              variant="outline" 
+              className="flex-1 h-9 text-sm bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+              disabled={!referralLink}
+            >
+              <i className="fas fa-copy mr-1.5 text-xs"></i>
+              Copy Link
+            </Button>
+            <Button 
+              onClick={shareViaWebApp} 
+              className="flex-1 h-9 text-sm bg-green-500 hover:bg-green-600 text-white"
+              disabled={!referralLink}
+            >
+              <i className="fas fa-share mr-1.5 text-xs"></i>
+              Share Link
+            </Button>
+          </div>
+        </div>
 
-        {/* Important Notice */}
-        <Card className="border-yellow-500/20 bg-yellow-500/5">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <i className="fas fa-exclamation-triangle text-yellow-500 mt-1"></i>
-              <div className="text-sm text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">Important Reminder</p>
-                <p>
-                  Invite real people only. Avoid fake or duplicate accounts to prevent penalties or bans.
-                </p>
+        {/* Referral Income - Compact version below link */}
+        <Card className="border-primary/20">
+          <CardContent className="p-4">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Referrals</span>
+                <span className="text-xl font-bold text-primary">
+                  {stats?.referralCount || 0}
+                </span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Earned</span>
+                <span className="text-xl font-bold text-primary">
+                  {formatTON(stats?.referralEarnings || '0')} TON
+                </span>
+              </div>
+              <Button 
+                onClick={() => refetchStats()} 
+                variant="outline" 
+                size="sm"
+                className="w-full h-8 text-xs"
+              >
+                <i className="fas fa-sync-alt mr-1.5 text-xs"></i>
+                Refresh Stats
+              </Button>
             </div>
           </CardContent>
         </Card>
