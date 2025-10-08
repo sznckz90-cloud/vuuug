@@ -238,49 +238,64 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
-  const message = `Welcome to Lightning Sats Bot! You are authenticated ✅
+  const message = `👋 Welcome to Paid Ads!
 
-🚀 Your time = Money. No excuses.
-💸 Watch. Earn. Withdraw. Repeat.
+Turn your time into crypto rewards! Earn TON by:
 
-👉 Ready to turn your screen-time into income? Let's go!`;
+🎬 Watching ads
+👥 Inviting friends
+📝 Completing daily tasks
 
-const inlineKeyboard = {
-  inline_keyboard: [
-    [
-      {
-        text: "🚀 Start Earning",
-        web_app: { url: process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com" } // Telegram Mini App
-      }
-    ],
-    [
-      {
-        text: "📢 Stay Updated",
-        url: "https://t.me/LightingSats"
-      },
-      {
-        text: "💬 Need Help?",
-        url: "https://t.me/szxzyz"
-      }
+💸 Instant payouts directly to your wallet.
+🚀 Maximize your earnings and track your progress easily.`;
+
+  // Get app URL from environment
+  const appUrl = process.env.RENDER_EXTERNAL_URL || 
+                 (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null) ||
+                 (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
+                 "https://workspace.replit.app";
+
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [
+        {
+          text: "🚀 Start App 🚀",
+          web_app: { url: appUrl }
+        }
+      ],
+      [
+        {
+          text: "👤 Account",
+          callback_data: "show_account"
+        },
+        {
+          text: "👥 Affiliates",
+          callback_data: "show_affiliates"
+        }
+      ],
+      [
+        {
+          text: "🔔 News",
+          url: "https://t.me/PaidAdsNews"
+        },
+        {
+          text: "💬 Support",
+          url: "https://t.me/szxzyz"
+        }
+      ]
     ]
-  ]
-};
+  };
 
   return { message, inlineKeyboard };
 }
 
 export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   const { message, inlineKeyboard } = formatWelcomeMessage();
-  const keyboard = createBotKeyboard();
   
-  // Send welcome message with inline keyboard first
+  // Send welcome message with inline keyboard only (no reply keyboard)
   const welcomeSent = await sendUserTelegramNotification(userId, message, inlineKeyboard);
   
-  // Then send the reply keyboard in a separate message
-  const keyboardMessage = 'Please use the buttons below:';
-  const keyboardSent = await sendUserTelegramNotification(userId, keyboardMessage, keyboard);
-  
-  return welcomeSent && keyboardSent;
+  return welcomeSent;
 }
 
 // Format account dashboard with refresh button
@@ -306,8 +321,7 @@ export async function formatAccountDashboard(userId: string): Promise<{ message:
     year: 'numeric'
   }) : 'Unknown';
   
-  // Get daily earnings (default to 0 if null)
-  const dailyEarnings = formatTON(user.dailyEarnings || '0');
+  // Get earnings (default to 0 if null)
   const totalEarnings = formatTON(user.totalEarned || '0');
   const balance = formatTON(user.balance || '0');
   const refEarnings = formatTON(referralEarnings || '0');
@@ -319,10 +333,7 @@ export async function formatAccountDashboard(userId: string): Promise<{ message:
 
 📅 Joined on: ${joinDate}
 💵 Balance: ${balance} TON
-
-💰 Earned today: ${dailyEarnings} TON
 💰 Earned total: ${totalEarnings} TON
-
 👥 Referrals: ${referralStats?.length || 0}
 💰 Referral Income: ${refEarnings} TON`;
   
@@ -463,20 +474,6 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
               const txHash = result.withdrawal.transactionHash || 'N/A';
               
-              const now = new Date();
-              const utcHours = String(now.getUTCHours()).padStart(2, '0');
-              const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
-              const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
-              const utcTime = `${utcHours}:${utcMinutes}:${utcSeconds}`;
-              
-              const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-              const weekday = weekdays[now.getUTCDay()];
-              const day = now.getUTCDate();
-              const month = months[now.getUTCMonth()];
-              const year = now.getUTCFullYear();
-              const utcDate = `${weekday}, ${day} ${month} ${year}`;
-              
               // Create clickable transaction hash link if available
               const txHashDisplay = (txHash && txHash !== 'N/A') 
                 ? `<a href="https://tonviewer.com/transaction/${txHash}">${txHash}</a>`
@@ -484,10 +481,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               
               let userMessage = `🎉 Withdrawal Successful! ✅\n\n`;
               userMessage += `🔔 Payout: ${formattedAmount} TON\n`;
-              userMessage += `💳 Wallet: ${walletAddress}\n\n`;
-              userMessage += `⏰ Time (UTC): ${utcTime}\n`;
-              userMessage += `📆 Date: ${utcDate}\n\n`;
-              userMessage += `💡 Remaining Balance: ${formattedBalance} TON\n`;
+              userMessage += `💳 Wallet: ${walletAddress}\n`;
               userMessage += `📝 Txn Hash: ${txHashDisplay}\n\n`;
               userMessage += `✨ Keep earning & growing! Your journey to success continues… 💪`;
               
@@ -588,6 +582,124 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             body: JSON.stringify({ 
               callback_query_id: callbackQuery.id,
               text: 'Error refreshing dashboard',
+              show_alert: true
+            })
+          });
+        }
+        return true;
+      }
+      
+      // Handle show_account callback (from welcome message inline button)
+      if (data === 'show_account') {
+        try {
+          // Get user from database
+          const user = await storage.getUserByTelegramId(chatId);
+          if (!user) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'User not found',
+                show_alert: true
+              })
+            });
+            return true;
+          }
+          
+          // Get account dashboard data
+          const { message: accountMessage, inlineKeyboard } = await formatAccountDashboard(user.id);
+          
+          // Send account message
+          await sendUserTelegramNotification(chatId, accountMessage, inlineKeyboard);
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: '✅ Account loaded'
+            })
+          });
+        } catch (error) {
+          console.error('Error showing account:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error loading account',
+              show_alert: true
+            })
+          });
+        }
+        return true;
+      }
+      
+      // Handle show_affiliates callback (from welcome message inline button)
+      if (data === 'show_affiliates') {
+        try {
+          // Get user from database
+          const user = await storage.getUserByTelegramId(chatId);
+          if (!user) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'User not found',
+                show_alert: true
+              })
+            });
+            return true;
+          }
+          
+          // Ensure referral code exists
+          await storage.ensureUserHasReferralCode(user.id);
+          
+          // Get updated user with referral code
+          const updatedUser = await storage.getUser(user.id);
+          if (!updatedUser || !updatedUser.referralCode) {
+            throw new Error('Failed to generate referral code');
+          }
+          
+          // Get referral stats
+          const referralStats = await storage.getUserReferrals(user.id);
+          const referralEarnings = await storage.getUserReferralEarnings(user.id);
+          
+          const referralLink = `https://t.me/Paid_Adzbot?start=${updatedUser.referralCode}`;
+          
+          const affiliatesMessage = `👥 Invite friends & Earn Rewards!
+
+💰 Get 0.002 TON + 10% commission
+🚀 Share now and start building your earnings instantly.
+
+🔗 Your Personal Invite Link:
+${referralLink}
+
+👥 Total Referrals: ${referralStats?.length || 0}
+💰 Referral Earnings: ${formatTON(referralEarnings || '0')} TON
+
+📌 Reminder: Invite real people only. Avoid fake or duplicate accounts to prevent penalties or bans.`;
+          
+          await sendUserTelegramNotification(chatId, affiliatesMessage);
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: '✅ Affiliates info sent'
+            })
+          });
+        } catch (error) {
+          console.error('Error showing affiliates:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error loading affiliates',
               show_alert: true
             })
           });
