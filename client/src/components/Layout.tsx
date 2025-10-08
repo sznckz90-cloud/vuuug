@@ -23,13 +23,13 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-transparent">
       {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50 backdrop-blur-sm">
+      <header className="bg-card/80 backdrop-blur-xl border-b border-border sticky top-0 z-50">
         <div className="max-w-md mx-auto px-4 py-4 flex justify-end items-center">
           {/* Admin Button - Top Right */}
           {isAdmin && (
             <Link href="/admin">
-              <button className={`p-2 rounded-lg transition-colors ${
-                location === "/admin" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
+              <button className={`p-2.5 rounded-xl transition-all tap-glow ${
+                location === "/admin" ? "gradient-button" : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
               }`} data-testid="admin-button">
                 <i className="fas fa-cog text-lg" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
               </button>
@@ -63,7 +63,8 @@ export default function Layout({ children }: LayoutProps) {
       >
         <div className="max-w-md mx-auto px-4 pb-4">
           <motion.div 
-            className="relative bg-card/80 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-border/50"
+            className="relative bg-card/90 backdrop-blur-xl rounded-[2rem] border border-border"
+            style={{ boxShadow: '0 0 28px rgba(25, 118, 210, 0.3)' }}
             animate={{ 
               scale: [1, 1.02, 1],
             }}
@@ -74,7 +75,8 @@ export default function Layout({ children }: LayoutProps) {
             key={location}
           >
             {/* Glow effect for active item */}
-            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-t from-primary/10 to-transparent opacity-50 pointer-events-none" />
+            <div className="absolute inset-0 rounded-[2rem] opacity-50 pointer-events-none" 
+              style={{ background: 'linear-gradient(to top, rgba(25, 118, 210, 0.15), transparent)' }} />
             
             <div className="flex justify-around items-center py-3 px-2 relative">
               {navItems.map((item) => {
@@ -84,9 +86,9 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <Link key={item.href} href={item.href}>
                     <motion.button
-                      className={`relative flex flex-col items-center gap-1 px-6 py-2.5 rounded-2xl transition-all duration-300 select-none ${
+                      className={`relative flex flex-col items-center gap-1 px-6 py-2.5 rounded-2xl transition-all duration-300 select-none tap-glow ${
                         isActive 
-                          ? "text-primary" 
+                          ? "text-white" 
                           : "text-muted-foreground hover:text-foreground"
                       }`}
                       data-testid={`link-${item.label.toLowerCase()}`}
@@ -102,11 +104,12 @@ export default function Layout({ children }: LayoutProps) {
                         }
                       }}
                     >
-                      {/* Active background pill */}
+                      {/* Active background pill with gradient */}
                       {isActive && (
                         <motion.div
                           layoutId="activeTab"
-                          className="absolute inset-0 bg-primary/10 rounded-2xl"
+                          className="absolute inset-0 rounded-2xl"
+                          style={{ background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.2), rgba(106, 27, 154, 0.2))' }}
                           initial={false}
                           transition={{
                             type: "spring",
@@ -119,7 +122,8 @@ export default function Layout({ children }: LayoutProps) {
                       {/* Glow effect on active */}
                       {isActive && (
                         <motion.div
-                          className="absolute inset-0 bg-primary/20 rounded-2xl blur-lg"
+                          className="absolute inset-0 rounded-2xl blur-lg"
+                          style={{ background: 'rgba(25, 118, 210, 0.3)' }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: [0, 1, 0] }}
                           transition={{
@@ -144,10 +148,11 @@ export default function Layout({ children }: LayoutProps) {
                         <Icon 
                           className={`transition-all duration-300 ${
                             isActive 
-                              ? "w-6 h-6 drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" 
+                              ? "w-6 h-6 icon-gradient" 
                               : "w-5 h-5"
                           }`}
                           strokeWidth={isActive ? 2.5 : 2}
+                          style={isActive ? { filter: 'drop-shadow(0 0 8px rgba(25, 118, 210, 0.6))' } : {}}
                         />
                       </motion.div>
 

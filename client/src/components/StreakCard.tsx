@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
@@ -182,53 +180,56 @@ export default function StreakCard({ user }: StreakCardProps) {
   const canClaim = timeUntilNextClaim === "Available now";
 
   return (
-    <Card className="rounded-xl shadow-sm border border-border mt-3">
-      <CardContent className="p-3">
-        <div className="text-center mb-3">
-          <h2 className="text-lg font-bold text-foreground mb-1 flex items-center justify-center">
-            <i className="fas fa-fire text-secondary mr-2"></i>
+    <div className="section-box mt-4 tap-glow">
+      <div className="p-4">
+        <div className="text-center mb-4">
+          <h2 className="text-xl font-bold title-text mb-1 flex items-center justify-center">
+            <i className="fas fa-fire icon-gradient mr-2 text-2xl"></i>
             Daily Streak Rewards
           </h2>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             Earn 0.0001 TON daily • 0.0015 TON bonus on 5th day
           </p>
         </div>
         
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center mb-3">
           <span className="text-muted-foreground text-sm">Current streak</span>
-          <span className="text-lg font-bold text-foreground" data-testid="text-current-streak">
+          <span className="text-xl font-bold title-text" data-testid="text-current-streak">
             {currentStreak} days
           </span>
         </div>
         
-        <div className="bg-muted rounded-full h-2 mb-4 overflow-hidden">
+        <div className="bg-muted rounded-full h-3 mb-4 overflow-hidden">
           <div 
-            className="bg-gradient-to-r from-primary to-secondary h-full rounded-full transition-all duration-500" 
-            style={{ width: `${streakProgress}%` }}
+            className="h-full rounded-full transition-all duration-500" 
+            style={{ 
+              width: `${streakProgress}%`,
+              background: 'linear-gradient(135deg, #1976D2, #6A1B9A, #C2185B)'
+            }}
           ></div>
         </div>
         
         {!isMember ? (
-          <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
-            <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
+          <div className="mb-3 p-3 bg-orange-950/50 border border-orange-800 rounded-lg">
+            <p className="text-sm font-medium text-orange-200 mb-2">
               ⚠️ Channel membership required!
             </p>
-            <p className="text-xs text-orange-700 dark:text-orange-300 mb-3">
+            <p className="text-xs text-orange-300 mb-3">
               You must join our channel to claim daily rewards.
             </p>
-            <Button
+            <button
               onClick={handleJoinChannel}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold transition-colors text-sm"
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition-colors text-sm tap-glow"
             >
               <i className="fas fa-telegram mr-2"></i>
               Join Channel
-            </Button>
+            </button>
           </div>
         ) : (
-          <Button
+          <button
             onClick={handleClaimStreak}
             disabled={isClaiming || !canClaim}
-            className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground py-3 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
+            className="w-full gradient-button py-3 rounded-lg font-bold transition-colors text-base disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center tap-glow"
             data-testid="button-claim-streak"
           >
             {isClaiming ? (
@@ -242,13 +243,13 @@ export default function StreakCard({ user }: StreakCardProps) {
                 Claim Streak
               </span>
             ) : (
-              <span className="text-xs font-normal opacity-80">
+              <span className="text-sm font-normal opacity-80">
                 Next claim in: {timeUntilNextClaim} UTC
               </span>
             )}
-          </Button>
+          </button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
