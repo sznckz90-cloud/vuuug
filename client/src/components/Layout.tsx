@@ -43,7 +43,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-        <div className="max-w-md mx-auto flex justify-center items-center py-3 gap-1">
+        <div className="max-w-md mx-auto flex justify-center items-center py-3 gap-4">
           <Link href="/">
             <button className={`flex flex-col items-center p-2 transition-colors ${
               location === "/" ? "text-primary" : "text-muted-foreground hover:text-primary"
@@ -58,22 +58,6 @@ export default function Layout({ children }: LayoutProps) {
             }`} data-testid="link-tasks">
               <i className="fas fa-tasks text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
               <span className="text-xs font-medium">Tasks</span>
-            </button>
-          </Link>
-          <Link href="/spin">
-            <button className={`flex flex-col items-center p-2 transition-colors ${
-              location === "/spin" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-spin">
-              <i className="fas fa-dice text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs font-medium">Spin</span>
-            </button>
-          </Link>
-          <Link href="/affiliates">
-            <button className={`flex flex-col items-center p-2 transition-colors ${
-              location === "/affiliates" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`} data-testid="link-affiliates">
-              <i className="fas fa-users text-lg mb-1" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              <span className="text-xs font-medium">Affiliates</span>
             </button>
           </Link>
           <Link href="/wallet">
