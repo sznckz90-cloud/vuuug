@@ -246,7 +246,6 @@ Turn your time into crypto rewards! Earn TON by:
 👥 Inviting friends
 📝 Completing daily tasks
 
-💸 Instant payouts directly to your wallet.
 🚀 Maximize your earnings and track your progress easily.`;
 
   // Get app URL from environment
@@ -259,27 +258,17 @@ Turn your time into crypto rewards! Earn TON by:
     inline_keyboard: [
       [
         {
-          text: "🚀 Start App 🚀",
+          text: "👨‍💻 Start Earning",
           web_app: { url: appUrl }
         }
       ],
       [
         {
-          text: "👤 Account",
-          callback_data: "show_account"
-        },
-        {
-          text: "👥 Affiliates",
-          callback_data: "show_affiliates"
-        }
-      ],
-      [
-        {
-          text: "🔔 News",
+          text: "📢 Project News",
           url: "https://t.me/PaidAdsNews"
         },
         {
-          text: "💬 Support",
+          text: "💁‍♂️ Technical Support",
           url: "https://t.me/szxzyz"
         }
       ]
@@ -589,124 +578,6 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         return true;
       }
       
-      // Handle show_account callback (from welcome message inline button)
-      if (data === 'show_account') {
-        try {
-          // Get user from database
-          const user = await storage.getUserByTelegramId(chatId);
-          if (!user) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                callback_query_id: callbackQuery.id,
-                text: 'User not found',
-                show_alert: true
-              })
-            });
-            return true;
-          }
-          
-          // Get account dashboard data
-          const { message: accountMessage, inlineKeyboard } = await formatAccountDashboard(user.id);
-          
-          // Send account message
-          await sendUserTelegramNotification(chatId, accountMessage, inlineKeyboard);
-          
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: '✅ Account loaded'
-            })
-          });
-        } catch (error) {
-          console.error('Error showing account:', error);
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: 'Error loading account',
-              show_alert: true
-            })
-          });
-        }
-        return true;
-      }
-      
-      // Handle show_affiliates callback (from welcome message inline button)
-      if (data === 'show_affiliates') {
-        try {
-          // Get user from database
-          const user = await storage.getUserByTelegramId(chatId);
-          if (!user) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                callback_query_id: callbackQuery.id,
-                text: 'User not found',
-                show_alert: true
-              })
-            });
-            return true;
-          }
-          
-          // Ensure referral code exists
-          await storage.ensureUserHasReferralCode(user.id);
-          
-          // Get updated user with referral code
-          const updatedUser = await storage.getUser(user.id);
-          if (!updatedUser || !updatedUser.referralCode) {
-            throw new Error('Failed to generate referral code');
-          }
-          
-          // Get referral stats
-          const referralStats = await storage.getUserReferrals(user.id);
-          const referralEarnings = await storage.getUserReferralEarnings(user.id);
-          
-          const referralLink = `https://t.me/Paid_Adzbot?start=${updatedUser.referralCode}`;
-          
-          const affiliatesMessage = `👥 Invite friends & Earn Rewards!
-
-💰 Get 0.002 TON + 10% commission
-🚀 Share now and start building your earnings instantly.
-
-🔗 Your Personal Invite Link:
-${referralLink}
-
-👥 Total Referrals: ${referralStats?.length || 0}
-💰 Referral Earnings: ${formatTON(referralEarnings || '0')} TON
-
-📌 Reminder: Invite real people only. Avoid fake or duplicate accounts to prevent penalties or bans.`;
-          
-          await sendUserTelegramNotification(chatId, affiliatesMessage);
-          
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: '✅ Affiliates info sent'
-            })
-          });
-        } catch (error) {
-          console.error('Error showing affiliates:', error);
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: 'Error loading affiliates',
-              show_alert: true
-            })
-          });
-        }
-        return true;
-      }
-      
       // Handle admin withdrawal rejection
       if (data && data.startsWith('withdraw_reject_')) {
         const withdrawalId = data.replace('withdraw_reject_', '');
@@ -829,8 +700,7 @@ ${referralLink}
       if (parameter && parameter.startsWith('task_')) {
         console.log('⚠️ Promotion system disabled');
         const errorMessage = '❌ This feature is not available.';
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
+        await sendUserTelegramNotification(chatId, errorMessage);
         return true;
       }
       
@@ -950,154 +820,7 @@ ${referralLink}
       return true;
     }
 
-    // Handle keyboard button presses
-    if (text === '👤 Account') {
-      console.log('⌨️ Processing Account button press');
-      
-      try {
-        // Get account dashboard data
-        const { message: accountMessage, inlineKeyboard } = await formatAccountDashboard(dbUser.id);
-        
-        const messageSent = await sendUserTelegramNotification(chatId, accountMessage, inlineKeyboard);
-        console.log('📧 Account dashboard sent successfully:', messageSent);
-        
-        return true;
-      } catch (error) {
-        console.error('❌ Error fetching account data:', error);
-        const errorMessage = '❌ Sorry, there was an error fetching your account data. Please try again later.';
-        const keyboard = createBotKeyboard();
-        await sendUserTelegramNotification(chatId, errorMessage, keyboard);
-        return true;
-      }
-    }
-    
-    
-    if (text === '👥 Affiliates') {
-      console.log('⌨️ Processing Affiliates button press');
-      
-      // Ensure referral code exists for this user
-      let finalUser = dbUser;
-      if (!dbUser.referralCode) {
-        console.log('🔄 Generating missing referral code for user:', dbUser.id);
-        try {
-          await storage.generateReferralCode(dbUser.id);
-          finalUser = await storage.getUser(dbUser.id) || dbUser;
-        } catch (error) {
-          console.error('❌ Failed to generate referral code:', error);
-        }
-      }
-      
-      // Generate referral link
-      const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
-      const referralLink = `https://t.me/${botUsername}?start=${finalUser.referralCode}`;
-      
-      const affiliatesMessage = `👥 Invite friends & Earn Rewards!
-
-💰 Get 0.002 TON + 10% commission
-🚀 Share now and start building your earnings instantly.
-
-🔗 Your Personal Invite Link:
-${referralLink}
-
-📌 Reminder: Invite real people only. Avoid fake or duplicate accounts to prevent penalties or bans.`;
-      
-      const keyboard = createBotKeyboard();
-      const messageSent = await sendUserTelegramNotification(chatId, affiliatesMessage, keyboard);
-      console.log('📧 Affiliates message sent successfully:', messageSent);
-      
-      return true;
-    }
-    
-    if (text === '📈 Promotion') {
-      console.log('⌨️ Processing Promotion button press');
-      
-      const promotionMessage = `📈 Promotion
-→ 📝 Creation of an ad campaign
-
-Choose promotion type:`;
-      
-      const promotionKeyboard = {
-        keyboard: [
-          [
-            '📢 Channel',
-            '🤖 Bot'
-          ],
-          [
-            '⬅️ Back'
-          ]
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      };
-      
-      await sendUserTelegramNotification(chatId, promotionMessage, promotionKeyboard);
-      return true;
-    }
-    
-    if (text === '⁉️ How-to') {
-      console.log('⌨️ Processing How-to button press');
-      
-      const howToMessage = `⁉️ How to Use CashWatch Bot
-
-🔸 **Account** - View your profile and earnings
-🔸 **Affiliates** - Get your referral link to invite friends
-
-💰 **How to Earn:**
-• Complete tasks in the app
-• Refer friends with your link
-
-🚀 Start by visiting the web app and completing available tasks!`;
-      
-      const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, howToMessage, keyboard);
-      return true;
-    }
-    
-    
-    if (text === '🏠 Start Earning') {
-      console.log('⌨️ Processing Start Earning button press');
-      // Send welcome message with web app link
-      const keyboard = createBotKeyboard();
-      const { message } = formatWelcomeMessage();
-      const messageSent = await sendUserTelegramNotification(chatId, message, keyboard);
-      console.log('📧 Start Earning message sent successfully:', messageSent);
-      return true;
-    }
-    
-    if (text === '🔙 Back to Menu') {
-      console.log('⌨️ Processing Back to Menu button press');
-      
-      const welcomeMessage = 'Welcome back to the main menu!';
-      const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, welcomeMessage, keyboard);
-      return true;
-    }
-    
-    
-    
-    // Handle Back button
-    if (text === '⬅️ Back') {
-      console.log('⌨️ Processing Back button');
-      
-      // Go back to main menu
-      const keyboard = createBotKeyboard();
-      const backMessage = 'Back to main menu.';
-      await sendUserTelegramNotification(chatId, backMessage, keyboard);
-      return true;
-    }
-    
-    // Handle Cancel button
-    if (text === '❌ Cancel') {
-      console.log('⌨️ Processing Cancel button');
-      
-      // Go back to main menu
-      const keyboard = createBotKeyboard();
-      const backMessage = 'Back to main menu.';
-      await sendUserTelegramNotification(chatId, backMessage, keyboard);
-      return true;
-    }
-
-    // ✅ Done button removed - all task claiming happens in the App only
+    // All keyboard button handlers removed - bot uses inline buttons only
 
 
     // All claim verification removed - tasks can only be completed in the App
@@ -1166,52 +889,17 @@ Choose promotion type:`;
       }
     }
 
-    // Handle Back button navigation
-    if (text === '⬅️ Back' || text === '🔙 Back to Menu') {
-      console.log('⌨️ Processing Back button press');
-      
-      const backMessage = 'Back to main menu:';
-      const keyboard = createBotKeyboard();
-      await sendUserTelegramNotification(chatId, backMessage, keyboard);
-      return true;
-    }
-
-
-
-
-
-    // For any other message, show the main keyboard
-    console.log('❓ Unknown message, showing main menu to:', chatId);
+    // For any other message, send welcome message with inline buttons
+    console.log('❓ Unknown command, sending welcome message to:', chatId);
     
-    const instructionMessage = 'Please use the buttons below:';
-    const keyboard = createBotKeyboard();
-    const messageSent = await sendUserTelegramNotification(chatId, instructionMessage, keyboard);
-    console.log('📧 Main menu message sent successfully:', messageSent);
+    const messageSent = await sendWelcomeMessage(chatId);
+    console.log('📧 Welcome message sent successfully:', messageSent);
     
     return true;
   } catch (error) {
     console.error('Error handling Telegram message:', error);
     return false;
   }
-}
-
-// No slash commands - using keyboard buttons only
-
-// Create reply keyboard with command buttons
-export function createBotKeyboard() {
-  return {
-    keyboard: [
-      [
-        '👤 Account',
-        '👥 Affiliates'
-      ],
-      [
-        '⁉️ How-to'
-      ]
-    ],
-    resize_keyboard: true,
-    one_time_keyboard: false  // This makes the keyboard persistent
-  };
 }
 
 // Set up webhook (this should be called once to register the webhook with Telegram)
