@@ -253,12 +253,7 @@ export default function Wallet() {
   return (
     <Layout>
       <div className="max-w-md mx-auto p-4 pb-20">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Wallet</h1>
-        <p className="text-sm text-muted-foreground">Manage your balance and withdrawals</p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="balance">
             <i className="fas fa-wallet mr-2"></i>
@@ -271,15 +266,15 @@ export default function Wallet() {
         </TabsList>
 
         {/* Balance Tab */}
-        <TabsContent value="balance" className="space-y-4">
+        <TabsContent value="balance" className="space-y-3">
           {/* Current Balance Card */}
           <Card className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
-            <CardContent className="p-4 text-center">
-              <div className="text-primary-foreground/80 text-sm font-medium mb-2">Available Balance</div>
-              <div className="text-2xl font-bold mb-2">
+            <CardContent className="p-3 text-center">
+              <div className="text-primary-foreground/80 text-xs font-medium mb-1">Available Balance</div>
+              <div className="text-xl font-bold mb-1">
                 {formatCurrency(user?.balance || "0")}
               </div>
-              <div className="text-primary-foreground/60 text-xs">
+              <div className="text-primary-foreground/60 text-[10px]">
                 Ready for withdrawal
               </div>
             </CardContent>
@@ -287,26 +282,26 @@ export default function Wallet() {
 
           {/* Withdrawal History */}
           <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <i className="fas fa-history text-muted-foreground"></i>
-                Withdrawal History
+            <CardHeader className="py-2 pb-1.5">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <i className="fas fa-history text-muted-foreground text-sm"></i>
+                History
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-3 pt-2">
               {withdrawalsLoading ? (
-                <div className="text-center py-4">
-                  <div className="animate-spin text-primary text-lg mb-2">
+                <div className="text-center py-3">
+                  <div className="animate-spin text-primary text-base mb-1">
                     <i className="fas fa-spinner"></i>
                   </div>
-                  <div className="text-muted-foreground text-sm">Loading...</div>
+                  <div className="text-muted-foreground text-xs">Loading...</div>
                 </div>
               ) : withdrawals.length > 0 ? (
-                <div className="max-h-[200px] overflow-y-auto p-4 space-y-3 bg-secondary/20 rounded-xl">
+                <div className="space-y-0 divide-y divide-border/50">
                   {[...withdrawals].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((withdrawal) => (
-                    <div key={withdrawal.id} className="flex items-start justify-between py-2">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className={`w-[10px] h-[10px] rounded-full mt-1 flex-shrink-0 ${
+                    <div key={withdrawal.id} className="flex items-center justify-between py-2 first:pt-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                           withdrawal.status === 'paid' || withdrawal.status === 'Approved' || withdrawal.status === 'Successfull' 
                             ? 'bg-green-500' 
                             : withdrawal.status === 'pending' 
@@ -314,14 +309,14 @@ export default function Wallet() {
                             : 'bg-red-500'
                         }`}></div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-foreground">{formatCurrency(withdrawal.amount)}</span>
-                            <span className={`text-sm font-medium ${getStatusTextColor(withdrawal.status)}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-sm text-foreground">{formatCurrency(withdrawal.amount)}</span>
+                            <span className={`text-xs font-medium ${getStatusTextColor(withdrawal.status)}`}>
                               {getStatusLabel(withdrawal.status)}
                             </span>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            ⏰ {formatDateTime(withdrawal.createdAt)}
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {formatDateTime(withdrawal.createdAt)}
                           </div>
                         </div>
                       </div>
@@ -329,9 +324,9 @@ export default function Wallet() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-6 px-4">
-                  <i className="fas fa-receipt text-3xl text-muted-foreground mb-3"></i>
-                  <div className="text-muted-foreground">No withdrawal history</div>
+                <div className="text-center py-4">
+                  <i className="fas fa-receipt text-2xl text-muted-foreground mb-2"></i>
+                  <div className="text-muted-foreground text-sm">No history</div>
                 </div>
               )}
             </CardContent>
@@ -339,17 +334,17 @@ export default function Wallet() {
         </TabsContent>
 
         {/* Withdraw Tab */}
-        <TabsContent value="withdraw" className="space-y-4">
+        <TabsContent value="withdraw" className="space-y-3">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <i className="fas fa-money-bill-wave text-primary"></i>
+            <CardHeader className="py-2 pb-1.5">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <i className="fas fa-money-bill-wave text-primary text-sm"></i>
                 Request Withdrawal
               </CardTitle>
             </CardHeader>
             
-            <CardContent>
-              <form onSubmit={handleSubmitWithdraw} className="space-y-4">
+            <CardContent className="p-3 pt-2">
+              <form onSubmit={handleSubmitWithdraw} className="space-y-3">
                 {/* Amount */}
                 <div className="space-y-2">
                   <div className="relative">

@@ -97,13 +97,6 @@ Let's grow together! 💪`;
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-20 pt-6">
-        {/* Header */}
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-foreground mb-1">👥 Affiliates</h1>
-          <p className="text-muted-foreground text-sm">
-            Invite friends and earn rewards
-          </p>
-        </div>
 
         {/* How It Works - Moved to top */}
         <Card className="mb-4">
