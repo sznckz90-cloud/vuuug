@@ -7,47 +7,54 @@ interface NumberCountingSpinnerProps {
 }
 
 export function NumberCountingSpinner({ isSpinning, finalValue, onComplete }: NumberCountingSpinnerProps) {
-  const [displayValue, setDisplayValue] = useState('0.000000');
-  const [animationPhase, setAnimationPhase] = useState<'fast' | 'slow' | 'done'>('fast');
+  const [displayValue, setDisplayValue] = useState('0');
 
   useEffect(() => {
     if (!isSpinning) {
-      setDisplayValue('0.000000');
-      setAnimationPhase('fast');
+      if (!finalValue) {
+        setDisplayValue('0');
+      }
       return;
     }
 
     let interval: NodeJS.Timeout;
     let timeout: NodeJS.Timeout;
 
-    // Phase 1: Fast counting (0-1000ms)
-    setAnimationPhase('fast');
+    // Phase 1: Fast counting with larger decimals (10.5, 8.3, etc) - 0-1000ms
     interval = setInterval(() => {
-      const randomValue = (Math.random() * 10).toFixed(6);
+      const randomValue = (Math.random() * 100 + 1).toFixed(1);
       setDisplayValue(randomValue);
     }, 50);
 
-    // Phase 2: Slow down after 1000ms
+    // Phase 2: Slow down with smaller decimals (0.9, 0.5, etc) - 1000-2000ms
     timeout = setTimeout(() => {
       clearInterval(interval);
-      setAnimationPhase('slow');
       
       interval = setInterval(() => {
-        const randomValue = (Math.random() * 1).toFixed(6);
+        const randomValue = (Math.random() * 10).toFixed(2);
         setDisplayValue(randomValue);
-      }, 150);
+      }, 100);
 
-      // Phase 3: Stop and show final value after 2000ms total
+      // Phase 3: Very slow with tiny decimals (0.002, 0.001, etc) - 2000-2800ms
       timeout = setTimeout(() => {
         clearInterval(interval);
-        setAnimationPhase('done');
         
-        if (finalValue) {
-          setDisplayValue(finalValue);
-          setTimeout(() => {
-            if (onComplete) onComplete();
-          }, 500);
-        }
+        interval = setInterval(() => {
+          const randomValue = (Math.random() * 0.1).toFixed(3);
+          setDisplayValue(randomValue);
+        }, 150);
+
+        // Phase 4: Stop and show final value - 2800-3000ms
+        timeout = setTimeout(() => {
+          clearInterval(interval);
+          
+          if (finalValue) {
+            setDisplayValue(finalValue);
+            setTimeout(() => {
+              if (onComplete) onComplete();
+            }, 500);
+          }
+        }, 800);
       }, 1000);
     }, 1000);
 
@@ -58,29 +65,16 @@ export function NumberCountingSpinner({ isSpinning, finalValue, onComplete }: Nu
   }, [isSpinning, finalValue, onComplete]);
 
   return (
-    <div className="flex flex-col items-center justify-center py-12">
+    <div className="flex items-center justify-center py-8">
       <div className="relative">
-        <div className={`text-6xl font-bold text-primary transition-all duration-300 ${
-          isSpinning ? 'scale-110' : 'scale-100'
-        }`}>
-          {displayValue}
-        </div>
-        <div className="text-center text-2xl font-semibold text-muted-foreground mt-2">
-          TON
+        <div className="text-center">
+          <div className={`text-6xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent transition-all duration-300 ${
+            isSpinning ? 'scale-110 animate-pulse' : 'scale-100'
+          }`}>
+            {displayValue}
+          </div>
         </div>
       </div>
-      
-      {animationPhase === 'fast' && (
-        <div className="mt-4 text-sm text-muted-foreground animate-pulse">
-          Spinning...
-        </div>
-      )}
-      
-      {animationPhase === 'done' && finalValue && (
-        <div className="mt-4 text-lg font-semibold text-green-500 animate-bounce">
-          🎉 You won!
-        </div>
-      )}
     </div>
   );
 }
