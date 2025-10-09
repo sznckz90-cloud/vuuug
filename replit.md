@@ -4,6 +4,23 @@ CashWatch is a React-based web application that allows users to earn money by wa
 
 # Recent Changes (October 2025)
 
+## Referral System & Bot Interface Final Fix (October 9, 2025)
+- **Referral Flow Optimization**: Complete overhaul of referral reward system
+  - **Instant Bonus**: 0.002 TON now awarded immediately when a new friend joins via referral link (not when they watch first ad)
+  - **Referral Status**: Referrals marked as "completed" instantly upon friend joining
+  - **New Friend Notification**: Updated to show exact reward: "🎉 New Friend Joined! 👥 You earned +0.002 TON for this referral. Keep inviting & earn 10% lifetime commission from your friends' ad rewards!"
+  - **Commission Tracking**: 10% commission (0.00002 TON per 0.0002 TON ad) continues automatically when referred users watch ads
+  - **No Spam**: Disabled real-time DM alerts for commission earnings - users view totals in Affiliates page
+- **Bot Welcome Message Update**: 
+  - Button text changed from "Start Earning" to "👨‍💻 Watch & Earn"
+  - All 3 inline buttons now stacked vertically for better mobile UX
+  - Button order: Watch & Earn → Project News → Technical Support
+- **Withdrawal Success Message**: 
+  - Converted to MarkdownV2 safe formatting with proper character escaping
+  - Clean format: Payout amount + Transaction hash + success message
+  - Removed duplicate messages and unnecessary fields
+- **Files Modified**: `server/telegram.ts`, `server/storage.ts`
+
 ## Telegram Bot Interface Simplification (October 8, 2025)
 - **Simplified Welcome Message**: Updated bot welcome message with cleaner text format
 - **Inline Buttons Only**: Bot now uses only 3 inline buttons for core actions:
