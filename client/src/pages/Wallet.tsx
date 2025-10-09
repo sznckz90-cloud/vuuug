@@ -268,7 +268,7 @@ export default function Wallet() {
         {/* Balance Tab */}
         <TabsContent value="balance" className="space-y-3">
           {/* Current Balance Card */}
-          <Card className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
+          <Card className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground neon-glow-border-strong shadow-lg">
             <CardContent className="p-3 text-center">
               <div className="text-primary-foreground/80 text-xs font-medium mb-1">Available Balance</div>
               <div className="text-xl font-bold mb-1">
@@ -281,7 +281,7 @@ export default function Wallet() {
           </Card>
 
           {/* Withdrawal History */}
-          <Card>
+          <Card className="neon-glow-border shadow-lg">
             <CardHeader className="py-2 pb-1.5">
               <CardTitle className="text-base font-medium flex items-center gap-2">
                 <i className="fas fa-history text-muted-foreground text-sm"></i>
@@ -335,7 +335,7 @@ export default function Wallet() {
 
         {/* Withdraw Tab */}
         <TabsContent value="withdraw" className="space-y-3">
-          <Card>
+          <Card className="neon-glow-border shadow-lg">
             <CardHeader className="py-2 pb-1.5">
               <CardTitle className="text-base font-medium flex items-center gap-2">
                 <i className="fas fa-money-bill-wave text-primary text-sm"></i>

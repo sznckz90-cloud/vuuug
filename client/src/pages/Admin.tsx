@@ -488,104 +488,137 @@ export default function AdminPage() {
             </TabsContent>
 
             {/* Analytics Tab */}
-            <TabsContent value="analytics" className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold mb-4 flex items-center">
-                  <i className="fas fa-chart-area mr-2 text-indigo-600"></i>
-                  Advanced Analytics
-                </h2>
+            <TabsContent value="analytics" className="space-y-4">
+              {/* Compact Key Metrics Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="neon-glow-border shadow-lg rounded-xl bg-card/80 backdrop-blur-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-primary text-xs font-medium uppercase">Active Users</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">
+                          {stats?.dailyActiveUsers?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                      <i className="fas fa-users text-primary text-xl opacity-70"></i>
+                    </div>
+                  </CardContent>
+                </Card>
                 
-                {/* Trading-Style Analytics Dashboard */}
-                <Card className="border-2">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-xl flex items-center justify-between">
-                      <span className="flex items-center">
-                        <i className="fas fa-chart-candlestick mr-2 text-indigo-600"></i>
-                        Real-Time Trading Analytics
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          <i className="fas fa-circle text-green-500 text-xs mr-1"></i>
-                          Live
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          Updates every 30s
-                        </Badge>
+                <Card className="neon-glow-border shadow-lg rounded-xl bg-card/80 backdrop-blur-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-secondary text-xs font-medium uppercase">Ads Watched</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">
+                          {stats?.totalAdsWatched?.toLocaleString() || '0'}
+                        </p>
                       </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {/* Quick Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-blue-600 text-xs font-medium uppercase tracking-wide">Total Users</p>
-                            <p className="text-2xl font-bold text-blue-900">
-                              {stats?.totalUsers?.toLocaleString() || '0'}
-                            </p>
-                            <p className="text-blue-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
-                              Growing
-                            </p>
-                          </div>
-                          <i className="fas fa-users text-blue-600 text-2xl"></i>
-                        </div>
+                      <i className="fas fa-play-circle text-secondary text-xl opacity-70"></i>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="neon-glow-border shadow-lg rounded-xl bg-card/80 backdrop-blur-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-500 text-xs font-medium uppercase">TON Earned</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">
+                          {formatCurrency(stats?.totalEarnings || '0')}
+                        </p>
                       </div>
-                      
-                      <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-green-600 text-xs font-medium uppercase tracking-wide">Total Earnings</p>
-                            <p className="text-2xl font-bold text-green-900">
-                              {formatCurrency(stats?.totalEarnings || '0')}
-                            </p>
-                            <p className="text-green-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
-                              +{formatCurrency(parseFloat(stats?.totalEarnings || '0') * 0.1, false)} today
-                            </p>
-                          </div>
-                          <i className="fas fa-dollar-sign text-green-600 text-2xl"></i>
-                        </div>
+                      <i className="fas fa-coins text-green-500 text-xl opacity-70"></i>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="neon-glow-border shadow-lg rounded-xl bg-card/80 backdrop-blur-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-purple-500 text-xs font-medium uppercase">Total Users</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">
+                          {stats?.totalUsers?.toLocaleString() || '0'}
+                        </p>
                       </div>
-                      
-                      <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-purple-600 text-xs font-medium uppercase tracking-wide">Withdrawals</p>
-                            <p className="text-2xl font-bold text-purple-900">
-                              {formatCurrency(stats?.totalWithdrawals || '0')}
-                            </p>
-                            <p className="text-purple-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
-                              {stats?.pendingWithdrawals || 0} pending
-                            </p>
-                          </div>
-                          <i className="fas fa-money-bill-wave text-purple-600 text-2xl"></i>
-                        </div>
+                      <i className="fas fa-user-friends text-purple-500 text-xl opacity-70"></i>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Withdrawal Analytics Table */}
+              <Card className="neon-glow-border shadow-lg rounded-xl bg-card/80 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center">
+                    <i className="fas fa-chart-bar mr-2 text-primary"></i>
+                    Withdrawal Analytics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-muted-foreground">Total Requests</span>
+                        <span className="text-lg font-bold text-foreground">
+                          {(withdrawalsData?.withdrawals?.length || 0) + (processedData?.withdrawals?.length || 0)}
+                        </span>
                       </div>
-                      
-                      <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-orange-600 text-xs font-medium uppercase tracking-wide">Active Users</p>
-                            <p className="text-2xl font-bold text-orange-900">
-                              {stats?.dailyActiveUsers?.toLocaleString() || '0'}
-                            </p>
-                            <p className="text-orange-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
-                              Last 24h
-                            </p>
-                          </div>
-                          <i className="fas fa-chart-line text-orange-600 text-2xl"></i>
-                        </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary" style={{ width: '100%' }}></div>
                       </div>
                     </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-muted-foreground">Successful</span>
+                        <span className="text-lg font-bold text-green-500">
+                          {processedData?.withdrawals?.filter((w: any) => ['paid', 'Successfull', 'Approved'].includes(w.status))?.length || 0}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500" style={{ 
+                          width: `${((processedData?.withdrawals?.filter((w: any) => ['paid', 'Successfull', 'Approved'].includes(w.status))?.length || 0) / Math.max((withdrawalsData?.withdrawals?.length || 0) + (processedData?.withdrawals?.length || 0), 1) * 100)}%` 
+                        }}></div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-muted-foreground">Pending</span>
+                        <span className="text-lg font-bold text-yellow-500">
+                          {stats?.pendingWithdrawals || 0}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-yellow-500" style={{ 
+                          width: `${((stats?.pendingWithdrawals || 0) / Math.max((withdrawalsData?.withdrawals?.length || 0) + (processedData?.withdrawals?.length || 0), 1) * 100)}%` 
+                        }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                    {/* Enhanced Trading Chart */}
-                    <div className="bg-gray-900 rounded-lg p-4 border">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white font-semibold flex items-center">
+              {/* Compact Chart Section */}
+              <Card className="neon-glow-border shadow-lg rounded-xl bg-card/80 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <span className="flex items-center">
+                      <i className="fas fa-chart-line mr-2 text-primary"></i>
+                      Platform Performance
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      <i className="fas fa-circle text-green-500 text-xs mr-1"></i>
+                      Live
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="w-full bg-gray-900 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-white font-semibold flex items-center text-sm">
                           <i className="fas fa-chart-candlestick mr-2 text-green-400"></i>
                           Platform Performance Chart
                         </h3>
@@ -597,7 +630,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                       
-                      <div className="h-80 w-full">
+                      <div className="h-56 w-full">
                         {stats ? (
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart
@@ -712,25 +745,24 @@ export default function AdminPage() {
                         )}
                       </div>
                       
-                      {/* Chart Legend */}
-                      <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                          <span className="text-gray-300">User Growth</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="text-gray-300">Earnings</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                          <span className="text-gray-300">Withdrawals</span>
-                        </div>
+                    {/* Chart Legend */}
+                    <div className="flex items-center justify-center gap-6 mt-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <span className="text-gray-300">User Growth</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-gray-300">Earnings</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        <span className="text-gray-300">Withdrawals</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>

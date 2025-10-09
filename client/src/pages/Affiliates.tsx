@@ -89,7 +89,7 @@ export default function Affiliates() {
       <main className="max-w-md mx-auto px-4 pb-20 pt-6">
 
         {/* How It Works - Moved to top */}
-        <Card className="mb-4">
+        <Card className="mb-4 neon-glow-border shadow-lg">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">💡 How It Works</CardTitle>
           </CardHeader>
@@ -149,7 +149,7 @@ export default function Affiliates() {
         </div>
 
         {/* Referral Income - Compact version below link */}
-        <Card className="border-primary/20">
+        <Card className="border-primary/20 neon-glow-border shadow-lg">
           <CardContent className="p-4">
             <div className="space-y-3">
               <div className="flex justify-between items-center">
