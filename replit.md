@@ -17,9 +17,14 @@ CashWatch is a React-based web application that allows users to earn money by wa
   - Button order: Watch & Earn → Project News → Technical Support
 - **Withdrawal Success Message**: 
   - Converted to MarkdownV2 safe formatting with proper character escaping
-  - Clean format: Payout amount + Transaction hash + success message
-  - Removed duplicate messages and unnecessary fields
-- **Files Modified**: `server/telegram.ts`, `server/storage.ts`
+  - Clean format: Payout amount + Wallet address + Transaction hash
+  - Removed duplicate old messages from routes.ts
+  - Applied consistent formatting across both telegram.ts and routes.ts
+- **Affiliates Page API**: 
+  - Added `/api/referrals/stats` endpoint for real-time referral tracking
+  - Returns referralCount (total referred users) and referralEarnings (sum of all referral income)
+  - Updated UI text to reflect instant bonus on friend join
+- **Files Modified**: `server/telegram.ts`, `server/storage.ts`, `server/routes.ts`, `client/src/pages/Affiliates.tsx`
 
 ## Telegram Bot Interface Simplification (October 8, 2025)
 - **Simplified Welcome Message**: Updated bot welcome message with cleaner text format
