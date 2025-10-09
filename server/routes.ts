@@ -674,6 +674,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Referral stats endpoint
+  app.get('/api/referrals/stats', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const referrals = await storage.getUserReferrals(userId);
+      const referralEarnings = await storage.getUserReferralEarnings(userId);
+      
+      res.json({
+        referralCount: referrals.length,
+        referralEarnings: referralEarnings
+      });
+    } catch (error) {
+      console.error("Error fetching referral stats:", error);
+      res.status(500).json({ message: "Failed to fetch referral stats" });
+    }
+  });
+
   // Earnings history endpoint
   app.get('/api/earnings', authenticateTelegram, async (req: any, res) => {
     try {
@@ -1938,19 +1955,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
           if (user.length > 0 && user[0].telegram_id) {
             try {
-              const currentBalance = parseFloat(user[0].balance || '0');
-              const formattedBalance = parseFloat(currentBalance.toFixed(8)).toString().replace(/\.?0+$/, '');
               const formattedAmount = parseFloat(result.withdrawal.amount).toFixed(8).replace(/\.?0+$/, '');
-              const utcTime = new Date().toUTCString();
+              const withdrawalDetails = result.withdrawal.details as any;
+              const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
               
-              const approvalMessage = `✅ Congratulations! Your withdrawal of ${formattedAmount} TON has been successfully processed.\n\n` +
-                `⏰ Time (UTC): ${utcTime}\n` +
-                `💡 Remaining Balance: ${formattedBalance} TON\n` +
-                `📝 Transaction Hash: ${transactionHash}`;
+              // Escape special characters for MarkdownV2
+              const escapeMarkdownV2 = (text: string) => text.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&');
+              const escapedAmount = escapeMarkdownV2(formattedAmount);
+              const escapedTxHash = escapeMarkdownV2(transactionHash);
+              const escapedWallet = escapeMarkdownV2(walletAddress);
+              
+              // Create withdrawal success message in MarkdownV2 format
+              const approvalMessage = `🎉 *Withdrawal Successful\\!* ✅\n\n` +
+                `🔔 *Payout:* ${escapedAmount} TON\n` +
+                `💳 *Wallet:* ${escapedWallet}\n` +
+                `📝 *Txn Hash:* ${escapedTxHash}\n\n` +
+                `✨ Keep earning & growing\\! Your journey to success continues 💪`;
               
               await sendUserTelegramNotification(
                 user[0].telegram_id,
-                approvalMessage
+                approvalMessage,
+                null,
+                'MarkdownV2'
               );
               console.log(`📱 Telegram notification sent to user ${user[0].telegram_id}`);
             } catch (telegramError) {
