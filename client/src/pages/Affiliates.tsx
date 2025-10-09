@@ -45,26 +45,16 @@ export default function Affiliates() {
   const copyReferralLink = () => {
     if (referralLink) {
       navigator.clipboard.writeText(referralLink);
-      showNotification({
-        type: 'success',
-        title: 'Link Copied!',
-        message: 'Referral link copied to clipboard'
-      });
+      showNotification('🔗 Link Copied!', 'success');
     }
   };
 
-  // Share referral link via Telegram with new message template
+  // Share referral link via Telegram with simplified message
   const shareViaWebApp = () => {
-    if (referralLink && window.Telegram?.WebApp) {
-      const shareText = `🚀 Join me on *Paid Ads* and start earning TON instantly!
+    if (referralLink && window.Telegram?.WebApp?.openTelegramLink) {
+      const shareText = `🚀 Join me on Paid Ads and start earning TON instantly!
 
-💸 Watch ads, complete simple tasks, and get rewarded every day.
-🎁 Plus — earn bonuses when your friends join using your link!
-
-🔗 My Invite Link:
-${referralLink}
-
-Let's grow together! 💪`;
+💸 Watch ads, complete simple tasks, and get rewarded every day.`;
       
       window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`);
     } else {
@@ -112,7 +102,7 @@ Let's grow together! 💪`;
                 <div>
                   <p className="font-medium text-foreground text-sm">Instant Bonus</p>
                   <p className="text-muted-foreground text-xs">
-                    Get <span className="text-primary font-semibold">0.002 TON</span> when your friend watches their first ad
+                    Get <span className="text-primary font-semibold">0.002 TON</span> instantly when your friend joins
                   </p>
                 </div>
               </div>
