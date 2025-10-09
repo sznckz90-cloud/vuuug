@@ -767,7 +767,8 @@ export class DatabaseStorage implements IStorage {
     return referral;
   }
 
-  // Check and activate referral bonus when friend completes FIRST ad (0.002 TON reward)
+  // Mark user as having watched first ad and activate any pending referrals
+  // Note: 0.002 TON bonus is now awarded immediately when friend joins (see telegram.ts)
   async checkAndActivateReferralBonus(userId: string): Promise<void> {
     try {
       // Check if this user has already completed first ad
@@ -788,7 +789,7 @@ export class DatabaseStorage implements IStorage {
 
       const adsWatched = adCount?.count || 0;
       
-      // If user has watched first ad, activate referral bonuses
+      // If user has watched first ad, mark it and activate any pending referrals
       if (adsWatched >= 1) {
         // Mark this user as having completed first ad
         await db
@@ -796,7 +797,7 @@ export class DatabaseStorage implements IStorage {
           .set({ firstAdWatched: true })
           .where(eq(users.id, userId));
 
-        // Find pending referrals where this user is the referee
+        // Find pending referrals where this user is the referee (edge case: old referrals)
         const pendingReferrals = await db
           .select()
           .from(referrals)
@@ -805,7 +806,7 @@ export class DatabaseStorage implements IStorage {
             eq(referrals.status, 'pending')
           ));
 
-        // Activate each pending referral
+        // Activate each pending referral (no bonus - it was already awarded on join)
         for (const referral of pendingReferrals) {
           // Update referral status to completed
           await db
@@ -813,15 +814,7 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          // Award 0.002 TON referral bonus to referrer
-          await this.addEarning({
-            userId: referral.referrerId,
-            amount: "0.002",
-            source: 'referral',
-            description: `Referral bonus - friend completed first ad`,
-          });
-
-          console.log(`✅ First ad referral bonus: 0.002 TON awarded to ${referral.referrerId} from ${userId}'s first ad`);
+          console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId} (bonus already awarded on join)`);
         }
       }
     } catch (error) {
@@ -1151,23 +1144,8 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
       
-      // Send Telegram notification to referrer about the commission
-      try {
-        const { sendReferralCommissionNotification } = await import('./telegram');
-        const referrer = await this.getUser(referralInfo.referrerId);
-        const referredUser = await this.getUser(userId);
-        
-        if (referrer && referrer.telegram_id && referredUser) {
-          await sendReferralCommissionNotification(
-            referrer.telegram_id,
-            referredUser.username || referredUser.firstName || 'your friend',
-            commissionAmount
-          );
-        }
-      } catch (error) {
-        console.error('❌ Error sending referral commission notification:', error);
-        // Don't throw error to avoid disrupting the main earning process
-      }
+      // Notification disabled to prevent spam - users can view commission totals in app
+      // Commission is tracked in database and visible in Affiliates page
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process

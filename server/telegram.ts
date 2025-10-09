@@ -1,6 +1,8 @@
 // Telegram Bot API integration for sending notifications
 import TelegramBot from 'node-telegram-bot-api';
 import { storage } from './storage';
+import { db } from './db';
+import { sql } from 'drizzle-orm';
 
 const isAdmin = (telegramId: string): boolean => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
@@ -258,7 +260,7 @@ Turn your time into crypto rewards! Earn TON by:
     inline_keyboard: [
       [
         {
-          text: "👨‍💻 Start Earning",
+          text: "👨‍💻 Watch & Earn",
           web_app: { url: appUrl }
         }
       ],
@@ -266,7 +268,9 @@ Turn your time into crypto rewards! Earn TON by:
         {
           text: "📢 Project News",
           url: "https://t.me/PaidAdsNews"
-        },
+        }
+      ],
+      [
         {
           text: "💁‍♂️ Technical Support",
           url: "https://t.me/szxzyz"
@@ -459,22 +463,19 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const withdrawalDetails = result.withdrawal.details as any;
               const amount = withdrawalDetails?.netAmount ? withdrawalDetails.netAmount : result.withdrawal.amount;
               const formattedAmount = formatTON(amount);
-              const formattedBalance = formatTON(user.balance || 0);
-              const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
               const txHash = result.withdrawal.transactionHash || 'N/A';
               
-              // Create clickable transaction hash link if available
-              const txHashDisplay = (txHash && txHash !== 'N/A') 
-                ? `<a href="https://tonviewer.com/transaction/${txHash}">${txHash}</a>`
-                : txHash;
+              // Escape special characters for MarkdownV2
+              const escapedAmount = escapeMarkdownV2(formattedAmount);
+              const escapedTxHash = escapeMarkdownV2(txHash);
               
-              let userMessage = `🎉 Withdrawal Successful! ✅\n\n`;
-              userMessage += `🔔 Payout: ${formattedAmount} TON\n`;
-              userMessage += `💳 Wallet: ${walletAddress}\n`;
-              userMessage += `📝 Txn Hash: ${txHashDisplay}\n\n`;
-              userMessage += `✨ Keep earning & growing! Your journey to success continues… 💪`;
+              // Create withdrawal success message in MarkdownV2 format
+              let userMessage = `🎉 *Withdrawal Successful\\!* ✅\n\n`;
+              userMessage += `🔔 *Payout:* ${escapedAmount} TON\n`;
+              userMessage += `📝 *Txn Hash:* ${escapedTxHash}\n\n`;
+              userMessage += `✨ Keep earning & growing\\! Your journey to success continues 💪`;
               
-              await sendUserTelegramNotification(user.telegram_id, userMessage, null, 'HTML');
+              await sendUserTelegramNotification(user.telegram_id, userMessage, null, 'MarkdownV2');
             }
             
             // Update admin message
@@ -747,13 +748,40 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                 console.error(`❌ Referral verification failed - not found in database after creation`);
               }
               
+              // Award instant 0.002 TON bonus to referrer
+              try {
+                await storage.addEarning({
+                  userId: referrer.id,
+                  amount: "0.002",
+                  source: 'referral',
+                  description: `Referral bonus - new friend joined`,
+                });
+                console.log(`✅ Awarded 0.002 TON instant bonus to referrer ${referrer.id}`);
+              } catch (bonusError) {
+                console.error('❌ Failed to award instant referral bonus:', bonusError);
+              }
+              
+              // Update referral status to completed immediately
+              try {
+                await db.execute(sql`
+                  UPDATE referrals 
+                  SET status = 'completed' 
+                  WHERE referrer_id = ${referrer.id} AND referee_id = ${dbUser.id}
+                `);
+                console.log(`✅ Updated referral status to completed`);
+              } catch (updateError) {
+                console.error('❌ Failed to update referral status:', updateError);
+              }
+              
               // Send notification to referrer about successful referral
               try {
-                const referrerName = referrer.firstName || referrer.username || 'User';
-                const newUserName = dbUser.firstName || dbUser.username || 'User';
+                const notificationMessage = `🎉 New Friend Joined!  
+👥 You earned +0.002 TON for this referral.  
+
+Keep inviting & earn 10% lifetime commission from your friends' ad rewards!`;
                 await sendUserTelegramNotification(
                   referrer.telegram_id || '',
-                  `🎉 Great news! ${newUserName} joined using your referral link. You'll earn $0.01 when they watch 10 ads!`
+                  notificationMessage
                 );
                 console.log(`📧 Referral notification sent to referrer: ${referrer.telegram_id}`);
               } catch (notificationError) {
