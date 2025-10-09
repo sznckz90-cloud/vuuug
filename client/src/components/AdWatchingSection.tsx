@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
+import { isUnauthorizedError } from "@/lib/authUtils";
 
 declare global {
   interface Window {
@@ -102,39 +104,39 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   };
 
   return (
-    <div className="section-box mt-4 tap-glow">
-      <div className="p-4">
-        <div className="text-center mb-4">
-          <h2 className="text-xl font-bold title-text mb-1">Watch & Earn</h2>
-          <p className="text-muted-foreground text-sm">Earn 0.0002 TON per ad watched</p>
+    <Card className="rounded-xl shadow-sm border border-border mt-3">
+      <CardContent className="p-3">
+        <div className="text-center mb-3">
+          <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
+          <p className="text-muted-foreground text-xs">Earn 0.0002 TON per ad watched</p>
         </div>
         
-        <div className="relative flex justify-center mb-4">
-          <div className="absolute inset-0 rounded-full bg-secondary/30 animate-pulse-ring"></div>
+        <div className="relative flex justify-center mb-3">
+          <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse-ring"></div>
           <button
             onClick={handleWatchAd}
             disabled={isWatching}
-            className="relative gradient-button w-20 h-20 rounded-full shadow-xl transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center justify-center tap-glow"
+            className="relative bg-primary hover:bg-primary/90 text-primary-foreground w-16 h-16 rounded-full shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center justify-center"
             data-testid="button-watch-ad"
           >
             {isWatching ? (
-              <i className="fas fa-spinner fa-spin text-2xl" style={{color: 'white'}}></i>
+              <i className="fas fa-spinner fa-spin text-lg" style={{color: 'white'}}></i>
             ) : (
-              <i className="fas fa-play text-xl text-white group-hover:scale-110 transition-transform"></i>
+              <i className="fas fa-play text-lg text-white group-hover:scale-110 transition-transform"></i>
             )}
           </button>
         </div>
         
         <div className="text-center">
-          <div className="text-muted-foreground text-sm mb-2">Ads watched today</div>
-          <div className="text-2xl font-bold title-text" data-testid="text-ads-watched-today">
+          <div className="text-muted-foreground text-xs mb-1">Ads watched today</div>
+          <div className="text-xl font-bold text-foreground" data-testid="text-ads-watched-today">
             {user?.adsWatchedToday || 0} / 160
           </div>
-          <div className="text-muted-foreground text-sm mt-2">
+          <div className="text-muted-foreground text-xs mt-1">
             {160 - (user?.adsWatchedToday || 0)} ads remaining
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
