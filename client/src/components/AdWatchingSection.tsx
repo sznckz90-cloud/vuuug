@@ -19,6 +19,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
   const [isWatching, setIsWatching] = useState(false);
   const [lastAdWatchTime, setLastAdWatchTime] = useState<number>(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
@@ -36,9 +37,22 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       
       // Show reward notification
       showNotification("🎉 Reward added!", "success", 0.0002);
+      
+      // Start countdown AFTER reward is received
+      setCooldownRemaining(3);
+      const cooldownInterval = setInterval(() => {
+        setCooldownRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(cooldownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     },
     onError: (error) => {
       showNotification("⚠️ Failed to process ad reward", "error");
+      setCooldownRemaining(0);
     },
   });
 
@@ -73,19 +87,17 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   }, [lastAdWatchTime]);
 
   const handleWatchAd = async () => {
-    if (isWatching) return;
+    if (isWatching || cooldownRemaining > 0) return;
     
     setIsWatching(true);
     
     try {
       if (typeof window.show_9368336 === 'function') {
         await window.show_9368336();
-        // Simulate ad completion and reward user
         setTimeout(() => {
           watchAdMutation.mutate('rewarded');
         }, 1000);
       } else {
-        // Fallback: simulate ad for development
         setTimeout(() => {
           watchAdMutation.mutate('rewarded');
           showNotification("✓ Ad completed!", "info");
@@ -93,7 +105,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
-      // Still reward user for attempting
       watchAdMutation.mutate('rewarded');
       showNotification("✓ Ad completed!", "info");
     } finally {
@@ -104,7 +115,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   };
 
   return (
-    <Card className="rounded-xl shadow-sm border border-border mt-3">
+    <Card className="rounded-xl shadow-lg neon-glow-border mt-3">
       <CardContent className="p-3">
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
@@ -115,11 +126,13 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse-ring"></div>
           <button
             onClick={handleWatchAd}
-            disabled={isWatching}
+            disabled={isWatching || cooldownRemaining > 0}
             className="relative bg-primary hover:bg-primary/90 text-primary-foreground w-16 h-16 rounded-full shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center justify-center"
             data-testid="button-watch-ad"
           >
-            {isWatching ? (
+            {cooldownRemaining > 0 ? (
+              <span className="text-lg font-bold text-white">{cooldownRemaining}</span>
+            ) : isWatching ? (
               <i className="fas fa-spinner fa-spin text-lg" style={{color: 'white'}}></i>
             ) : (
               <i className="fas fa-play text-lg text-white group-hover:scale-110 transition-transform"></i>

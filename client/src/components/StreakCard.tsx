@@ -182,7 +182,7 @@ export default function StreakCard({ user }: StreakCardProps) {
   const canClaim = timeUntilNextClaim === "Available now";
 
   return (
-    <Card className="rounded-xl shadow-sm border border-border mt-3">
+    <Card className="rounded-xl shadow-lg neon-glow-border mt-3">
       <CardContent className="p-3">
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-foreground mb-1 flex items-center justify-center">

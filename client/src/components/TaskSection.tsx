@@ -132,7 +132,7 @@ export default function TaskSection() {
     const isAvailable = isTaskAvailable(task);
     
     return (
-      <Card key={task.id} className={`mb-2 ${!isAvailable ? 'opacity-50' : ''}`}>
+      <Card key={task.id} className={`mb-2 neon-glow-border shadow-lg ${!isAvailable ? 'opacity-50' : ''}`}>
         <CardHeader className="pb-1.5 pt-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -221,7 +221,7 @@ export default function TaskSection() {
       </div>
 
       {/* Ads counter display */}
-      <Card className="bg-muted/50">
+      <Card className="bg-muted/50 neon-glow-border shadow-lg">
         <CardContent className="p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -241,7 +241,7 @@ export default function TaskSection() {
           {tasks.map(renderTaskCard)}
         </div>
       ) : (
-        <Card>
+        <Card className="neon-glow-border shadow-lg">
           <CardContent className="p-6 text-center">
             <Tv className="mx-auto text-muted-foreground mb-4" size={48} />
             <p className="text-muted-foreground">Loading your daily tasks...</p>

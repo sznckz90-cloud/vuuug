@@ -61,22 +61,23 @@ export default function Layout({ children }: LayoutProps) {
         animate={{ y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        <div className="max-w-md mx-auto px-4 pb-4">
+        <div className="max-w-md mx-auto px-3 pb-3">
           <motion.div 
-            className="relative bg-card/80 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-border/50"
+            className="relative bg-card/90 backdrop-blur-xl rounded-[1.5rem] shadow-2xl neon-glow-border"
             animate={{ 
               scale: [1, 1.02, 1],
             }}
             transition={{
-              duration: 0.3,
+              duration: 0.4,
+              ease: [0.65, 0, 0.35, 1],
               times: [0, 0.5, 1],
             }}
             key={location}
           >
             {/* Glow effect for active item */}
-            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-t from-primary/10 to-transparent opacity-50 pointer-events-none" />
+            <div className="absolute inset-0 rounded-[1.5rem] bg-gradient-to-t from-primary/10 to-transparent opacity-50 pointer-events-none" />
             
-            <div className="flex justify-around items-center py-3 px-2 relative">
+            <div className="flex justify-center items-center gap-2 py-2 px-2 relative">
               {navItems.map((item) => {
                 const isActive = location === item.href;
                 const Icon = item.icon;
@@ -84,21 +85,26 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <Link key={item.href} href={item.href}>
                     <motion.button
-                      className={`relative flex flex-col items-center gap-1 px-6 py-2.5 rounded-2xl transition-all duration-300 select-none ${
+                      className={`relative flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-xl transition-all select-none ${
                         isActive 
                           ? "text-primary" 
                           : "text-muted-foreground hover:text-foreground"
                       }`}
                       data-testid={`link-${item.label.toLowerCase()}`}
                       style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
-                      whileTap={{ scale: 0.95 }}
+                      whileTap={{ scale: 0.92 }}
+                      onTapStart={(e) => {
+                        const target = e.target as HTMLElement;
+                        target.classList.add('tap-glow');
+                        setTimeout(() => target.classList.remove('tap-glow'), 400);
+                      }}
                       animate={isActive ? {
-                        scale: [1, 1.1, 1],
+                        scale: [1, 1.05, 1],
                       } : {}}
                       transition={{
                         scale: {
-                          duration: 0.3,
-                          ease: [0.34, 1.56, 0.64, 1], // Bounce effect
+                          duration: 0.4,
+                          ease: [0.65, 0, 0.35, 1],
                         }
                       }}
                     >
@@ -106,7 +112,7 @@ export default function Layout({ children }: LayoutProps) {
                       {isActive && (
                         <motion.div
                           layoutId="activeTab"
-                          className="absolute inset-0 bg-primary/10 rounded-2xl"
+                          className="absolute inset-0 bg-primary/10 rounded-xl neon-glow-border-strong"
                           initial={false}
                           transition={{
                             type: "spring",
@@ -119,7 +125,7 @@ export default function Layout({ children }: LayoutProps) {
                       {/* Glow effect on active */}
                       {isActive && (
                         <motion.div
-                          className="absolute inset-0 bg-primary/20 rounded-2xl blur-lg"
+                          className="absolute inset-0 bg-primary/20 rounded-xl blur-lg"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: [0, 1, 0] }}
                           transition={{
@@ -137,14 +143,14 @@ export default function Layout({ children }: LayoutProps) {
                           y: [0, -2, 0],
                         } : {}}
                         transition={{
-                          duration: 0.3,
-                          ease: "easeInOut"
+                          duration: 0.4,
+                          ease: [0.65, 0, 0.35, 1]
                         }}
                       >
                         <Icon 
                           className={`transition-all duration-300 ${
                             isActive 
-                              ? "w-6 h-6 drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" 
+                              ? "w-6 h-6 drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" 
                               : "w-5 h-5"
                           }`}
                           strokeWidth={isActive ? 2.5 : 2}
@@ -153,14 +159,15 @@ export default function Layout({ children }: LayoutProps) {
 
                       {/* Label */}
                       <motion.span 
-                        className={`text-xs font-medium relative z-10 transition-all duration-300 ${
+                        className={`text-[10px] font-medium relative z-10 transition-all duration-300 ${
                           isActive ? "font-semibold" : ""
                         }`}
                         animate={isActive ? {
                           scale: [1, 1.05, 1],
                         } : {}}
                         transition={{
-                          duration: 0.3,
+                          duration: 0.4,
+                          ease: [0.65, 0, 0.35, 1]
                         }}
                       >
                         {item.label}
