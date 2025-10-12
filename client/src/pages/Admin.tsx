@@ -369,7 +369,6 @@ export default function AdminPage() {
                 <i className="fas fa-crown text-orange-600 mr-3"></i>
                 Admin Dashboard
               </h1>
-              <p className="text-muted-foreground">Manage your crypto earning platform</p>
             </div>
             <div className="flex items-center gap-3">
               <Button 
@@ -381,12 +380,13 @@ export default function AdminPage() {
                   queryClient.invalidateQueries({ queryKey: ["/api/admin/promotions/pending"] });
                   queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
                   queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
-                  toast({ title: "Data refreshed successfully" });
+                  toast({ title: "✅ Data refreshed successfully" });
                 }}
                 data-testid="button-refresh-data"
-                className="h-8 w-8 p-0"
+                className="h-9 px-3"
               >
-                <i className="fas fa-sync-alt"></i>
+                <i className="fas fa-sync-alt mr-2"></i>
+                Refresh
               </Button>
               <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
                 Administrator
@@ -523,7 +523,7 @@ export default function AdminPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-green-500 text-xs font-medium uppercase">TON Earned</p>
+                        <p className="text-green-500 text-xs font-medium uppercase">PAD Earned</p>
                         <p className="text-2xl font-bold text-foreground mt-1">
                           {formatCurrency(stats?.totalEarnings || '0')}
                         </p>

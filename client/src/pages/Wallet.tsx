@@ -253,6 +253,14 @@ export default function Wallet() {
   return (
     <Layout>
       <div className="max-w-md mx-auto p-4 pb-20">
+      {/* Balance Display near Title */}
+      <div className="mb-4 text-center">
+        <div className="text-sm text-muted-foreground mb-1">Balance</div>
+        <div className="text-3xl font-bold text-primary">
+          {Math.round(parseFloat(user?.balance || "0") * 100000)} PAD
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="balance">
@@ -267,20 +275,7 @@ export default function Wallet() {
 
         {/* Balance Tab */}
         <TabsContent value="balance" className="space-y-3">
-          {/* Current Balance Card */}
-          <Card className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground neon-glow-border-strong shadow-lg">
-            <CardContent className="p-3 text-center">
-              <div className="text-primary-foreground/80 text-xs font-medium mb-1">Available Balance</div>
-              <div className="text-xl font-bold mb-1">
-                {formatCurrency(user?.balance || "0")}
-              </div>
-              <div className="text-primary-foreground/60 text-[10px]">
-                Ready for withdrawal
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Withdrawal History */}
+          {/* Withdrawal History in Scrollable Box */}
           <Card className="neon-glow-border shadow-lg">
             <CardHeader className="py-2 pb-1.5">
               <CardTitle className="text-base font-medium flex items-center gap-2">
@@ -288,43 +283,45 @@ export default function Wallet() {
                 History
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-3 pt-2">
+            <CardContent className="p-0">
               {withdrawalsLoading ? (
-                <div className="text-center py-3">
+                <div className="text-center py-8">
                   <div className="animate-spin text-primary text-base mb-1">
                     <i className="fas fa-spinner"></i>
                   </div>
                   <div className="text-muted-foreground text-xs">Loading...</div>
                 </div>
               ) : withdrawals.length > 0 ? (
-                <div className="space-y-0 divide-y divide-border/50">
-                  {[...withdrawals].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((withdrawal) => (
-                    <div key={withdrawal.id} className="flex items-center justify-between py-2 first:pt-0">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          withdrawal.status === 'paid' || withdrawal.status === 'Approved' || withdrawal.status === 'Successfull' 
-                            ? 'bg-green-500' 
-                            : withdrawal.status === 'pending' 
-                            ? 'bg-orange-500' 
-                            : 'bg-red-500'
-                        }`}></div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-sm text-foreground">{formatCurrency(withdrawal.amount)}</span>
-                            <span className={`text-xs font-medium ${getStatusTextColor(withdrawal.status)}`}>
-                              {getStatusLabel(withdrawal.status)}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-muted-foreground truncate">
-                            {formatDateTime(withdrawal.createdAt)}
+                <div className="max-h-[400px] overflow-y-auto px-3 pb-3">
+                  <div className="space-y-0 divide-y divide-border/50">
+                    {[...withdrawals].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((withdrawal) => (
+                      <div key={withdrawal.id} className="flex items-center justify-between py-2 first:pt-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            withdrawal.status === 'paid' || withdrawal.status === 'Approved' || withdrawal.status === 'Successfull' 
+                              ? 'bg-green-500' 
+                              : withdrawal.status === 'pending' 
+                              ? 'bg-orange-500' 
+                              : 'bg-red-500'
+                          }`}></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-sm text-foreground">{Math.round(parseFloat(withdrawal.amount) * 100000)} PAD</span>
+                              <span className={`text-xs font-medium ${getStatusTextColor(withdrawal.status)}`}>
+                                {getStatusLabel(withdrawal.status)}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {formatDateTime(withdrawal.createdAt)}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <div className="text-center py-4">
+                <div className="text-center py-8">
                   <i className="fas fa-receipt text-2xl text-muted-foreground mb-2"></i>
                   <div className="text-muted-foreground text-sm">No history</div>
                 </div>
@@ -371,7 +368,7 @@ export default function Wallet() {
                   </div>
                   {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
                   <p className="text-xs text-muted-foreground">
-                    Available: {formatCurrency(user?.balance || "0")}
+                    Available: {Math.round(parseFloat(user?.balance || "0") * 100000)} PAD
                   </p>
                 </div>
 

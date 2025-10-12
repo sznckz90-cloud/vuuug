@@ -20,11 +20,25 @@ interface User {
 export default function Home() {
   const { toast } = useToast();
   const { user, isLoading, authenticateWithTelegramWebApp, isTelegramAuthenticating, telegramAuthError } = useAuth();
+  const [streakDialogOpen, setStreakDialogOpen] = React.useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/user/stats"],
     retry: false,
   });
+
+  // Check if streak dialog should be shown (once per day)
+  React.useEffect(() => {
+    if (user) {
+      const today = new Date().toISOString().split('T')[0];
+      const lastShown = localStorage.getItem('streakDialogShown');
+      
+      // Show dialog if not shown today
+      if (lastShown !== today) {
+        setTimeout(() => setStreakDialogOpen(true), 500);
+      }
+    }
+  }, [user]);
 
 
   if (isLoading) {
@@ -95,8 +109,12 @@ export default function Home() {
         {/* Watch Ads Section */}
         <AdWatchingSection user={user as User} />
 
-        {/* Streak Section */}
-        <StreakCard user={user as User} />
+        {/* Streak Dialog - Shows once per day */}
+        <StreakCard 
+          user={user as User} 
+          open={streakDialogOpen}
+          onOpenChange={setStreakDialogOpen}
+        />
       </main>
     </Layout>
   );

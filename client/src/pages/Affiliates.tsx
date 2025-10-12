@@ -52,7 +52,7 @@ export default function Affiliates() {
   // Share referral link via Telegram with simplified message
   const shareViaWebApp = () => {
     if (referralLink && window.Telegram?.WebApp?.openTelegramLink) {
-      const shareText = `🚀 Join me on Paid Ads and start earning TON instantly!
+      const shareText = `🚀 Join me on Paid Ads and start earning PAD!
 
 💸 Watch ads, complete simple tasks, and get rewarded every day.`;
       
@@ -95,17 +95,6 @@ export default function Affiliates() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-2.5 text-sm">
-              <div className="flex items-start gap-2.5">
-                <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
-                  <i className="fas fa-gift text-primary text-xs"></i>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground text-sm">Instant Bonus</p>
-                  <p className="text-muted-foreground text-xs">
-                    Get <span className="text-primary font-semibold">0.002 TON</span> instantly when your friend joins
-                  </p>
-                </div>
-              </div>
               <div className="flex items-start gap-2.5">
                 <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
                   <i className="fas fa-percent text-primary text-xs"></i>
@@ -161,7 +150,7 @@ export default function Affiliates() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Total Earned</span>
                 <span className="text-xl font-bold text-primary">
-                  {formatTON(stats?.referralEarnings || '0')} TON
+                  {Math.round(parseFloat(stats?.referralEarnings || '0') * 100000)} PAD
                 </span>
               </div>
               <Button 
