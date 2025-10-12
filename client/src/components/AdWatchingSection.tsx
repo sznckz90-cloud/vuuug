@@ -35,11 +35,11 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       // Set last ad watch time to enforce 30-second cooldown
       setLastAdWatchTime(Date.now());
       
-      // Show reward notification
+      // Show reward notification (pass TON value, formatCurrency will convert to PAD)
       showNotification("🎉 Reward added!", "success", 0.0002);
       
-      // Start countdown AFTER reward is received
-      setCooldownRemaining(3);
+      // Start countdown AFTER reward is received (3-4 seconds)
+      setCooldownRemaining(4);
       const cooldownInterval = setInterval(() => {
         setCooldownRemaining(prev => {
           if (prev <= 1) {
@@ -117,37 +117,35 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   return (
     <Card className="rounded-xl shadow-lg neon-glow-border mt-3">
       <CardContent className="p-3">
-        <div className="text-center mb-3">
-          <h2 className="text-lg font-bold text-foreground mb-1">Watch & Earn</h2>
-          <p className="text-muted-foreground text-xs">Earn 0.0002 TON per ad watched</p>
+        <div className="text-center mb-2">
+          <h2 className="text-base font-bold text-foreground mb-1">Watch & Earn</h2>
+          <p className="text-muted-foreground text-xs">Earn 20 PAD per ad watched</p>
         </div>
         
-        <div className="relative flex justify-center mb-3">
-          <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse-ring"></div>
+        <div className="flex justify-center mb-2">
           <button
             onClick={handleWatchAd}
             disabled={isWatching || cooldownRemaining > 0}
-            className="relative bg-primary hover:bg-primary/90 text-primary-foreground w-16 h-16 rounded-full shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center justify-center"
+            className="relative bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center"
             data-testid="button-watch-ad"
           >
             {cooldownRemaining > 0 ? (
-              <span className="text-lg font-bold text-white">{cooldownRemaining}</span>
+              <>
+                <i className="fas fa-clock text-sm"></i>
+                <span className="text-sm font-semibold">{cooldownRemaining}s</span>
+              </>
             ) : isWatching ? (
-              <i className="fas fa-spinner fa-spin text-lg" style={{color: 'white'}}></i>
+              <>
+                <i className="fas fa-spinner fa-spin text-sm"></i>
+                <span className="text-sm font-semibold">Loading...</span>
+              </>
             ) : (
-              <i className="fas fa-play text-lg text-white group-hover:scale-110 transition-transform"></i>
+              <>
+                <i className="fas fa-play text-sm group-hover:scale-110 transition-transform"></i>
+                <span className="text-sm font-semibold">{user?.adsWatchedToday || 0}/160</span>
+              </>
             )}
           </button>
-        </div>
-        
-        <div className="text-center">
-          <div className="text-muted-foreground text-xs mb-1">Ads watched today</div>
-          <div className="text-xl font-bold text-foreground" data-testid="text-ads-watched-today">
-            {user?.adsWatchedToday || 0} / 160
-          </div>
-          <div className="text-muted-foreground text-xs mt-1">
-            {160 - (user?.adsWatchedToday || 0)} ads remaining
-          </div>
         </div>
       </CardContent>
     </Card>
