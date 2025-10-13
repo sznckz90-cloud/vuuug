@@ -2,6 +2,28 @@
 
 CashWatch is a React-based web application enabling users to earn money by watching advertisements. It features a gamified experience with daily streaks, a referral system, and withdrawal capabilities. The platform uses a modern full-stack architecture, integrating React, Express, PostgreSQL, shadcn/ui components, and Telegram Bot functionality. The project aims to provide a user-friendly and engaging way to earn cryptocurrency.
 
+# Recent Changes (October 13, 2025)
+
+## UI/UX Updates
+- **Full Screen Layout**: Removed top balance section from header to enable full-screen app experience
+- **Balance Display**: Balance now only visible in Wallet page with prominent gradient card display
+- **Income Statistics**: Added compact widget to Home page showing Today, All time, and Referrals earnings
+- **Wallet Navigation**: Updated to 3-tab system (Wallets | Withdraw | History) with clear visual indicators
+- **Admin Access**: Admin dashboard now accessible only via Wallet tab for admin users
+
+## Feature Updates
+- **Ad Rewards**: Increased from 20 PAD to 30 PAD per ad watch (0.0003 TON)
+- **Ad Cooldown**: Adjusted to 3-4 seconds between ads
+- **Referral System**: 
+  - Removed instant TON reward on friend join
+  - Updated commission structure: 20% from 1st level, 4% from 2nd level
+- **Admin Dashboard**: Added withdrawal statistics box showing Total Requests, Successful, and Pending withdrawals
+
+## Technical Changes
+- Balance hidden from all pages except Wallet
+- Smooth page transitions maintained
+- Compact layout optimizations across all sections
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -35,7 +57,7 @@ Preferred communication style: Simple, everyday language.
 - **Key Entities**: Users (balance, streaks, referrals), Earnings, Withdrawals, Referral relationships, Sessions.
 
 ## Business Logic Features
-- **Ad Watching System**: Users earn 20 PAD (0.0002 TON) per ad, with a daily limit of 160 ads and a 4-second cooldown. Integrated with Spin & Win.
+- **Ad Watching System**: Users earn 30 PAD (0.0003 TON) per ad with a 3-4 second cooldown. Integrated with Spin & Win.
 - **Spin & Win System**: Gamified reward system.
   - **Earning**: 1 free spin per 10 ads watched (max 16 daily). Additionally, 1 extra spin per 2 ads (max 10 daily), for a total of 26 max daily spins.
   - **Rewards**: Weighted random selection from 8 tiers (0.000071 TON to 1 TON).
@@ -44,7 +66,7 @@ Preferred communication style: Simple, everyday language.
   - **Rewards**: 10 PAD daily, with a 150 PAD bonus on the 5th consecutive day.
   - **Requirements**: Must watch an ad and be a member of the @PaidAdsNews Telegram channel to claim.
   - **Tracking**: Consecutive day logic with resets for missed days.
-- **Referral Program**: Users get an instant 0.002 TON bonus when a referred friend joins and a 10% lifetime commission on their ad earnings.
+- **Referral Program**: Users earn up to 20% commission from 1st level referrals and up to 4% from 2nd level referrals on their ad earnings. No instant reward on friend join.
 - **Withdrawal System**: Supports multiple payment methods with status tracking.
 - **Currency Conversion**: All internal values are in TON, displayed as PAD (1 TON = 100,000 PAD) throughout the UI.
 
