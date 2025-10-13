@@ -109,6 +109,40 @@ export default function Home() {
         {/* Watch Ads Section */}
         <AdWatchingSection user={user as User} />
 
+        {/* Basic Rules Section */}
+        <Card className="mt-3 bg-gradient-to-br from-blue-900/40 to-purple-900/40 border-purple-500/30 rounded-xl shadow-lg">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                  <span className="text-yellow-500 text-lg">⚠️</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-white mb-2.5">📜 Basic Rules</h3>
+                <ul className="space-y-1.5 text-sm text-gray-200">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-red-400 mt-0.5">•</span>
+                    <span>It is forbidden to use VPN, proxy, or any tools that hide your real IP.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-red-400 mt-0.5">•</span>
+                    <span>Using automated systems, bots, or emulators is strictly prohibited.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-red-400 mt-0.5">•</span>
+                    <span>All activity must come from real devices.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-red-400 mt-0.5">•</span>
+                    <span>Detected use of virtual servers or fake activity will result in permanent account suspension.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Streak Dialog - Shows once per day */}
         <StreakCard 
           user={user as User} 

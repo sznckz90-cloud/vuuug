@@ -16,6 +16,8 @@ interface User {
 interface ReferralStats {
   referralCount: number;
   referralEarnings: string;
+  level1Earnings: string;
+  level2Earnings: string;
 }
 
 export default function Affiliates() {
@@ -97,12 +99,23 @@ export default function Affiliates() {
             <div className="space-y-2.5 text-sm">
               <div className="flex items-start gap-2.5">
                 <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
-                  <i className="fas fa-percent text-primary text-xs"></i>
+                  <i className="fas fa-users text-primary text-xs"></i>
                 </div>
                 <div>
-                  <p className="font-medium text-foreground text-sm">Lifetime Commission</p>
+                  <p className="font-medium text-foreground text-sm">Level 1 Referrals</p>
                   <p className="text-muted-foreground text-xs">
-                    Earn <span className="text-primary font-semibold">10% commission</span> on every ad your friends watch
+                    Earn <span className="text-primary font-semibold">20% commission</span> on every ad your direct referrals watch
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
+                  <i className="fas fa-link text-primary text-xs"></i>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground text-sm">Level 2 Referrals</p>
+                  <p className="text-muted-foreground text-xs">
+                    Earn <span className="text-primary font-semibold">4% commission</span> on every ad your friends' referrals watch
                   </p>
                 </div>
               </div>
@@ -147,11 +160,19 @@ export default function Affiliates() {
                   {stats?.referralCount || 0}
                 </span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Total Earned</span>
-                <span className="text-xl font-bold text-primary">
-                  {Math.round(parseFloat(stats?.referralEarnings || '0') * 100000)} PAD
-                </span>
+              <div className="border-t border-border pt-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">👥 Level 1 Income</span>
+                  <span className="text-base font-semibold text-primary">
+                    {Math.round(parseFloat(stats?.level1Earnings || '0') * 100000)} PAD
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">👥 Level 2 Income</span>
+                  <span className="text-base font-semibold text-primary">
+                    {Math.round(parseFloat(stats?.level2Earnings || '0') * 100000)} PAD
+                  </span>
+                </div>
               </div>
               <Button 
                 onClick={() => refetchStats()} 
