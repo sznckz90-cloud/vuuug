@@ -26,7 +26,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       const response = await apiRequest("POST", "/api/ads/watch", { adType });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
@@ -35,11 +35,11 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       // Set last ad watch time to enforce 30-second cooldown
       setLastAdWatchTime(Date.now());
       
-      // Show reward notification with full message
-      showNotification("🎉 You received +20 PAD on your balance!", "success");
+      // Show reward notification with updated message (30 PAD)
+      showNotification("🎉 You received 30 PAD on your balance", "success");
       
       // Start countdown AFTER reward is received (3-4 seconds)
-      setCooldownRemaining(4);
+      setCooldownRemaining(3);
       const cooldownInterval = setInterval(() => {
         setCooldownRemaining(prev => {
           if (prev <= 1) {

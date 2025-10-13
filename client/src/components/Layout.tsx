@@ -33,30 +33,6 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-transparent">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50 backdrop-blur-sm">
-        <div className="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
-          {/* Balance Display - Left */}
-          <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">Available</span>
-            <span className="text-sm font-bold text-primary">
-              {balancePAD.toLocaleString()} PAD = ${balanceUSD}
-            </span>
-          </div>
-          
-          {/* Admin Button - Right */}
-          {isAdmin && (
-            <Link href="/admin">
-              <button className={`p-2 rounded-lg transition-colors ${
-                location === "/admin" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
-              }`} data-testid="admin-button">
-                <i className="fas fa-cog text-lg" style={{fontFamily: 'Font Awesome 5 Free', fontWeight: 900}}></i>
-              </button>
-            </Link>
-          )}
-        </div>
-      </header>
-
       {/* Page Content with Transition */}
       <AnimatePresence mode="wait">
         <motion.div
