@@ -1,7 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/Layout";
-import BalanceCard from "@/components/BalanceCard";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
 import { Card, CardContent } from "@/components/ui/card";
@@ -103,8 +102,30 @@ export default function Home() {
           </div>
         )}
 
-        {/* Balance Section */}
-        <BalanceCard user={user as User} stats={stats} />
+        {/* Income Statistics Widget */}
+        <div className="mt-3 bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/20 rounded-xl p-3 shadow-lg">
+          <h3 className="text-sm font-semibold text-white mb-2">Income statistics</h3>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div className="text-xs text-gray-400 mb-1">Today</div>
+              <div className="text-sm font-bold text-primary">
+                PAD {statsLoading ? "..." : stats?.todayEarnings || "0"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-400 mb-1">All time</div>
+              <div className="text-sm font-bold text-primary">
+                PAD {statsLoading ? "..." : Math.round(parseFloat(user?.balance || "0") * 100000)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-400 mb-1">On referrals</div>
+              <div className="text-sm font-bold text-primary">
+                PAD {statsLoading ? "..." : stats?.referralEarnings || "0"}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Watch Ads Section */}
         <AdWatchingSection user={user as User} />

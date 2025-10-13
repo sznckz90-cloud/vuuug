@@ -9,6 +9,8 @@ import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
 import { apiRequest } from '@/lib/queryClient';
 import { formatCurrency } from '@/lib/utils';
+import { useAdmin } from '@/hooks/useAdmin';
+import { Link } from 'wouter';
 
 interface WithdrawalRequest {
   id: string;
@@ -40,7 +42,8 @@ export default function Wallet() {
     retry: false,
   });
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('balance');
+  const { isAdmin } = useAdmin();
+  const [activeTab, setActiveTab] = useState('wallet');
   const [withdrawForm, setWithdrawForm] = useState<WithdrawForm>({
     amount: '',
     paymentDetails: '',
@@ -253,28 +256,75 @@ export default function Wallet() {
   return (
     <Layout>
       <div className="max-w-md mx-auto p-4 pb-20">
-      {/* Balance Display near Title */}
-      <div className="mb-4 text-center">
-        <div className="text-sm text-muted-foreground mb-1">Balance</div>
-        <div className="text-3xl font-bold text-primary">
-          {Math.round(parseFloat(user?.balance || "0") * 100000)} PAD
+      {/* Balance Section - Prominent Display */}
+      <div className="mb-4">
+        <div className="bg-gradient-to-r from-primary to-secondary p-4 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-primary-foreground/80 text-sm font-medium">Balance</div>
+            {/* Admin Dashboard Button */}
+            {isAdmin && (
+              <Link href="/admin">
+                <Button variant="secondary" size="sm" className="gap-2 h-8">
+                  <i className="fas fa-cog text-xs"></i>
+                  <span className="text-xs">Dashboard</span>
+                </Button>
+              </Link>
+            )}
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            {Math.round(parseFloat(user?.balance || "0") * 100000)} PAD
+          </div>
+          <div className="text-primary-foreground/70 text-xs">
+            ≈ ${(Math.round(parseFloat(user?.balance || "0") * 100000) / 200000).toFixed(2)} USD
+          </div>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="balance">
+        <TabsList className="grid w-full grid-cols-3 h-12 bg-muted/50">
+          <TabsTrigger value="wallet" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <i className="fas fa-wallet mr-2"></i>
-            Balance
+            <span>Wallets</span>
           </TabsTrigger>
-          <TabsTrigger value="withdraw">
+          <TabsTrigger value="withdraw" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <i className="fas fa-arrow-down mr-2"></i>
-            Withdraw
+            <span>Withdraw</span>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <i className="fas fa-history mr-2"></i>
+            <span>History</span>
           </TabsTrigger>
         </TabsList>
 
-        {/* Balance Tab */}
-        <TabsContent value="balance" className="space-y-3">
+        {/* Wallets Tab */}
+        <TabsContent value="wallet" className="space-y-3">
+          <Card className="neon-glow-border shadow-lg">
+            <CardHeader className="py-3">
+              <CardTitle className="text-base font-medium">Payment Methods</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center">
+                        <i className="fas fa-gem text-blue-400 text-lg"></i>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-sm">TON Wallet</div>
+                        <div className="text-xs text-muted-foreground">Cryptocurrency</div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">Active</Badge>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-3">
           {/* Withdrawal History in Scrollable Box */}
           <Card className="neon-glow-border shadow-lg">
             <CardHeader className="py-2 pb-1.5">
