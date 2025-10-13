@@ -518,10 +518,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // No daily limit - users can watch unlimited ads
       
-      // Add earning for watched ad with new rate
+      // Add earning for watched ad with new rate (30 PAD = 0.0003 TON)
       const earning = await storage.addEarning({
         userId,
-        amount: "0.00020000",
+        amount: "0.00030000",
         source: 'ad_watch',
         description: 'Watched advertisement',
       });
@@ -535,7 +535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send real-time update to user
       sendRealtimeUpdate(userId, {
         type: 'ad_reward',
-        amount: "0.00020000",
+        amount: "0.00030000",
         message: 'Ad reward earned! 💰',
         timestamp: new Date().toISOString()
       });

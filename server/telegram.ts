@@ -748,19 +748,6 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                 console.error(`❌ Referral verification failed - not found in database after creation`);
               }
               
-              // Award instant 0.002 TON bonus to referrer
-              try {
-                await storage.addEarning({
-                  userId: referrer.id,
-                  amount: "0.002",
-                  source: 'referral',
-                  description: `Referral bonus - new friend joined`,
-                });
-                console.log(`✅ Awarded 0.002 TON instant bonus to referrer ${referrer.id}`);
-              } catch (bonusError) {
-                console.error('❌ Failed to award instant referral bonus:', bonusError);
-              }
-              
               // Update referral status to completed immediately
               try {
                 await db.execute(sql`
@@ -776,9 +763,8 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               // Send notification to referrer about successful referral
               try {
                 const notificationMessage = `🎉 New Friend Joined!  
-👥 You earned +0.002 TON for this referral.  
 
-Keep inviting & earn 10% lifetime commission from your friends' ad rewards!`;
+Earn up to 20% commission from their ad activity!`;
                 await sendUserTelegramNotification(
                   referrer.telegram_id || '',
                   notificationMessage
