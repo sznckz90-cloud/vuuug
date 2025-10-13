@@ -3,6 +3,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, CheckSquare, Users, Wallet } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,6 +14,12 @@ export default function Layout({ children }: LayoutProps) {
   const { isConnected } = useWebSocket();
   const { isAdmin } = useAdmin();
 
+  // Fetch user data for balance
+  const { data: user } = useQuery<any>({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+  });
+
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
     { href: "/tasks", icon: CheckSquare, label: "Tasks" },
@@ -20,12 +27,24 @@ export default function Layout({ children }: LayoutProps) {
     { href: "/wallet", icon: Wallet, label: "Wallet" },
   ];
 
+  // Calculate balance in PAD and USD
+  const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
+  const balanceUSD = (balancePAD / 200000).toFixed(2);
+
   return (
     <div className="min-h-screen bg-transparent">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50 backdrop-blur-sm">
-        <div className="max-w-md mx-auto px-4 py-4 flex justify-end items-center">
-          {/* Admin Button - Top Right */}
+        <div className="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+          {/* Balance Display - Left */}
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Available</span>
+            <span className="text-sm font-bold text-primary">
+              {balancePAD.toLocaleString()} PAD = ${balanceUSD}
+            </span>
+          </div>
+          
+          {/* Admin Button - Right */}
           {isAdmin && (
             <Link href="/admin">
               <button className={`p-2 rounded-lg transition-colors ${

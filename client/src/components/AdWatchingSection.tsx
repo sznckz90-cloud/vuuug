@@ -35,8 +35,8 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       // Set last ad watch time to enforce 30-second cooldown
       setLastAdWatchTime(Date.now());
       
-      // Show reward notification (pass TON value, formatCurrency will convert to PAD)
-      showNotification("🎉 Reward added!", "success", 0.0002);
+      // Show reward notification with full message
+      showNotification("🎉 You received +20 PAD on your balance!", "success");
       
       // Start countdown AFTER reward is received (3-4 seconds)
       setCooldownRemaining(4);
@@ -118,15 +118,15 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     <Card className="rounded-xl shadow-lg neon-glow-border mt-3">
       <CardContent className="p-3">
         <div className="text-center mb-2">
-          <h2 className="text-base font-bold text-foreground mb-1">Watch & Earn</h2>
-          <p className="text-muted-foreground text-xs">Earn 20 PAD per ad watched</p>
+          <h2 className="text-base font-bold text-foreground mb-1">Viewing ads</h2>
+          <p className="text-muted-foreground text-xs">Get PAD for watching commercials</p>
         </div>
         
         <div className="flex justify-center mb-2">
           <button
             onClick={handleWatchAd}
             disabled={isWatching || cooldownRemaining > 0}
-            className="relative bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center"
+            className="relative bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center gap-2 min-w-[160px] justify-center"
             data-testid="button-watch-ad"
           >
             {cooldownRemaining > 0 ? (
@@ -142,7 +142,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
             ) : (
               <>
                 <i className="fas fa-play text-sm group-hover:scale-110 transition-transform"></i>
-                <span className="text-sm font-semibold">{user?.adsWatchedToday || 0}/160</span>
+                <span className="text-sm font-semibold">Start Watching</span>
               </>
             )}
           </button>
