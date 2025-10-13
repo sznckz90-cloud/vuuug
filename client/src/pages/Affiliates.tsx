@@ -90,36 +90,15 @@ export default function Affiliates() {
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-20 pt-6">
 
-        {/* How It Works - Moved to top */}
+        {/* Affiliate Program */}
         <Card className="mb-4 neon-glow-border shadow-lg">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">💡 How It Works</CardTitle>
+            <CardTitle className="text-base">Affiliate Program</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="space-y-2.5 text-sm">
-              <div className="flex items-start gap-2.5">
-                <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
-                  <i className="fas fa-users text-primary text-xs"></i>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground text-sm">Level 1 Referrals</p>
-                  <p className="text-muted-foreground text-xs">
-                    Earn <span className="text-primary font-semibold">20% commission</span> on every ad your direct referrals watch
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <div className="bg-primary/10 rounded-full p-1.5 mt-0.5">
-                  <i className="fas fa-link text-primary text-xs"></i>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground text-sm">Level 2 Referrals</p>
-                  <p className="text-muted-foreground text-xs">
-                    Earn <span className="text-primary font-semibold">4% commission</span> on every ad your friends' referrals watch
-                  </p>
-                </div>
-              </div>
-            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              We pay out up to 20% from the income of referrals of the 1st level and up to 4% from the income of referrals of the 2nd level.
+            </p>
           </CardContent>
         </Card>
 
