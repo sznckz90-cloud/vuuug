@@ -510,17 +510,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Ad watching endpoint
+  // Ad watching endpoint - unlimited daily viewing
   app.post('/api/ads/watch', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
       const { adType } = req.body;
       
-      // Check if user can watch ad (daily limit)
-      const canWatch = await storage.canWatchAd(userId);
-      if (!canWatch) {
-        return res.status(429).json({ message: 'Daily ad limit reached (160 ads)' });
-      }
+      // No daily limit - users can watch unlimited ads
       
       // Add earning for watched ad with new rate
       const earning = await storage.addEarning({
@@ -530,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: 'Watched advertisement',
       });
       
-      // Increment ads watched count
+      // Increment ads watched count (for tracking only, no limit enforcement)
       await storage.incrementAdsWatched(userId);
       
       // Check and activate referral bonuses (anti-fraud: requires 10 ads)
@@ -680,10 +676,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.user.id;
       const referrals = await storage.getUserReferrals(userId);
       const referralEarnings = await storage.getUserReferralEarnings(userId);
+      const earningsByLevel = await storage.getUserReferralEarningsByLevel(userId);
       
       res.json({
         referralCount: referrals.length,
-        referralEarnings: referralEarnings
+        referralEarnings: referralEarnings,
+        level1Earnings: earningsByLevel.level1,
+        level2Earnings: earningsByLevel.level2
       });
     } catch (error) {
       console.error("Error fetching referral stats:", error);

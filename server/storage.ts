@@ -1079,7 +1079,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // Process referral commission (10% of user's earnings)
+  // Process referral commission (20% Level 1, 4% Level 2)
   async processReferralCommission(userId: string, originalEarningId: number, earningAmount: string): Promise<void> {
     try {
       // Only process commissions for ad watching earnings
@@ -1094,8 +1094,8 @@ export class DatabaseStorage implements IStorage {
         return;
       }
 
-      // Find who referred this user (must be completed referral)
-      const [referralInfo] = await db
+      // Find Level 1 referrer (direct referrer - must be completed referral)
+      const [level1Referral] = await db
         .select({ referrerId: referrals.referrerId })
         .from(referrals)
         .where(and(
@@ -1104,45 +1104,91 @@ export class DatabaseStorage implements IStorage {
         ))
         .limit(1);
 
-      if (!referralInfo) {
-        // User was not referred by anyone or referral not activated
-        return;
-      }
-
-      // Calculate 10% commission on ad earnings only
-      const commissionAmount = (parseFloat(earningAmount) * 0.10).toFixed(8);
-      
-      // Record the referral commission
-      await db.insert(referralCommissions).values({
-        referrerId: referralInfo.referrerId,
-        referredUserId: userId,
-        originalEarningId,
-        commissionAmount,
-      });
-
-      // Add commission as earnings to the referrer
-      await this.addEarning({
-        userId: referralInfo.referrerId,
-        amount: commissionAmount,
-        source: 'referral_commission',
-        description: `10% commission from referred user's ad earnings`,
-      });
-
-      // Log commission transaction
-      await this.logTransaction({
-        userId: referralInfo.referrerId,
-        amount: commissionAmount,
-        type: 'addition',
-        source: 'referral_commission',
-        description: `10% commission from referred user's ad earnings`,
-        metadata: { 
-          originalEarningId, 
+      if (level1Referral) {
+        // Calculate 20% commission for Level 1 referrer
+        const level1Commission = (parseFloat(earningAmount) * 0.20).toFixed(8);
+        
+        // Record the Level 1 referral commission
+        await db.insert(referralCommissions).values({
+          referrerId: level1Referral.referrerId,
           referredUserId: userId,
-          commissionRate: '10%'
-        }
-      });
+          originalEarningId,
+          commissionAmount: level1Commission,
+        });
 
-      console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
+        // Add commission as earnings to the Level 1 referrer
+        await this.addEarning({
+          userId: level1Referral.referrerId,
+          amount: level1Commission,
+          source: 'referral_commission',
+          description: `Level 1: 20% commission from referred user's ad earnings`,
+        });
+
+        // Log commission transaction
+        await this.logTransaction({
+          userId: level1Referral.referrerId,
+          amount: level1Commission,
+          type: 'addition',
+          source: 'referral_commission',
+          description: `Level 1: 20% commission from referred user's ad earnings`,
+          metadata: { 
+            originalEarningId, 
+            referredUserId: userId,
+            commissionRate: '20%',
+            level: 1
+          }
+        });
+
+        console.log(`✅ Level 1 commission of ${level1Commission} awarded to ${level1Referral.referrerId} from ${userId}'s ad earnings`);
+
+        // Now find Level 2 referrer (referrer of the Level 1 referrer)
+        const [level2Referral] = await db
+          .select({ referrerId: referrals.referrerId })
+          .from(referrals)
+          .where(and(
+            eq(referrals.refereeId, level1Referral.referrerId),
+            eq(referrals.status, 'completed') // Only completed referrals earn commissions
+          ))
+          .limit(1);
+
+        if (level2Referral) {
+          // Calculate 4% commission for Level 2 referrer
+          const level2Commission = (parseFloat(earningAmount) * 0.04).toFixed(8);
+          
+          // Record the Level 2 referral commission
+          await db.insert(referralCommissions).values({
+            referrerId: level2Referral.referrerId,
+            referredUserId: userId,
+            originalEarningId,
+            commissionAmount: level2Commission,
+          });
+
+          // Add commission as earnings to the Level 2 referrer
+          await this.addEarning({
+            userId: level2Referral.referrerId,
+            amount: level2Commission,
+            source: 'referral_commission',
+            description: `Level 2: 4% commission from indirect referral's ad earnings`,
+          });
+
+          // Log commission transaction
+          await this.logTransaction({
+            userId: level2Referral.referrerId,
+            amount: level2Commission,
+            type: 'addition',
+            source: 'referral_commission',
+            description: `Level 2: 4% commission from indirect referral's ad earnings`,
+            metadata: { 
+              originalEarningId, 
+              referredUserId: userId,
+              commissionRate: '4%',
+              level: 2
+            }
+          });
+
+          console.log(`✅ Level 2 commission of ${level2Commission} awarded to ${level2Referral.referrerId} from ${userId}'s ad earnings`);
+        }
+      }
       
       // Notification disabled to prevent spam - users can view commission totals in app
       // Commission is tracked in database and visible in Affiliates page
@@ -1162,6 +1208,42 @@ export class DatabaseStorage implements IStorage {
       ));
 
     return result.total;
+  }
+
+  async getUserReferralEarningsByLevel(userId: string): Promise<{ level1: string; level2: string }> {
+    // Get all referral commission earnings with their descriptions
+    const commissionEarnings = await db
+      .select({
+        amount: earnings.amount,
+        description: earnings.description
+      })
+      .from(earnings)
+      .where(and(
+        eq(earnings.userId, userId),
+        eq(earnings.source, 'referral_commission')
+      ));
+
+    let level1Total = 0;
+    let level2Total = 0;
+
+    // Separate earnings by level based on description
+    commissionEarnings.forEach(earning => {
+      const amount = parseFloat(earning.amount || '0');
+      if (earning.description?.includes('Level 1:') || earning.description?.includes('10% commission')) {
+        // 10% is old commission rate, treat as Level 1
+        level1Total += amount;
+      } else if (earning.description?.includes('Level 2:')) {
+        level2Total += amount;
+      } else {
+        // Default to level 1 for backward compatibility
+        level1Total += amount;
+      }
+    });
+
+    return {
+      level1: level1Total.toFixed(8),
+      level2: level2Total.toFixed(8)
+    };
   }
 
 
