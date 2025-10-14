@@ -1409,6 +1409,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin user tracking endpoint - search by UID/referral code
+  app.get('/api/admin/user-tracking/:uid', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { uid } = req.params;
+      
+      // Search user by referral code (UID)
+      const userResults = await db
+        .select()
+        .from(users)
+        .where(eq(users.referralCode, uid))
+        .limit(1);
+      
+      if (userResults.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+      
+      const user = userResults[0];
+      
+      // Get withdrawal count
+      const withdrawalCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(withdrawals)
+        .where(eq(withdrawals.userId, user.id));
+      
+      // Get referral count
+      const referralCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(referrals)
+        .where(eq(referrals.referrerId, user.id));
+      
+      res.json({
+        success: true,
+        user: {
+          uid: user.referralCode,
+          balance: user.balance,
+          totalEarnings: user.totalEarned,
+          withdrawalCount: withdrawalCount[0]?.count || 0,
+          referralCount: referralCount[0]?.count || 0,
+          status: user.banned ? 'Banned' : 'Active',
+          joinedDate: user.createdAt,
+          adsWatched: user.adsWatched
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching user tracking:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to fetch user data" 
+      });
+    }
+  });
+
   // Admin users endpoint
   app.get('/api/admin/users', authenticateAdmin, async (req: any, res) => {
     try {

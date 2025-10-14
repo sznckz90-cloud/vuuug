@@ -405,6 +405,10 @@ export default function AdminPage() {
                   <i className="fas fa-chart-area mr-2"></i>
                   Advanced Analytics
                 </TabsTrigger>
+                <TabsTrigger value="user-tracking" data-testid="tab-user-tracking" className="flex-1 min-w-[120px]">
+                  <i className="fas fa-user-search mr-2"></i>
+                  User Tracking
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -732,9 +736,140 @@ export default function AdminPage() {
                 </Card>
               </div>
             </TabsContent>
+
+            {/* User Tracking Tab */}
+            <TabsContent value="user-tracking" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Tracking</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <UserTrackingSearch />
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
       </main>
     </Layout>
+  );
+}
+
+function UserTrackingSearch() {
+  const [uid, setUid] = useState('');
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSearch = async () => {
+    if (!uid.trim()) {
+      setError('Please enter a UID');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setUserData(null);
+
+    try {
+      const response = await apiRequest('GET', `/api/admin/user-tracking/${uid.trim()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setUserData(data.user);
+      } else {
+        setError(data.message || 'User not found');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch user data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    }) + ', at ' + date.toLocaleTimeString('en-GB', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Input
+          placeholder="Enter UID (referral code)"
+          value={uid}
+          onChange={(e) => setUid(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          className="flex-1"
+        />
+        <Button onClick={handleSearch} disabled={loading}>
+          {loading ? (
+            <><i className="fas fa-spinner fa-spin mr-2"></i>Searching...</>
+          ) : (
+            <><i className="fas fa-search mr-2"></i>Search</>
+          )}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
+      {userData && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">UID</p>
+                  <p className="font-semibold">{userData.uid}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="font-semibold">{userData.status}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Balance</p>
+                  <p className="font-semibold">{Math.round(parseFloat(userData.balance || '0') * 100000)} PAD</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Earnings</p>
+                  <p className="font-semibold">{Math.round(parseFloat(userData.totalEarnings || '0') * 100000)} PAD</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Withdrawals</p>
+                  <p className="font-semibold">{userData.withdrawalCount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Referral Count</p>
+                  <p className="font-semibold">{userData.referralCount}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Joined Date</p>
+                <p className="font-semibold">{formatDate(userData.joinedDate)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ads Watched</p>
+                <p className="font-semibold">{userData.adsWatched}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
