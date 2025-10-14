@@ -6,19 +6,19 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format TON values with up to 4 decimal places, removing trailing zeros
- * Examples: 0.0001500 TON → 0.00015 TON, 0.100000 TON → 0.1 TON, 2.0000 TON → 2 TON
+ * Format currency values - converts TON to PAD (multiply by 100000)
+ * Examples: 0.00033 → "33 PAD", 0.0002 → "20 PAD"
  */
 export function formatCurrency(value: string | number, includeSymbol: boolean = true): string {
-  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
   
-  if (isNaN(numValue) || !numValue) {
-    return includeSymbol ? '0 TON' : '0';
+  if (isNaN(numValue)) {
+    return includeSymbol ? '0 PAD' : '0';
   }
-
-  // Format to 4 decimal places and remove trailing zeros
-  const formatted = parseFloat(numValue.toFixed(4)).toString();
   
-  const symbol = includeSymbol ? ' TON' : '';
-  return `${formatted}${symbol}`;
+  // Convert TON to PAD (multiply by 100000)
+  const padValue = Math.round(numValue * 100000);
+  
+  const symbol = includeSymbol ? ' PAD' : '';
+  return `${padValue.toLocaleString()}${symbol}`;
 }
