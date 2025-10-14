@@ -690,6 +690,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search referral by code endpoint
+  app.get('/api/referrals/search/:code', authenticateTelegram, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.user.id;
+      const searchCode = req.params.code;
+
+      // Find user by referral code
+      const referralUser = await storage.getUserByReferralCode(searchCode);
+      
+      if (!referralUser) {
+        return res.status(404).json({ message: "Referral not found" });
+      }
+
+      // Check if this referral belongs to the current user
+      const referralRelationship = await storage.getReferralByUsers(currentUserId, referralUser.id);
+      
+      if (!referralRelationship) {
+        return res.status(403).json({ message: "This referral does not belong to you" });
+      }
+
+      // Get referral stats
+      const referralEarnings = await storage.getUserStats(referralUser.id);
+      const referralCount = await storage.getUserReferrals(referralUser.id);
+
+      res.json({
+        id: searchCode,
+        earnedToday: referralEarnings.todayEarnings || "0.00",
+        allTime: referralUser.totalEarned || "0.00",
+        invited: referralCount.length,
+        joinedAt: referralRelationship.createdAt
+      });
+    } catch (error) {
+      console.error("Error searching referral:", error);
+      res.status(500).json({ message: "Failed to search referral" });
+    }
+  });
+
   // Earnings history endpoint
   app.get('/api/earnings', authenticateTelegram, async (req: any, res) => {
     try {
