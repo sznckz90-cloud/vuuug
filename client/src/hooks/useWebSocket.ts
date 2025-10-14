@@ -73,7 +73,7 @@ export function useWebSocket() {
               
             case 'auth_error':
               console.error('❌ WebSocket authentication error:', message.message);
-              showNotification("⚠️ Connection error", "error");
+              showNotification("Connection error", "error");
               break;
               
             case 'ad_reward':
@@ -84,11 +84,11 @@ export function useWebSocket() {
               break;
               
             case 'withdrawal_requested':
-              showNotification("⏳ Withdrawal requested", "info");
+              showNotification("Withdrawal requested", "info");
               break;
               
             case 'withdrawal_approved':
-              showNotification("✅ Withdrawal approved!", "success");
+              showNotification("Withdrawal approved!", "success");
               // Invalidate withdrawal queries to update UI immediately
               queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
               queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
@@ -96,7 +96,7 @@ export function useWebSocket() {
               break;
               
             case 'withdrawal_rejected':
-              showNotification("❌ Withdrawal rejected", "error");
+              showNotification("Withdrawal rejected", "error");
               // Invalidate withdrawal queries to update UI immediately
               queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
               queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
@@ -104,23 +104,23 @@ export function useWebSocket() {
               break;
               
             case 'referral_bonus':
-              showNotification("🎉 Referral bonus!", "success", parseFloat(message.amount || '0'));
+              showNotification("Referral bonus!", "success", parseFloat(message.amount || '0'));
               break;
               
             case 'balance_update':
-              showNotification("🎉 Balance updated!", "success", parseFloat((message as any).delta || message.amount || '0'));
+              showNotification("Balance updated!", "success", parseFloat((message as any).delta || message.amount || '0'));
               break;
               
             case 'promotion_approved':
-              showNotification("✅ Promotion approved!", "success");
+              showNotification("Promotion approved!", "success");
               break;
               
             case 'promotion_rejected':
-              showNotification("❌ Promotion rejected", "error");
+              showNotification("Promotion rejected", "error");
               break;
               
             case 'task_deleted':
-              showNotification("🗑️ Task deleted", "error");
+              showNotification("Task deleted", "error");
               break;
               
             case 'task_removed':
