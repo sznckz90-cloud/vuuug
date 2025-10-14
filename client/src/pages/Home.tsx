@@ -121,18 +121,20 @@ export default function Home() {
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Today:</span>
               <span className="font-semibold text-white">
-                {statsLoading ? "..." : stats?.todayEarnings || "0.00"}
+                {statsLoading ? "..." : `${Math.round(parseFloat(stats?.todayEarnings || "0") * 100000)} PAD`}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400">All time:</span>
               <span className="font-semibold text-white">
-                {statsLoading ? "..." : (parseFloat((user as User)?.balance || "0") * 100000).toFixed(2)}
+                {statsLoading ? "..." : `${Math.round(parseFloat((user as User)?.balance || "0") * 100000)} PAD`}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">On referrals:</span>
-              <span className="font-semibold text-white">—</span>
+              <span className="text-gray-400">≈ USD:</span>
+              <span className="font-semibold text-white">
+                ${(Math.round(parseFloat((user as User)?.balance || "0") * 100000) / 100000).toFixed(2)}
+              </span>
             </div>
           </div>
           
@@ -157,30 +159,6 @@ export default function Home() {
 
         {/* Watch Ads Section */}
         <AdWatchingSection user={user as User} />
-
-        {/* Network Chat Section */}
-        <Card className="mt-3 bg-gradient-to-br from-blue-900/40 to-purple-900/40 border-purple-500/30 rounded-xl shadow-lg">
-          <CardContent className="p-4">
-            <div className="text-center">
-              <h3 className="text-base font-semibold text-white mb-2">
-                Network with other members in our chat room
-              </h3>
-              <Button
-                onClick={() => {
-                  if (window.Telegram?.WebApp?.openTelegramLink) {
-                    window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsCommunity');
-                  } else {
-                    window.open('https://t.me/PaidAdsCommunity', '_blank');
-                  }
-                }}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
-              >
-                <i className="fas fa-comments mr-2"></i>
-                Go to chat
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Basic Rules Section */}
         <Card className="mt-3 bg-gradient-to-br from-blue-900/40 to-purple-900/40 border-purple-500/30 rounded-xl shadow-lg">

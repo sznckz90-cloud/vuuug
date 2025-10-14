@@ -361,347 +361,73 @@ export default function Wallet() {
                 {Math.round(parseFloat(user?.balance || "0") * 100000)} PAD
               </div>
               <div className="text-primary-foreground/70 text-xs">
-                ≈ ${(Math.round(parseFloat(user?.balance || "0") * 100000) / 200000).toFixed(2)} USD
+                ≈ ${(Math.round(parseFloat(user?.balance || "0") * 100000) / 100000).toFixed(2)} USD
               </div>
             </div>
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
-          <TabsList className="grid w-full grid-cols-3 h-12 bg-muted/50">
-            <TabsTrigger value="wallets" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <i className="fas fa-wallet mr-2"></i>
-              <span>Wallets</span>
-            </TabsTrigger>
-            <TabsTrigger value="withdraw" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <i className="fas fa-arrow-down mr-2"></i>
-              <span>Withdraw</span>
-            </TabsTrigger>
-            <TabsTrigger value="history" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <i className="fas fa-history mr-2"></i>
-              <span>History</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* Main Navigation Buttons */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <Link href="/my-wallets">
+            <Button className="w-full h-16 flex flex-col gap-1">
+              <i className="fas fa-wallet text-xl"></i>
+              <span className="text-xs">Wallets</span>
+            </Button>
+          </Link>
+          <Link href="/withdraw">
+            <Button className="w-full h-16 flex flex-col gap-1">
+              <i className="fas fa-arrow-down text-xl"></i>
+              <span className="text-xs">Withdraw</span>
+            </Button>
+          </Link>
+          <Link href="/payment-history">
+            <Button className="w-full h-16 flex flex-col gap-1">
+              <i className="fas fa-history text-xl"></i>
+              <span className="text-xs">History</span>
+            </Button>
+          </Link>
+        </div>
 
-          {/* My Wallets Tab */}
-          <TabsContent value="wallets" className="space-y-3">
-            <Card className="neon-glow-border shadow-lg">
-              <CardHeader className="py-3">
-                <CardTitle className="text-base font-medium">My Wallets</CardTitle>
-                <CardDescription className="text-xs">Enter your payment details to withdraw earned funds.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSaveWallet} className="space-y-4">
-                  {/* TON Section */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">TON</Label>
-                    <Input
-                      placeholder="Address"
-                      value={walletForm.tonWalletAddress}
-                      onChange={(e) => updateWalletForm('tonWalletAddress', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Optional comment"
-                      value={walletForm.tonWalletComment}
-                      onChange={(e) => updateWalletForm('tonWalletComment', e.target.value)}
-                    />
-                  </div>
-
-                  {/* Telegram Section */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">TELEGRAM</Label>
-                    <Input
-                      placeholder="Username for premium/stars"
-                      value={walletForm.telegramUsername}
-                      onChange={(e) => updateWalletForm('telegramUsername', e.target.value)}
-                    />
-                  </div>
-
-                  {/* Notice */}
-                  <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
-                    <div className="flex items-start gap-2">
-                      <i className="fas fa-info-circle text-orange-600 dark:text-orange-400 mt-0.5"></i>
-                      <p className="text-xs text-orange-800 dark:text-orange-300">
-                        After changing the payment details, the possibility of withdrawal is put on hold for 24 hours.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Save Button */}
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={saveWalletMutation.isPending}
-                  >
-                    {saveWalletMutation.isPending ? (
-                      <>
-                        <i className="fas fa-spinner fa-spin mr-2"></i>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save mr-2"></i>
-                        Save
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Withdraw Tab */}
-          <TabsContent value="withdraw" className="space-y-3">
-            <Card className="neon-glow-border shadow-lg">
-              <CardHeader className="py-3">
-                <CardTitle className="text-base font-medium">Withdraw funds</CardTitle>
-                <CardDescription className="text-xs">Choose the payment system</CardDescription>
-              </CardHeader>
-              
-              <CardContent className="p-3 pt-2">
-                <form onSubmit={handleSubmitWithdraw} className="space-y-3">
-                  {/* Payment System Selector */}
-                  <div className="space-y-2">
-                    <Label>Payment System</Label>
-                    <Select 
-                      value={withdrawForm.paymentSystem} 
-                      onValueChange={(value) => updateWithdrawForm('paymentSystem', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select payment system" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_SYSTEMS.map(ps => (
-                          <SelectItem key={ps.id} value={ps.id}>
-                            {ps.emoji} {ps.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {errors.paymentSystem && <p className="text-sm text-red-500">{errors.paymentSystem}</p>}
-                  </div>
-
-                  {/* Wallet Input - Auto-filled */}
-                  <div className="space-y-2">
-                    <Label>Wallet Address</Label>
-                    <Input
-                      value={withdrawForm.paymentDetails}
-                      onChange={(e) => updateWithdrawForm('paymentDetails', e.target.value)}
-                      placeholder="Payment details"
-                      className={errors.paymentDetails ? 'border-red-500' : ''}
-                      readOnly={!!walletDetails && withdrawForm.paymentDetails !== ''}
-                    />
-                    {errors.paymentDetails && <p className="text-sm text-red-500">{errors.paymentDetails}</p>}
-                    <p className="text-xs text-muted-foreground">
-                      Automatically filled from saved wallet
-                    </p>
-                  </div>
-
-                  {/* Payout Amount */}
-                  <div className="space-y-2">
-                    <Label>Payout Amount</Label>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        step="0.00001"
-                        min={selectedPaymentSystem?.minWithdrawal || 0}
-                        max={autoRoundAmount(user?.balance || "0")}
-                        value={withdrawForm.amount}
-                        onChange={(e) => updateWithdrawForm('amount', e.target.value)}
-                        placeholder="Enter amount"
-                        className={errors.amount ? 'border-red-500' : ''}
-                      />
-                      <Button 
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
-                        onClick={() => updateWithdrawForm('amount', autoRoundAmount(user?.balance || '0'))}
-                      >
-                        MAX
-                      </Button>
-                    </div>
-                    {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
-                    {selectedPaymentSystem && (
-                      <p className="text-xs text-muted-foreground">
-                        Minimum: {selectedPaymentSystem.minWithdrawal} {selectedPaymentSystem.name === 'TON Coin' ? 'TON' : 'USD'}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Fee Display */}
-                  {selectedPaymentSystem && withdrawForm.amount && parseFloat(withdrawForm.amount) > 0 && (
-                    <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Fee:</span>
-                        <span className="font-medium">
-                          {selectedPaymentSystem.feeType === 'percentage' 
-                            ? `${selectedPaymentSystem.fee}% (${fee.toFixed(4)})`
-                            : `${selectedPaymentSystem.fee} ${selectedPaymentSystem.name === 'TON Coin' ? 'TON' : 'USD'}`
-                          }
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Will be credited to wallet:</span>
-                        <span className="font-semibold text-primary">{afterFee.toFixed(4)}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Comment (Optional) */}
-                  {withdrawForm.paymentSystem === 'ton_coin' && (
-                    <div className="space-y-2">
-                      <Label>Comment (Optional)</Label>
-                      <Input
-                        value={withdrawForm.comment || ''}
-                        onChange={(e) => updateWithdrawForm('comment', e.target.value)}
-                        placeholder="Optional comment"
-                        maxLength={200}
-                      />
-                    </div>
-                  )}
-
-                  {/* Warning Messages */}
-                  {walletDetails && !walletDetails.canWithdraw && (
-                    <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
-                      <div className="flex items-start gap-2">
-                        <i className="fas fa-clock text-orange-600 dark:text-orange-400 mt-0.5"></i>
-                        <p className="text-xs text-orange-800 dark:text-orange-300">
-                          Withdrawal is on hold for 24 hours after updating wallet details.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {hasPendingWithdrawal && (
-                    <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                      <div className="flex items-start gap-2">
-                        <i className="fas fa-info-circle text-blue-600 dark:text-blue-400 mt-0.5"></i>
-                        <p className="text-xs text-blue-800 dark:text-blue-300">
-                          You have a pending withdrawal request. Cannot create a new one until it's processed.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Submit Button */}
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={
-                      withdrawMutation.isPending || 
-                      !user?.balance || 
-                      parseFloat(user?.balance || '0') < 0.001 ||
-                      (walletDetails && !walletDetails.canWithdraw) ||
-                      hasPendingWithdrawal
-                    }
-                  >
-                    {withdrawMutation.isPending ? (
-                      <>
-                        <i className="fas fa-spinner fa-spin mr-2"></i>
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-paper-plane mr-2"></i>
-                        Submit Withdrawal Request
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Minimum Withdrawal & Fees Table */}
-            <Card className="neon-glow-border shadow-lg">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm font-medium">Minimum Withdrawal & Fees</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <div className="space-y-2">
-                  {PAYMENT_SYSTEMS.map(ps => (
-                    <div key={ps.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{ps.emoji}</span>
-                        <div>
-                          <div className="text-sm font-medium">{ps.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Min: {ps.minWithdrawal} {ps.name === 'TON Coin' ? 'TON' : 'USD'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">
-                          {ps.feeType === 'percentage' ? `${ps.fee}%` : `${ps.fee} ${ps.name === 'TON Coin' ? 'TON' : 'USD'}`}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Fee</div>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="text-xs text-muted-foreground pt-2">
-                    Note: 1⭐ = $0.02
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* History Tab */}
-          <TabsContent value="history" className="space-y-3">
-            <Card className="neon-glow-border shadow-lg">
-              <CardHeader className="py-2 pb-1.5">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
-                  <i className="fas fa-history text-muted-foreground text-sm"></i>
-                  History
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {withdrawalsLoading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin text-primary text-base mb-1">
-                      <i className="fas fa-spinner"></i>
-                    </div>
-                    <div className="text-muted-foreground text-xs">Loading...</div>
-                  </div>
-                ) : withdrawalsData.length > 0 ? (
-                  <div className="max-h-[400px] overflow-y-auto px-3 pb-3">
-                    <div className="space-y-0 divide-y divide-border/50">
-                      {[...withdrawalsData].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((withdrawal) => (
-                        <div key={withdrawal.id} className="flex items-center justify-between py-2 first:pt-0">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                              withdrawal.status === 'paid' || withdrawal.status === 'Approved' || withdrawal.status === 'Successfull' 
-                                ? 'bg-green-500' 
-                                : withdrawal.status === 'pending' 
-                                ? 'bg-orange-500' 
-                                : 'bg-red-500'
-                            }`}></div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-sm text-foreground">{Math.round(parseFloat(withdrawal.amount) * 100000)} PAD</span>
-                                <span className={`text-xs font-medium ${getStatusTextColor(withdrawal.status)}`}>
-                                  {getStatusLabel(withdrawal.status)}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-muted-foreground truncate">
-                                {formatDateTime(withdrawal.createdAt)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <i className="fas fa-receipt text-2xl text-muted-foreground mb-2"></i>
-                    <div className="text-muted-foreground text-sm">No history</div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {/* Quick Access Buttons */}
+        <Card className="neon-glow-border shadow-lg">
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              <Link href="/">
+                <Button variant="outline" className="w-full justify-start h-12">
+                  <i className="fas fa-home mr-3 text-lg"></i>
+                  <span>Viewing ads</span>
+                </Button>
+              </Link>
+              <Link href="/tasks">
+                <Button variant="outline" className="w-full justify-start h-12">
+                  <i className="fas fa-tasks mr-3 text-lg"></i>
+                  <span>Task</span>
+                </Button>
+              </Link>
+              <Link href="/affiliates">
+                <Button variant="outline" className="w-full justify-start h-12">
+                  <i className="fas fa-users mr-3 text-lg"></i>
+                  <span>Get link</span>
+                </Button>
+              </Link>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start h-12"
+                onClick={() => {
+                  if (window.Telegram?.WebApp?.openTelegramLink) {
+                    window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsCommunity');
+                  } else {
+                    window.open('https://t.me/PaidAdsCommunity', '_blank');
+                  }
+                }}
+              >
+                <i className="fas fa-comments mr-3 text-lg"></i>
+                <span>chat room</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

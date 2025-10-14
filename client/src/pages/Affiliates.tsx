@@ -135,161 +135,54 @@ export default function Affiliates() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-24 pt-6">
-        {/* Affiliate Program Description */}
+        {/* Affiliate Program Description with Stats */}
         <Card className="mb-4 neon-glow-border shadow-lg">
           <CardContent className="pt-6 pb-4">
             <h3 className="text-base font-semibold mb-2">Affiliate Program</h3>
-            <p className="text-sm text-muted-foreground">
-              We pay out up to 20% from the income of referrals of the 1st level and up to 4% from the income of referrals of the 2nd level.
+            <p className="text-sm text-muted-foreground mb-4">
+              We pay out up to 20% from 1st-level referrals and up to 4% from 2nd-level referrals.
             </p>
-          </CardContent>
-        </Card>
-
-        {/* Referral Stats */}
-        <Card className="mb-4 border-primary/20 neon-glow-border shadow-lg">
-          <CardContent className="p-4">
-            <div className="space-y-3">
+            
+            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border">
               <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <i className="fas fa-users text-primary"></i>
-                  <span className="text-sm text-muted-foreground">Total Referrals</span>
-                </div>
-                <span className="text-xl font-bold text-primary">
-                  {stats?.referralCount || 0}
-                </span>
+                <p className="text-xs text-muted-foreground mb-1">Total Referrals</p>
+                <p className="text-xl font-bold text-primary">{stats?.referralCount || 0}</p>
               </div>
-              <div className="border-t border-border pt-3 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-muted-foreground">Level 1 Income</span>
-                  <span className="text-base font-semibold text-primary">
-                    {Math.round(parseFloat(stats?.level1Earnings || '0') * 100000)} PAD
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-muted-foreground">Level 2 Income</span>
-                  <span className="text-base font-semibold text-primary">
-                    {Math.round(parseFloat(stats?.level2Earnings || '0') * 100000)} PAD
-                  </span>
-                </div>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-1">Total Earned</p>
+                <p className="text-xl font-bold text-primary">
+                  {Math.round(parseFloat(stats?.level1Earnings || '0') * 100000 + parseFloat(stats?.level2Earnings || '0') * 100000)} PAD
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Material | List Tabs at Bottom */}
-        <Tabs defaultValue="material" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="material">Material</TabsTrigger>
-            <TabsTrigger value="list">List</TabsTrigger>
-          </TabsList>
-
-          {/* Material Tab */}
-          <TabsContent value="material" className="space-y-4">
-            <Card className="neon-glow-border shadow-lg">
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground block mb-2">
-                      Direct link in TG bot:
-                    </label>
-                    <div className="bg-muted p-3 rounded-lg break-all text-xs font-mono">
-                      {referralLink || 'Loading...'}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Button 
-                      onClick={copyReferralLink} 
-                      variant="outline" 
-                      className="w-full bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
-                      disabled={!referralLink}
-                    >
-                      <i className="fas fa-copy mr-2"></i>
-                      Copy the link
-                    </Button>
-                    
-                    <Button 
-                      onClick={shareViaWebApp} 
-                      className="w-full bg-green-500 hover:bg-green-600 text-white"
-                      disabled={!referralLink}
-                    >
-                      <i className="fas fa-paper-plane mr-2"></i>
-                      Send the link as a message
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* List Tab */}
-          <TabsContent value="list" className="space-y-4">
-            <Card className="neon-glow-border shadow-lg">
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground block mb-2">
-                      Search by User ID
-                    </label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        placeholder="12345"
-                        value={searchCode}
-                        onChange={(e) => setSearchCode(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                        className="flex-1"
-                      />
-                      <Button 
-                        onClick={handleSearch}
-                        disabled={isSearching}
-                        className="bg-primary hover:bg-primary/90"
-                      >
-                        {isSearching ? (
-                          <i className="fas fa-spinner fa-spin"></i>
-                        ) : (
-                          'Find a referral'
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {searchError && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm text-destructive">{searchError}</p>
-                    </div>
-                  )}
-
-                  {searchResult && (
-                    <div className="p-4 bg-muted/50 rounded-lg space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">ID:</span>
-                        <span className="font-semibold">{searchResult.id}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Earned today:</span>
-                        <span className="font-semibold">{searchResult.earnedToday}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">All time:</span>
-                        <span className="font-semibold">{searchResult.allTime}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Invited:</span>
-                        <span className="font-semibold">{searchResult.invited}</span>
-                      </div>
-                      <div className="pt-2 border-t border-border/50">
-                        <p className="text-xs text-muted-foreground text-center">
-                          {formatDate(searchResult.joinedAt)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {/* Referral Link Actions */}
+        <Card className="neon-glow-border shadow-lg">
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <Button 
+                onClick={copyReferralLink} 
+                variant="outline" 
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+                disabled={!referralLink}
+              >
+                <i className="fas fa-copy mr-2"></i>
+                Copy the link
+              </Button>
+              
+              <Button 
+                onClick={shareViaWebApp} 
+                className="w-full bg-green-500 hover:bg-green-600 text-white"
+                disabled={!referralLink}
+              >
+                <i className="fas fa-paper-plane mr-2"></i>
+                Send the link as a message
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </Layout>
   );
