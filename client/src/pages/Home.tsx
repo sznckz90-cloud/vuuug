@@ -13,6 +13,7 @@ interface User {
   id?: string;
   telegramId?: string;
   balance?: string;
+  lastStreakDate?: string;
   [key: string]: any;
 }
 
@@ -21,8 +22,19 @@ export default function Home() {
   const { user, isLoading, authenticateWithTelegramWebApp, isTelegramAuthenticating, telegramAuthError } = useAuth();
   const [streakDialogOpen, setStreakDialogOpen] = React.useState(false);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery<{
+    todayEarnings?: string;
+    referralEarnings?: string;
+  }>({
     queryKey: ["/api/user/stats"],
+    retry: false,
+  });
+
+  const { data: tasksData } = useQuery<{
+    tasks?: Array<{ claimed: boolean; [key: string]: any }>;
+    adsWatchedToday?: number;
+  }>({
+    queryKey: ["/api/tasks/daily"],
     retry: false,
   });
 
@@ -105,23 +117,39 @@ export default function Home() {
         {/* Income Statistics Widget */}
         <div className="mt-3 bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/20 rounded-xl p-3 shadow-lg">
           <h3 className="text-sm font-semibold text-white mb-2">Income statistics</h3>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Today</div>
-              <div className="text-sm font-bold text-primary">
-                PAD {statsLoading ? "..." : stats?.todayEarnings || "0"}
-              </div>
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Today:</span>
+              <span className="font-semibold text-white">
+                {statsLoading ? "..." : stats?.todayEarnings || "0.00"}
+              </span>
             </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">All time</div>
-              <div className="text-sm font-bold text-primary">
-                PAD {statsLoading ? "..." : Math.round(parseFloat(user?.balance || "0") * 100000)}
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">All time:</span>
+              <span className="font-semibold text-white">
+                {statsLoading ? "..." : (parseFloat((user as User)?.balance || "0") * 100000).toFixed(2)}
+              </span>
             </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">On referrals</div>
-              <div className="text-sm font-bold text-primary">
-                PAD {statsLoading ? "..." : stats?.referralEarnings || "0"}
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">On referrals:</span>
+              <span className="font-semibold text-white">—</span>
+            </div>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-purple-500/20">
+            <div className="text-xs font-medium text-gray-300 mb-1.5">Today's activity:</div>
+            <div className="flex justify-between text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-400">Tasks</span>
+                <span className="font-semibold text-white">
+                  {tasksData?.tasks?.filter((t: any) => t.claimed)?.length ?? 0}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-400">Ads</span>
+                <span className="font-semibold text-white">
+                  {tasksData?.adsWatchedToday ?? 0}
+                </span>
               </div>
             </div>
           </div>
@@ -129,6 +157,30 @@ export default function Home() {
 
         {/* Watch Ads Section */}
         <AdWatchingSection user={user as User} />
+
+        {/* Network Chat Section */}
+        <Card className="mt-3 bg-gradient-to-br from-blue-900/40 to-purple-900/40 border-purple-500/30 rounded-xl shadow-lg">
+          <CardContent className="p-4">
+            <div className="text-center">
+              <h3 className="text-base font-semibold text-white mb-2">
+                Network with other members in our chat room
+              </h3>
+              <Button
+                onClick={() => {
+                  if (window.Telegram?.WebApp?.openTelegramLink) {
+                    window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsCommunity');
+                  } else {
+                    window.open('https://t.me/PaidAdsCommunity', '_blank');
+                  }
+                }}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
+              >
+                <i className="fas fa-comments mr-2"></i>
+                Go to chat
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Basic Rules Section */}
         <Card className="mt-3 bg-gradient-to-br from-blue-900/40 to-purple-900/40 border-purple-500/30 rounded-xl shadow-lg">
