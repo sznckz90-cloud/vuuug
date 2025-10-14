@@ -65,6 +65,11 @@ export const users = pgTable("users", {
   channelVisited: boolean("channel_visited").default(false),
   appShared: boolean("app_shared").default(false),
   lastResetDate: timestamp("last_reset_date"),
+  // Wallet details
+  tonWalletAddress: text("ton_wallet_address"),
+  tonWalletComment: text("ton_wallet_comment"),
+  telegramUsername: text("telegram_username_wallet"),
+  walletUpdatedAt: timestamp("wallet_updated_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
