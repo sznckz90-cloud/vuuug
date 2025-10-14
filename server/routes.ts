@@ -510,40 +510,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Ad watching endpoint - unlimited daily viewing
+  // Ad watching endpoint - 200 ads per day limit
   app.post('/api/ads/watch', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
       const { adType } = req.body;
       
-      // No daily limit - users can watch unlimited ads
+      // Get user to check daily ad limit
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Enforce 200 ads per day limit
+      const adsWatchedToday = user.adsWatchedToday || 0;
+      if (adsWatchedToday >= 200) {
+        return res.status(429).json({ 
+          message: "Daily ad limit reached. You can watch up to 200 ads per day.",
+          limit: 200,
+          watched: adsWatchedToday
+        });
+      }
       
       // Add earning for watched ad with new rate (30 PAD = 0.0003 TON)
+      const adRewardTON = "0.00030000";
+      const adRewardPAD = Math.round(parseFloat(adRewardTON) * 100000);
+      
       const earning = await storage.addEarning({
         userId,
-        amount: "0.00030000",
+        amount: adRewardTON,
         source: 'ad_watch',
         description: 'Watched advertisement',
       });
       
-      // Increment ads watched count (for tracking only, no limit enforcement)
+      // Increment ads watched count
       await storage.incrementAdsWatched(userId);
       
       // Check and activate referral bonuses (anti-fraud: requires 10 ads)
       await storage.checkAndActivateReferralBonus(userId);
       
+      // Process 10% referral commission for referrer (if user was referred)
+      if (user.referredBy) {
+        const referralCommissionTON = (parseFloat(adRewardTON) * 0.1).toFixed(8);
+        await storage.addEarning({
+          userId: user.referredBy,
+          amount: referralCommissionTON,
+          source: 'referral_commission',
+          description: `10% commission from ${user.username || user.telegram_id}'s ad watch`,
+        });
+      }
+      
+      // Get updated balance
+      const updatedUser = await storage.getUser(userId);
+      const balancePAD = Math.round(parseFloat(updatedUser?.balance || "0") * 100000);
+      
       // Send real-time update to user
       sendRealtimeUpdate(userId, {
         type: 'ad_reward',
-        amount: "0.00030000",
-        message: 'Ad reward earned! 💰',
+        amount: adRewardTON,
+        message: 'Ad reward earned!',
         timestamp: new Date().toISOString()
       });
       
       res.json({ 
         success: true, 
-        earning,
-        message: 'Ad reward added successfully' 
+        rewardPAD: adRewardPAD,
+        balance: balancePAD
       });
     } catch (error) {
       console.error("Error processing ad watch:", error);
