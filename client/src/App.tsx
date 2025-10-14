@@ -10,6 +10,9 @@ import Landing from "@/pages/Landing";
 import Admin from "@/pages/Admin";
 import Wallet from "@/pages/Wallet";
 import Affiliates from "@/pages/Affiliates";
+import MyWallets from "@/pages/MyWallets";
+import WithdrawPage from "@/pages/WithdrawPage";
+import PaymentHistory from "@/pages/PaymentHistory";
 
 function Router() {
   return (
@@ -17,6 +20,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/wallet" component={Wallet} />
+      <Route path="/my-wallets" component={MyWallets} />
+      <Route path="/withdraw" component={WithdrawPage} />
+      <Route path="/payment-history" component={PaymentHistory} />
       <Route path="/affiliates" component={Affiliates} />
       <Route path="/profile" component={Landing} />
       <Route path="/admin" component={Admin} />
