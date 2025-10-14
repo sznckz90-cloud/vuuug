@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { Play, Clock } from "lucide-react";
 
 declare global {
   interface Window {
@@ -17,13 +18,16 @@ interface AdWatchingSectionProps {
 
 export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
-  const [isWatching, setIsWatching] = useState(false);
   const [lastAdWatchTime, setLastAdWatchTime] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
       const response = await apiRequest("POST", "/api/ads/watch", { adType });
+      if (!response.ok) {
+        const error = await response.json();
+        throw { status: response.status, ...error };
+      }
       return response.json();
     },
     onSuccess: (data) => {
@@ -35,11 +39,11 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       // Set last ad watch time to enforce 30-second cooldown
       setLastAdWatchTime(Date.now());
       
-      // Calculate PAD amount from response (convert TON to PAD)
-      const padAmount = Math.round(parseFloat(data.earning?.amount || '0.00030000') * 100000);
+      // Get PAD amount from response
+      const rewardPAD = data.rewardPAD || 30;
       
       // Show reward notification with dynamic amount
-      showNotification(`You received ${padAmount} PAD on your balance`, "success");
+      showNotification(`You received ${rewardPAD} PAD on your balance`, "success");
       
       // Start countdown AFTER reward is received (4 seconds)
       setCooldownRemaining(4);
@@ -53,8 +57,13 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         });
       }, 1000);
     },
-    onError: (error) => {
-      showNotification("Failed to process ad reward", "error");
+    onError: (error: any) => {
+      // Handle daily limit error (429)
+      if (error.status === 429) {
+        showNotification("Daily limit reached", "error");
+      } else {
+        showNotification("Failed to process ad reward", "error");
+      }
       setCooldownRemaining(0);
     },
   });
@@ -90,15 +99,13 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   }, [lastAdWatchTime]);
 
   const handleWatchAd = async () => {
-    if (isWatching || cooldownRemaining > 0) return;
-    
-    setIsWatching(true);
+    if (cooldownRemaining > 0) return;
     
     try {
       if (typeof window.show_9368336 === 'function') {
         // Ad opens immediately
         await window.show_9368336();
-        // Process reward after ad is shown
+        // Process reward after ad is closed
         watchAdMutation.mutate('rewarded');
       } else {
         // Fallback for testing
@@ -106,9 +113,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
-      watchAdMutation.mutate('rewarded');
-    } finally {
-      setIsWatching(false);
+      showNotification("Ad display failed", "error");
     }
   };
 
@@ -123,23 +128,18 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         <div className="flex justify-center mb-2">
           <button
             onClick={handleWatchAd}
-            disabled={isWatching || cooldownRemaining > 0}
+            disabled={cooldownRemaining > 0}
             className="relative bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 group disabled:opacity-50 flex items-center gap-2 min-w-[160px] justify-center"
             data-testid="button-watch-ad"
           >
             {cooldownRemaining > 0 ? (
               <>
-                <i className="fas fa-clock text-sm"></i>
+                <Clock size={14} />
                 <span className="text-sm font-semibold">{cooldownRemaining}s</span>
-              </>
-            ) : isWatching ? (
-              <>
-                <i className="fas fa-spinner fa-spin text-sm"></i>
-                <span className="text-sm font-semibold">Loading...</span>
               </>
             ) : (
               <>
-                <i className="fas fa-play text-sm group-hover:scale-110 transition-transform"></i>
+                <Play size={14} className="group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold">Start Watching</span>
               </>
             )}

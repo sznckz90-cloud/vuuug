@@ -220,21 +220,6 @@ export default function TaskSection() {
         </Button>
       </div>
 
-      {/* Ads counter display */}
-      <Card className="bg-muted/50 neon-glow-border shadow-lg">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Tv className="text-primary" size={18} />
-              <span className="font-medium text-sm">Ads Watched Today</span>
-            </div>
-            <Badge variant="secondary" className="text-base px-2.5 py-0.5">
-              {adsWatchedToday}/160
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Task cards */}
       {tasks.length > 0 ? (
         <div className="space-y-0">

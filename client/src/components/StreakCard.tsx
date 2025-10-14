@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
+import { Flame, Loader, Send } from "lucide-react";
 
 declare global {
   interface Window {
@@ -135,11 +136,6 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
   const handleClaimStreak = async () => {
     if (isClaiming) return;
     
-    if (!isMember) {
-      showNotification("Join channel first", "error");
-      return;
-    }
-    
     setIsClaiming(true);
     
     // Immediately set countdown to disable button until next UTC midnight
@@ -160,37 +156,25 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
     try {
       if (typeof window.show_9368336 === 'function') {
         await window.show_9368336();
-        setTimeout(() => {
-          claimStreakMutation.mutate();
-          // Mark dialog as shown for today after claiming
-          const today = new Date().toISOString().split('T')[0];
-          localStorage.setItem('streakDialogShown', today);
-          // Close dialog after claiming
-          onOpenChange?.(false);
-        }, 1000);
+        claimStreakMutation.mutate();
+        // Mark dialog as shown for today after claiming
+        const today = new Date().toISOString().split('T')[0];
+        localStorage.setItem('streakDialogShown', today);
+        // Close dialog after claiming
+        onOpenChange?.(false);
       } else {
-        setTimeout(() => {
-          claimStreakMutation.mutate();
-          showNotification("✓ Ad completed!", "info");
-          // Mark dialog as shown for today after claiming
-          const today = new Date().toISOString().split('T')[0];
-          localStorage.setItem('streakDialogShown', today);
-          // Close dialog after claiming
-          onOpenChange?.(false);
-        }, 2000);
+        claimStreakMutation.mutate();
+        // Mark dialog as shown for today after claiming
+        const today = new Date().toISOString().split('T')[0];
+        localStorage.setItem('streakDialogShown', today);
+        // Close dialog after claiming
+        onOpenChange?.(false);
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
-      claimStreakMutation.mutate();
-      // Mark dialog as shown for today after claiming
-      const today = new Date().toISOString().split('T')[0];
-      localStorage.setItem('streakDialogShown', today);
-      // Close dialog after claiming
-      onOpenChange?.(false);
+      showNotification("Failed to claim streak", "error");
     } finally {
-      setTimeout(() => {
-        setIsClaiming(false);
-      }, 2000);
+      setIsClaiming(false);
     }
   };
 
@@ -206,7 +190,7 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
           <CardContent className="p-4">
             <div className="text-center mb-3">
               <h2 className="text-xl font-bold text-foreground mb-1 flex items-center justify-center">
-                <i className="fas fa-fire text-secondary mr-2"></i>
+                <Flame className="text-secondary mr-2" size={20} />
                 Daily Streak Rewards
               </h2>
               <p className="text-muted-foreground text-sm">
@@ -240,7 +224,7 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
                   onClick={handleJoinChannel}
                   className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold transition-colors text-sm"
                 >
-                  <i className="fas fa-telegram mr-2"></i>
+                  <Send className="mr-2" size={16} />
                   Join Channel
                 </Button>
               </div>
@@ -253,12 +237,12 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
               >
                 {isClaiming ? (
                   <>
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    <Loader className="mr-2 animate-spin" size={16} />
                     Watching Ad...
                   </>
                 ) : canClaim ? (
                   <span className="flex items-center">
-                    <i className="fas fa-fire mr-2"></i>
+                    <Flame className="mr-2" size={16} />
                     Claim Streak
                   </span>
                 ) : (

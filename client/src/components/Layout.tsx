@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, CheckSquare, Users, Wallet } from "lucide-react";
+import { Home, CheckSquare, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 interface LayoutProps {
@@ -24,7 +24,6 @@ export default function Layout({ children }: LayoutProps) {
     { href: "/", icon: Home, label: "Home" },
     { href: "/tasks", icon: CheckSquare, label: "Tasks" },
     { href: "/affiliates", icon: Users, label: "Affiliates" },
-    { href: "/wallet", icon: Wallet, label: "Wallet" },
   ];
 
   // Calculate balance in PAD and USD
@@ -42,7 +41,7 @@ export default function Layout({ children }: LayoutProps) {
           exit={{ opacity: 0, x: -20 }}
           transition={{ 
             duration: 0.3,
-            ease: [0.4, 0, 0.2, 1]
+            ease: [0.645, 0.045, 0.355, 1]
           }}
         >
           {children}
@@ -64,7 +63,7 @@ export default function Layout({ children }: LayoutProps) {
             }}
             transition={{
               duration: 0.4,
-              ease: [0.65, 0, 0.35, 1],
+              ease: [0.645, 0.045, 0.355, 1],
               times: [0, 0.5, 1],
             }}
             key={location}
@@ -99,7 +98,7 @@ export default function Layout({ children }: LayoutProps) {
                       transition={{
                         scale: {
                           duration: 0.4,
-                          ease: [0.65, 0, 0.35, 1],
+                          ease: [0.645, 0.045, 0.355, 1],
                         }
                       }}
                     >
@@ -152,21 +151,6 @@ export default function Layout({ children }: LayoutProps) {
                         />
                       </motion.div>
 
-                      {/* Label */}
-                      <motion.span 
-                        className={`text-[10px] font-medium relative z-10 transition-all duration-300 ${
-                          isActive ? "font-semibold" : ""
-                        }`}
-                        animate={isActive ? {
-                          scale: [1, 1.05, 1],
-                        } : {}}
-                        transition={{
-                          duration: 0.4,
-                          ease: [0.65, 0, 0.35, 1]
-                        }}
-                      >
-                        {item.label}
-                      </motion.span>
                     </motion.button>
                   </Link>
                 );

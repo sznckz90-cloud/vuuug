@@ -38,7 +38,7 @@ export default function AppNotification() {
         isDisplaying = false;
         showNextNotification();
       }, 300);
-    }, 2000);
+    }, 1500);
   };
 
   useEffect(() => {
@@ -83,19 +83,6 @@ export default function AppNotification() {
 
   if (!isVisible) return null;
 
-  const getBackgroundColor = () => {
-    switch (type) {
-      case "success":
-        return "bg-gradient-to-r from-purple-600 to-purple-500";
-      case "error":
-        return "bg-gradient-to-r from-red-600 to-red-500";
-      case "info":
-        return "bg-gradient-to-r from-blue-600 to-blue-500";
-      default:
-        return "bg-gradient-to-r from-purple-600 to-purple-500";
-    }
-  };
-
   const getIcon = () => {
     switch (type) {
       case "success":
@@ -111,8 +98,9 @@ export default function AppNotification() {
 
   return (
     <div 
-      className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 rounded-xl shadow-2xl ${getBackgroundColor()} text-white font-medium text-sm flex items-center gap-2 animate-slideDown max-w-[90vw]`}
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 rounded-xl shadow-2xl text-white font-medium text-sm flex items-center gap-2 animate-slideDown max-w-[90vw]"
       style={{
+        backgroundColor: '#1534A1',
         animation: isVisible ? "slideDown 0.3s ease-out" : "slideUp 0.3s ease-out"
       }}
     >
