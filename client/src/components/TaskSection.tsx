@@ -100,7 +100,7 @@ export default function TaskSection() {
       return response.json();
     },
     onSuccess: (data) => {
-      showNotification("🎉 Task completed!", "success", parseFloat(data.rewardAmount));
+      showNotification("Task completed!", "success", parseFloat(data.rewardAmount));
       
       // Refresh tasks and balance
       refetch();
@@ -108,7 +108,7 @@ export default function TaskSection() {
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
     },
     onError: (error: any) => {
-      showNotification("⚠️ " + (error.message || "Failed to claim task"), "error");
+      showNotification(error.message || "Failed to claim task", "error");
     },
   });
 
@@ -201,7 +201,7 @@ export default function TaskSection() {
       {!telegramInitData && (
         <Alert className="mb-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-2">
           <AlertDescription className="text-yellow-800 dark:text-yellow-200 text-xs">
-            ⚠️ Open in Telegram to complete tasks and earn rewards.
+            Open in Telegram to complete tasks and earn rewards.
           </AlertDescription>
         </Alert>
       )}

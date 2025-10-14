@@ -55,20 +55,20 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
       
       if (parseFloat(data.rewardEarned) > 0) {
         if (data.isBonusDay) {
-          showNotification("🎉 5-day streak bonus!", "success", parseFloat(data.rewardEarned));
+          showNotification("5-day streak bonus!", "success", parseFloat(data.rewardEarned));
         } else {
-          showNotification("🔥 Daily streak claimed!", "success", parseFloat(data.rewardEarned));
+          showNotification("Daily streak claimed!", "success", parseFloat(data.rewardEarned));
         }
       }
     },
     onError: (error: any) => {
       if (error.message?.includes('channel')) {
-        showNotification("⚠️ Channel membership required", "error");
+        showNotification("Channel membership required", "error");
         refetchMembership();
       } else if (error.message?.includes('already claimed')) {
-        showNotification("⚠️ Already claimed today", "error");
+        showNotification("Already claimed today", "error");
       } else {
-        showNotification("⚠️ Failed to claim streak", "error");
+        showNotification("Failed to claim streak", "error");
       }
     },
   });
@@ -136,7 +136,7 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
     if (isClaiming) return;
     
     if (!isMember) {
-      showNotification("⚠️ Join channel first", "error");
+      showNotification("Join channel first", "error");
       return;
     }
     
@@ -231,7 +231,7 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
             {!isMember ? (
               <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
                 <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
-                  ⚠️ Channel membership required!
+                  Channel membership required!
                 </p>
                 <p className="text-xs text-orange-700 dark:text-orange-300 mb-3">
                   You must join our channel to claim daily rewards.

@@ -39,7 +39,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       const padAmount = Math.round(parseFloat(data.earning?.amount || '0.00030000') * 100000);
       
       // Show reward notification with dynamic amount
-      showNotification(`🎉 You received ${padAmount} PAD on your balance`, "success");
+      showNotification(`You received ${padAmount} PAD on your balance`, "success");
       
       // Start countdown AFTER reward is received (4 seconds)
       setCooldownRemaining(4);
@@ -54,7 +54,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       }, 1000);
     },
     onError: (error) => {
-      showNotification("⚠️ Failed to process ad reward", "error");
+      showNotification("Failed to process ad reward", "error");
       setCooldownRemaining(0);
     },
   });
