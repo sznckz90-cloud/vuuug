@@ -77,7 +77,10 @@ export function useWebSocket() {
               break;
               
             case 'ad_reward':
-              showNotification("🎉 Reward added!", "success", parseFloat(message.amount || '0'));
+              // Notification is already handled in AdWatchingSection
+              // Just invalidate queries to update the balance
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
               break;
               
             case 'withdrawal_requested':
