@@ -35,11 +35,14 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       // Set last ad watch time to enforce 30-second cooldown
       setLastAdWatchTime(Date.now());
       
-      // Show reward notification with updated message (30 PAD)
-      showNotification("🎉 You received 30 PAD on your balance", "success");
+      // Calculate PAD amount from response (convert TON to PAD)
+      const padAmount = Math.round(parseFloat(data.earning?.amount || '0.00030000') * 100000);
       
-      // Start countdown AFTER reward is received (3-4 seconds)
-      setCooldownRemaining(3);
+      // Show reward notification with dynamic amount
+      showNotification(`🎉 You received ${padAmount} PAD on your balance`, "success");
+      
+      // Start countdown AFTER reward is received (4 seconds)
+      setCooldownRemaining(4);
       const cooldownInterval = setInterval(() => {
         setCooldownRemaining(prev => {
           if (prev <= 1) {
@@ -93,24 +96,19 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     
     try {
       if (typeof window.show_9368336 === 'function') {
+        // Ad opens immediately
         await window.show_9368336();
-        setTimeout(() => {
-          watchAdMutation.mutate('rewarded');
-        }, 1000);
+        // Process reward after ad is shown
+        watchAdMutation.mutate('rewarded');
       } else {
-        setTimeout(() => {
-          watchAdMutation.mutate('rewarded');
-          showNotification("✓ Ad completed!", "info");
-        }, 2000);
+        // Fallback for testing
+        watchAdMutation.mutate('rewarded');
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
       watchAdMutation.mutate('rewarded');
-      showNotification("✓ Ad completed!", "info");
     } finally {
-      setTimeout(() => {
-        setIsWatching(false);
-      }, 2000);
+      setIsWatching(false);
     }
   };
 
