@@ -1730,6 +1730,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Promotional system endpoints removed - using daily tasks system only
   
+  // Wallet management endpoints
+  
+  // Get user's saved wallet details
+  app.get('/api/wallet/details', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      const [user] = await db
+        .select({
+          tonWalletAddress: users.tonWalletAddress,
+          tonWalletComment: users.tonWalletComment,
+          telegramUsername: users.telegramUsername,
+          walletUpdatedAt: users.walletUpdatedAt
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (!user) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'User not found' 
+        });
+      }
+      
+      // Check if user can withdraw (24-hour hold check)
+      const canWithdraw = !user.walletUpdatedAt || 
+        (Date.now() - new Date(user.walletUpdatedAt).getTime()) > 24 * 60 * 60 * 1000;
+      
+      res.json({
+        success: true,
+        walletDetails: {
+          tonWalletAddress: user.tonWalletAddress || '',
+          tonWalletComment: user.tonWalletComment || '',
+          telegramUsername: user.telegramUsername || '',
+          walletUpdatedAt: user.walletUpdatedAt,
+          canWithdraw
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fetching wallet details:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch wallet details' 
+      });
+    }
+  });
+  
+  // Save user's wallet details
+  app.post('/api/wallet/save', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { tonWalletAddress, tonWalletComment, telegramUsername } = req.body;
+      
+      console.log('💾 Saving wallet details for user:', userId);
+      
+      // Update user's wallet details
+      await db
+        .update(users)
+        .set({
+          tonWalletAddress: tonWalletAddress || null,
+          tonWalletComment: tonWalletComment || null,
+          telegramUsername: telegramUsername || null,
+          walletUpdatedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      console.log('✅ Wallet details saved successfully');
+      
+      res.json({
+        success: true,
+        message: 'Wallet details saved successfully. Withdrawal is on hold for 24 hours.',
+        walletUpdatedAt: new Date()
+      });
+      
+    } catch (error) {
+      console.error('❌ Error saving wallet details:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to save wallet details' 
+      });
+    }
+  });
+  
   // User withdrawal endpoints
   
   // Get user's withdrawal history (authenticated users)
@@ -1774,6 +1859,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('📝 Withdrawal request received:', { userId, amount, paymentSystemId, paymentDetails, comment });
 
+      // Check for pending withdrawals
+      const pendingWithdrawals = await db
+        .select({ id: withdrawals.id })
+        .from(withdrawals)
+        .where(and(
+          eq(withdrawals.userId, userId),
+          eq(withdrawals.status, 'pending')
+        ))
+        .limit(1);
+
+      if (pendingWithdrawals.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot create new request until current one is processed'
+        });
+      }
+
       // Validation: Check minimum amount (0.5 TON)
       const withdrawAmount = parseFloat(amount);
       if (!amount || isNaN(withdrawAmount) || withdrawAmount < 0.5) {
@@ -1785,15 +1887,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and check balance (SELECT FOR UPDATE)
+        // Lock user row and check balance and wallet update time (SELECT FOR UPDATE)
         const [user] = await tx
-          .select({ balance: users.balance })
+          .select({ 
+            balance: users.balance,
+            walletUpdatedAt: users.walletUpdatedAt
+          })
           .from(users)
           .where(eq(users.id, userId))
           .for('update');
         
         if (!user) {
           throw new Error('User not found');
+        }
+
+        // Check 24-hour hold
+        if (user.walletUpdatedAt) {
+          const hoursSinceUpdate = (Date.now() - new Date(user.walletUpdatedAt).getTime()) / (1000 * 60 * 60);
+          if (hoursSinceUpdate < 24) {
+            throw new Error('Withdrawal on hold for 24 hours after updating wallet details');
+          }
         }
 
         const currentBalance = parseFloat(user.balance || '0');
@@ -1852,7 +1965,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create withdrawal request';
       
       // Return 400 for validation errors, 500 for others
-      if (errorMessage === 'Insufficient balance' || errorMessage === 'User not found') {
+      if (errorMessage === 'Insufficient balance' || 
+          errorMessage === 'User not found' ||
+          errorMessage === 'Withdrawal on hold for 24 hours after updating wallet details' ||
+          errorMessage === 'Cannot create new request until current one is processed') {
         return res.status(400).json({ 
           success: false, 
           message: errorMessage
