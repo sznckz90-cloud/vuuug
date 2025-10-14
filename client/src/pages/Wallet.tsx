@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/utils';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Link } from 'wouter';
 import { PAYMENT_SYSTEMS, type PaymentSystem } from '@/constants/paymentSystems';
+import { Wallet as WalletIcon, ArrowDown, History } from 'lucide-react';
 
 interface WithdrawalRequest {
   id: string;
@@ -371,19 +372,19 @@ export default function Wallet() {
         <div className="grid grid-cols-3 gap-3 mb-4">
           <Link href="/my-wallets">
             <Button className="w-full h-16 flex flex-col gap-1">
-              <i className="fas fa-wallet text-xl"></i>
+              <WalletIcon size={20} />
               <span className="text-xs">Wallets</span>
             </Button>
           </Link>
           <Link href="/withdraw">
             <Button className="w-full h-16 flex flex-col gap-1">
-              <i className="fas fa-arrow-down text-xl"></i>
+              <ArrowDown size={20} />
               <span className="text-xs">Withdraw</span>
             </Button>
           </Link>
           <Link href="/payment-history">
             <Button className="w-full h-16 flex flex-col gap-1">
-              <i className="fas fa-history text-xl"></i>
+              <History size={20} />
               <span className="text-xs">History</span>
             </Button>
           </Link>

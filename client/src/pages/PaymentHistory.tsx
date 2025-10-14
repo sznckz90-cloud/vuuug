@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Layout from '@/components/Layout';
 import { Link } from 'wouter';
+import { ArrowLeft } from 'lucide-react';
 
 interface WithdrawalRequest {
   id: string;
@@ -69,7 +70,7 @@ export default function PaymentHistory() {
         <div className="flex items-center mb-4">
           <Link href="/wallet">
             <Button variant="ghost" size="sm" className="mr-2">
-              <i className="fas fa-arrow-left mr-2"></i>
+              <ArrowLeft size={16} className="mr-2" />
               Back
             </Button>
           </Link>

@@ -10,6 +10,17 @@ import Layout from '@/components/Layout';
 import { apiRequest } from '@/lib/queryClient';
 import { PAYMENT_SYSTEMS, type PaymentSystem } from '@/constants/paymentSystems';
 import { Link } from 'wouter';
+import { Gem, Star, ArrowLeft } from 'lucide-react';
+
+const iconMap: Record<string, any> = {
+  Gem: Gem,
+  Star: Star,
+};
+
+const getIcon = (iconName: string) => {
+  const Icon = iconMap[iconName];
+  return Icon ? <Icon size={16} className="inline-block" /> : null;
+};
 
 interface User {
   id: string;
@@ -205,7 +216,7 @@ export default function WithdrawPage() {
         <div className="flex items-center mb-4">
           <Link href="/wallet">
             <Button variant="ghost" size="sm" className="mr-2">
-              <i className="fas fa-arrow-left mr-2"></i>
+              <ArrowLeft size={16} className="mr-2" />
               Back
             </Button>
           </Link>
@@ -232,7 +243,9 @@ export default function WithdrawPage() {
                   <SelectContent>
                     {PAYMENT_SYSTEMS.map(ps => (
                       <SelectItem key={ps.id} value={ps.id}>
-                        {ps.emoji} {ps.name}
+                        <span className="flex items-center gap-2">
+                          {getIcon(ps.icon)} {ps.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -8,6 +8,7 @@ import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
 import { apiRequest } from '@/lib/queryClient';
 import { Link } from 'wouter';
+import { ArrowLeft } from 'lucide-react';
 
 interface WalletDetails {
   tonWalletAddress: string;
@@ -93,7 +94,7 @@ export default function MyWallets() {
         <div className="flex items-center mb-4">
           <Link href="/wallet">
             <Button variant="ghost" size="sm" className="mr-2">
-              <i className="fas fa-arrow-left mr-2"></i>
+              <ArrowLeft size={16} className="mr-2" />
               Back
             </Button>
           </Link>
