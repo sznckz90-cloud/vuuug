@@ -70,6 +70,8 @@ export const users = pgTable("users", {
   tonWalletComment: text("ton_wallet_comment"),
   telegramUsername: text("telegram_username_wallet"),
   walletUpdatedAt: timestamp("wallet_updated_at"),
+  pendingReferralBonus: decimal("pending_referral_bonus", { precision: 12, scale: 8 }).default("0"),
+  totalClaimedReferralBonus: decimal("total_claimed_referral_bonus", { precision: 12, scale: 8 }).default("0"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
