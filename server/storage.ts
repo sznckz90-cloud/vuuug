@@ -1079,7 +1079,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // Process referral commission (20% Level 1, 4% Level 2)
+  // Process referral commission (10% for direct referrals only - stored as pending)
   async processReferralCommission(userId: string, originalEarningId: number, earningAmount: string): Promise<void> {
     try {
       // Only process commissions for ad watching earnings
@@ -1105,96 +1105,111 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (level1Referral) {
-        // Calculate 20% commission for Level 1 referrer
-        const level1Commission = (parseFloat(earningAmount) * 0.20).toFixed(8);
+        // Calculate 10% commission for direct referrer (B)
+        const commission = (parseFloat(earningAmount) * 0.10).toFixed(8);
         
-        // Record the Level 1 referral commission
+        // Record the referral commission
         await db.insert(referralCommissions).values({
           referrerId: level1Referral.referrerId,
           referredUserId: userId,
           originalEarningId,
-          commissionAmount: level1Commission,
+          commissionAmount: commission,
         });
 
-        // Add commission as earnings to the Level 1 referrer
-        await this.addEarning({
-          userId: level1Referral.referrerId,
-          amount: level1Commission,
-          source: 'referral_commission',
-          description: `Level 1: 20% commission from referred user's ad earnings`,
-        });
-
-        // Log commission transaction
-        await this.logTransaction({
-          userId: level1Referral.referrerId,
-          amount: level1Commission,
-          type: 'addition',
-          source: 'referral_commission',
-          description: `Level 1: 20% commission from referred user's ad earnings`,
-          metadata: { 
-            originalEarningId, 
-            referredUserId: userId,
-            commissionRate: '20%',
-            level: 1
-          }
-        });
-
-        console.log(`✅ Level 1 commission of ${level1Commission} awarded to ${level1Referral.referrerId} from ${userId}'s ad earnings`);
-
-        // Now find Level 2 referrer (referrer of the Level 1 referrer)
-        const [level2Referral] = await db
-          .select({ referrerId: referrals.referrerId })
-          .from(referrals)
-          .where(and(
-            eq(referrals.refereeId, level1Referral.referrerId),
-            eq(referrals.status, 'completed') // Only completed referrals earn commissions
-          ))
+        // Add commission to pending referral bonus (NOT to balance directly)
+        const [referrer] = await db
+          .select({ pendingBonus: users.pendingReferralBonus })
+          .from(users)
+          .where(eq(users.id, level1Referral.referrerId))
           .limit(1);
+        
+        const currentPending = parseFloat(referrer?.pendingBonus || '0');
+        const newPending = (currentPending + parseFloat(commission)).toFixed(8);
+        
+        await db
+          .update(users)
+          .set({ 
+            pendingReferralBonus: newPending,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, level1Referral.referrerId));
 
-        if (level2Referral) {
-          // Calculate 4% commission for Level 2 referrer
-          const level2Commission = (parseFloat(earningAmount) * 0.04).toFixed(8);
-          
-          // Record the Level 2 referral commission
-          await db.insert(referralCommissions).values({
-            referrerId: level2Referral.referrerId,
-            referredUserId: userId,
-            originalEarningId,
-            commissionAmount: level2Commission,
-          });
-
-          // Add commission as earnings to the Level 2 referrer
-          await this.addEarning({
-            userId: level2Referral.referrerId,
-            amount: level2Commission,
-            source: 'referral_commission',
-            description: `Level 2: 4% commission from indirect referral's ad earnings`,
-          });
-
-          // Log commission transaction
-          await this.logTransaction({
-            userId: level2Referral.referrerId,
-            amount: level2Commission,
-            type: 'addition',
-            source: 'referral_commission',
-            description: `Level 2: 4% commission from indirect referral's ad earnings`,
-            metadata: { 
-              originalEarningId, 
-              referredUserId: userId,
-              commissionRate: '4%',
-              level: 2
-            }
-          });
-
-          console.log(`✅ Level 2 commission of ${level2Commission} awarded to ${level2Referral.referrerId} from ${userId}'s ad earnings`);
-        }
+        console.log(`✅ 10% commission of ${commission} added to pending bonus for ${level1Referral.referrerId} from ${userId}'s ad earnings`);
       }
       
-      // Notification disabled to prevent spam - users can view commission totals in app
-      // Commission is tracked in database and visible in Affiliates page
+      // Notification disabled to prevent spam - users can claim bonuses in Affiliates page
+      // Commission is tracked in pendingReferralBonus and must be manually claimed
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
+    }
+  }
+
+  // Claim pending referral bonus and add to balance
+  async claimReferralBonus(userId: string): Promise<{ success: boolean; message: string; amount?: string }> {
+    try {
+      // Get user's pending bonus
+      const [user] = await db
+        .select({ 
+          pendingBonus: users.pendingReferralBonus,
+          totalClaimed: users.totalClaimedReferralBonus,
+          balance: users.balance
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const pendingAmount = parseFloat(user.pendingBonus || '0');
+      
+      if (pendingAmount <= 0) {
+        return { success: false, message: 'No referral bonus available to claim' };
+      }
+
+      // Add pending bonus to balance and update totals
+      const newBalance = (parseFloat(user.balance || '0') + pendingAmount).toFixed(8);
+      const newTotalClaimed = (parseFloat(user.totalClaimed || '0') + pendingAmount).toFixed(8);
+
+      await db
+        .update(users)
+        .set({
+          balance: newBalance,
+          pendingReferralBonus: '0',
+          totalClaimedReferralBonus: newTotalClaimed,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+
+      // Add earning record for claimed bonus
+      await this.addEarning({
+        userId,
+        amount: pendingAmount.toFixed(8),
+        source: 'referral_claim',
+        description: 'Claimed referral bonus',
+      });
+
+      // Log transaction
+      await this.logTransaction({
+        userId,
+        amount: pendingAmount.toFixed(8),
+        type: 'addition',
+        source: 'referral_claim',
+        description: 'Claimed referral bonus',
+      });
+
+      console.log(`✅ User ${userId} claimed ${pendingAmount} referral bonus`);
+
+      return { 
+        success: true, 
+        message: 'Referral bonus claimed successfully!', 
+        amount: pendingAmount.toFixed(8) 
+      };
+    } catch (error) {
+      console.error('Error claiming referral bonus:', error);
+      return { success: false, message: 'Failed to claim referral bonus' };
     }
   }
 

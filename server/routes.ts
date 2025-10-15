@@ -706,19 +706,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/referrals/stats', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
+      const user = await storage.getUser(userId);
       const referrals = await storage.getUserReferrals(userId);
-      const referralEarnings = await storage.getUserReferralEarnings(userId);
-      const earningsByLevel = await storage.getUserReferralEarningsByLevel(userId);
       
       res.json({
-        referralCount: referrals.length,
-        referralEarnings: referralEarnings,
-        level1Earnings: earningsByLevel.level1,
-        level2Earnings: earningsByLevel.level2
+        totalInvites: referrals.length,
+        totalClaimed: user?.totalClaimedReferralBonus || '0',
+        availableBonus: user?.pendingReferralBonus || '0',
+        readyToClaim: user?.pendingReferralBonus || '0',
       });
     } catch (error) {
       console.error("Error fetching referral stats:", error);
       res.status(500).json({ message: "Failed to fetch referral stats" });
+    }
+  });
+
+  // Claim referral bonus endpoint
+  app.post('/api/referrals/claim', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const result = await storage.claimReferralBonus(userId);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error claiming referral bonus:", error);
+      res.status(500).json({ message: "Failed to claim referral bonus" });
     }
   });
 
