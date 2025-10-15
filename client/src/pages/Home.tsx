@@ -2,13 +2,17 @@ import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
+import PromoCodeDialog from "@/components/PromoCodeDialog";
+import WalletDialog from "@/components/WalletDialog";
+import WithdrawDialog from "@/components/WithdrawDialog";
+import HistoryDialog from "@/components/HistoryDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Settings, Gift, Zap, Wallet as WalletIcon, ArrowDown, History } from "lucide-react";
+import { Settings, Gift, Zap, Wallet as WalletIcon, ArrowDown, History, Tag } from "lucide-react";
 
 interface User {
   id?: string;
@@ -25,6 +29,10 @@ export default function Home() {
   const { isAdmin } = useAdmin();
   const [, setLocation] = useLocation();
   const [streakDialogOpen, setStreakDialogOpen] = React.useState(false);
+  const [promoDialogOpen, setPromoDialogOpen] = React.useState(false);
+  const [walletDialogOpen, setWalletDialogOpen] = React.useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = React.useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<{
     todayEarnings?: string;
@@ -72,7 +80,16 @@ export default function Home() {
                   <div className="text-muted-foreground text-sm">UID: #{formattedUserId}</div>
                 </div>
                 
-                <div className="flex-1 flex justify-end">
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setPromoDialogOpen(true)}
+                  >
+                    <Tag className="w-4 h-4 mr-1" />
+                    Promo
+                  </Button>
                   {isAdmin && (
                     <Button
                       variant="ghost"
@@ -102,15 +119,15 @@ export default function Home() {
           <Button 
             variant="outline" 
             className="w-full h-14 flex flex-col gap-1 border-primary/30 hover:bg-primary/10"
-            onClick={() => setLocation("/my-wallets")}
+            onClick={() => setWalletDialogOpen(true)}
           >
             <WalletIcon className="w-5 h-5" />
-            <span className="text-xs">Wallets</span>
+            <span className="text-xs">Wallet</span>
           </Button>
           <Button 
             variant="outline" 
             className="w-full h-14 flex flex-col gap-1 border-primary/30 hover:bg-primary/10"
-            onClick={() => setLocation("/withdraw")}
+            onClick={() => setWithdrawDialogOpen(true)}
           >
             <ArrowDown className="w-5 h-5" />
             <span className="text-xs">Withdraw</span>
@@ -118,7 +135,7 @@ export default function Home() {
           <Button 
             variant="outline" 
             className="w-full h-14 flex flex-col gap-1 border-primary/30 hover:bg-primary/10"
-            onClick={() => setLocation("/payment-history")}
+            onClick={() => setHistoryDialogOpen(true)}
           >
             <History className="w-5 h-5" />
             <span className="text-xs">History</span>
@@ -178,6 +195,30 @@ export default function Home() {
           user={user as User} 
           open={streakDialogOpen}
           onOpenChange={setStreakDialogOpen}
+        />
+
+        {/* Promo Code Dialog */}
+        <PromoCodeDialog 
+          open={promoDialogOpen}
+          onOpenChange={setPromoDialogOpen}
+        />
+
+        {/* Wallet Dialog */}
+        <WalletDialog 
+          open={walletDialogOpen}
+          onOpenChange={setWalletDialogOpen}
+        />
+
+        {/* Withdraw Dialog */}
+        <WithdrawDialog 
+          open={withdrawDialogOpen}
+          onOpenChange={setWithdrawDialogOpen}
+        />
+
+        {/* History Dialog */}
+        <HistoryDialog 
+          open={historyDialogOpen}
+          onOpenChange={setHistoryDialogOpen}
         />
       </main>
     </Layout>
