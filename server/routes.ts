@@ -1869,18 +1869,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/wallet/save', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { tonWalletAddress, tonWalletComment, telegramUsername } = req.body;
+      const { tonWalletAddress, tonWalletComment, telegramUsername, paidChange } = req.body;
       
-      console.log('💾 Saving wallet details for user:', userId);
+      console.log('💾 Saving wallet details for user:', userId, 'Paid change:', paidChange);
+      
+      let message = 'Wallet details saved successfully.';
+      let holdApplied = true;
+      
+      // If user chose paid option, deduct 300 PAD and skip hold
+      if (paidChange === true) {
+        const user = await storage.getUser(userId);
+        const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
+        
+        if (balancePAD < 300) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Insufficient balance. Need 300 PAD for instant wallet change.' 
+          });
+        }
+        
+        // Deduct 300 PAD (0.003 TON)
+        await storage.deductBalance(userId, "0.00300000");
+        
+        // Add transaction record
+        await storage.addEarning({
+          userId,
+          amount: "-0.00300000",
+          source: 'wallet_change_fee',
+          description: 'Paid wallet change (no hold)',
+        });
+        
+        message = 'Wallet details saved successfully. 300 PAD deducted. Withdrawal available immediately.';
+        holdApplied = false;
+      } else {
+        message = 'Wallet details saved successfully. Withdrawal is on hold for 24 hours.';
+      }
       
       // Update user's wallet details
+      const walletUpdatedAt = holdApplied ? new Date() : null;
+      
       await db
         .update(users)
         .set({
           tonWalletAddress: tonWalletAddress || null,
           tonWalletComment: tonWalletComment || null,
           telegramUsername: telegramUsername || null,
-          walletUpdatedAt: new Date(),
+          walletUpdatedAt: walletUpdatedAt,
           updatedAt: new Date()
         })
         .where(eq(users.id, userId));
@@ -1889,8 +1923,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message: 'Wallet details saved successfully. Withdrawal is on hold for 24 hours.',
-        walletUpdatedAt: new Date()
+        message,
+        walletUpdatedAt,
+        holdApplied
       });
       
     } catch (error) {
@@ -2674,6 +2709,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error claiming task reward:", error);
       res.status(500).json({ message: "Failed to claim task reward" });
+    }
+  });
+
+  // Promo code endpoints
+  // Redeem promo code
+  app.post('/api/promo-codes/redeem', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { code } = req.body;
+      
+      if (!code || !code.trim()) {
+        return res.status(400).json({ message: 'Promo code is required' });
+      }
+      
+      const result = await storage.usePromoCode(code.trim().toUpperCase(), userId);
+      
+      if (result.success) {
+        res.json({ 
+          success: true, 
+          message: `${result.reward} TON added to your balance!`,
+          reward: result.reward
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: result.message 
+        });
+      }
+    } catch (error) {
+      console.error("Error redeeming promo code:", error);
+      res.status(500).json({ message: "Failed to redeem promo code" });
+    }
+  });
+
+  // Create promo code (admin only)
+  app.post('/api/promo-codes/create', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const user = await storage.getUser(userId);
+      
+      // Check if user is admin
+      const isAdmin = user?.telegram_id === "6653616672" || (user?.telegram_id === "123456789" && process.env.NODE_ENV === 'development');
+      if (!isAdmin) {
+        return res.status(403).json({ message: 'Unauthorized: Admin access required' });
+      }
+      
+      const { code, rewardAmount, usageLimit, perUserLimit, expiresAt } = req.body;
+      
+      if (!code || !rewardAmount) {
+        return res.status(400).json({ message: 'Code and reward amount are required' });
+      }
+      
+      const promoCode = await storage.createPromoCode({
+        code: code.toUpperCase(),
+        rewardAmount: rewardAmount.toString(),
+        rewardCurrency: 'TON',
+        usageLimit: usageLimit || null,
+        perUserLimit: perUserLimit || 1,
+        isActive: true,
+        expiresAt: expiresAt ? new Date(expiresAt) : null
+      });
+      
+      res.json({ 
+        success: true, 
+        message: 'Promo code created successfully',
+        promoCode 
+      });
+    } catch (error) {
+      console.error("Error creating promo code:", error);
+      res.status(500).json({ message: "Failed to create promo code" });
     }
   });
 
