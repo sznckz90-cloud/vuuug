@@ -1500,7 +1500,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           referralCount: referralCount[0]?.count || 0,
           status: user.banned ? 'Banned' : 'Active',
           joinedDate: user.createdAt,
-          adsWatched: user.adsWatched
+          adsWatched: user.adsWatched,
+          walletAddress: user.tonWalletAddress || 'Not set'
         }
       });
     } catch (error) {
@@ -2795,6 +2796,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating promo code:", error);
       res.status(500).json({ message: "Failed to create promo code" });
+    }
+  });
+
+  // Get all promo codes (admin only)
+  app.get('/api/admin/promo-codes', authenticateAdmin, async (req: any, res) => {
+    try {
+      const promoCodes = await storage.getAllPromoCodes();
+      
+      // Calculate stats for each promo code
+      const promoCodesWithStats = promoCodes.map(promo => {
+        const usageCount = promo.usageCount || 0;
+        const usageLimit = promo.usageLimit || 0;
+        const remainingCount = usageLimit > 0 ? Math.max(0, usageLimit - usageCount) : Infinity;
+        const totalDistributed = parseFloat(promo.rewardAmount) * usageCount;
+        
+        return {
+          ...promo,
+          usageCount,
+          remainingCount: remainingCount === Infinity ? 'Unlimited' : remainingCount,
+          totalDistributed: totalDistributed.toFixed(8)
+        };
+      });
+      
+      res.json({ 
+        success: true, 
+        promoCodes: promoCodesWithStats 
+      });
+    } catch (error) {
+      console.error("Error fetching promo codes:", error);
+      res.status(500).json({ message: "Failed to fetch promo codes" });
     }
   });
 
