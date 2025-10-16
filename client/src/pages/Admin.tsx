@@ -363,47 +363,24 @@ export default function AdminPage() {
     <Layout>
       <main className="max-w-6xl mx-auto px-4 pb-20">
         <div className="py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground flex items-center">
-                <i className="fas fa-crown text-orange-600 mr-3"></i>
-                Admin Dashboard
-              </h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/admin/promotions/pending"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/pending"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals/processed"] });
-                  toast({ title: "✅ Data refreshed successfully" });
-                }}
-                data-testid="button-refresh-data"
-                className="h-9 px-3"
-              >
-                <i className="fas fa-sync-alt mr-2"></i>
-                Refresh
-              </Button>
-              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                Administrator
-              </Badge>
-            </div>
-          </div>
-
           <Tabs defaultValue="analytics" className="w-full">
-            <div className="overflow-x-auto mb-6">
-              <TabsList className="flex w-full min-w-max">
-                <TabsTrigger value="withdrawals" data-testid="tab-withdrawals" className="flex-1 min-w-[120px]">
+            <div className="overflow-x-auto mb-6 scrollbar-hide">
+              <TabsList className="inline-flex w-auto min-w-full overflow-x-auto whitespace-nowrap">
+                <TabsTrigger value="withdrawals" data-testid="tab-withdrawals" className="min-w-[120px]">
                   <i className="fas fa-money-bill-wave mr-2"></i>
                   Withdrawals
                 </TabsTrigger>
-                <TabsTrigger value="analytics" data-testid="tab-analytics" className="flex-1 min-w-[120px]">
+                <TabsTrigger value="analytics" data-testid="tab-analytics" className="min-w-[120px]">
                   <i className="fas fa-chart-area mr-2"></i>
-                  Advanced Analytics
+                  Analytics
+                </TabsTrigger>
+                <TabsTrigger value="promo-creator" data-testid="tab-promo-creator" className="min-w-[120px]">
+                  <i className="fas fa-gift mr-2"></i>
+                  Promo Creator
+                </TabsTrigger>
+                <TabsTrigger value="user-tracking" data-testid="tab-user-tracking" className="min-w-[120px]">
+                  <i className="fas fa-search mr-2"></i>
+                  User Tracking
                 </TabsTrigger>
               </TabsList>
             </div>

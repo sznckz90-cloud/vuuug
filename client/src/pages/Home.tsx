@@ -13,6 +13,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
 import { Settings, Gift, Zap, Wallet as WalletIcon, ArrowDown, History, Ticket } from "lucide-react";
+import { tonToPAD, padToUSD } from "@shared/constants";
 
 interface User {
   id?: string;
@@ -55,10 +56,10 @@ export default function Home() {
     );
   }
 
-  const balancePAD = Math.round(parseFloat((user as User)?.balance || "0") * 100000);
-  const todayEarnings = Math.round(parseFloat(stats?.todayEarnings || "0") * 100000);
+  const balancePAD = tonToPAD((user as User)?.balance || "0");
+  const todayEarnings = tonToPAD(stats?.todayEarnings || "0");
   const allTimeEarnings = balancePAD;
-  const referralEarnings = Math.round(parseFloat(stats?.referralEarnings || "0") * 100000);
+  const referralEarnings = tonToPAD(stats?.referralEarnings || "0");
   
   const referralCode = (user as User)?.referralCode || "000000";
   const formattedUserId = referralCode.slice(-6).toUpperCase();
@@ -72,35 +73,26 @@ export default function Home() {
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-white text-xs">
-                  UID: #{formattedUserId}
+                  UID: {formattedUserId}
                 </div>
                 
-                <div className="flex gap-2">
+                {isAdmin && (
                   <Button
+                    variant="ghost"
                     size="icon"
-                    className="h-8 w-8 bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => setPromoDialogOpen(true)}
+                    className="w-8 h-8"
+                    onClick={() => setLocation("/admin")}
                   >
-                    <Ticket className="w-4 h-4" />
+                    <Settings className="w-4 h-4" />
                   </Button>
-                  {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="w-8 h-8"
-                      onClick={() => setLocation("/admin")}
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
               
               <div className="text-center">
                 <div className="text-muted-foreground text-xs mb-1">Balance</div>
                 <div className="text-foreground font-bold text-2xl">{balancePAD.toLocaleString()} PAD</div>
                 <div className="text-muted-foreground text-xs mt-1">
-                  ≈ ${(balancePAD / 100000).toFixed(4)} USD
+                  ≈ ${padToUSD(balancePAD).toFixed(4)} USD
                 </div>
               </div>
             </CardContent>
@@ -162,7 +154,7 @@ export default function Home() {
         {/* Viewing Ads Section */}
         <AdWatchingSection user={user as User} />
 
-        {/* Claim and Boost Buttons */}
+        {/* Action Buttons - 4 buttons in 2x2 grid */}
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Button
             variant="outline"
@@ -180,6 +172,24 @@ export default function Home() {
           >
             <Zap className="w-5 h-5 mr-2" />
             Boost
+          </Button>
+
+          <Button
+            variant="outline"
+            className="w-full h-12 border-primary/30 hover:bg-primary/10"
+            onClick={() => setPromoDialogOpen(true)}
+          >
+            <Ticket className="w-5 h-5 mr-2" />
+            Promo
+          </Button>
+
+          <Button
+            variant="outline"
+            className="w-full h-12 border-primary/30 hover:bg-primary/10"
+            onClick={() => setLocation("/tasks")}
+          >
+            <Gift className="w-5 h-5 mr-2" />
+            Create
           </Button>
         </div>
 
