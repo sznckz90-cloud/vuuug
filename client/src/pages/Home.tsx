@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Settings, Gift, Zap, Wallet as WalletIcon, ArrowDown, History, Tag } from "lucide-react";
+import { Settings, Gift, Zap, Wallet as WalletIcon, ArrowDown, History, Ticket } from "lucide-react";
 
 interface User {
   id?: string;
@@ -60,12 +60,8 @@ export default function Home() {
   const allTimeEarnings = balancePAD;
   const referralEarnings = Math.round(parseFloat(stats?.referralEarnings || "0") * 100000);
   
-  const displayUsername = (user as User)?.username 
-    ? `@${(user as User).username}` 
-    : (user as User)?.firstName || "User";
-  
-  const userId = (user as User)?.telegramId || (user as User)?.id || "000000";
-  const formattedUserId = userId.toString().padStart(6, "0").slice(-6);
+  const referralCode = (user as User)?.referralCode || "000000";
+  const formattedUserId = referralCode.slice(-6).toUpperCase();
 
   return (
     <Layout>
@@ -74,21 +70,18 @@ export default function Home() {
         <div className="mb-4">
           <Card className="neon-glow-border">
             <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex-1">
-                  <div className="text-foreground font-semibold text-lg">{displayUsername}</div>
-                  <div className="text-muted-foreground text-sm">UID: #{formattedUserId}</div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-white text-xs">
+                  UID: #{formattedUserId}
                 </div>
                 
                 <div className="flex gap-2">
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8"
+                    size="icon"
+                    className="h-8 w-8 bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={() => setPromoDialogOpen(true)}
                   >
-                    <Tag className="w-4 h-4 mr-1" />
-                    Promo
+                    <Ticket className="w-4 h-4" />
                   </Button>
                   {isAdmin && (
                     <Button
