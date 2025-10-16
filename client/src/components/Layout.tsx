@@ -28,7 +28,7 @@ export default function Layout({ children }: LayoutProps) {
 
   // Calculate balance in PAD and USD
   const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
-  const balanceUSD = (balancePAD / 200000).toFixed(2);
+  const balanceUSD = (balancePAD / 100000).toFixed(2);
 
   return (
     <div className="min-h-screen bg-transparent">
