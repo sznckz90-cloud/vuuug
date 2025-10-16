@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -185,75 +184,73 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <Card className="rounded-xl shadow-lg neon-glow-border border-0">
-          <CardContent className="p-4">
-            <div className="text-center mb-3">
-              <h2 className="text-xl font-bold text-foreground mb-1 flex items-center justify-center">
-                <Flame className="text-secondary mr-2" size={20} />
-                Daily Streak Rewards
-              </h2>
-              <p className="text-muted-foreground text-sm">
-                Earn 10 PAD daily • 150 PAD bonus on 5th day
+      <DialogContent className="max-w-md rounded-[20px] bg-black/95 border border-blue-600/30">
+        <div className="p-4">
+          <div className="text-center mb-3">
+            <h2 className="text-xl font-bold text-white mb-1 flex items-center justify-center">
+              <Flame className="text-blue-400 mr-2" size={20} />
+              Daily Streak Rewards
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Earn 10 PAD daily • 150 PAD bonus on 5th day
+            </p>
+          </div>
+          
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-400 text-sm">Current streak</span>
+            <span className="text-lg font-bold text-white" data-testid="text-current-streak">
+              {currentStreak} days
+            </span>
+          </div>
+          
+          <div className="bg-gray-800 rounded-full h-2 mb-4 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-blue-400 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${streakProgress}%` }}
+            ></div>
+          </div>
+          
+          {!isMember ? (
+            <div className="mb-3 p-3 bg-orange-950/50 border border-orange-600/50 rounded-lg">
+              <p className="text-sm font-medium text-orange-200 mb-2">
+                Channel membership required!
               </p>
-            </div>
-            
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-muted-foreground text-sm">Current streak</span>
-              <span className="text-lg font-bold text-foreground" data-testid="text-current-streak">
-                {currentStreak} days
-              </span>
-            </div>
-            
-            <div className="bg-muted rounded-full h-2 mb-4 overflow-hidden">
-              <div 
-                className="bg-gradient-to-r from-primary to-secondary h-full rounded-full transition-all duration-500" 
-                style={{ width: `${streakProgress}%` }}
-              ></div>
-            </div>
-            
-            {!isMember ? (
-              <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
-                <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
-                  Channel membership required!
-                </p>
-                <p className="text-xs text-orange-700 dark:text-orange-300 mb-3">
-                  You must join our channel to claim daily rewards.
-                </p>
-                <Button
-                  onClick={handleJoinChannel}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold transition-colors text-sm"
-                >
-                  <Send className="mr-2" size={16} />
-                  Join Channel
-                </Button>
-              </div>
-            ) : (
+              <p className="text-xs text-orange-300 mb-3">
+                You must join our channel to claim daily rewards.
+              </p>
               <Button
-                onClick={handleClaimStreak}
-                disabled={isClaiming || !canClaim}
-                className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground py-3 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
-                data-testid="button-claim-streak"
+                onClick={handleJoinChannel}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-[20px] font-semibold transition-colors text-sm"
               >
-                {isClaiming ? (
-                  <>
-                    <Loader className="mr-2 animate-spin" size={16} />
-                    Watching Ad...
-                  </>
-                ) : canClaim ? (
-                  <span className="flex items-center">
-                    <Flame className="mr-2" size={16} />
-                    Claim Streak
-                  </span>
-                ) : (
-                  <span className="text-xs font-normal opacity-80">
-                    Next claim in: {timeUntilNextClaim} UTC
-                  </span>
-                )}
+                <Send className="mr-2" size={16} />
+                Join Channel
               </Button>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          ) : (
+            <Button
+              onClick={handleClaimStreak}
+              disabled={isClaiming || !canClaim}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-[20px] font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
+              data-testid="button-claim-streak"
+            >
+              {isClaiming ? (
+                <>
+                  <Loader className="mr-2 animate-spin" size={16} />
+                  Watching Ad...
+                </>
+              ) : canClaim ? (
+                <span className="flex items-center">
+                  <Flame className="mr-2" size={16} />
+                  Claim Streak
+                </span>
+              ) : (
+                <span className="text-xs font-normal opacity-80">
+                  Next claim in: {timeUntilNextClaim} UTC
+                </span>
+              )}
+            </Button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

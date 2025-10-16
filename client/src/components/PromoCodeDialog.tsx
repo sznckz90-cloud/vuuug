@@ -57,19 +57,18 @@ export default function PromoCodeDialog({ open, onOpenChange }: PromoCodeDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-[20px] bg-black/95">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            🎟️ Redeem Promo Code
+          <DialogTitle className="text-white">
+            Redeem Promo Code
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-gray-400">
             Enter your promo code to claim rewards and bonuses
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
           <div>
-            <Label htmlFor="promo-code">Promo Code</Label>
             <Input
               id="promo-code"
               placeholder="Enter your promo code"
@@ -77,6 +76,7 @@ export default function PromoCodeDialog({ open, onOpenChange }: PromoCodeDialogP
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               disabled={redeemPromoMutation.isPending}
               data-testid="input-promo-code"
+              className="bg-transparent border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
             />
           </div>
           
@@ -84,7 +84,7 @@ export default function PromoCodeDialog({ open, onOpenChange }: PromoCodeDialogP
             <Button
               onClick={handleSubmit}
               disabled={redeemPromoMutation.isPending || !promoCode.trim()}
-              className="flex-1"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-[20px]"
               data-testid="button-redeem-promo"
             >
               {redeemPromoMutation.isPending ? (
@@ -93,18 +93,8 @@ export default function PromoCodeDialog({ open, onOpenChange }: PromoCodeDialogP
                   Redeeming...
                 </>
               ) : (
-                <>
-                  <i className="fas fa-gift mr-2"></i>
-                  Redeem Code
-                </>
+                'Redeem Code'
               )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={redeemPromoMutation.isPending}
-            >
-              Cancel
             </Button>
           </div>
         </div>
