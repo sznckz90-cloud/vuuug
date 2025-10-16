@@ -741,9 +741,358 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Promo Creator Tab */}
+            <TabsContent value="promo-creator" className="space-y-6">
+              <PromoCodeCreator />
+            </TabsContent>
+
+            {/* User Tracking Tab */}
+            <TabsContent value="user-tracking" className="space-y-6">
+              <UserTrackingSearch />
+            </TabsContent>
           </Tabs>
         </div>
       </main>
     </Layout>
+  );
+}
+
+// Promo Code Creator Component
+function PromoCodeCreator() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    code: '',
+    rewardAmount: '',
+    usageLimit: '',
+    perUserLimit: '1',
+    expiresAt: ''
+  });
+
+  const [isCreating, setIsCreating] = useState(false);
+
+  const { data: promoCodesData } = useQuery({
+    queryKey: ["/api/admin/promo-codes"],
+    queryFn: () => apiRequest("GET", "/api/admin/promo-codes").then(res => res.json()),
+    refetchInterval: 5000,
+  });
+
+  const handleCreate = async () => {
+    if (!formData.code.trim() || !formData.rewardAmount) {
+      toast({
+        title: "Validation Error",
+        description: "Promo code and reward amount are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const rewardAmountNum = parseFloat(formData.rewardAmount);
+    if (isNaN(rewardAmountNum) || rewardAmountNum <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Reward amount must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const response = await apiRequest('POST', '/api/promo-codes/create', {
+        code: formData.code.trim().toUpperCase(),
+        rewardAmount: rewardAmountNum,
+        usageLimit: formData.usageLimit ? parseInt(formData.usageLimit) : null,
+        perUserLimit: parseInt(formData.perUserLimit),
+        expiresAt: formData.expiresAt || null
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Success!",
+          description: "Promo code created successfully",
+        });
+        setFormData({
+          code: '',
+          rewardAmount: '',
+          usageLimit: '',
+          perUserLimit: '1',
+          expiresAt: ''
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/promo-codes"] });
+      } else {
+        throw new Error(result.message || 'Failed to create promo code');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create promo code",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const promoCodes = promoCodesData?.promoCodes || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="promo-code">Promo Code *</Label>
+          <Input
+            id="promo-code"
+            placeholder="Enter promo code (e.g., WELCOME50)"
+            value={formData.code}
+            onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+            maxLength={20}
+          />
+        </div>
+        <div>
+          <Label htmlFor="reward-amount">Per User Claim Amount (PAD) *</Label>
+          <Input
+            id="reward-amount"
+            type="number"
+            placeholder="Enter PAD amount"
+            value={formData.rewardAmount}
+            onChange={(e) => setFormData({ ...formData, rewardAmount: e.target.value })}
+            min="0"
+            step="1000"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="max-users">Max Users Allowed</Label>
+          <Input
+            id="max-users"
+            type="number"
+            placeholder="Leave empty for unlimited"
+            value={formData.usageLimit}
+            onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
+            min="1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="expiry-date">Expiry Date</Label>
+          <Input
+            id="expiry-date"
+            type="datetime-local"
+            value={formData.expiresAt}
+            onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="per-user-limit">Per User Claim Limit</Label>
+        <Input
+          id="per-user-limit"
+          type="number"
+          placeholder="1"
+          value={formData.perUserLimit}
+          onChange={(e) => setFormData({ ...formData, perUserLimit: e.target.value })}
+          min="1"
+        />
+      </div>
+
+      <Button 
+        onClick={handleCreate}
+        disabled={isCreating}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+      >
+        {isCreating ? (
+          <>
+            <i className="fas fa-spinner fa-spin mr-2"></i>
+            Creating...
+          </>
+        ) : (
+          <>
+            <i className="fas fa-plus mr-2"></i>
+            Create Promo Code
+          </>
+        )}
+      </Button>
+
+      {promoCodes.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <i className="fas fa-list mr-2 text-blue-600"></i>
+            Active Promo Codes
+          </h3>
+          <div className="space-y-3">
+            {promoCodes.map((promo: any) => (
+              <Card key={promo.id} className="border-l-4 border-l-blue-500">
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Code</p>
+                      <p className="font-bold text-lg">{promo.code}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Reward Amount</p>
+                      <p className="font-semibold">{Math.round(parseFloat(promo.rewardAmount) * 100000)} PAD</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Claimed / Remaining</p>
+                      <p className="font-semibold text-blue-600">
+                        {promo.usageCount} / {promo.remainingCount === 'Unlimited' ? '∞' : promo.remainingCount}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total PAD Distributed</p>
+                      <p className="font-semibold text-green-600">
+                        {Math.round(parseFloat(promo.totalDistributed) * 100000).toLocaleString()} PAD
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Status</p>
+                      <Badge variant={promo.isActive ? "default" : "secondary"}>
+                        {promo.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    {promo.expiresAt && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Expires At</p>
+                        <p className="text-sm">{new Date(promo.expiresAt).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// User Tracking Search Component
+function UserTrackingSearch() {
+  const [uid, setUid] = useState('');
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSearch = async () => {
+    if (!uid.trim()) {
+      setError('Please enter a UID');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setUserData(null);
+
+    try {
+      const response = await apiRequest('GET', `/api/admin/user-tracking/${uid.trim()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setUserData(data.user);
+      } else {
+        setError(data.message || 'User not found');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch user data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    }) + ', at ' + date.toLocaleTimeString('en-GB', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Input
+          placeholder="Enter UID (referral code)"
+          value={uid}
+          onChange={(e) => setUid(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          className="flex-1"
+        />
+        <Button onClick={handleSearch} disabled={loading}>
+          {loading ? (
+            <><i className="fas fa-spinner fa-spin mr-2"></i>Searching...</>
+          ) : (
+            <><i className="fas fa-search mr-2"></i>Search User</>
+          )}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
+      {userData && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">UID</p>
+                  <p className="font-semibold">{userData.uid}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="font-semibold">{userData.status}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Balance</p>
+                  <p className="font-semibold">{Math.round(parseFloat(userData.balance || '0') * 100000)} PAD</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Earnings</p>
+                  <p className="font-semibold">{Math.round(parseFloat(userData.totalEarnings || '0') * 100000)} PAD</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Withdrawals</p>
+                  <p className="font-semibold">{userData.withdrawalCount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Referral Count</p>
+                  <p className="font-semibold">{userData.referralCount}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Joined Date</p>
+                <p className="font-semibold">{formatDate(userData.joinedDate)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ads Watched</p>
+                <p className="font-semibold">{userData.adsWatched}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Current Wallet</p>
+                <p className="font-semibold text-sm break-all font-mono bg-muted p-2 rounded">{userData.walletAddress || 'Not set'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
