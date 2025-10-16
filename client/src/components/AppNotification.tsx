@@ -7,6 +7,7 @@ interface NotificationData {
   message: string;
   type?: NotificationType;
   amount?: number;
+  duration?: number;
 }
 
 let notificationQueue: NotificationData[] = [];
@@ -32,18 +33,20 @@ export default function AppNotification() {
     setType(notification.type || "success");
     setIsVisible(true);
 
+    const displayDuration = notification.duration || 1500;
+
     setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => {
         isDisplaying = false;
         showNextNotification();
       }, 300);
-    }, 1500);
+    }, displayDuration);
   };
 
   useEffect(() => {
     const handleNotification = (event: CustomEvent<NotificationData>) => {
-      const { message: msg, type: notifType, amount } = event.detail;
+      const { message: msg, type: notifType, amount, duration } = event.detail;
       
       let finalMessage = msg;
       if (amount !== undefined) {
@@ -70,7 +73,7 @@ export default function AppNotification() {
         }
       }
       
-      notificationQueue.push({ message: finalMessage, type: notifType });
+      notificationQueue.push({ message: finalMessage, type: notifType, duration });
       showNextNotification();
     };
 
@@ -112,9 +115,9 @@ export default function AppNotification() {
   );
 }
 
-export function showNotification(message: string, type: NotificationType = "success", amount?: number) {
+export function showNotification(message: string, type: NotificationType = "success", amount?: number, duration?: number) {
   const event = new CustomEvent('appNotification', { 
-    detail: { message, type, amount } 
+    detail: { message, type, amount, duration } 
   });
   window.dispatchEvent(event);
 }

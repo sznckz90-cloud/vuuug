@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { showNotification } from '@/components/AppNotification';
 import { apiRequest } from '@/lib/queryClient';
 import { Gem, Star } from 'lucide-react';
+import { tonToPAD, padToUSD, PAD_TO_USD } from '@shared/constants';
 
 interface User {
   id: string;
@@ -42,7 +43,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   });
 
   const walletDetails = walletDetailsData?.walletDetails;
-  const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
+  const balancePAD = tonToPAD(user?.balance || "0");
 
   const { data: withdrawalsData = [] } = useQuery<any[]>({
     queryKey: ['/api/withdrawals'],
@@ -53,7 +54,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
   const calculateWithdrawalDetails = () => {
     const amount = parseInt(amountPAD) || 0;
-    const amountUSD = amount / 100000;
+    const amountUSD = padToUSD(amount);
     
     if (paymentSystem === 'ton_coin') {
       const fee = amountUSD * 0.04;
@@ -69,7 +70,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
   const withdrawMutation = useMutation({
     mutationFn: async () => {
-      const amountTON = (parseInt(amountPAD) / 100000).toFixed(8);
+      const amountTON = padToUSD(parseInt(amountPAD)).toFixed(8);
       const response = await apiRequest('POST', '/api/withdrawals', {
         amount: amountTON,
         paymentSystemId: paymentSystem,

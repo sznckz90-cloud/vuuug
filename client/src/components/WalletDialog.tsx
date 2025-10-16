@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { showNotification } from '@/components/AppNotification';
 import { apiRequest } from '@/lib/queryClient';
 import { Gem, Star, Settings2 } from 'lucide-react';
+import { tonToPAD } from '@shared/constants';
 
 interface WalletDetails {
   tonWalletAddress: string;
@@ -27,6 +28,8 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
   const [tonAddress, setTonAddress] = useState('');
   const [tonComment, setTonComment] = useState('');
   const [telegramUsername, setTelegramUsername] = useState('');
+  const [isChangingDetails, setIsChangingDetails] = useState(false);
+  const [originalDetails, setOriginalDetails] = useState<{tonAddress: string; tonComment: string; telegramUsername: string} | null>(null);
 
   const { data: walletDetailsData } = useQuery<{ success: boolean; walletDetails: WalletDetails }>({
     queryKey: ['/api/wallet/details'],
@@ -39,15 +42,15 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
   });
 
   const walletDetails = walletDetailsData?.walletDetails;
-  const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
+  const balancePAD = tonToPAD(user?.balance || "0");
 
   useEffect(() => {
-    if (walletDetails) {
+    if (walletDetails && !isChangingDetails) {
       setTonAddress(walletDetails.tonWalletAddress || '');
       setTonComment(walletDetails.tonWalletComment || '');
       setTelegramUsername(walletDetails.telegramUsername || '');
     }
-  }, [walletDetails]);
+  }, [walletDetails, isChangingDetails]);
 
   const saveWalletMutation = useMutation({
     mutationFn: async (paidChange: boolean) => {
@@ -60,23 +63,54 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
       return response.json();
     },
     onSuccess: (data) => {
-      showNotification(data.message, "success");
+      showNotification("Wallet details updated successfully", "success", undefined, 2500);
       queryClient.invalidateQueries({ queryKey: ['/api/wallet/details'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       setShowChangeOptions(false);
+      setIsChangingDetails(false);
+      setOriginalDetails(null);
       onOpenChange(false);
     },
     onError: (error: any) => {
-      showNotification(error.message || "Failed to save wallet details", "error");
+      showNotification(error.message || "Failed to save wallet details", "error", undefined, 2500);
     },
   });
 
   const handleSave = (paidChange: boolean) => {
     if (!tonAddress && !telegramUsername) {
-      showNotification("Please enter at least one wallet address", "error");
+      showNotification("Please enter at least one wallet address", "error", undefined, 2500);
       return;
     }
+
+    // Check if details have changed when modifying existing wallet
+    if (isChangingDetails && originalDetails) {
+      const hasChanged = 
+        tonAddress !== originalDetails.tonAddress ||
+        tonComment !== originalDetails.tonComment ||
+        telegramUsername !== originalDetails.telegramUsername;
+
+      if (!hasChanged) {
+        showNotification("No changes detected. Please modify before saving.", "error", undefined, 2500);
+        return;
+      }
+    }
+
     saveWalletMutation.mutate(paidChange);
+  };
+
+  const handleChangeDetails = () => {
+    // Save original details
+    setOriginalDetails({
+      tonAddress: walletDetails?.tonWalletAddress || '',
+      tonComment: walletDetails?.tonWalletComment || '',
+      telegramUsername: walletDetails?.telegramUsername || ''
+    });
+    // Clear inputs to force re-entry
+    setTonAddress('');
+    setTonComment('');
+    setTelegramUsername('');
+    setIsChangingDetails(true);
+    setShowChangeOptions(true);
   };
 
   const isWalletSet = walletDetails?.tonWalletAddress || walletDetails?.telegramUsername;
@@ -190,10 +224,10 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
             )}
 
             <div className="mt-4">
-              {isWalletSet ? (
+              {isWalletSet && !isChangingDetails ? (
                 <Button
                   className="w-full"
-                  onClick={() => setShowChangeOptions(true)}
+                  onClick={handleChangeDetails}
                   disabled={saveWalletMutation.isPending}
                 >
                   <Settings2 className="w-4 h-4 mr-2" />
@@ -202,10 +236,10 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
               ) : (
                 <Button
                   className="w-full"
-                  onClick={() => handleSave(false)}
+                  onClick={() => isChangingDetails ? setShowChangeOptions(true) : handleSave(false)}
                   disabled={saveWalletMutation.isPending}
                 >
-                  {saveWalletMutation.isPending ? 'Saving...' : 'Confirm & Save'}
+                  {saveWalletMutation.isPending ? 'Saving...' : (isChangingDetails ? 'Update Wallet' : 'Confirm & Save')}
                 </Button>
               )}
             </div>
