@@ -2,6 +2,38 @@
 
 CashWatch is a React-based web application enabling users to earn money by watching advertisements. It features a gamified experience with daily streaks, a referral system, and withdrawal capabilities. The platform uses a modern full-stack architecture, integrating React, Express, PostgreSQL, shadcn/ui components, and Telegram Bot functionality. The project aims to provide a user-friendly and engaging way to earn cryptocurrency.
 
+## Admin Features
+- **Promo Code Creation**: Admins can create promotional codes with customizable rewards, usage limits, and expiry dates
+- **User Tracking**: Search and monitor users by UID (referral code) to view their balance, earnings, withdrawals, and activity
+- **Withdrawal Management**: Approve or reject user withdrawal requests
+- **Analytics Dashboard**: View platform statistics including active users, total earnings, and withdrawal analytics
+
+For detailed instructions on using admin features, see [ADMIN_GUIDE.md](./ADMIN_GUIDE.md).
+
+# Recent Changes (October 16, 2025)
+
+## GitHub Import Setup Complete
+- ✅ Created missing `shared/constants.ts` file with PAD_TO_USD conversion utilities
+- ✅ Fixed TypeScript configuration and LSP diagnostics
+- ✅ Configured Vite dev server for Replit environment (0.0.0.0:5000, HMR with clientPort 443)
+- ✅ Set up database schema and migrations
+- ✅ Added `.gitignore` for proper version control
+- ✅ Configured deployment settings for autoscale deployment
+- ✅ Created comprehensive Admin Guide documentation (ADMIN_GUIDE.md)
+
+# Recent Changes (October 13, 2025)
+
+## Project Setup & Configuration
+- **GitHub Import Setup**: Successfully configured the project for Replit environment
+- **Missing Constants File**: Created `shared/constants.ts` with currency conversion utilities (PAD_TO_USD constant and helper functions)
+- **Vite Configuration**: Fixed HMR WebSocket configuration for Replit proxy environment (clientPort: 443)
+- **Database**: Configured PostgreSQL database connection with proper SSL settings for development
+- **Build System**: Verified and tested build pipeline (Vite + ESBuild) working correctly
+- **Development Workflow**: Set up dev server on port 5000 with proper host configuration (0.0.0.0)
+- **Deployment**: Configured autoscale deployment with build and start scripts
+- **Dependencies**: Updated browserslist database and installed all required packages
+- **.gitignore**: Created to exclude build artifacts and node_modules from version control
+
 # Recent Changes (October 13, 2025)
 
 ## UI/UX Updates
