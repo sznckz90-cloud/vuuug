@@ -4,42 +4,42 @@
 @tailwind utilities;
 
 :root {
-  --background: #0A0A0A;
-  --foreground: #FFFFFF;
-  --card: #0C0C0C;
-  --card-foreground: #FFFFFF;
-  --popover: #0C0C0C;
-  --popover-foreground: #FFFFFF;
-  --primary: #1534A1;
+  --background: #000000;
+  --foreground: #d9d9d9;
+  --card: #0a0a0a;
+  --card-foreground: #d9d9d9;
+  --popover: #0a0a0a;
+  --popover-foreground: #d9d9d9;
+  --primary: #3da9fc;
   --primary-foreground: #FFFFFF;
-  --secondary: #1534A1;
+  --secondary: #3da9fc;
   --secondary-foreground: #FFFFFF;
-  --muted: #0C0C0C;
-  --muted-foreground: #FFFFFF;
-  --accent: #0C0C0C;
-  --accent-foreground: #FFFFFF;
-  --destructive: #1534A1;
+  --muted: #0a0a0a;
+  --muted-foreground: #9ca3af;
+  --accent: #0a0a0a;
+  --accent-foreground: #d9d9d9;
+  --destructive: #ef4444;
   --destructive-foreground: #FFFFFF;
-  --border: #ffffff;
-  --input: #0C0C0C;
-  --ring: #1534A1;
-  --chart-1: #1534A1;
-  --chart-2: #1534A1;
-  --chart-3: #1534A1;
-  --chart-4: #1534A1;
-  --chart-5: #1534A1;
-  --sidebar: #0A0A0A;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #1534A1;
+  --border: #3da9fc;
+  --input: #111111;
+  --ring: #3da9fc;
+  --chart-1: #3da9fc;
+  --chart-2: #3da9fc;
+  --chart-3: #3da9fc;
+  --chart-4: #3da9fc;
+  --chart-5: #3da9fc;
+  --sidebar: #000000;
+  --sidebar-foreground: #d9d9d9;
+  --sidebar-primary: #3da9fc;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #0C0C0C;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1534A1;
-  --sidebar-ring: #1534A1;
+  --sidebar-accent: #0a0a0a;
+  --sidebar-accent-foreground: #d9d9d9;
+  --sidebar-border: #3da9fc;
+  --sidebar-ring: #3da9fc;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
-  --radius: 14px;
+  --radius: 12px;
   --shadow-2xs: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.05);
   --shadow-xs: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.05);
   --shadow-sm: 0px 1px 3px 0px hsl(0, 0%, 0%, 0.1), 0px 1px 2px 0px hsl(0, 0%, 0%, 0.06);
@@ -96,16 +96,35 @@
     -ms-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
-    background: #0A0A0A;
+    background: #000000;
   }
 
-  input, button, textarea, select {
-    border: 1px solid #ffffff !important;
+  input, textarea, select {
+    background-color: #111111 !important;
+    border: 1px solid #3da9fc !important;
+    outline: none !important;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border: 1px solid #3da9fc !important;
+    outline: none !important;
+  }
+
+  button:focus, a:focus {
+    outline: none !important;
+  }
+
+  button {
+    transition: all 0.2s ease;
   }
 
   .bg-card, [class*="bg-card"] {
-    background-color: #0d0d0d !important;
-    border: 1px solid #ffffff !important;
+    background-color: #0a0a0a !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .neon-glow-border {
+    border: 1px solid #3da9fc !important;
   }
 
   #root {
@@ -128,7 +147,7 @@
 }
 
 .earnings-counter {
-  color: #1534A1;
+  color: #4aa8ff;
   font-weight: 800;
 }
 
@@ -197,26 +216,26 @@
 }
 
 .neon-glow-border {
-  border: 1.5px solid #1534A1;
-  border-radius: 14px;
+  border: 1.5px solid #7fbfff;
+  border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .neon-glow-border-strong {
-  border: 1.5px solid #1534A1;
-  border-radius: 14px;
+  border: 1.5px solid #7fbfff;
+  border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 @keyframes tap-glow {
   0% {
-    box-shadow: 0 0 0 0 rgba(21, 52, 161, 0.7);
+    box-shadow: 0 0 0 0 rgba(74, 168, 255, 0.7);
   }
   50% {
-    box-shadow: 0 0 20px 5px rgba(21, 52, 161, 0.4);
+    box-shadow: 0 0 20px 5px rgba(74, 168, 255, 0.4);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(21, 52, 161, 0);
+    box-shadow: 0 0 0 0 rgba(74, 168, 255, 0);
   }
 }
 
