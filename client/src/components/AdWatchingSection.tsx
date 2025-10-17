@@ -104,9 +104,14 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     try {
       if (typeof window.show_9368336 === 'function') {
         // Ad opens immediately
-        await window.show_9368336();
-        // Process reward after ad is closed
+        const adPromise = window.show_9368336();
+        
+        // ✅ Process reward INSTANTLY after ad starts (no waiting)
+        // Don't wait for ad to close - process reward immediately
         watchAdMutation.mutate('rewarded');
+        
+        // Ad continues to show in background
+        await adPromise;
       } else {
         // Fallback for testing
         watchAdMutation.mutate('rewarded');
