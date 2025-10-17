@@ -1,24 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { showNotification } from '@/components/AppNotification';
+import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Gem, Star } from 'lucide-react';
-import { tonToPAD, padToUSD, PAD_TO_USD } from '@shared/constants';
 
 interface User {
   id: string;
-  balance: string;
-}
-
-interface WalletDetails {
-  tonWalletAddress: string;
-  tonWalletComment: string;
-  telegramUsername: string;
-  canWithdraw: boolean;
+  tonBalance: string;
 }
 
 interface WithdrawDialogProps {
@@ -28,22 +19,17 @@ interface WithdrawDialogProps {
 
 export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogProps) {
   const queryClient = useQueryClient();
-  const [paymentSystem, setPaymentSystem] = useState<'ton_coin' | 'telegram_stars'>('ton_coin');
-  const [amountPAD, setAmountPAD] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [amount, setAmount] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [comment, setComment] = useState('');
+  const { toast } = useToast();
 
   const { data: user } = useQuery<User>({
-    queryKey: ['/api/auth/user'],
+    queryKey: ['/api/user'],
     retry: false,
   });
 
-  const { data: walletDetailsData } = useQuery<{ success: boolean; walletDetails: WalletDetails }>({
-    queryKey: ['/api/wallet/details'],
-    retry: false,
-  });
-
-  const walletDetails = walletDetailsData?.walletDetails;
-  const balancePAD = tonToPAD(user?.balance || "0");
+  const tonBalance = parseFloat(user?.tonBalance || "0");
 
   const { data: withdrawalsData = [] } = useQuery<any[]>({
     queryKey: ['/api/withdrawals'],
@@ -52,176 +38,148 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
   const hasPendingWithdrawal = withdrawalsData.some(w => w.status === 'pending');
 
-  const calculateWithdrawalDetails = () => {
-    const amount = parseInt(amountPAD) || 0;
-    const amountUSD = padToUSD(amount);
-    
-    if (paymentSystem === 'ton_coin') {
-      const fee = amountUSD * 0.04;
-      const afterFee = amountUSD - fee;
-      return { afterFee: afterFee.toFixed(2) };
-    } else {
-      const stars = amount / 4500;
-      const fee = stars * 0.01;
-      const afterFee = stars - fee;
-      return { afterFee: afterFee.toFixed(2) };
-    }
-  };
-
   const withdrawMutation = useMutation({
     mutationFn: async () => {
-      const amountTON = padToUSD(parseInt(amountPAD)).toFixed(8);
       const response = await apiRequest('POST', '/api/withdrawals', {
-        amount: amountTON,
-        paymentSystemId: paymentSystem,
-        paymentDetails: paymentSystem === 'ton_coin' ? walletDetails?.tonWalletAddress : walletDetails?.telegramUsername,
-        comment: paymentSystem === 'ton_coin' ? walletDetails?.tonWalletComment : ''
+        amount: parseFloat(amount),
+        walletAddress: walletAddress.trim() || undefined,
+        comment: comment.trim() || undefined
       });
       return response.json();
     },
     onSuccess: () => {
-      showNotification("💸 Withdrawal request submitted!", "success");
-      setAmountPAD('');
-      setErrors({});
+      toast({
+        title: "✅ Withdrawal request submitted!",
+        description: "Your withdrawal will be processed soon.",
+      });
+      setAmount('');
+      setWalletAddress('');
+      setComment('');
       queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       onOpenChange(false);
     },
     onError: (error: any) => {
-      showNotification(error.message || "Withdrawal failed", "error");
+      toast({
+        title: "❌ Withdrawal failed",
+        description: error.message || "Failed to submit withdrawal request",
+        variant: "destructive",
+      });
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const amount = parseInt(amountPAD) || 0;
-    const newErrors: Record<string, string> = {};
-
-    if (!walletDetails || (paymentSystem === 'ton_coin' && !walletDetails.tonWalletAddress) || (paymentSystem === 'telegram_stars' && !walletDetails.telegramUsername)) {
-      showNotification("Please save wallet details first.", "error");
-      return;
-    }
+    const withdrawAmount = parseFloat(amount);
 
     if (hasPendingWithdrawal) {
-      showNotification("Cannot create new request until current one is processed", "error");
+      toast({
+        title: "Pending withdrawal exists",
+        description: "Cannot create new request until current one is processed",
+        variant: "destructive",
+      });
       return;
     }
 
-    if (walletDetails && !walletDetails.canWithdraw) {
-      showNotification("Withdrawal on hold for 24 hours after updating wallet", "error");
+    if (!amount || isNaN(withdrawAmount) || withdrawAmount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid withdrawal amount",
+        variant: "destructive",
+      });
       return;
     }
 
-    const minPAD = paymentSystem === 'ton_coin' ? 400000 : 100000;
-    const maxPAD = 2000000;
-
-    if (!amountPAD || amount <= 0) {
-      newErrors.amount = 'Please enter a valid amount';
-    } else if (amount < minPAD) {
-      newErrors.amount = `Not more than ${minPAD.toLocaleString()} PAD`;
-    } else if (amount > maxPAD) {
-      newErrors.amount = `Maximum is ${maxPAD.toLocaleString()} PAD`;
-    } else if (amount > balancePAD) {
-      newErrors.amount = 'Insufficient balance';
+    if (withdrawAmount < 0.01) {
+      toast({
+        title: "Minimum withdrawal",
+        description: "Minimum withdrawal is 0.01 TON",
+        variant: "destructive",
+      });
+      return;
     }
 
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length === 0) {
-      withdrawMutation.mutate();
+    if (withdrawAmount > tonBalance) {
+      toast({
+        title: "Insufficient balance",
+        description: "Insufficient TON balance",
+        variant: "destructive",
+      });
+      return;
     }
+
+    withdrawMutation.mutate();
   };
-
-  const details = calculateWithdrawalDetails();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-[#0a0a0a] border border-white/20">
         <DialogHeader>
-          <DialogTitle>Withdraw funds</DialogTitle>
-          <p className="text-sm text-muted-foreground">100,000 PAD = $1</p>
+          <DialogTitle className="text-foreground">Withdraw TON</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Minimum: 0.01 TON • No fees
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={paymentSystem === 'ton_coin' ? 'default' : 'outline'}
-              onClick={() => setPaymentSystem('ton_coin')}
-            >
-              <Gem className="w-4 h-4 mr-2" />
-              TON Coin
-            </Button>
-            <Button
-              type="button"
-              variant={paymentSystem === 'telegram_stars' ? 'default' : 'outline'}
-              onClick={() => setPaymentSystem('telegram_stars')}
-            >
-              <Star className="w-4 h-4 mr-2" />
-              Telegram Stars
-            </Button>
-          </div>
-
           <div className="space-y-2">
-            <Label>Wallet Address</Label>
-            <Input
-              value={paymentSystem === 'ton_coin' ? (walletDetails?.tonWalletAddress || '') : (walletDetails?.telegramUsername || '')}
-              readOnly
-              className="bg-muted"
-              placeholder={walletDetails ? "Loaded from wallet" : "Please set wallet details first"}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Payout Amount (PAD)</Label>
+            <Label className="text-foreground">Amount (TON)</Label>
             <div className="relative">
               <Input
                 type="number"
-                step="1"
-                value={amountPAD}
-                onChange={(e) => setAmountPAD(e.target.value)}
-                placeholder="Enter amount in PAD"
-                className={errors.amount ? 'border-red-500' : ''}
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Enter TON amount"
+                className="bg-[#111111] border-white/20 text-foreground"
               />
               <Button 
                 type="button"
                 size="sm"
                 variant="ghost"
                 className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
-                onClick={() => setAmountPAD(balancePAD.toString())}
+                onClick={() => setAmount(tonBalance.toString())}
               >
                 MAX
               </Button>
             </div>
-            {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
-            <p className="text-xs text-muted-foreground">
-              {paymentSystem === 'ton_coin' 
-                ? 'Mini: 400,000 PAD | Max: 2,000,000 PAD'
-                : 'Mini: 100,000 PAD | Max: 2,000,000 PAD'
-              }
-            </p>
+            <div className="text-xs text-muted-foreground">
+              Available: {tonBalance.toFixed(4)} TON
+            </div>
           </div>
 
-          {amountPAD && parseInt(amountPAD) > 0 && (
-            <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Fee:</span>
-                <span className="font-medium">{paymentSystem === 'ton_coin' ? '4%' : '1%'}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Will be credited to wallet:</span>
-                <span className="font-semibold text-primary">${details.afterFee}</span>
-              </div>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label className="text-foreground">Wallet Address (Optional)</Label>
+            <Input
+              value={walletAddress}
+              onChange={(e) => setWalletAddress(e.target.value)}
+              placeholder="Enter TON wallet address"
+              className="bg-[#111111] border-white/20 text-foreground"
+            />
+          </div>
 
-          <Button type="submit" className="w-full" disabled={withdrawMutation.isPending}>
+          <div className="space-y-2">
+            <Label className="text-foreground">Comment (Optional)</Label>
+            <Input
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add a comment"
+              className="bg-[#111111] border-white/20 text-foreground"
+            />
+          </div>
+
+          <Button 
+            type="submit" 
+            className="w-full bg-[#3da9fc] hover:bg-[#3da9fc]/90 text-white" 
+            disabled={withdrawMutation.isPending}
+          >
             {withdrawMutation.isPending ? (
               <>
                 <i className="fas fa-spinner fa-spin mr-2"></i>
                 Processing...
               </>
             ) : (
-              'Submit withdrawal request'
+              'Withdraw'
             )}
           </Button>
         </form>

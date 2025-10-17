@@ -40,7 +40,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       setLastAdWatchTime(Date.now());
       
       // Get PAD amount from response
-      const rewardPAD = data.rewardPAD || 30;
+      const rewardPAD = data.rewardPAD || 1000;
       
       // Show reward notification with dynamic amount
       showNotification(`You received ${rewardPAD} PAD on your balance`, "success");
@@ -103,15 +103,11 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     
     try {
       if (typeof window.show_9368336 === 'function') {
-        // Ad opens immediately
-        const adPromise = window.show_9368336();
+        // Show ad and wait for it to close
+        await window.show_9368336();
         
-        // ✅ Process reward INSTANTLY after ad starts (no waiting)
-        // Don't wait for ad to close - process reward immediately
+        // ✅ Process reward ONLY after ad closes
         watchAdMutation.mutate('rewarded');
-        
-        // Ad continues to show in background
-        await adPromise;
       } else {
         // Fallback for testing
         watchAdMutation.mutate('rewarded');
