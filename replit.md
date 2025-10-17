@@ -10,6 +10,27 @@ CashWatch is a React-based web application enabling users to earn money by watch
 
 For detailed instructions on using admin features, see [ADMIN_GUIDE.md](./ADMIN_GUIDE.md).
 
+# Recent Changes (October 17, 2025)
+
+## GitHub Import Setup Complete + UI Enhancements + Performance Fix
+- ✅ Configured development environment and database migrations
+- ✅ Fixed missing wallet columns in database schema (ton_wallet_address, telegram_username_wallet, etc.)
+- ✅ Applied UI fixes:
+  - Changed chart outlines from blue (#3b82f6) to white (#ffffff) for better visibility
+  - Added white borders to all inputs, buttons, textareas, and select elements
+  - Made popup and card backgrounds visible with #0d0d0d background and white borders
+  - Added scroll overflow handling to Promo Creator tab (max-height: 80vh)
+  - Updated CSS border color to white for enhanced visibility
+- ✅ **Ad Reward Performance Fix**: Optimized ad reward flow for instant delivery
+  - Reward is now processed immediately when ad starts (0ms delay)
+  - Eliminated 2-3 second delay that occurred after ad close
+  - API call no longer blocks reward notification
+  - User receives reward notification instantly while ad continues in background
+- ✅ Configured autoscale deployment with build and start scripts
+- ✅ Vite dev server running on 0.0.0.0:5000 with HMR proxy support (clientPort 443)
+- ✅ Database schema verified with all tables and migrations applied
+- ✅ Development workflow "CashWatch Server" configured and running successfully
+
 # Recent Changes (October 16, 2025)
 
 ## GitHub Import Setup Complete
