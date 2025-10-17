@@ -522,19 +522,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      // Enforce 200 ads per day limit
+      // Enforce 50 ads per day limit
       const adsWatchedToday = user.adsWatchedToday || 0;
-      if (adsWatchedToday >= 200) {
+      if (adsWatchedToday >= 50) {
         return res.status(429).json({ 
-          message: "Daily ad limit reached. You can watch up to 200 ads per day.",
-          limit: 200,
+          message: "Daily ad limit reached. You can watch up to 50 ads per day.",
+          limit: 50,
           watched: adsWatchedToday
         });
       }
       
-      // Add earning for watched ad with new rate (30 PAD = 0.0003 TON)
-      const adRewardTON = "0.00030000";
-      const adRewardPAD = Math.round(parseFloat(adRewardTON) * 100000);
+      // Add earning for watched ad with new rate (1000 PAD = 0.0001 TON with 10M PAD = 1 TON conversion)
+      const adRewardTON = "0.00010000";
+      const adRewardPAD = Math.round(parseFloat(adRewardTON) * 10000000);
       
       const earning = await storage.addEarning({
         userId,
@@ -1858,18 +1858,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Check if user can withdraw (24-hour hold check)
-      const canWithdraw = !user.walletUpdatedAt || 
-        (Date.now() - new Date(user.walletUpdatedAt).getTime()) > 24 * 60 * 60 * 1000;
-      
       res.json({
         success: true,
         walletDetails: {
           tonWalletAddress: user.tonWalletAddress || '',
           tonWalletComment: user.tonWalletComment || '',
           telegramUsername: user.telegramUsername || '',
-          walletUpdatedAt: user.walletUpdatedAt,
-          canWithdraw
+          canWithdraw: true
         }
       });
       
@@ -1886,52 +1881,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/wallet/save', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { tonWalletAddress, tonWalletComment, telegramUsername, paidChange } = req.body;
+      const { tonWalletAddress, tonWalletComment, telegramUsername } = req.body;
       
-      console.log('💾 Saving wallet details for user:', userId, 'Paid change:', paidChange);
-      
-      let message = 'Wallet details saved successfully.';
-      let holdApplied = true;
-      
-      // If user chose paid option, deduct 300 PAD and skip hold
-      if (paidChange === true) {
-        const user = await storage.getUser(userId);
-        const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
-        
-        if (balancePAD < 300) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Insufficient balance. Need 300 PAD for instant wallet change.' 
-          });
-        }
-        
-        // Deduct 300 PAD (0.003 TON)
-        await storage.deductBalance(userId, "0.00300000");
-        
-        // Add transaction record
-        await storage.addEarning({
-          userId,
-          amount: "-0.00300000",
-          source: 'wallet_change_fee',
-          description: 'Paid wallet change (no hold)',
-        });
-        
-        message = 'Wallet details saved successfully. 300 PAD deducted. Withdrawal available immediately.';
-        holdApplied = false;
-      } else {
-        message = 'Wallet details saved successfully. Withdrawal is on hold for 24 hours.';
-      }
+      console.log('💾 Saving wallet details for user:', userId);
       
       // Update user's wallet details
-      const walletUpdatedAt = holdApplied ? new Date() : null;
-      
       await db
         .update(users)
         .set({
           tonWalletAddress: tonWalletAddress || null,
           tonWalletComment: tonWalletComment || null,
           telegramUsername: telegramUsername || null,
-          walletUpdatedAt: walletUpdatedAt,
           updatedAt: new Date()
         })
         .where(eq(users.id, userId));
@@ -1940,9 +1900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message,
-        walletUpdatedAt,
-        holdApplied
+        message: 'Wallet details saved successfully.'
       });
       
     } catch (error) {
@@ -1950,6 +1908,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: 'Failed to save wallet details' 
+      });
+    }
+  });
+  
+  // PAD to TON conversion endpoint
+  app.post('/api/wallet/convert', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { padAmount } = req.body;
+      
+      console.log('💱 PAD to TON conversion request:', { userId, padAmount });
+      
+      // Validation: Check amount is valid
+      const convertAmount = parseFloat(padAmount);
+      if (!padAmount || isNaN(convertAmount) || convertAmount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid PAD amount'
+        });
+      }
+      
+      // Minimum conversion: 10,000,000 PAD = 1 TON
+      const CONVERSION_RATE = 10000000;
+      const minimumPad = CONVERSION_RATE;
+      
+      if (convertAmount < minimumPad) {
+        return res.status(400).json({
+          success: false,
+          message: `Minimum conversion is ${minimumPad.toLocaleString()} PAD`
+        });
+      }
+      
+      // Use transaction to ensure atomicity
+      const result = await db.transaction(async (tx) => {
+        // Lock user row and get current balances
+        const [user] = await tx
+          .select({ 
+            balance: users.balance,
+            tonBalance: users.tonBalance
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) {
+          throw new Error('User not found');
+        }
+        
+        const currentPadBalance = parseFloat(user.balance || '0');
+        const currentTonBalance = parseFloat(user.tonBalance || '0');
+        
+        // Check if user has enough PAD
+        if (currentPadBalance < convertAmount) {
+          throw new Error('Insufficient PAD balance');
+        }
+        
+        // Calculate TON amount (10,000,000 PAD = 1 TON)
+        const tonAmount = convertAmount / CONVERSION_RATE;
+        
+        // Deduct PAD and add TON
+        const newPadBalance = currentPadBalance - convertAmount;
+        const newTonBalance = currentTonBalance + tonAmount;
+        
+        // Update user balances
+        await tx
+          .update(users)
+          .set({
+            balance: newPadBalance.toString(),
+            tonBalance: newTonBalance.toString(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`✅ Conversion successful: ${convertAmount} PAD → ${tonAmount} TON`);
+        console.log(`   New PAD balance: ${newPadBalance}`);
+        console.log(`   New TON balance: ${newTonBalance}`);
+        
+        return {
+          padAmount: convertAmount,
+          tonAmount,
+          newPadBalance,
+          newTonBalance
+        };
+      });
+      
+      // Send real-time update
+      sendRealtimeUpdate(userId, {
+        type: 'balance_update',
+        balance: result.newPadBalance.toString(),
+        tonBalance: result.newTonBalance.toString()
+      });
+      
+      res.json({
+        success: true,
+        message: 'Converted successfully!',
+        ...result
+      });
+      
+    } catch (error) {
+      console.error('❌ Error converting PAD to TON:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to convert PAD to TON';
+      
+      if (errorMessage === 'Insufficient PAD balance' || errorMessage === 'User not found') {
+        return res.status(400).json({ 
+          success: false, 
+          message: errorMessage
+        });
+      }
+      
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to convert PAD to TON' 
       });
     }
   });
@@ -1994,9 +2065,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/withdrawals', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { amount, paymentSystemId, paymentDetails, comment } = req.body;
+      const { amount, walletAddress, comment } = req.body;
 
-      console.log('📝 Withdrawal request received:', { userId, amount, paymentSystemId, paymentDetails, comment });
+      console.log('📝 Withdrawal request received:', { userId, amount, walletAddress, comment });
 
       // Check for pending withdrawals
       const pendingWithdrawals = await db
@@ -2015,22 +2086,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Validation: Check minimum amount (0.5 TON)
+      // Validation: Check amount is valid
       const withdrawAmount = parseFloat(amount);
-      if (!amount || isNaN(withdrawAmount) || withdrawAmount < 0.5) {
+      if (!amount || isNaN(withdrawAmount) || withdrawAmount <= 0) {
         return res.status(400).json({
           success: false,
-          message: 'Minimum withdraw amount is 0.5 TON'
+          message: 'Please enter a valid withdrawal amount'
+        });
+      }
+      
+      // Minimum withdrawal: 0.01 TON
+      const MINIMUM_WITHDRAWAL = 0.01;
+      if (withdrawAmount < MINIMUM_WITHDRAWAL) {
+        return res.status(400).json({
+          success: false,
+          message: 'Minimum withdrawal is 0.01 TON'
         });
       }
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and check balance and wallet update time (SELECT FOR UPDATE)
+        // Lock user row and check TON balance (SELECT FOR UPDATE)
         const [user] = await tx
           .select({ 
-            balance: users.balance,
-            walletUpdatedAt: users.walletUpdatedAt
+            tonBalance: users.tonBalance
           })
           .from(users)
           .where(eq(users.id, userId))
@@ -2040,26 +2119,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
 
-        // Check 24-hour hold
-        if (user.walletUpdatedAt) {
-          const hoursSinceUpdate = (Date.now() - new Date(user.walletUpdatedAt).getTime()) / (1000 * 60 * 60);
-          if (hoursSinceUpdate < 24) {
-            throw new Error('Withdrawal on hold for 24 hours after updating wallet details');
-          }
-        }
-
-        const currentBalance = parseFloat(user.balance || '0');
+        const currentTonBalance = parseFloat(user.tonBalance || '0');
         
-        if (currentBalance < withdrawAmount) {
-          throw new Error('Insufficient balance');
+        if (currentTonBalance < withdrawAmount) {
+          throw new Error('Insufficient TON balance');
         }
 
         // DO NOT deduct balance here - only verify user has enough
         // Balance will be deducted when admin approves the withdrawal
-        console.log(`✅ Withdrawal request validated. User has sufficient balance: ${currentBalance} TON`);
+        console.log(`✅ Withdrawal request validated. User has sufficient TON balance: ${currentTonBalance} TON`);
 
         // Create withdrawal request with deducted flag set to FALSE
-        // Balance will be deducted on admin approval
+        // TON balance will be deducted on admin approval
         const withdrawalData: any = {
           userId,
           amount: amount.toString(),
@@ -2068,14 +2139,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deducted: false,
           refunded: false,
           details: {
-            paymentSystemId: paymentSystemId || 'ton_coin',
-            paymentDetails: paymentDetails || ''
+            walletAddress: walletAddress || '',
+            comment: comment || ''
           }
         };
-
-        if (comment && comment.trim() !== '') {
-          withdrawalData.comment = comment.trim();
-        }
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
@@ -2104,9 +2171,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create withdrawal request';
       
       // Return 400 for validation errors, 500 for others
-      if (errorMessage === 'Insufficient balance' || 
+      if (errorMessage === 'Insufficient TON balance' || 
           errorMessage === 'User not found' ||
-          errorMessage === 'Withdrawal on hold for 24 hours after updating wallet details' ||
           errorMessage === 'Cannot create new request until current one is processed') {
         return res.status(400).json({ 
           success: false, 

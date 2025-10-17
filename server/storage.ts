@@ -1437,27 +1437,24 @@ export class DatabaseStorage implements IStorage {
       }
 
       const withdrawalAmount = parseFloat(withdrawal.amount);
-      const userBalance = parseFloat(user.balance || '0');
+      const userTonBalance = parseFloat(user.tonBalance || '0');
 
-      // Verify user has sufficient balance
-      if (userBalance < withdrawalAmount) {
-        return { success: false, message: 'User has insufficient balance for withdrawal' };
+      // Verify user has sufficient TON balance
+      if (userTonBalance < withdrawalAmount) {
+        return { success: false, message: 'User has insufficient TON balance for withdrawal' };
       }
 
-      console.log(`💰 Deducting balance now for approved withdrawal: ${withdrawalAmount} TON`);
-      console.log(`💰 Previous balance: ${userBalance} TON, New balance: ${(userBalance - withdrawalAmount).toFixed(8)} TON`);
+      console.log(`💰 Deducting TON balance now for approved withdrawal: ${withdrawalAmount} TON`);
+      console.log(`💰 Previous TON balance: ${userTonBalance} TON, New TON balance: ${(userTonBalance - withdrawalAmount).toFixed(8)} TON`);
 
-      // Add withdrawal record as earnings (negative amount) for tracking
-      // This will automatically deduct the balance via addEarning function
-      const paymentSystemName = withdrawal.method;
-      const description = `Withdrawal approved: ${withdrawal.amount} TON via ${paymentSystemName}`;
-
-      await this.addEarning({
-        userId: withdrawal.userId,
-        amount: `-${withdrawalAmount.toString()}`,
-        source: 'payout',
-        description: description,
-      });
+      // Deduct TON balance directly (not from PAD balance)
+      const newTonBalance = userTonBalance - withdrawalAmount;
+      await db.update(users)
+        .set({ 
+          tonBalance: newTonBalance.toString(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, withdrawal.userId));
 
       // Update withdrawal status to Approved and mark as deducted
       const updateData: any = { 
@@ -1470,7 +1467,7 @@ export class DatabaseStorage implements IStorage {
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} approved with single deduction logic — OK ✅`);
+      console.log(`✅ Withdrawal #${withdrawalId} approved - TON balance deducted — OK ✅`);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
