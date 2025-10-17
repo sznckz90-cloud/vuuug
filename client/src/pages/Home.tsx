@@ -3,22 +3,23 @@ import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
 import PromoCodeDialog from "@/components/PromoCodeDialog";
-import WalletDialog from "@/components/WalletDialog";
 import WithdrawDialog from "@/components/WithdrawDialog";
 import HistoryDialog from "@/components/HistoryDialog";
+import WalletSection from "@/components/WalletSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Settings, Gift, Zap, Wallet as WalletIcon, ArrowDown, History, Ticket } from "lucide-react";
+import { Gift, Zap, History, Ticket } from "lucide-react";
 import { tonToPAD, padToUSD } from "@shared/constants";
 
 interface User {
   id?: string;
   telegramId?: string;
   balance?: string;
+  tonBalance?: string;
   lastStreakDate?: string;
   username?: string;
   firstName?: string;
@@ -31,7 +32,6 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [streakDialogOpen, setStreakDialogOpen] = React.useState(false);
   const [promoDialogOpen, setPromoDialogOpen] = React.useState(false);
-  const [walletDialogOpen, setWalletDialogOpen] = React.useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = React.useState(false);
 
@@ -57,6 +57,7 @@ export default function Home() {
   }
 
   const balancePAD = tonToPAD((user as User)?.balance || "0");
+  const tonBalance = parseFloat((user as User)?.tonBalance || "0");
   const todayEarnings = tonToPAD(stats?.todayEarnings || "0");
   const allTimeEarnings = balancePAD;
   const referralEarnings = tonToPAD(stats?.referralEarnings || "0");
@@ -67,65 +68,25 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-24 pt-4">
-        {/* Balance + UID Section */}
-        <div className="mb-4">
-          <Card className="neon-glow-border">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-white text-xs">
-                  UID: {formattedUserId}
-                </div>
-                
-                {isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="w-8 h-8"
-                    onClick={() => setLocation("/admin")}
-                  >
-                    <Settings className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              
-              <div className="text-center">
-                <div className="text-muted-foreground text-xs mb-1">Balance</div>
-                <div className="text-foreground font-bold text-2xl">{balancePAD.toLocaleString()} PAD</div>
-                <div className="text-muted-foreground text-xs mt-1">
-                  ≈ ${padToUSD(balancePAD).toFixed(4)} USD
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Wallet Section - New Design */}
+        <WalletSection
+          padBalance={balancePAD}
+          tonBalance={tonBalance}
+          uid={formattedUserId}
+          isAdmin={isAdmin}
+          onAdminClick={() => setLocation("/admin")}
+          onWithdraw={() => setWithdrawDialogOpen(true)}
+        />
 
-        {/* Wallet Navigation Buttons */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <Button 
-            variant="outline" 
-            className="w-full h-14 flex flex-col gap-1 border-primary/30 hover:bg-primary/10"
-            onClick={() => setWalletDialogOpen(true)}
-          >
-            <WalletIcon className="w-5 h-5" />
-            <span className="text-xs">Wallet</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full h-14 flex flex-col gap-1 border-primary/30 hover:bg-primary/10"
-            onClick={() => setWithdrawDialogOpen(true)}
-          >
-            <ArrowDown className="w-5 h-5" />
-            <span className="text-xs">Withdraw</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full h-14 flex flex-col gap-1 border-primary/30 hover:bg-primary/10"
-            onClick={() => setHistoryDialogOpen(true)}
-          >
-            <History className="w-5 h-5" />
-            <span className="text-xs">History</span>
-          </Button>
-        </div>
+        {/* History Button */}
+        <Button 
+          variant="outline" 
+          className="w-full h-12 mb-4 border-primary/30 hover:bg-primary/10"
+          onClick={() => setHistoryDialogOpen(true)}
+        >
+          <History className="w-5 h-5 mr-2" />
+          Withdrawal History
+        </Button>
 
         {/* Income Statistics */}
         <Card className="mb-4 neon-glow-border">
@@ -204,12 +165,6 @@ export default function Home() {
         <PromoCodeDialog 
           open={promoDialogOpen}
           onOpenChange={setPromoDialogOpen}
-        />
-
-        {/* Wallet Dialog */}
-        <WalletDialog 
-          open={walletDialogOpen}
-          onOpenChange={setWalletDialogOpen}
         />
 
         {/* Withdraw Dialog */}
