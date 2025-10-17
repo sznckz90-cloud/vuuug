@@ -20,7 +20,7 @@
   --accent-foreground: #FFFFFF;
   --destructive: #1534A1;
   --destructive-foreground: #FFFFFF;
-  --border: #1534A1;
+  --border: #ffffff;
   --input: #0C0C0C;
   --ring: #1534A1;
   --chart-1: #1534A1;
@@ -97,6 +97,15 @@
     user-select: none;
     -webkit-touch-callout: none;
     background: #0A0A0A;
+  }
+
+  input, button, textarea, select {
+    border: 1px solid #ffffff !important;
+  }
+
+  .bg-card, [class*="bg-card"] {
+    background-color: #0d0d0d !important;
+    border: 1px solid #ffffff !important;
   }
 
   #root {
