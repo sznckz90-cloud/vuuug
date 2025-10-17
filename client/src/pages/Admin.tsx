@@ -640,8 +640,8 @@ export default function AdminPage() {
                             >
                               <defs>
                                 <linearGradient id="usersGradient" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                                  <stop offset="5%" stopColor="#ffffff" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#ffffff" stopOpacity={0.05}/>
                                 </linearGradient>
                                 <linearGradient id="earningsGradient" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -683,12 +683,12 @@ export default function AdminPage() {
                               <Area 
                                 type="monotone" 
                                 dataKey="users" 
-                                stroke="#3b82f6" 
+                                stroke="#ffffff" 
                                 fill="url(#usersGradient)" 
                                 strokeWidth={2}
                                 name="users"
-                                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2, fill: '#ffffff' }}
+                                dot={{ fill: '#ffffff', strokeWidth: 2, r: 4 }}
+                                activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2, fill: '#ffffff' }}
                               />
                               <Area 
                                 type="monotone" 
@@ -744,7 +744,9 @@ export default function AdminPage() {
 
             {/* Promo Creator Tab */}
             <TabsContent value="promo-creator" className="space-y-6">
-              <PromoCodeCreator />
+              <div className="max-h-[80vh] overflow-y-auto">
+                <PromoCodeCreator />
+              </div>
             </TabsContent>
 
             {/* User Tracking Tab */}
