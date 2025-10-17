@@ -76,10 +76,16 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS friends_invited INTEGER DEFAULT 0`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_ad_watched BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reset_date TIMESTAMP`);
-      console.log('✅ [MIGRATION] Missing user task columns added');
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_wallet_address TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_wallet_comment TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username_wallet TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_updated_at TIMESTAMP`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_referral_bonus DECIMAL(12, 8) DEFAULT '0'`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_claimed_referral_bonus DECIMAL(12, 8) DEFAULT '0'`);
+      console.log('✅ [MIGRATION] Missing user task and wallet columns added');
     } catch (error) {
       // Columns might already exist - this is fine
-      console.log('ℹ️ [MIGRATION] User task columns already exist or cannot be added');
+      console.log('ℹ️ [MIGRATION] User task and wallet columns already exist or cannot be added');
     }
     
     // Ensure referral_code column exists and has proper constraints
