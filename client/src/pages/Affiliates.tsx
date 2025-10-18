@@ -3,8 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
-import { useAuth } from '@/hooks/useAuth';
-import { Copy, Share2, Users, Coins } from 'lucide-react';
+import { Share2, Users, Coins } from 'lucide-react';
 
 interface User {
   id: string;
@@ -22,7 +21,6 @@ interface ReferralStats {
 }
 
 export default function Affiliates() {
-  const { user: authUser } = useAuth();
   const queryClient = useQueryClient();
   
   const { data: user, isLoading: userLoading } = useQuery<User>({
@@ -99,7 +97,6 @@ export default function Affiliates() {
 
   const totalClaimedPAD = Math.round(parseFloat(stats?.totalClaimed || '0') * 100000);
   const availableBonusPAD = Math.round(parseFloat(stats?.availableBonus || '0') * 100000);
-  const readyToClaimPAD = Math.round(parseFloat(stats?.readyToClaim || '0') * 100000);
   const hasBonus = availableBonusPAD > 0;
 
   if (isLoading) {
@@ -120,7 +117,7 @@ export default function Affiliates() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-24 pt-6">
-        <Card className="mb-4 bg-black border border-blue-500/40">
+        <Card className="mb-4 frosted-glass border border-[#4cd3ff]/20 diamond-glow">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-center gap-3 mb-4">
               <Users className="w-8 h-8 text-white" />
@@ -140,70 +137,37 @@ export default function Affiliates() {
               {referralLink}
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-                onClick={copyReferralLink}
-                disabled={!referralLink}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy
-              </Button>
-              
-              <Button
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={shareReferralLink}
-                disabled={!referralLink}
-              >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-            </div>
+            <Button
+              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              onClick={shareReferralLink}
+              disabled={!referralLink}
+            >
+              <Share2 className="w-4 h-4 mr-2" />
+              Share Link
+            </Button>
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Card className="bg-card border border-border">
+          <Card className="frosted-glass border border-[#4cd3ff]/20 diamond-glow">
             <CardContent className="pt-4 pb-4">
               <div className="text-xs text-muted-foreground mb-1">Total Claim</div>
-              <div className="text-xl font-bold text-foreground flex items-center gap-1">
+              <div className="text-xl font-bold text-[#e5e5e5] flex items-center gap-1">
                 {totalClaimedPAD.toLocaleString()} 
                 <span className="text-sm bg-black px-2 py-0.5 rounded text-white">PAD</span>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="bg-card border border-border">
+          <Card className="frosted-glass border border-[#4cd3ff]/20 diamond-glow">
             <CardContent className="pt-4 pb-4">
               <div className="text-xs text-muted-foreground mb-1">Total Invites</div>
-              <div className="text-xl font-bold text-foreground">{stats?.totalInvites || 0}</div>
+              <div className="text-xl font-bold text-[#e5e5e5]">{stats?.totalInvites || 0}</div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <Card className="bg-card border border-border">
-            <CardContent className="pt-4 pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Available Bonus</div>
-              <div className="text-xl font-bold text-foreground flex items-center gap-1">
-                {availableBonusPAD.toLocaleString()}
-                <span className="text-sm bg-black px-2 py-0.5 rounded text-white">PAD</span>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card border border-border">
-            <CardContent className="pt-4 pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Ready to Claim</div>
-              <div className="text-xl font-bold text-foreground flex items-center gap-1">
-                {readyToClaimPAD.toLocaleString()}
-                <span className="text-sm bg-black px-2 py-0.5 rounded text-white">PAD</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="bg-card border border-border">
+        <Card className="frosted-glass border border-[#4cd3ff]/20 diamond-glow">
           <CardContent className="pt-3 pb-3">
             <Button
               className={`w-full h-12 text-base font-bold ${

@@ -13,8 +13,8 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Gift, Zap, History, Ticket, Share2, ArrowDown } from "lucide-react";
-import { tonToPAD, padToUSD } from "@shared/constants";
+import { History, ArrowDown } from "lucide-react";
+import { tonToPAD } from "@shared/constants";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
 interface User {
@@ -69,7 +69,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pb-24 pt-4">
+      <main className="max-w-md mx-auto px-4 pb-24 pt-4 flex flex-col justify-center min-h-[calc(100vh-6rem)]">
         {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
@@ -127,7 +127,7 @@ export default function Home() {
         {/* Divider */}
         <div className="h-px bg-[#2a2a2a] mb-3"></div>
 
-        {/* Main Action Buttons - Responsive Grid */}
+        {/* Main Action Buttons - Responsive Grid (Task and Share removed) */}
         <div className="grid grid-cols-2 gap-3">
           <Button
             className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
@@ -143,22 +143,6 @@ export default function Home() {
           >
             <History className="w-5 h-5 mr-2" />
             History
-          </Button>
-
-          <Button
-            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
-            onClick={() => setLocation("/tasks")}
-          >
-            <Gift className="w-5 h-5 mr-2" />
-            Tasks
-          </Button>
-
-          <Button
-            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
-            onClick={() => setLocation("/affiliates")}
-          >
-            <Share2 className="w-5 h-5 mr-2" />
-            Share
           </Button>
         </div>
 
