@@ -5,37 +5,40 @@
 
 :root {
   --background: #000000;
-  --foreground: #d9d9d9;
-  --card: #0a0a0a;
-  --card-foreground: #d9d9d9;
-  --popover: #0a0a0a;
-  --popover-foreground: #d9d9d9;
-  --primary: #3da9fc;
-  --primary-foreground: #FFFFFF;
-  --secondary: #3da9fc;
-  --secondary-foreground: #FFFFFF;
+  --foreground: #e5e5e5;
+  --card: #050505;
+  --card-foreground: #e5e5e5;
+  --popover: #050505;
+  --popover-foreground: #e5e5e5;
+  --primary: #4cd3ff;
+  --primary-foreground: #000000;
+  --secondary: #4cd3ff;
+  --secondary-foreground: #000000;
   --muted: #0a0a0a;
   --muted-foreground: #9ca3af;
   --accent: #0a0a0a;
-  --accent-foreground: #d9d9d9;
+  --accent-foreground: #e5e5e5;
   --destructive: #ef4444;
   --destructive-foreground: #FFFFFF;
-  --border: #3da9fc;
-  --input: #111111;
-  --ring: #3da9fc;
-  --chart-1: #3da9fc;
-  --chart-2: #3da9fc;
-  --chart-3: #3da9fc;
-  --chart-4: #3da9fc;
-  --chart-5: #3da9fc;
+  --border: #4cd3ff;
+  --input: #0d0d0d;
+  --ring: #4cd3ff;
+  --chart-1: #4cd3ff;
+  --chart-2: #4cd3ff;
+  --chart-3: #4cd3ff;
+  --chart-4: #4cd3ff;
+  --chart-5: #4cd3ff;
   --sidebar: #000000;
-  --sidebar-foreground: #d9d9d9;
-  --sidebar-primary: #3da9fc;
-  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #4cd3ff;
+  --sidebar-primary-foreground: #000000;
   --sidebar-accent: #0a0a0a;
-  --sidebar-accent-foreground: #d9d9d9;
-  --sidebar-border: #3da9fc;
-  --sidebar-ring: #3da9fc;
+  --sidebar-accent-foreground: #e5e5e5;
+  --sidebar-border: #4cd3ff;
+  --sidebar-ring: #4cd3ff;
+  --cyan-glow: #4cd3ff;
+  --silver: #c0c0c0;
+  --metallic-silver: #b8b8b8;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -97,16 +100,23 @@
     user-select: none;
     -webkit-touch-callout: none;
     background: #000000;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 500;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
   }
 
   input, textarea, select {
-    background-color: #111111 !important;
-    border: 1px solid #3da9fc !important;
+    background-color: #0d0d0d !important;
+    border: 1px solid #4cd3ff !important;
     outline: none !important;
   }
 
   input:focus, textarea:focus, select:focus {
-    border: 1px solid #3da9fc !important;
+    border: 1px solid #4cd3ff !important;
+    box-shadow: 0 0 15px rgba(76, 211, 255, 0.3) !important;
     outline: none !important;
   }
 
@@ -119,8 +129,27 @@
   }
 
   .bg-card, [class*="bg-card"] {
-    background-color: #0a0a0a !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background-color: #050505 !important;
+    border: 1px solid rgba(76, 211, 255, 0.15) !important;
+  }
+  
+  .diamond-glow {
+    box-shadow: 0 0 20px rgba(76, 211, 255, 0.4), 0 0 40px rgba(76, 211, 255, 0.2);
+  }
+  
+  .sparkle {
+    animation: sparkle 2s ease-in-out infinite;
+  }
+  
+  @keyframes sparkle {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  
+  .frosted-glass {
+    background: linear-gradient(135deg, rgba(5, 5, 5, 0.9), rgba(27, 31, 40, 0.8));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(76, 211, 255, 0.2);
   }
 
   .neon-glow-border {
