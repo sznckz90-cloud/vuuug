@@ -4,6 +4,7 @@ import { ArrowDown, RefreshCw, Wallet, Settings } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { DiamondIcon } from "@/components/DiamondIcon";
 import {
   Dialog,
   DialogContent,
@@ -98,12 +99,12 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
 
   return (
     <>
-      <Card className="neon-glow-border mb-4">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center justify-between mb-3">
+      <Card className="frosted-glass mb-3 rounded-2xl diamond-glow">
+        <CardContent className="pt-3 pb-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-primary" />
-              <div className="text-xs text-foreground">UID: {uid}</div>
+              <DiamondIcon size={14} withGlow />
+              <div className="text-xs text-[#c0c0c0]">UID: {uid}</div>
             </div>
             {isAdmin && (
               <Button
@@ -117,49 +118,36 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
             )}
           </div>
           
-          <div className="space-y-3">
-            {/* PAD Balance */}
-            <div className="flex items-center justify-between p-3 bg-[#0a0a0a] rounded-lg border border-white/10">
-              <div>
-                <div className="text-xs text-muted-foreground">PAD Balance</div>
-                <div className="text-foreground font-semibold text-lg">{padBalance.toLocaleString()}</div>
+          <div className="space-y-2">
+            {/* Compact Balance Display */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-2 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
+                <div className="text-[10px] text-muted-foreground">PAD Balance</div>
+                <div className="text-[#e5e5e5] font-semibold text-sm">{padBalance.toLocaleString()}</div>
+              </div>
+              <div className="p-2 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/40">
+                <div className="text-[10px] text-muted-foreground">TON Balance</div>
+                <div className="text-[#4cd3ff] font-semibold text-sm">{tonBalance.toFixed(4)}</div>
               </div>
             </div>
 
-            {/* TON Balance */}
-            <div className="flex items-center justify-between p-3 bg-[#0a0a0a] rounded-lg border border-[#3da9fc]/30">
-              <div>
-                <div className="text-xs text-muted-foreground">TON Balance</div>
-                <div className="text-foreground font-semibold text-lg">{tonBalance.toFixed(4)} TON</div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <Button
-                className="w-full bg-[#3da9fc] hover:bg-[#3da9fc]/90 text-white"
-                onClick={() => setConvertDialogOpen(true)}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Convert
-              </Button>
-              <Button
-                className="w-full bg-[#3da9fc] hover:bg-[#3da9fc]/90 text-white"
-                onClick={onWithdraw}
-              >
-                <ArrowDown className="w-4 h-4 mr-2" />
-                Withdraw
-              </Button>
-            </div>
+            {/* Compact Action Button */}
+            <Button
+              className="w-full h-9 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+              onClick={() => setConvertDialogOpen(true)}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Convert
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Convert Dialog */}
       <Dialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
-        <DialogContent className="bg-[#0a0a0a] border border-white/20">
+        <DialogContent className="frosted-glass border border-[#4cd3ff]/20">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Convert PAD → TON</DialogTitle>
+            <DialogTitle className="text-[#e5e5e5]">Convert PAD → TON</DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Exchange rate: 10,000,000 PAD = 1 TON
             </DialogDescription>
@@ -167,14 +155,14 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="pad-amount" className="text-foreground">PAD Amount</Label>
+              <Label htmlFor="pad-amount" className="text-[#e5e5e5]">PAD Amount</Label>
               <Input
                 id="pad-amount"
                 type="number"
                 placeholder="Enter PAD amount"
                 value={padAmount}
                 onChange={(e) => setPadAmount(e.target.value)}
-                className="bg-[#111111] border-white/20 text-foreground mt-1"
+                className="bg-[#0d0d0d] border-[#4cd3ff]/20 text-[#e5e5e5] mt-1"
               />
               <div className="text-xs text-muted-foreground mt-1">
                 Available: {padBalance.toLocaleString()} PAD
@@ -182,14 +170,14 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
             </div>
 
             {padAmount && tonFromPad > 0 && (
-              <div className="p-3 bg-[#111111] rounded-lg border border-[#3da9fc]/30">
+              <div className="p-3 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/30">
                 <div className="text-xs text-muted-foreground">You will receive</div>
-                <div className="text-foreground font-semibold text-lg">{tonFromPad.toFixed(4)} TON</div>
+                <div className="text-[#4cd3ff] font-semibold text-lg">{tonFromPad.toFixed(4)} TON</div>
               </div>
             )}
 
             <Button
-              className="w-full bg-[#3da9fc] hover:bg-[#3da9fc]/90 text-white"
+              className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
               onClick={handleConvert}
               disabled={convertMutation.isPending}
             >

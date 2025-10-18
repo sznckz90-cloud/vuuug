@@ -49,7 +49,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     },
     onSuccess: () => {
       toast({
-        title: "✅ Withdrawal request submitted!",
+        title: "Withdrawal submitted successfully!",
         description: "Your withdrawal will be processed soon.",
       });
       setAmount('');
