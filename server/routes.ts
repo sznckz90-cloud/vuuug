@@ -17,6 +17,7 @@ import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
 import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership } from "./telegram";
 import { authenticateTelegram, requireAuth } from "./auth";
+import { isAuthenticated } from "./replitAuth";
 
 // Store WebSocket connections for real-time updates
 // Map: sessionId -> { socket: WebSocket, userId: string }
@@ -1913,7 +1914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // PAD to TON conversion endpoint
-  app.post('/api/wallet/convert', authenticateTelegram, async (req: any, res) => {
+  app.post('/api/wallet/convert', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
       const { padAmount } = req.body;
@@ -1957,7 +1958,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
         
-        const currentPadBalance = parseFloat(user.balance || '0');
+        // balance field stores TON, convert to PAD for comparison
+        const currentBalanceTON = parseFloat(user.balance || '0');
+        const currentPadBalance = Math.round(currentBalanceTON * CONVERSION_RATE);
         const currentTonBalance = parseFloat(user.tonBalance || '0');
         
         // Check if user has enough PAD
@@ -1968,23 +1971,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Calculate TON amount (10,000,000 PAD = 1 TON)
         const tonAmount = convertAmount / CONVERSION_RATE;
         
-        // Deduct PAD and add TON
-        const newPadBalance = currentPadBalance - convertAmount;
+        // Deduct PAD (convert back to TON) and add to tonBalance
+        const newBalanceTON = currentBalanceTON - tonAmount;
         const newTonBalance = currentTonBalance + tonAmount;
         
         // Update user balances
         await tx
           .update(users)
           .set({
-            balance: newPadBalance.toString(),
+            balance: newBalanceTON.toString(),
             tonBalance: newTonBalance.toString(),
             updatedAt: new Date()
           })
           .where(eq(users.id, userId));
         
+        const newPadBalance = Math.round(newBalanceTON * CONVERSION_RATE);
+        
         console.log(`✅ Conversion successful: ${convertAmount} PAD → ${tonAmount} TON`);
-        console.log(`   New PAD balance: ${newPadBalance}`);
-        console.log(`   New TON balance: ${newTonBalance}`);
+        console.log(`   New balance (TON): ${newBalanceTON}, New PAD balance: ${newPadBalance}`);
+        console.log(`   New tonBalance: ${newTonBalance}`);
         
         return {
           padAmount: convertAmount,
