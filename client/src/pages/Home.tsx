@@ -3,6 +3,7 @@ import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
 import PromoCodeDialog from "@/components/PromoCodeDialog";
+import PromoCodeInput from "@/components/PromoCodeInput";
 import WithdrawDialog from "@/components/WithdrawDialog";
 import HistoryDialog from "@/components/HistoryDialog";
 import WalletSection from "@/components/WalletSection";
@@ -12,8 +13,9 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Gift, Zap, History, Ticket } from "lucide-react";
+import { Gift, Zap, History, Ticket, Share2, ArrowDown } from "lucide-react";
 import { tonToPAD, padToUSD } from "@shared/constants";
+import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
 interface User {
   id?: string;
@@ -68,7 +70,7 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pb-24 pt-4">
-        {/* Wallet Section - New Design */}
+        {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
           tonBalance={tonBalance}
@@ -78,79 +80,85 @@ export default function Home() {
           onWithdraw={() => setWithdrawDialogOpen(true)}
         />
 
-        {/* History Button */}
-        <Button 
-          variant="outline" 
-          className="w-full h-12 mb-4 border-primary/30 hover:bg-primary/10"
-          onClick={() => setHistoryDialogOpen(true)}
-        >
-          <History className="w-5 h-5 mr-2" />
-          Withdrawal History
-        </Button>
+        {/* Divider */}
+        <div className="h-px bg-[#2a2a2a] mb-3"></div>
 
         {/* Income Statistics */}
-        <Card className="mb-4 neon-glow-border">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Income statistics</h3>
+        <Card className="mb-3 frosted-glass rounded-2xl diamond-glow">
+          <CardContent className="pt-3 pb-3">
+            <div className="flex items-center gap-2 mb-2">
+              <DiamondIcon size={16} withGlow />
+              <h3 className="text-sm font-semibold text-[#4cd3ff]">Gem Rewards</h3>
+              <SparkleIcon size={12} className="ml-auto" />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <div>
-                <div className="text-xs text-muted-foreground mb-1">Today</div>
-                <div className="text-foreground font-semibold">{todayEarnings.toLocaleString()}</div>
+                <div className="text-[10px] text-muted-foreground mb-1">Today</div>
+                <div className="text-foreground font-semibold text-sm">{todayEarnings.toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-1">All time</div>
-                <div className="text-foreground font-semibold">{allTimeEarnings.toLocaleString()}</div>
+                <div className="text-[10px] text-muted-foreground mb-1">All time</div>
+                <div className="text-foreground font-semibold text-sm">{allTimeEarnings.toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-1">On referrals</div>
-                <div className="text-foreground font-semibold">{referralEarnings.toLocaleString()}</div>
+                <div className="text-[10px] text-muted-foreground mb-1">On referrals</div>
+                <div className="text-foreground font-semibold text-sm">{referralEarnings.toLocaleString()}</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Divider */}
+        <div className="h-px bg-[#2a2a2a] mb-3"></div>
+
         {/* Viewing Ads Section */}
         <AdWatchingSection user={user as User} />
 
-        {/* Action Buttons - 4 buttons in 2x2 grid */}
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        {/* Divider */}
+        <div className="h-px bg-[#2a2a2a] mt-3 mb-3"></div>
+
+        {/* Promo Code Section - Inline */}
+        <Card className="mb-3 frosted-glass rounded-2xl diamond-glow">
+          <CardContent className="pt-3 pb-3">
+            <PromoCodeInput />
+          </CardContent>
+        </Card>
+
+        {/* Divider */}
+        <div className="h-px bg-[#2a2a2a] mb-3"></div>
+
+        {/* Main Action Buttons - Responsive Grid */}
+        <div className="grid grid-cols-2 gap-3">
           <Button
-            variant="outline"
-            className="w-full h-12 border-primary/30 hover:bg-primary/10"
-            onClick={() => setStreakDialogOpen(true)}
+            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+            onClick={() => setWithdrawDialogOpen(true)}
           >
-            <Gift className="w-5 h-5 mr-2" />
-            Claim
+            <ArrowDown className="w-5 h-5 mr-2" />
+            Withdraw
           </Button>
           
           <Button
-            variant="outline"
-            className="w-full h-12 border-primary/30 hover:bg-primary/10"
-            onClick={() => setLocation("/affiliates")}
+            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+            onClick={() => setHistoryDialogOpen(true)}
           >
-            <Zap className="w-5 h-5 mr-2" />
-            Boost
+            <History className="w-5 h-5 mr-2" />
+            History
           </Button>
 
           <Button
-            variant="outline"
-            className="w-full h-12 border-primary/30 hover:bg-primary/10"
-            onClick={() => setPromoDialogOpen(true)}
-          >
-            <Ticket className="w-5 h-5 mr-2" />
-            Promo
-          </Button>
-
-          <Button
-            variant="outline"
-            className="w-full h-12 border-primary/30 hover:bg-primary/10"
+            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
             onClick={() => setLocation("/tasks")}
           >
             <Gift className="w-5 h-5 mr-2" />
-            Create
+            Tasks
+          </Button>
+
+          <Button
+            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+            onClick={() => setLocation("/affiliates")}
+          >
+            <Share2 className="w-5 h-5 mr-2" />
+            Share
           </Button>
         </div>
 

@@ -70,11 +70,21 @@ export default function Affiliates() {
   };
 
   const shareReferralLink = () => {
-    if (referralLink && window.Telegram?.WebApp?.switchInlineQuery) {
-      const shareText = `Earn PAD in Telegram!\n${referralLink}`;
-      window.Telegram.WebApp.switchInlineQuery(shareText, ['users']);
+    if (!referralLink) return;
+    
+    const shareText = `Earn PAD in Telegram!`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'Join CashWatch',
+        text: shareText,
+        url: referralLink,
+      }).catch(() => {
+        copyReferralLink();
+      });
+    } else if (window.Telegram?.WebApp?.switchInlineQuery) {
+      window.Telegram.WebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
     } else if (window.Telegram?.WebApp?.openTelegramLink) {
-      const shareText = `Earn PAD in Telegram!`;
       window.Telegram.WebApp.openTelegramLink(
         `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`
       );
