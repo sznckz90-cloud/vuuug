@@ -3,12 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { showNotification } from "@/components/AppNotification";
 import { Ticket } from "lucide-react";
 
 export default function PromoCodeInput() {
   const [promoCode, setPromoCode] = useState("");
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const redeemPromoMutation = useMutation({
@@ -21,27 +20,25 @@ export default function PromoCodeInput() {
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       setPromoCode("");
-      toast({
-        title: "Success! 🎉",
-        description: data.message,
-      });
+      showNotification("Promo applied successfully!", "success");
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to redeem promo code",
-        variant: "destructive",
-      });
+      const message = error.message || "Invalid code.";
+      
+      // Simplify error messages
+      if (message.includes("expired")) {
+        showNotification("Promo expired.", "error");
+      } else if (message.includes("already")) {
+        showNotification("Already claimed.", "error");
+      } else {
+        showNotification("Invalid code.", "error");
+      }
     },
   });
 
   const handleSubmit = () => {
     if (!promoCode.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a promo code",
-        variant: "destructive",
-      });
+      showNotification("Please enter a promo code", "error");
       return;
     }
 
