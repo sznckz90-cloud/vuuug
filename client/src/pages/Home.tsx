@@ -80,15 +80,12 @@ export default function Home() {
           onWithdraw={() => setWithdrawDialogOpen(true)}
         />
 
-        {/* Divider */}
-        <div className="h-px bg-[#2a2a2a] mb-3"></div>
-
         {/* Income Statistics */}
         <Card className="mb-3 frosted-glass rounded-2xl diamond-glow">
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2 mb-2">
               <DiamondIcon size={16} withGlow />
-              <h3 className="text-sm font-semibold text-[#4cd3ff]">Gem Rewards</h3>
+              <h3 className="text-sm font-semibold text-primary">PAD Rewards</h3>
               <SparkleIcon size={12} className="ml-auto" />
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -108,14 +105,8 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Divider */}
-        <div className="h-px bg-[#2a2a2a] mb-3"></div>
-
         {/* Viewing Ads Section */}
         <AdWatchingSection user={user as User} />
-
-        {/* Divider */}
-        <div className="h-px bg-[#2a2a2a] mt-3 mb-3"></div>
 
         {/* Promo Code Section - Inline */}
         <Card className="mb-3 frosted-glass rounded-2xl diamond-glow">
@@ -124,13 +115,10 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Divider */}
-        <div className="h-px bg-[#2a2a2a] mb-3"></div>
-
         {/* Main Action Buttons - Responsive Grid (Task and Share removed) */}
         <div className="grid grid-cols-2 gap-3">
           <Button
-            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+            className="h-12 bg-primary hover:bg-primary/90 text-white border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(34,211,238,0.5)] font-semibold"
             onClick={() => setWithdrawDialogOpen(true)}
           >
             <ArrowDown className="w-5 h-5 mr-2" />
@@ -138,7 +126,7 @@ export default function Home() {
           </Button>
           
           <Button
-            className="h-12 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+            className="h-12 bg-primary hover:bg-primary/90 text-white border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(34,211,238,0.5)] font-semibold"
             onClick={() => setHistoryDialogOpen(true)}
           >
             <History className="w-5 h-5 mr-2" />
