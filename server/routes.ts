@@ -1929,14 +1929,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Minimum conversion: 10,000,000 PAD = 1 TON
+      // Conversion rate: 10,000,000 PAD = 1 TON
       const CONVERSION_RATE = 10000000;
-      const minimumPad = CONVERSION_RATE;
+      // Minimum conversion: 100,000 PAD
+      const minimumPad = 100000;
       
       if (convertAmount < minimumPad) {
         return res.status(400).json({
           success: false,
-          message: `Minimum conversion is ${minimumPad.toLocaleString()} PAD`
+          message: `Minimum 100,000 PAD required to convert.`
         });
       }
       
