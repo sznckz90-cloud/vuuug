@@ -206,20 +206,6 @@ export default function TaskSection() {
         </Alert>
       )}
       
-      {/* Task list header */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Reset at 00:00 UTC</span>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => refetch()}
-          disabled={tasksLoading}
-          className="h-7"
-        >
-          <RefreshCw size={14} className={tasksLoading ? "animate-spin" : ""} />
-        </Button>
-      </div>
-
       {/* Task cards */}
       {tasks.length > 0 ? (
         <div className="space-y-0">

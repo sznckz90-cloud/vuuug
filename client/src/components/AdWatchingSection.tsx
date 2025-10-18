@@ -109,11 +109,15 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     }
   };
 
+  // Get ads watched today from user data
+  const adsWatchedToday = user?.adsWatchedToday || 0;
+  const dailyLimit = 50;
+
   return (
     <Card className="rounded-2xl frosted-glass diamond-glow">
       <CardContent className="p-3">
         <div className="text-center mb-2">
-          <h2 className="text-base font-bold text-[#4cd3ff] mb-1">Viewing ads</h2>
+          <h2 className="text-base font-bold text-primary mb-1">Viewing ads</h2>
           <p className="text-muted-foreground text-xs">Get PAD for watching commercials</p>
         </div>
         
@@ -121,12 +125,17 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           <button
             onClick={handleWatchAd}
             disabled={cooldownRemaining > 0}
-            className="relative bg-[#4cd3ff] hover:bg-[#6ddeff] text-black px-6 py-2.5 rounded-2xl shadow-[0_0_20px_rgba(76,211,255,0.4)] transform transition-all duration-200 active:scale-[0.97] group disabled:opacity-50 flex items-center gap-2 min-w-[160px] justify-center font-semibold"
+            className="relative bg-gradient-to-r from-secondary to-primary hover:from-secondary/90 hover:to-primary/90 text-white px-6 py-2.5 rounded-2xl shadow-[0_0_20px_rgba(34,211,238,0.5),0_0_30px_rgba(168,85,247,0.3)] transform transition-all duration-200 active:scale-[0.97] group disabled:opacity-50 flex items-center gap-2 min-w-[160px] justify-center font-semibold"
             data-testid="button-watch-ad"
           >
             <Play size={16} className="group-hover:scale-110 transition-transform" />
             <span className="text-sm font-semibold">Start Watching</span>
           </button>
+        </div>
+        
+        {/* Watched counter */}
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Watched: {adsWatchedToday}/{dailyLimit}</p>
         </div>
       </CardContent>
     </Card>
