@@ -14,7 +14,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 import Layout from "@/components/Layout";
 import { Link } from "wouter";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatTON } from "@/lib/utils";
 
 interface User {
   id: string;
@@ -71,7 +71,7 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
       if (result.success) {
         toast({
           title: "✅ Payment Approved",
-          description: `Withdrawal of ${formatCurrency(withdrawal.amount)} has been approved and user notified`,
+          description: `Withdrawal of ${formatTON(withdrawal.amount)} has been approved and user notified`,
         });
         setShowApproveDialog(false);
         setTransactionHash('');
@@ -148,7 +148,7 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
               
               <div>
                 <span className="text-sm font-medium text-muted-foreground">Amount:</span>
-                <p className="text-lg font-bold text-green-600">{formatCurrency(withdrawal.amount || '0')}</p>
+                <p className="text-lg font-bold text-green-600">{formatTON(withdrawal.amount || '0')}</p>
               </div>
 
               <div>

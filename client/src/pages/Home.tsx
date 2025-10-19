@@ -61,7 +61,7 @@ export default function Home() {
   const balancePAD = tonToPAD((user as User)?.balance || "0");
   const tonBalance = parseFloat((user as User)?.tonBalance || "0");
   const todayEarnings = tonToPAD(stats?.todayEarnings || "0");
-  const allTimeEarnings = balancePAD;
+  const allTimeEarnings = tonToPAD((user as User)?.totalEarned || "0");
   const referralEarnings = tonToPAD(stats?.referralEarnings || "0");
   
   const referralCode = (user as User)?.referralCode || "000000";
@@ -69,7 +69,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pb-24 pt-4 flex flex-col justify-center min-h-[calc(100vh-6rem)]">
+      <main className="max-w-md mx-auto px-4 pb-24 pt-4">
         {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
