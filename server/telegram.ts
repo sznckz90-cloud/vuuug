@@ -919,32 +919,56 @@ Earn up to 20% commission from their ad activity!`;
 // Set up webhook (this should be called once to register the webhook with Telegram)
 export async function setupTelegramWebhook(webhookUrl: string): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
-    console.error('Telegram bot token not configured');
+    console.error('❌ Telegram bot token not configured');
     return false;
   }
 
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: webhookUrl,
-        allowed_updates: ['message', 'callback_query'],
-      }),
-    });
+  const maxRetries = 3;
+  let lastError: any = null;
 
-    if (response.ok) {
-      console.log('Telegram webhook set successfully');
-      return true;
-    } else {
-      const errorData = await response.text();
-      console.error('Failed to set Telegram webhook:', errorData);
-      return false;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Telegram webhook setup attempt ${attempt}/${maxRetries}...`);
+      
+      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: webhookUrl,
+          allowed_updates: ['message', 'callback_query'],
+        }),
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Telegram webhook set successfully:', data);
+        return true;
+      } else {
+        const errorData = await response.text();
+        console.error(`❌ Failed to set Telegram webhook (attempt ${attempt}):`, errorData);
+        lastError = new Error(errorData);
+      }
+    } catch (error: any) {
+      lastError = error;
+      
+      if (error.name === 'TimeoutError' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+        console.error(`⏱️ Webhook setup timeout (attempt ${attempt}/${maxRetries}):`, error.message);
+      } else {
+        console.error(`❌ Error setting up webhook (attempt ${attempt}/${maxRetries}):`, error.message);
+      }
+      
+      // Exponential backoff: wait before retrying
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
-  } catch (error) {
-    console.error('Error setting up Telegram webhook:', error);
-    return false;
   }
+
+  console.error(`❌ Failed to set Telegram webhook after ${maxRetries} attempts:`, lastError);
+  return false;
 }
