@@ -42,17 +42,18 @@ export default function Layout({ children }: LayoutProps) {
           key={location}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
           transition={{ 
             duration: 0.3,
             ease: [0.645, 0.045, 0.355, 1]
           }}
-          className="pt-[60px]"
+          className="pt-[60px] pb-24"
         >
           {children}
         </motion.div>
       </AnimatePresence>
 
-      {/* Modern Curved Bottom Navigation */}
+      {/* Modern Curved Bottom Navigation - Always Visible */}
       <motion.nav 
         className="fixed bottom-0 left-0 right-0 z-50 pb-safe"
         initial={{ y: 100 }}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { IdCard, Hash, X } from "lucide-react";
+import { Wallet, HelpCircle } from "lucide-react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
@@ -58,11 +58,22 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md frosted-glass border border-white/10">
+    <Dialog 
+      open={open} 
+      onOpenChange={(newOpen) => {
+        // Prevent closing by clicking outside
+        if (!newOpen) return;
+        onOpenChange(newOpen);
+      }}
+    >
+      <DialogContent 
+        className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        hideCloseButton
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-[#4cd3ff]">
-            <IdCard className="w-5 h-5" />
+          <DialogTitle className="flex items-center gap-2 text-[#4cd3ff] text-lg">
+            <Wallet className="w-5 h-5" />
             Set Cwallet ID
           </DialogTitle>
         </DialogHeader>
@@ -73,21 +84,17 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
           </p>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-[#e5e5e5]">
-              <Hash className="w-4 h-4" />
-              <span>Please enter your Cwallet ID</span>
-            </div>
             <Input
               type="text"
-              placeholder="1234567"
+              placeholder="Enter your CWallet ID"
               value={cwalletId}
               onChange={(e) => setCwalletId(e.target.value)}
-              className="bg-[#0d0d0d] border-[#4cd3ff]/20 text-white placeholder:text-muted-foreground focus:border-[#4cd3ff] transition-colors"
+              className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
             />
           </div>
 
           <div className="flex items-start gap-2 p-3 bg-[#0d0d0d] rounded-lg border border-white/5">
-            <span className="text-sm">❓</span>
+            <HelpCircle className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
             <div className="text-xs text-[#c0c0c0]">
               Don't have a Cwallet ID?{' '}
               <a 
@@ -102,21 +109,20 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-center gap-3">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => onOpenChange(false)}
-            className="text-[#c0c0c0] hover:text-white"
+            className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
           >
-            <X className="w-4 h-4 mr-2" />
-            Close
+            Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={saveCwalletMutation.isPending}
-            className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+            className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
           >
-            <IdCard className="w-4 h-4 mr-2" />
+            <Wallet className="w-4 h-4 mr-2" />
             {saveCwalletMutation.isPending ? "Saving..." : "Save"}
           </Button>
         </div>

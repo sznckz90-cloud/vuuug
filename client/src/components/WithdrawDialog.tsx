@@ -85,13 +85,21 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md frosted-glass border border-white/10">
+    <Dialog 
+      open={open} 
+      onOpenChange={(newOpen) => {
+        // Prevent closing by clicking outside
+        if (!newOpen) return;
+        onOpenChange(newOpen);
+      }}
+    >
+      <DialogContent 
+        className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        hideCloseButton
+      >
         <DialogHeader>
-          <DialogTitle className="text-[#4cd3ff]">Withdraw TON</DialogTitle>
-          <DialogDescription className="text-[#c0c0c0] text-sm">
-            Withdraw all your TON balance • Minimum: 0.001 TON
-          </DialogDescription>
+          <DialogTitle className="text-[#4cd3ff] text-lg">Withdraw TON</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -112,18 +120,18 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
           )}
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-center gap-3">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => onOpenChange(false)}
-            className="text-[#c0c0c0] hover:text-white"
+            className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
           >
             Cancel
           </Button>
           <Button
             onClick={handleWithdraw}
             disabled={withdrawMutation.isPending || hasPendingWithdrawal || tonBalance < MINIMUM_WITHDRAWAL}
-            className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+            className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
           >
             {withdrawMutation.isPending ? "Processing..." : "Withdraw All"}
           </Button>
