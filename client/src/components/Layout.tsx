@@ -4,6 +4,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, CheckSquare, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import Header from "@/components/Header";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -32,6 +33,9 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-transparent">
+      {/* Header */}
+      <Header />
+      
       {/* Page Content with Transition */}
       <AnimatePresence mode="wait">
         <motion.div
@@ -42,6 +46,7 @@ export default function Layout({ children }: LayoutProps) {
             duration: 0.3,
             ease: [0.645, 0.045, 0.355, 1]
           }}
+          className="pt-[60px]"
         >
           {children}
         </motion.div>

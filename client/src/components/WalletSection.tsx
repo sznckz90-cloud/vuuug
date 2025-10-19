@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Settings } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { DiamondIcon } from "@/components/DiamondIcon";
@@ -56,24 +56,13 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
   return (
     <Card className="frosted-glass mb-3 rounded-2xl diamond-glow">
       <CardContent className="pt-3 pb-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <DiamondIcon size={14} withGlow />
-            <div className="text-xs text-[#c0c0c0]">UID: {uid}</div>
-          </div>
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-8 h-8"
-              onClick={onAdminClick}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
         
         <div className="space-y-2">
+          {/* Diamond Icon Header */}
+          <div className="flex items-center justify-center mb-2">
+            <DiamondIcon size={40} withGlow={true} />
+          </div>
+
           {/* Compact Balance Display */}
           <div className="grid grid-cols-2 gap-2">
             <div className="p-2 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">

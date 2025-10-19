@@ -92,20 +92,39 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const handleWatchAd = async () => {
     if (cooldownRemaining > 0) return;
     
+    let retryAttempted = false;
+    
+    const attemptAdDisplay = async (): Promise<boolean> => {
+      try {
+        if (typeof window.show_9368336 === 'function') {
+          await window.show_9368336();
+          return true;
+        } else {
+          return true;
+        }
+      } catch (error) {
+        console.error('Ad display attempt failed:', error);
+        return false;
+      }
+    };
+    
     try {
-      if (typeof window.show_9368336 === 'function') {
-        // Show ad and wait for it to close
-        await window.show_9368336();
-        
-        // ✅ Process reward ONLY after ad closes
+      let adSuccess = await attemptAdDisplay();
+      
+      if (!adSuccess && !retryAttempted) {
+        console.log('First ad attempt failed, retrying...');
+        retryAttempted = true;
+        adSuccess = await attemptAdDisplay();
+      }
+      
+      if (adSuccess) {
         watchAdMutation.mutate('rewarded');
       } else {
-        // Fallback for testing
-        watchAdMutation.mutate('rewarded');
+        showNotification("Ad failed, please try again.", "error");
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
-      showNotification("Ad display failed", "error");
+      showNotification("Ad failed, please try again.", "error");
     }
   };
 

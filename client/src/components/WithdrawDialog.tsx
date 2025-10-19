@@ -19,9 +19,6 @@ interface WithdrawDialogProps {
 
 export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogProps) {
   const queryClient = useQueryClient();
-  const [amount, setAmount] = useState('');
-  const [walletAddress, setWalletAddress] = useState('');
-  const [comment, setComment] = useState('');
   const { toast } = useToast();
 
   const { data: user } = useQuery<User>({
@@ -30,6 +27,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   });
 
   const tonBalance = parseFloat(user?.tonBalance || "0");
+  const MINIMUM_WITHDRAWAL = 0.001;
 
   const { data: withdrawalsData = [] } = useQuery<any[]>({
     queryKey: ['/api/withdrawals'],
@@ -41,22 +39,18 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   const withdrawMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/withdrawals', {
-        amount: parseFloat(amount),
-        walletAddress: walletAddress.trim() || undefined,
-        comment: comment.trim() || undefined
+        amount: tonBalance
       });
       return response.json();
     },
     onSuccess: () => {
       toast({
-        title: "Withdrawal submitted successfully!",
-        description: "Your withdrawal will be processed soon.",
+        title: "✅ Withdrawal Request Sent",
+        description: "You have sent a withdrawal request.",
       });
-      setAmount('');
-      setWalletAddress('');
-      setComment('');
       queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -68,10 +62,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const withdrawAmount = parseFloat(amount);
-
+  const handleWithdraw = () => {
     if (hasPendingWithdrawal) {
       toast({
         title: "Pending withdrawal exists",
@@ -81,28 +72,10 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
       return;
     }
 
-    if (!amount || isNaN(withdrawAmount) || withdrawAmount <= 0) {
-      toast({
-        title: "Invalid amount",
-        description: "Please enter a valid withdrawal amount",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (withdrawAmount < 0.01) {
-      toast({
-        title: "Minimum withdrawal",
-        description: "Minimum withdrawal is 0.01 TON",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (withdrawAmount > tonBalance) {
+    if (tonBalance < MINIMUM_WITHDRAWAL) {
       toast({
         title: "Insufficient balance",
-        description: "Insufficient TON balance",
+        description: "You need at least 0.001 TON to withdraw.",
         variant: "destructive",
       });
       return;
@@ -113,76 +86,48 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-[#0a0a0a] border border-white/20">
+      <DialogContent className="sm:max-w-md frosted-glass border border-white/10">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Withdraw TON</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            Minimum: 0.01 TON • No fees
+          <DialogTitle className="text-[#4cd3ff]">Withdraw TON</DialogTitle>
+          <DialogDescription className="text-[#c0c0c0] text-sm">
+            Withdraw all your TON balance • Minimum: 0.001 TON
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label className="text-foreground">Amount (TON)</Label>
-            <div className="relative">
-              <Input
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter TON amount"
-                className="bg-[#111111] border-white/20 text-foreground"
-              />
-              <Button 
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2 text-xs"
-                onClick={() => setAmount(tonBalance.toString())}
-              >
-                MAX
-              </Button>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Available: {tonBalance.toFixed(4)} TON
+        <div className="space-y-4 py-4">
+          <div className="p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
+            <div className="text-xs text-muted-foreground mb-1">Available Balance</div>
+            <div className="text-2xl font-bold text-[#4cd3ff]">{tonBalance.toFixed(4)} TON</div>
+            <div className="text-xs text-[#c0c0c0] mt-2">
+              You will withdraw your entire TON balance
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-foreground">Wallet Address (Optional)</Label>
-            <Input
-              value={walletAddress}
-              onChange={(e) => setWalletAddress(e.target.value)}
-              placeholder="Enter TON wallet address"
-              className="bg-[#111111] border-white/20 text-foreground"
-            />
-          </div>
+          {hasPendingWithdrawal && (
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <p className="text-xs text-yellow-500">
+                You have a pending withdrawal. Please wait for it to be processed.
+              </p>
+            </div>
+          )}
+        </div>
 
-          <div className="space-y-2">
-            <Label className="text-foreground">Comment (Optional)</Label>
-            <Input
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Add a comment"
-              className="bg-[#111111] border-white/20 text-foreground"
-            />
-          </div>
-
-          <Button 
-            type="submit" 
-            className="w-full bg-[#3da9fc] hover:bg-[#3da9fc]/90 text-white" 
-            disabled={withdrawMutation.isPending}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="text-[#c0c0c0] hover:text-white"
           >
-            {withdrawMutation.isPending ? (
-              <>
-                <i className="fas fa-spinner fa-spin mr-2"></i>
-                Processing...
-              </>
-            ) : (
-              'Withdraw'
-            )}
+            Cancel
           </Button>
-        </form>
+          <Button
+            onClick={handleWithdraw}
+            disabled={withdrawMutation.isPending || hasPendingWithdrawal || tonBalance < MINIMUM_WITHDRAWAL}
+            className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+          >
+            {withdrawMutation.isPending ? "Processing..." : "Withdraw All"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
