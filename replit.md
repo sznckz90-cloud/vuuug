@@ -10,6 +10,29 @@ CashWatch is a React-based web application enabling users to earn money by watch
 
 For detailed instructions on using admin features, see [ADMIN_GUIDE.md](./ADMIN_GUIDE.md).
 
+# Recent Changes (October 19, 2025)
+
+## Critical Fixes: User Sync, Balance Conversion & Withdrawal Issues
+- ✅ **PAD to TON Conversion Fix**: Fixed critical bug in `/api/wallet/convert` endpoint
+  - Root cause: Conversion logic was treating `balance` field as storing PAD amounts when it actually stores TON
+  - Fixed conversion arithmetic: Now correctly interprets balance as TON, converts to PAD for validation, then properly updates both fields
+  - Added database transaction with row-level locking to prevent race conditions
+  - Result: PAD conversions now properly deduct from balance and credit to tonBalance with correct persistence
+- ✅ **User Isolation Verification**: Confirmed all endpoints use session-based user IDs (no global state)
+  - Each user's data is fetched from database using their unique `req.session?.user?.user?.id`
+  - Database queries filtered by `eq(users.id, userId)` ensuring per-user isolation
+  - Fixed "all users seeing same balance" issue (was caused by conversion bug, not shared cache)
+- ✅ **Wallet & Withdrawal Sync**: Verified all wallet and withdrawal endpoints properly scoped to individual users
+  - Wallet save endpoint uses session userId to update only the authenticated user's record
+  - Withdrawal creation uses transaction with row locking on user-specific data
+  - Withdrawal history filtered by `eq(withdrawals.userId, userId)`
+- ✅ **Replit Environment Setup**: Configured project for Replit with proper environment
+  - Database migrations applied successfully
+  - Telegram bot secrets configured (TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, BOT_USERNAME)
+  - Development workflow running on port 5000 with proper host settings (0.0.0.0)
+  - Deployment configured for VM with build and production commands
+  - Telegram webhook configured and verified
+
 # Recent Changes (October 18, 2025)
 
 ## Diamond-Themed UI Transformation
