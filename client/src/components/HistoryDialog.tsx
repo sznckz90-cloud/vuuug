@@ -11,10 +11,12 @@ interface HistoryDialogProps {
 }
 
 export default function HistoryDialog({ open, onOpenChange }: HistoryDialogProps) {
-  const { data: withdrawals = [], isLoading } = useQuery<any[]>({
+  const { data: withdrawalsResponse, isLoading } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
     retry: false,
   });
+
+  const withdrawals = withdrawalsResponse?.withdrawals || [];
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {

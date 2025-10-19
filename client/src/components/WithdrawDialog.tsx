@@ -29,11 +29,12 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   const tonBalance = parseFloat(user?.tonBalance || "0");
   const MINIMUM_WITHDRAWAL = 0.001;
 
-  const { data: withdrawalsData = [] } = useQuery<any[]>({
+  const { data: withdrawalsResponse } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
     retry: false,
   });
 
+  const withdrawalsData = withdrawalsResponse?.withdrawals || [];
   const hasPendingWithdrawal = withdrawalsData.some(w => w.status === 'pending');
 
   const withdrawMutation = useMutation({
