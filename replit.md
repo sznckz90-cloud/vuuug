@@ -12,6 +12,36 @@ For detailed instructions on using admin features, see [ADMIN_GUIDE.md](./ADMIN_
 
 # Recent Changes (October 19, 2025)
 
+## GitHub Import Setup Complete + Critical API Fixes
+- ✅ **PAD→TON Conversion**: Fixed and verified conversion endpoint at `/api/wallet/convert`
+  - Uses database transactions with row-level locking for atomicity
+  - Properly converts PAD to TON with 10,000,000:1 ratio
+  - Minimum 100,000 PAD required for conversion
+  - Deducts from balance and credits to tonBalance correctly
+  - Real-time balance updates sent to frontend via WebSocket
+- ✅ **Wallet Save Persistence**: Fixed Cwallet ID saving and loading
+  - Added `/api/set-wallet` endpoint for compatibility (supports `cwallet_id` and `cwalletId`)
+  - Enhanced `/api/wallet/details` to return `cwalletId` for app reload
+  - Wallet data now persists permanently in database and loads on app reopen
+  - Both `/api/wallet/cwallet` and `/api/set-wallet` endpoints available
+- ✅ **Withdrawal Fix**: Automatic full balance withdrawal with instant reflection
+  - **AUTO WITHDRAWAL**: Automatically withdraws ALL TON balance (no amount parameter needed)
+  - **INSTANT DEDUCTION**: Balance deducted immediately when request submitted (not on admin approval)
+  - **MINIMUM**: Reduced from 0.01 to 0.001 TON minimum withdrawal
+  - **ENDPOINTS**: Both `/api/withdrawals` (POST) and `/api/withdraw` (POST) available
+  - **HISTORY**: `/api/withdraw/history` and `/api/withdrawals` (GET) return withdrawal history
+  - Real-time balance updates ensure UI reflects changes instantly
+- ✅ **Database Setup**: Fixed missing `cwallet_id` column in migration script
+  - Updated `server/migrate.ts` to include cwallet_id column
+  - All wallet-related columns now properly migrated
+- ✅ **Frontend Fixes**: Resolved withdrawal history display errors
+  - Fixed WithdrawDialog and HistoryDialog to handle API response format correctly
+  - App now displays properly without console errors
+- ✅ **Replit Environment**: Fully configured for development and deployment
+  - PostgreSQL database connected and migrations applied
+  - Development workflow running on port 5000
+  - Deployment configured for VM with build and start commands
+
 ## Critical Fixes: User Sync, Balance Conversion & Withdrawal Issues
 - ✅ **PAD to TON Conversion Fix**: Fixed critical bug in `/api/wallet/convert` endpoint
   - Root cause: Conversion logic was treating `balance` field as storing PAD amounts when it actually stores TON
