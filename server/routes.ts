@@ -1929,6 +1929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tonWalletAddress: users.tonWalletAddress,
           tonWalletComment: users.tonWalletComment,
           telegramUsername: users.telegramUsername,
+          cwalletId: users.cwalletId,
           walletUpdatedAt: users.walletUpdatedAt
         })
         .from(users)
@@ -1947,6 +1948,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tonWalletAddress: user.tonWalletAddress || '',
           tonWalletComment: user.tonWalletComment || '',
           telegramUsername: user.telegramUsername || '',
+          cwalletId: user.cwalletId || '',
+          cwallet_id: user.cwalletId || '', // Support both formats
           canWithdraw: true
         }
       });
@@ -2043,6 +2046,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: 'Failed to save Cwallet ID' 
+      });
+    }
+  });
+
+  // Alternative Cwallet save endpoint for compatibility - /api/set-wallet
+  app.post('/api/set-wallet', async (req: any, res) => {
+    try {
+      // Get userId from session or req.user (lenient check)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log("⚠️ Wallet save (set-wallet) requested without session - skipping");
+        return res.json({ success: true, skipAuth: true });
+      }
+      
+      const { cwallet_id, cwalletId } = req.body;
+      const walletId = cwallet_id || cwalletId; // Support both formats
+      
+      console.log('💾 Saving Cwallet ID via /api/set-wallet for user:', userId);
+      
+      if (!walletId || !walletId.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing Cwallet ID'
+        });
+      }
+      
+      // Update user's Cwallet ID in database - permanent storage
+      await db
+        .update(users)
+        .set({
+          cwalletId: walletId.trim(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      console.log('✅ Cwallet ID saved permanently via /api/set-wallet');
+      
+      res.json({
+        success: true,
+        message: 'Wallet saved successfully'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error saving Cwallet ID via /api/set-wallet:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to save wallet'
       });
     }
   });
@@ -2231,9 +2282,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("⚠️ Withdrawal requested without session - skipping");
         return res.json({ success: true, skipAuth: true });
       }
-      const { amount, walletAddress, comment } = req.body;
+      
+      // NEW: Automatically withdraw ALL TON balance (ignore amount parameter)
+      const { walletAddress, comment } = req.body;
 
-      console.log('📝 Withdrawal request received:', { userId, amount, walletAddress, comment });
+      console.log('📝 Withdrawal request received (withdrawing all TON balance):', { userId, walletAddress, comment });
 
       // Check for pending withdrawals
       const pendingWithdrawals = await db
@@ -2252,27 +2305,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Validation: Check amount is valid
-      const withdrawAmount = parseFloat(amount);
-      if (!amount || isNaN(withdrawAmount) || withdrawAmount <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Please enter a valid withdrawal amount'
-        });
-      }
-      
-      // Minimum withdrawal: 0.01 TON
-      const MINIMUM_WITHDRAWAL = 0.01;
-      if (withdrawAmount < MINIMUM_WITHDRAWAL) {
-        return res.status(400).json({
-          success: false,
-          message: 'Minimum withdrawal is 0.01 TON'
-        });
-      }
-
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and check TON balance (SELECT FOR UPDATE)
+        // Lock user row and get TON balance (SELECT FOR UPDATE)
         const [user] = await tx
           .select({ 
             tonBalance: users.tonBalance
@@ -2287,22 +2322,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const currentTonBalance = parseFloat(user.tonBalance || '0');
         
-        if (currentTonBalance < withdrawAmount) {
-          throw new Error('Insufficient TON balance');
+        // Minimum withdrawal: 0.001 TON (updated from 0.01)
+        const MINIMUM_WITHDRAWAL = 0.001;
+        if (currentTonBalance < MINIMUM_WITHDRAWAL) {
+          throw new Error('You need at least 0.001 TON');
         }
 
-        // DO NOT deduct balance here - only verify user has enough
-        // Balance will be deducted when admin approves the withdrawal
-        console.log(`✅ Withdrawal request validated. User has sufficient TON balance: ${currentTonBalance} TON`);
+        // INSTANT DEDUCTION: Deduct balance immediately (not on admin approval)
+        await tx
+          .update(users)
+          .set({
+            tonBalance: '0',
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
 
-        // Create withdrawal request with deducted flag set to FALSE
-        // TON balance will be deducted on admin approval
+        console.log(`✅ Withdrawn all TON balance: ${currentTonBalance} TON → 0 TON`);
+
+        // Create withdrawal request with deducted flag set to TRUE
         const withdrawalData: any = {
           userId,
-          amount: amount.toString(),
+          amount: currentTonBalance.toFixed(8),
           method: 'ton_coin',
           status: 'pending',
-          deducted: false,
+          deducted: true, // Balance already deducted
           refunded: false,
           details: {
             walletAddress: walletAddress || '',
@@ -2312,20 +2355,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
-        return withdrawal;
+        return { withdrawal, withdrawnAmount: currentTonBalance };
       });
 
-      console.log(`✅ Withdrawal request created: ${newWithdrawal.id} for user ${userId}, amount: ${amount} TON`);
+      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, withdrawn all TON: ${newWithdrawal.withdrawnAmount} TON`);
+
+      // Send real-time update to reflect instant balance change
+      sendRealtimeUpdate(userId, {
+        type: 'balance_update',
+        tonBalance: '0'
+      });
 
       res.json({
         success: true,
-        message: 'Withdrawal request submitted successfully',
+        message: 'You have sent a withdrawal request',
         withdrawal: {
-          id: newWithdrawal.id,
-          amount: newWithdrawal.amount,
-          status: newWithdrawal.status,
-          method: newWithdrawal.method,
-          createdAt: newWithdrawal.createdAt
+          id: newWithdrawal.withdrawal.id,
+          amount: newWithdrawal.withdrawal.amount,
+          status: newWithdrawal.withdrawal.status,
+          method: newWithdrawal.withdrawal.method,
+          createdAt: newWithdrawal.withdrawal.createdAt
         }
       });
 
@@ -2350,6 +2399,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         message: 'Failed to create withdrawal request' 
       });
+    }
+  });
+
+  // Alternative withdrawal endpoint for compatibility - /api/withdraw
+  app.post('/api/withdraw', async (req: any, res) => {
+    try {
+      // Get userId from session or req.user (lenient check)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log("⚠️ Withdrawal (/api/withdraw) requested without session - skipping");
+        return res.json({ success: true, skipAuth: true });
+      }
+      
+      const { walletAddress, comment } = req.body;
+
+      console.log('📝 Withdrawal via /api/withdraw (withdrawing all TON balance):', { userId });
+
+      // Check for pending withdrawals
+      const pendingWithdrawals = await db
+        .select({ id: withdrawals.id })
+        .from(withdrawals)
+        .where(and(
+          eq(withdrawals.userId, userId),
+          eq(withdrawals.status, 'pending')
+        ))
+        .limit(1);
+
+      if (pendingWithdrawals.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot create new request until current one is processed'
+        });
+      }
+
+      // Use transaction for atomicity
+      const result = await db.transaction(async (tx) => {
+        // Lock user row and get TON balance
+        const [user] = await tx
+          .select({ tonBalance: users.tonBalance })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) {
+          throw new Error('User not found');
+        }
+
+        const currentTonBalance = parseFloat(user.tonBalance || '0');
+        
+        if (currentTonBalance < 0.001) {
+          throw new Error('You need at least 0.001 TON');
+        }
+
+        // Deduct balance instantly
+        await tx
+          .update(users)
+          .set({ tonBalance: '0', updatedAt: new Date() })
+          .where(eq(users.id, userId));
+
+        // Create withdrawal with deducted flag
+        const [withdrawal] = await tx.insert(withdrawals).values({
+          userId,
+          amount: currentTonBalance.toFixed(8),
+          method: 'ton_coin',
+          status: 'pending',
+          deducted: true,
+          refunded: false,
+          details: { walletAddress: walletAddress || '', comment: comment || '' }
+        }).returning();
+        
+        return { withdrawal, withdrawnAmount: currentTonBalance };
+      });
+
+      console.log(`✅ Withdrawal via /api/withdraw: ${result.withdrawnAmount} TON`);
+
+      // Send real-time update
+      sendRealtimeUpdate(userId, {
+        type: 'balance_update',
+        tonBalance: '0'
+      });
+
+      res.json({
+        success: true,
+        message: 'You have sent a withdrawal request'
+      });
+
+    } catch (error) {
+      console.error('❌ Error in /api/withdraw:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process withdrawal';
+      res.status(500).json({ success: false, message: errorMessage });
+    }
+  });
+
+  // Alternative withdrawal history endpoint - /api/withdraw/history
+  app.get('/api/withdraw/history', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, skipAuth: true, history: [] });
+      }
+      
+      const history = await db
+        .select()
+        .from(withdrawals)
+        .where(eq(withdrawals.userId, userId))
+        .orderBy(desc(withdrawals.createdAt));
+      
+      res.json({ 
+        success: true, 
+        history 
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fetching withdrawal history:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch history' });
     }
   });
   
