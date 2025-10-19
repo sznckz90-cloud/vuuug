@@ -227,3 +227,21 @@ export const requireAuth: RequestHandler = (req: any, res, next) => {
   }
   next();
 };
+
+// Lenient authentication middleware - doesn't block, just logs
+// Used for wallet/withdraw routes to prevent auth popup spam
+export const optionalAuth: RequestHandler = (req: any, res, next) => {
+  try {
+    const user = req.session?.user || req.user;
+    if (!user) {
+      console.log("⚠️ No Telegram user found in session - allowing request to proceed");
+      // Return success with skipAuth flag instead of blocking
+      return res.status(200).json({ success: true, skipAuth: true });
+    }
+    next();
+  } catch (err) {
+    console.error("Optional auth middleware error:", err);
+    // Don't block on error - just skip auth
+    return res.status(200).json({ success: true, skipAuth: true });
+  }
+};
