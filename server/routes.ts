@@ -2048,9 +2048,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // PAD to TON conversion endpoint - auth removed to prevent popup spam
+  // ✅ USER ISOLATION: Each user's data is fetched from database using their unique session userId
+  // No global/shared state - prevents "all users seeing same balance" issue
   app.post('/api/wallet/convert', async (req: any, res) => {
     try {
-      // Get userId from session or req.user (lenient check)
+      // Get THIS user's ID from their session - ensures per-user isolation
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
       
       if (!userId) {
@@ -2098,53 +2100,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
         
-        // CRITICAL FIX: balance field now stores raw PAD (not TON)
-        // This aligns with the user's requirement: pad_balance -= amount
-        const currentPadBalance = parseFloat(user.balance || '0');
+        // FIX: balance field stores TON amounts (not PAD)
+        // Convert TON to PAD for display and conversion logic
+        const currentBalanceTON = parseFloat(user.balance || '0');
         const currentTonBalance = parseFloat(user.tonBalance || '0');
+        const currentPadBalance = currentBalanceTON * CONVERSION_RATE; // Convert TON to PAD for display
         
-        console.log(`📊 Current balances - PAD: ${currentPadBalance}, TON: ${currentTonBalance}`);
+        console.log(`📊 Current balances - TON in balance: ${currentBalanceTON}, PAD equivalent: ${currentPadBalance}, TON wallet: ${currentTonBalance}`);
         
-        // Check if user has enough PAD
+        // Check if user has enough PAD to convert
         if (currentPadBalance < convertAmount) {
           throw new Error('Insufficient PAD balance');
         }
         
-        // Calculate TON amount (10,000,000 PAD = 1 TON)
-        const tonAmount = convertAmount / CONVERSION_RATE;
+        // Calculate TON amount to deduct from balance and add to tonBalance
+        const tonToDeduct = convertAmount / CONVERSION_RATE;
         
-        // Apply user's requested logic:
-        // pad_balance -= amount (deduct PAD)
-        // ton_balance += amount / 10000000 (add TON)
-        const newPadBalance = currentPadBalance - convertAmount;
-        const newTonBalance = currentTonBalance + tonAmount;
+        // Apply conversion logic:
+        // balance (TON) -= convertAmount / 10000000 (deduct TON equivalent of PAD)
+        // tonBalance += convertAmount / 10000000 (add to TON wallet)
+        const newBalanceTON = currentBalanceTON - tonToDeduct;
+        const newTonBalance = currentTonBalance + tonToDeduct;
+        const newPadBalance = newBalanceTON * CONVERSION_RATE;
         
-        // Update user balances
+        // Update user balances - store TON amounts in both fields
         await tx
           .update(users)
           .set({
-            balance: newPadBalance.toString(),
-            tonBalance: newTonBalance.toString(),
+            balance: newBalanceTON.toFixed(8),
+            tonBalance: newTonBalance.toFixed(8),
             updatedAt: new Date()
           })
           .where(eq(users.id, userId));
         
-        console.log(`✅ Conversion successful: ${convertAmount} PAD → ${tonAmount} TON`);
-        console.log(`   New PAD balance: ${newPadBalance}, New TON balance: ${newTonBalance}`);
+        console.log(`✅ Conversion successful: ${convertAmount} PAD → ${tonToDeduct} TON`);
+        console.log(`   New balance (TON): ${newBalanceTON.toFixed(8)}, New TON wallet: ${newTonBalance.toFixed(8)}`);
         
         return {
           padAmount: convertAmount,
-          tonAmount,
+          tonAmount: tonToDeduct,
           newPadBalance,
           newTonBalance
         };
       });
       
-      // Send real-time update
+      // Send real-time update - send TON values (frontend converts to PAD for display)
       sendRealtimeUpdate(userId, {
         type: 'balance_update',
-        balance: result.newPadBalance.toString(),
-        tonBalance: result.newTonBalance.toString()
+        balance: (result.newPadBalance / CONVERSION_RATE).toFixed(8), // Convert back to TON
+        tonBalance: result.newTonBalance.toFixed(8)
       });
       
       res.json({
@@ -2203,7 +2207,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(withdrawals.userId, userId))
         .orderBy(desc(withdrawals.createdAt));
       
-      res.json(userWithdrawals);
+      res.json({ 
+        success: true,
+        withdrawals: userWithdrawals 
+      });
       
     } catch (error) {
       console.error('❌ Error fetching user withdrawals:', error);
