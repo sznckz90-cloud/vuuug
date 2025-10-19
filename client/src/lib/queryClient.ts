@@ -11,7 +11,11 @@ async function throwIfResNotOk(res: Response) {
 const getTelegramInitData = (): string | null => {
   if (typeof window !== 'undefined') {
     // Check if we're in development environment first
-    const isDev = window.location.hostname === 'localhost' || window.location.hostname.includes('replit');
+    const hostname = window.location.hostname;
+    const isDev = hostname === 'localhost' || 
+                  hostname.includes('replit.app') || 
+                  hostname.includes('replit.dev') ||
+                  hostname.includes('127.0.0.1');
     
     // For development, check URL params fallback
     if (isDev) {
