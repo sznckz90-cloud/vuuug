@@ -51,15 +51,17 @@ export default function Header() {
               {cwalletId ? cwalletId : 'Set Wallet'}
             </Button>
             
-            <Link href="/admin">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-9 h-9 text-[#4cd3ff] hover:text-[#6ddeff] hover:bg-[#4cd3ff]/10"
-              >
-                <Settings className="w-5 h-5" />
-              </Button>
-            </Link>
+            {isAdmin && (
+              <Link href="/admin">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-9 h-9 text-[#4cd3ff] hover:text-[#6ddeff] hover:bg-[#4cd3ff]/10"
+                >
+                  <Settings className="w-5 h-5" />
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>

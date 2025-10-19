@@ -57,30 +57,29 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     saveCwalletMutation.mutate();
   };
 
+  const isWalletLocked = !!user?.cwalletId;
+
   return (
     <Dialog 
       open={open} 
-      onOpenChange={(newOpen) => {
-        // Prevent closing by clicking outside
-        if (!newOpen) return;
-        onOpenChange(newOpen);
-      }}
+      onOpenChange={onOpenChange}
     >
       <DialogContent 
         className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl"
         onInteractOutside={(e) => e.preventDefault()}
-        hideCloseButton
+        hideCloseButton={!isWalletLocked}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-[#4cd3ff] text-lg">
             <Wallet className="w-5 h-5" />
-            Set Cwallet ID
+            {isWalletLocked ? "Cwallet ID Set" : "Set Cwallet ID"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <p className="text-xs text-[#c0c0c0]">
-            One time setup • Used to withdraw your funds
+            <span className="text-red-500 font-semibold">One time setup</span> • Used to withdraw your funds
+            {isWalletLocked && <span className="text-[#6ddeff] ml-2">🔒 Locked</span>}
           </p>
 
           <div className="space-y-2">
@@ -89,8 +88,14 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
               placeholder="Enter your CWallet ID"
               value={cwalletId}
               onChange={(e) => setCwalletId(e.target.value)}
-              className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
+              disabled={isWalletLocked}
+              className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
             />
+            {!isWalletLocked && (
+              <p className="text-xs text-red-500 font-medium">
+                ⚠️ One-time setup only – set carefully!
+              </p>
+            )}
           </div>
 
           <div className="flex items-start gap-2 p-3 bg-[#0d0d0d] rounded-lg border border-white/5">
@@ -110,21 +115,32 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
         </div>
 
         <div className="flex justify-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saveCwalletMutation.isPending}
-            className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-          >
-            <Wallet className="w-4 h-4 mr-2" />
-            {saveCwalletMutation.isPending ? "Saving..." : "Save"}
-          </Button>
+          {isWalletLocked ? (
+            <Button
+              onClick={() => onOpenChange(false)}
+              className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saveCwalletMutation.isPending}
+                className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+              >
+                <Wallet className="w-4 h-4 mr-2" />
+                {saveCwalletMutation.isPending ? "Saving..." : "Save"}
+              </Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
