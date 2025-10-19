@@ -32,10 +32,19 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
       }
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       showNotification(`Converted ${data.padAmount.toLocaleString()} PAD → ${data.tonAmount.toFixed(4)} TON`, "success");
+      
+      // Real-time balance sync after conversion
+      await fetch('/api/user/balance/refresh', {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      // Invalidate queries to trigger UI refresh
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
     },
     onError: (error: Error) => {
       showNotification(error.message, "error");
