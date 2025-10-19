@@ -50,3 +50,19 @@ export function formatPADtoUSD(padAmount: number | string): string {
   const usd = padToUSD(padAmount);
   return usd.toFixed(2);
 }
+
+/**
+ * Format TON values without converting to PAD
+ * For admin panel and withdrawal displays
+ * Examples: 0.0003 → "0.0003 TON", 1.5 → "1.5 TON"
+ */
+export function formatTON(value: string | number, includeSymbol: boolean = true): string {
+  const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
+  
+  if (isNaN(numValue)) {
+    return includeSymbol ? '0 TON' : '0';
+  }
+  
+  const symbol = includeSymbol ? ' TON' : '';
+  return `${numValue.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 8 })}${symbol}`;
+}
