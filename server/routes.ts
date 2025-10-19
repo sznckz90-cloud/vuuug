@@ -2025,6 +2025,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // 🔒 WALLET LOCK: Check if wallet is already set - only allow one-time setup
+      const [existingUser] = await db
+        .select({ cwalletId: users.cwalletId })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (existingUser?.cwalletId) {
+        console.log('🚫 Wallet already set - only one time setup allowed');
+        return res.status(400).json({
+          success: false,
+          message: 'Wallet already set — only one time setup allowed'
+        });
+      }
+      
       // Update user's Cwallet ID
       await db
         .update(users)
@@ -2070,6 +2084,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({
           success: false,
           message: 'Missing Cwallet ID'
+        });
+      }
+      
+      // 🔒 WALLET LOCK: Check if wallet is already set - only allow one-time setup
+      const [existingUser] = await db
+        .select({ cwalletId: users.cwalletId })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (existingUser?.cwalletId) {
+        console.log('🚫 Wallet already set - only one time setup allowed');
+        return res.status(400).json({
+          success: false,
+          message: 'Wallet already set — only one time setup allowed'
         });
       }
       
