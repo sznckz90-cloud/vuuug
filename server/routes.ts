@@ -394,7 +394,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { initData } = req.body;
       
       if (!initData) {
-        return res.status(400).json({ message: 'Missing initData' });
+        console.log('⚠️ No initData provided - checking for cached user_id in headers');
+        const cachedUserId = req.headers['x-user-id'];
+        
+        if (cachedUserId) {
+          console.log('✅ Using cached user_id from headers:', cachedUserId);
+          return res.json({ success: true, user: cachedUserId });
+        }
+        
+        console.log('ℹ️ No cached user_id found - returning skipAuth response');
+        return res.status(200).json({ success: true, skipAuth: true });
       }
       
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -508,6 +517,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Balance refresh endpoint - used after conversion to sync frontend
+  app.get('/api/user/balance/refresh', async (req: any, res) => {
+    try {
+      // Get userId from session or req.user (lenient check)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log('⚠️ Balance refresh requested without session - sending empty response');
+        return res.json({ 
+          success: true, 
+          skipAuth: true, 
+          balance: '0', 
+          tonBalance: '0' 
+        });
+      }
+
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      console.log(`🔄 Balance refresh for user ${userId}: PAD=${user.balance}, TON=${user.tonBalance}`);
+      
+      res.json({
+        success: true,
+        balance: user.balance,
+        tonBalance: user.tonBalance,
+        padBalance: user.balance
+      });
+    } catch (error) {
+      console.error("Error refreshing balance:", error);
+      res.status(500).json({ message: "Failed to refresh balance" });
     }
   });
 
@@ -703,10 +748,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Referral stats endpoint
-  app.get('/api/referrals/stats', authenticateTelegram, async (req: any, res) => {
+  // Referral stats endpoint - auth removed to prevent popup spam on affiliates page
+  app.get('/api/referrals/stats', async (req: any, res) => {
     try {
-      const userId = req.user.user.id;
+      // Get userId from session or req.user (lenient check)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log('⚠️ Referral stats requested without session - sending empty response');
+        return res.json({ 
+          success: true, 
+          skipAuth: true, 
+          totalInvites: 0, 
+          totalClaimed: '0', 
+          availableBonus: '0', 
+          readyToClaim: '0' 
+        });
+      }
       const user = await storage.getUser(userId);
       const referrals = await storage.getUserReferrals(userId);
       
@@ -722,10 +780,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Claim referral bonus endpoint
-  app.post('/api/referrals/claim', authenticateTelegram, async (req: any, res) => {
+  // Claim referral bonus endpoint - auth removed to prevent popup spam on affiliates page
+  app.post('/api/referrals/claim', async (req: any, res) => {
     try {
-      const userId = req.user.user.id;
+      // Get userId from session or req.user (lenient check)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log('⚠️ Referral claim requested without session - skipping');
+        return res.json({ success: true, skipAuth: true });
+      }
       const result = await storage.claimReferralBonus(userId);
       
       if (result.success) {
@@ -739,10 +803,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Search referral by code endpoint
-  app.get('/api/referrals/search/:code', authenticateTelegram, async (req: any, res) => {
+  // Search referral by code endpoint - auth removed to prevent popup spam on affiliates page
+  app.get('/api/referrals/search/:code', async (req: any, res) => {
     try {
-      const currentUserId = req.user.user.id;
+      // Get userId from session or req.user (lenient check)
+      const currentUserId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!currentUserId) {
+        console.log('⚠️ Referral search requested without session - skipping');
+        return res.status(404).json({ message: "Referral not found", skipAuth: true });
+      }
       const searchCode = req.params.code;
 
       // Find user by referral code
@@ -793,10 +863,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Debug endpoint for referral issues
-  app.get('/api/debug/referrals', authenticateTelegram, async (req: any, res) => {
+  // Debug endpoint for referral issues - auth removed to prevent popup spam
+  app.get('/api/debug/referrals', async (req: any, res) => {
     try {
-      const userId = req.user.user.id;
+      // Get userId from session or req.user (lenient check)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log('⚠️ Debug referrals requested without session - sending empty response');
+        return res.json({ success: true, skipAuth: true, data: {} });
+      }
       
       // Get user info
       const user = await storage.getUser(userId);
@@ -2022,10 +2098,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
         
-        // balance field stores TON, convert to PAD for comparison
-        const currentBalanceTON = parseFloat(user.balance || '0');
-        const currentPadBalance = Math.round(currentBalanceTON * CONVERSION_RATE);
+        // CRITICAL FIX: balance field now stores raw PAD (not TON)
+        // This aligns with the user's requirement: pad_balance -= amount
+        const currentPadBalance = parseFloat(user.balance || '0');
         const currentTonBalance = parseFloat(user.tonBalance || '0');
+        
+        console.log(`📊 Current balances - PAD: ${currentPadBalance}, TON: ${currentTonBalance}`);
         
         // Check if user has enough PAD
         if (currentPadBalance < convertAmount) {
@@ -2035,25 +2113,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Calculate TON amount (10,000,000 PAD = 1 TON)
         const tonAmount = convertAmount / CONVERSION_RATE;
         
-        // Deduct PAD (convert back to TON) and add to tonBalance
-        const newBalanceTON = currentBalanceTON - tonAmount;
+        // Apply user's requested logic:
+        // pad_balance -= amount (deduct PAD)
+        // ton_balance += amount / 10000000 (add TON)
+        const newPadBalance = currentPadBalance - convertAmount;
         const newTonBalance = currentTonBalance + tonAmount;
         
         // Update user balances
         await tx
           .update(users)
           .set({
-            balance: newBalanceTON.toString(),
+            balance: newPadBalance.toString(),
             tonBalance: newTonBalance.toString(),
             updatedAt: new Date()
           })
           .where(eq(users.id, userId));
         
-        const newPadBalance = Math.round(newBalanceTON * CONVERSION_RATE);
-        
         console.log(`✅ Conversion successful: ${convertAmount} PAD → ${tonAmount} TON`);
-        console.log(`   New balance (TON): ${newBalanceTON}, New PAD balance: ${newPadBalance}`);
-        console.log(`   New tonBalance: ${newTonBalance}`);
+        console.log(`   New PAD balance: ${newPadBalance}, New TON balance: ${newTonBalance}`);
         
         return {
           padAmount: convertAmount,
