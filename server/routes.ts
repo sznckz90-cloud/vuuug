@@ -1912,6 +1912,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Save Cwallet ID endpoint
+  app.post('/api/wallet/cwallet', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { cwalletId } = req.body;
+      
+      console.log('💾 Saving Cwallet ID for user:', userId);
+      
+      if (!cwalletId || !cwalletId.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid Cwallet ID'
+        });
+      }
+      
+      // Update user's Cwallet ID
+      await db
+        .update(users)
+        .set({
+          cwalletId: cwalletId.trim(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      console.log('✅ Cwallet ID saved successfully');
+      
+      res.json({
+        success: true,
+        message: 'Cwallet ID saved successfully.'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error saving Cwallet ID:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to save Cwallet ID' 
+      });
+    }
+  });
   
   // PAD to TON conversion endpoint
   app.post('/api/wallet/convert', isAuthenticated, async (req: any, res) => {
