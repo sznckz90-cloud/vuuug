@@ -2389,7 +2389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`✅ Withdrawn all TON balance: ${currentTonBalance} TON → 0 TON`);
 
         // Create withdrawal request with deducted flag set to TRUE
-        // ✅ FIX: Automatically attach saved wallet ID from database
+        // ✅ FIX: Automatically attach saved wallet ID from database using correct field name
         const withdrawalData: any = {
           userId,
           amount: currentTonBalance.toFixed(8),
@@ -2398,7 +2398,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deducted: true, // Balance already deducted
           refunded: false,
           details: {
-            cwalletId: user.cwalletId, // ✅ Use saved wallet ID from database
+            paymentDetails: user.cwalletId, // ✅ Use paymentDetails field for admin dashboard
+            cwalletId: user.cwalletId, // Keep for backward compatibility
             walletAddress: user.cwalletId // For backward compatibility
           }
         };
