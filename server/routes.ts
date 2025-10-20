@@ -2350,10 +2350,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and get TON balance (SELECT FOR UPDATE)
+        // Lock user row and get TON balance AND saved wallet ID (SELECT FOR UPDATE)
         const [user] = await tx
           .select({ 
-            tonBalance: users.tonBalance
+            tonBalance: users.tonBalance,
+            cwalletId: users.cwalletId
           })
           .from(users)
           .where(eq(users.id, userId))
@@ -2361,6 +2362,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!user) {
           throw new Error('User not found');
+        }
+
+        // Check if user has a saved wallet ID
+        if (!user.cwalletId) {
+          throw new Error('No wallet ID found. Please set up your Cwallet ID first.');
         }
 
         const currentTonBalance = parseFloat(user.tonBalance || '0');
@@ -2383,16 +2389,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`✅ Withdrawn all TON balance: ${currentTonBalance} TON → 0 TON`);
 
         // Create withdrawal request with deducted flag set to TRUE
+        // ✅ FIX: Automatically attach saved wallet ID from database
         const withdrawalData: any = {
           userId,
           amount: currentTonBalance.toFixed(8),
-          method: 'ton_coin',
+          method: 'cwallet',
           status: 'pending',
           deducted: true, // Balance already deducted
           refunded: false,
           details: {
-            walletAddress: walletAddress || '',
-            comment: comment || ''
+            cwalletId: user.cwalletId, // ✅ Use saved wallet ID from database
+            walletAddress: user.cwalletId // For backward compatibility
           }
         };
 
@@ -2403,10 +2410,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, withdrawn all TON: ${newWithdrawal.withdrawnAmount} TON`);
 
-      // Send real-time update to reflect instant balance change
+      // ✅ FIX: Send withdrawal_requested notification instead of balance_update
       sendRealtimeUpdate(userId, {
-        type: 'balance_update',
-        tonBalance: '0'
+        type: 'withdrawal_requested',
+        amount: newWithdrawal.withdrawnAmount.toFixed(8),
+        message: 'You have sent a withdrawal request.'
       });
 
       res.json({
@@ -2431,6 +2439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Return 400 for validation errors, 500 for others
       if (errorMessage === 'Insufficient TON balance' || 
           errorMessage === 'User not found' ||
+          errorMessage === 'No wallet ID found. Please set up your Cwallet ID first.' ||
           errorMessage === 'Cannot create new request until current one is processed') {
         return res.status(400).json({ 
           success: false, 
