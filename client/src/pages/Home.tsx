@@ -43,6 +43,9 @@ export default function Home() {
   }>({
     queryKey: ["/api/user/stats"],
     retry: false,
+    // CRITICAL FIX: Always refetch stats from database
+    refetchOnMount: true,
+    staleTime: 0,
   });
 
   if (isLoading) {
