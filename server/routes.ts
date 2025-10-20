@@ -2054,6 +2054,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // 🔐 UNIQUENESS CHECK: Ensure wallet ID is not already used by another account
+      const walletToCheck = cwalletId?.trim() || walletId?.trim();
+      if (walletToCheck) {
+        const [walletInUse] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(
+            eq(users.cwalletId, walletToCheck),
+            ne(users.id, userId)
+          ))
+          .limit(1);
+        
+        if (walletInUse) {
+          console.log('🚫 Wallet ID already linked to another account');
+          return res.status(400).json({
+            success: false,
+            message: 'This wallet ID is already linked to another account.'
+          });
+        }
+      }
+      
       // Update user's Cwallet ID
       await db
         .update(users)
@@ -2114,6 +2135,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false,
           message: 'Wallet already set — only one time setup allowed'
         });
+      }
+      
+      // 🔐 UNIQUENESS CHECK: Ensure wallet ID is not already used by another account
+      const walletToCheck = cwalletId?.trim() || walletId?.trim();
+      if (walletToCheck) {
+        const [walletInUse] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(
+            eq(users.cwalletId, walletToCheck),
+            ne(users.id, userId)
+          ))
+          .limit(1);
+        
+        if (walletInUse) {
+          console.log('🚫 Wallet ID already linked to another account');
+          return res.status(400).json({
+            success: false,
+            message: 'This wallet ID is already linked to another account.'
+          });
+        }
       }
       
       // Update user's Cwallet ID in database - permanent storage
@@ -2668,23 +2710,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/withdrawals/:withdrawalId/approve', authenticateAdmin, async (req: any, res) => {
     try {
       const { withdrawalId } = req.params;
-      const { adminNotes, transactionHash } = req.body;
+      const { adminNotes } = req.body;
       
-      // Require transaction hash for payment confirmation
-      if (!transactionHash) {
-        return res.status(400).json({
-          success: false,
-          message: 'Transaction hash is required for payment confirmation'
-        });
-      }
-      
-      // Approve the withdrawal using existing storage method
-      const result = await storage.approveWithdrawal(withdrawalId, adminNotes, transactionHash);
+      // Approve the withdrawal using existing storage method (no transaction hash required)
+      const result = await storage.approveWithdrawal(withdrawalId, adminNotes, 'N/A');
       
       if (result.success) {
         console.log(`✅ Withdrawal ${withdrawalId} approved by admin ${req.user.telegramUser.id}`);
         
-        // Send real-time update to user
+        // Send real-time update to user (no Telegram notification)
         if (result.withdrawal) {
           sendRealtimeUpdate(result.withdrawal.userId, {
             type: 'withdrawal_approved',
@@ -2692,39 +2726,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: result.withdrawal.method,
             message: `Your withdrawal of ${result.withdrawal.amount} TON has been approved and processed`
           });
-
-          // Send Telegram bot notification to user
-          const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
-          if (user.length > 0 && user[0].telegram_id) {
-            try {
-              const formattedAmount = parseFloat(result.withdrawal.amount).toFixed(8).replace(/\.?0+$/, '');
-              const withdrawalDetails = result.withdrawal.details as any;
-              const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
-              
-              // Escape special characters for MarkdownV2
-              const escapeMarkdownV2 = (text: string) => text.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&');
-              const escapedAmount = escapeMarkdownV2(formattedAmount);
-              const escapedTxHash = escapeMarkdownV2(transactionHash);
-              const escapedWallet = escapeMarkdownV2(walletAddress);
-              
-              // Create withdrawal success message in MarkdownV2 format
-              const approvalMessage = `🎉 *Withdrawal Successful\\!* ✅\n\n` +
-                `🔔 *Payout:* ${escapedAmount} TON\n` +
-                `💳 *Wallet:* ${escapedWallet}\n` +
-                `📝 *Txn Hash:* ${escapedTxHash}\n\n` +
-                `✨ Keep earning & growing\\! Your journey to success continues 💪`;
-              
-              await sendUserTelegramNotification(
-                user[0].telegram_id,
-                approvalMessage,
-                null,
-                'MarkdownV2'
-              );
-              console.log(`📱 Telegram notification sent to user ${user[0].telegram_id}`);
-            } catch (telegramError) {
-              console.error('❌ Failed to send Telegram notification:', telegramError);
-            }
-          }
         }
         
         res.json({
@@ -2760,7 +2761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (result.success) {
         console.log(`❌ Withdrawal ${withdrawalId} rejected by admin ${req.user.telegramUser.id}`);
         
-        // Send real-time update to user
+        // Send real-time update to user (no Telegram notification)
         if (result.withdrawal) {
           sendRealtimeUpdate(result.withdrawal.userId, {
             type: 'withdrawal_rejected',
@@ -2768,31 +2769,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: result.withdrawal.method,
             message: `Your withdrawal of ${result.withdrawal.amount} TON has been rejected`
           });
-
-          // Send Telegram bot notification to user
-          const user = await db.select().from(users).where(eq(users.id, result.withdrawal.userId)).limit(1);
-          if (user.length > 0 && user[0].telegram_id) {
-            try {
-              const currentBalance = parseFloat(user[0].balance || '0');
-              const formattedBalance = parseFloat(currentBalance.toFixed(8)).toString().replace(/\.?0+$/, '');
-              const formattedAmount = parseFloat(result.withdrawal.amount).toFixed(8).replace(/\.?0+$/, '');
-              const rejectionReason = adminNotes || reason || 'No reason provided';
-              const utcTime = new Date().toUTCString();
-              
-              const rejectionMessage = `❌ Your withdrawal of ${formattedAmount} TON was rejected.\n\n` +
-                `📋 Reason: ${rejectionReason}\n` +
-                `⏰ Time (UTC): ${utcTime}\n` +
-                `💡 Remaining Balance: ${formattedBalance} TON`;
-              
-              await sendUserTelegramNotification(
-                user[0].telegram_id,
-                rejectionMessage
-              );
-              console.log(`📱 Telegram notification sent to user ${user[0].telegram_id}`);
-            } catch (telegramError) {
-              console.error('❌ Failed to send Telegram notification:', telegramError);
-            }
-          }
         }
         
         res.json({
