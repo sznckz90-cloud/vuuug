@@ -123,28 +123,39 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const dailyLimit = 50;
 
   return (
-    <Card className="rounded-2xl frosted-glass diamond-glow">
-      <CardContent className="p-3">
-        <div className="text-center mb-2">
-          <h2 className="text-base font-bold text-primary mb-1">Viewing ads</h2>
-          <p className="text-muted-foreground text-xs">Get PAD for watching commercials</p>
+    <Card className="rounded-2xl minimal-card mb-3">
+      <CardContent className="p-4">
+        <div className="text-center mb-3">
+          <h2 className="text-base font-bold text-white mb-1">Viewing ads</h2>
+          <p className="text-[#AAAAAA] text-xs">Get PAD for watching commercials</p>
         </div>
         
-        <div className="flex justify-center mb-2">
+        <div className="flex justify-center mb-3">
           <button
             onClick={handleWatchAd}
-            disabled={cooldownRemaining > 0}
-            className="relative bg-gradient-to-r from-secondary to-primary hover:from-secondary/90 hover:to-primary/90 text-white px-6 py-2.5 rounded-2xl shadow-[0_0_20px_rgba(34,211,238,0.5),0_0_30px_rgba(168,85,247,0.3)] transform transition-all duration-200 active:scale-[0.97] group disabled:opacity-50 flex items-center gap-2 min-w-[160px] justify-center font-semibold"
+            disabled={cooldownRemaining > 0 || watchAdMutation.isPending}
+            className="btn-primary px-6 py-3 flex items-center gap-2 min-w-[160px] justify-center text-base"
             data-testid="button-watch-ad"
           >
-            <Play size={16} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-semibold">Start Watching</span>
+            {watchAdMutation.isPending ? (
+              <>
+                <Clock size={16} className="animate-spin" />
+                <span className="text-sm font-semibold">Processing...</span>
+              </>
+            ) : (
+              <>
+                <Play size={16} className="group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold">Start Watching</span>
+              </>
+            )}
           </button>
         </div>
         
-        {/* Watched counter */}
+        {/* Watched counter - Always visible */}
         <div className="text-center">
-          <p className="text-xs text-muted-foreground">Watched: {adsWatchedToday}/{dailyLimit}</p>
+          <p className="text-xs text-muted-foreground">
+            {watchAdMutation.isPending ? "Processing reward..." : `Watched: ${adsWatchedToday}/${dailyLimit}`}
+          </p>
         </div>
       </CardContent>
     </Card>
