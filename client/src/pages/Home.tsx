@@ -87,7 +87,8 @@ export default function Home() {
         <Card className="mb-3 minimal-card">
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-sm font-semibold text-white">PAD Rewards</h3>
+              <DiamondIcon size={18} withGlow />
+              <h3 className="text-sm font-semibold text-white">Income statistics</h3>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>

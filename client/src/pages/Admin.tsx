@@ -44,25 +44,13 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
   const { toast } = useToast();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
-  const [transactionHash, setTransactionHash] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
-  const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
 
   const handleApprove = async () => {
-    if (!transactionHash.trim()) {
-      toast({
-        title: "Transaction Hash Required",
-        description: "Please enter the transaction hash to approve payment",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsApproving(true);
     try {
       const response = await apiRequest('POST', `/api/admin/withdrawals/${withdrawal.id}/approve`, {
-        transactionHash: transactionHash.trim(),
         adminNotes: 'Payment processed'
       });
 
@@ -70,11 +58,9 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
 
       if (result.success) {
         toast({
-          title: "✅ Payment Approved",
-          description: `Withdrawal of ${formatTON(withdrawal.amount)} has been approved and user notified`,
+          title: "✅ Payment Successful",
+          description: `Withdrawal has been marked as successful`,
         });
-        setShowApproveDialog(false);
-        setTransactionHash('');
         onUpdate();
       } else {
         throw new Error(result.message || 'Failed to approve withdrawal');
@@ -183,14 +169,24 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
 
           {withdrawal.status === 'pending' && (
             <div className="space-y-2 pt-2 border-t">
-              {!showApproveDialog && !showRejectDialog ? (
+              {!showRejectDialog ? (
                 <div className="space-y-2">
                   <Button 
-                    onClick={() => setShowApproveDialog(true)}
+                    onClick={handleApprove}
+                    disabled={isApproving}
                     className="w-full bg-green-600 hover:bg-green-700"
                   >
-                    <i className="fas fa-check mr-2"></i>
-                    Approve Payment
+                    {isApproving ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-check mr-2"></i>
+                        Success
+                      </>
+                    )}
                   </Button>
                   <Button 
                     onClick={() => setShowRejectDialog(true)}
@@ -198,47 +194,8 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
                     className="w-full"
                   >
                     <i className="fas fa-times mr-2"></i>
-                    Reject Payment
+                    Reject
                   </Button>
-                </div>
-              ) : showApproveDialog ? (
-                <div className="w-full space-y-2">
-                  <Label htmlFor="txHash">Transaction Hash / Payment Link</Label>
-                  <Input
-                    id="txHash"
-                    value={transactionHash}
-                    onChange={(e) => setTransactionHash(e.target.value)}
-                    placeholder="Enter transaction hash..."
-                  />
-                  <div className="space-y-2">
-                    <Button 
-                      onClick={handleApprove}
-                      disabled={isApproving || !transactionHash.trim()}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      {isApproving ? (
-                        <>
-                          <i className="fas fa-spinner fa-spin mr-2"></i>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-check mr-2"></i>
-                          Confirm Approval
-                        </>
-                      )}
-                    </Button>
-                    <Button 
-                      onClick={() => {
-                        setShowApproveDialog(false);
-                        setTransactionHash('');
-                      }}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
                 </div>
               ) : (
                 <div className="w-full space-y-2">

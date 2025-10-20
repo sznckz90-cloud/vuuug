@@ -165,7 +165,7 @@ export default function Affiliates() {
               <div className="text-xs text-muted-foreground mb-1">Total Claim</div>
               <div className="text-xl font-bold text-[#e5e5e5] flex items-center gap-1">
                 {totalClaimedPAD.toLocaleString()} 
-                <span className="text-sm bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-400/30 px-2 py-0.5 rounded text-cyan-300 font-semibold">PAD</span>
+                <span className="text-sm text-gray-400 font-semibold">PAD</span>
               </div>
             </CardContent>
           </Card>
