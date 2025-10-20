@@ -98,45 +98,23 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const handleWatchAd = async () => {
     if (cooldownRemaining > 0) return;
     
-    let retryAttempted = false;
-    
-    const attemptAdDisplay = async (): Promise<boolean> => {
-      try {
-        if (typeof window.show_9368336 === 'function') {
-          console.log('📺 Starting ad display...');
-          await window.show_9368336();
-          console.log('✅ Ad display completed');
-          return true;
-        } else {
-          console.log('⚠️ Ad provider not available, crediting reward anyway');
-          return true;
-        }
-      } catch (error) {
-        console.error('❌ Ad display error:', error);
-        return false;
-      }
-    };
-    
     try {
-      let adSuccess = await attemptAdDisplay();
-      
-      if (!adSuccess && !retryAttempted) {
-        console.log('🔄 First ad attempt failed, retrying...');
-        retryAttempted = true;
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-        adSuccess = await attemptAdDisplay();
-      }
-      
-      if (adSuccess) {
-        console.log('💰 Crediting ad reward...');
-        watchAdMutation.mutate('rewarded');
+      // ✅ FIX: Display ad and credit reward immediately after completion (no retry delay)
+      if (typeof window.show_9368336 === 'function') {
+        console.log('📺 Starting ad display...');
+        await window.show_9368336();
+        console.log('✅ Ad display completed');
       } else {
-        console.error('❌ Ad failed after retry');
-        showNotification("Ad display failed. Please try again.", "error");
+        console.log('⚠️ Ad provider not available, crediting reward anyway');
       }
+      
+      // ✅ FIX: Credit reward instantly after ad closes (no delay)
+      console.log('💰 Crediting ad reward immediately...');
+      watchAdMutation.mutate('rewarded');
+      
     } catch (error) {
-      console.error('❌ Unexpected error in ad watching:', error);
-      showNotification("Unexpected error. Please try again.", "error");
+      console.error('❌ Ad display error:', error);
+      showNotification("Ad display failed. Please try again.", "error");
     }
   };
 
