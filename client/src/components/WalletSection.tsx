@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
+import { DiamondIcon } from "@/components/DiamondIcon";
+import { TonCoinIcon } from "@/components/TonCoinIcon";
 
 interface WalletSectionProps {
   padBalance: number;
@@ -32,7 +34,7 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
       return data;
     },
     onSuccess: async (data) => {
-      showNotification(`Converted ${data.padAmount.toLocaleString()} PAD → ${data.tonAmount.toFixed(4)} TON`, "success");
+      showNotification("Convert successful.", "success");
       
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
@@ -62,11 +64,17 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
           {/* Balance Display */}
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
-              <div className="text-xs text-[#AAAAAA] mb-1">PAD Balance</div>
+              <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
+                <DiamondIcon size={12} withGlow />
+                PAD Balance
+              </div>
               <div className="text-white font-bold text-lg">{padBalance.toLocaleString()}</div>
             </div>
             <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
-              <div className="text-xs text-[#AAAAAA] mb-1">TON Balance</div>
+              <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
+                <TonCoinIcon size={12} />
+                TON Balance
+              </div>
               <div className="text-white font-bold text-lg">{tonBalance.toFixed(4)}</div>
             </div>
           </div>
