@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
-import { DiamondIcon } from "@/components/DiamondIcon";
 
 interface WalletSectionProps {
   padBalance: number;
@@ -35,12 +34,10 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
     onSuccess: async (data) => {
       showNotification(`Converted ${data.padAmount.toLocaleString()} PAD → ${data.tonAmount.toFixed(4)} TON`, "success");
       
-      // CRITICAL FIX: Explicitly invalidate AND refetch to ensure database is source of truth
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
       
-      // Explicitly refetch to force fresh data from database
       await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
       await queryClient.refetchQueries({ queryKey: ["/api/user/stats"] });
     },
@@ -50,43 +47,35 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
   });
 
   const handleConvert = () => {
-    // Check minimum balance required
     if (padBalance < 100000) {
       showNotification("Minimum 100,000 PAD required to convert.", "error");
       return;
     }
 
-    // Convert all available PAD balance instantly
     convertMutation.mutate(padBalance);
   };
 
   return (
-    <Card className="frosted-glass mb-3 rounded-2xl diamond-glow">
-      <CardContent className="pt-3 pb-3">
-        
-        <div className="space-y-2">
-          {/* Diamond Icon Header */}
-          <div className="flex items-center justify-center mb-2">
-            <DiamondIcon size={40} withGlow={true} />
-          </div>
-
-          {/* Compact Balance Display */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="p-2 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
-              <div className="text-[10px] text-muted-foreground">PAD Balance</div>
-              <div className="text-[#e5e5e5] font-semibold text-sm">{padBalance.toLocaleString()}</div>
+    <Card className="minimal-card mb-3">
+      <CardContent className="pt-4 pb-4">
+        <div className="space-y-3">
+          {/* Balance Display */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
+              <div className="text-xs text-[#AAAAAA] mb-1">PAD Balance</div>
+              <div className="text-white font-bold text-lg">{padBalance.toLocaleString()}</div>
             </div>
-            <div className="p-2 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/40">
-              <div className="text-[10px] text-muted-foreground">TON Balance</div>
-              <div className="text-[#4cd3ff] font-semibold text-sm">{tonBalance.toFixed(4)}</div>
+            <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
+              <div className="text-xs text-[#AAAAAA] mb-1">TON Balance</div>
+              <div className="text-white font-bold text-lg">{tonBalance.toFixed(4)}</div>
             </div>
           </div>
 
-          {/* Compact Action Button - Instant Conversion */}
+          {/* Convert Button */}
           <Button
-            className="w-full h-9 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+            className="w-full h-11 btn-primary"
             onClick={handleConvert}
-            disabled={convertMutation.isPending}
+            disabled={convertMutation.isPending || padBalance < 100000}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             {convertMutation.isPending ? "Converting..." : "Convert"}
