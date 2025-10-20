@@ -35,16 +35,14 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
     onSuccess: async (data) => {
       showNotification(`Converted ${data.padAmount.toLocaleString()} PAD → ${data.tonAmount.toFixed(4)} TON`, "success");
       
-      // Real-time balance sync after conversion
-      await fetch('/api/user/balance/refresh', {
-        method: 'GET',
-        credentials: 'include'
-      });
+      // CRITICAL FIX: Explicitly invalidate AND refetch to ensure database is source of truth
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
       
-      // Invalidate queries to trigger UI refresh
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
+      // Explicitly refetch to force fresh data from database
+      await queryClient.refetchQueries({ queryKey: ["/api/user"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
     },
     onError: (error: Error) => {
       showNotification(error.message, "error");

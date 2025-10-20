@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Wallet, Settings } from "lucide-react";
 import CwalletSetupDialog from "@/components/CwalletSetupDialog";
+import { useAdmin } from "@/hooks/useAdmin";
 
 export default function Header() {
   const [cwalletDialogOpen, setCwalletDialogOpen] = useState(false);
@@ -13,10 +14,11 @@ export default function Header() {
     retry: false,
   });
 
+  const { isAdmin } = useAdmin();
+
   const photoUrl = typeof window !== 'undefined' && window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
   const uid = user?.referralCode || '';
   const cwalletId = user?.cwalletId;
-  const isAdmin = user?.isAdmin;
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -21,18 +21,36 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: user } = useQuery<User>({
+  const { data: user, refetch: refetchUser } = useQuery<User>({
     queryKey: ['/api/user'],
     retry: false,
+    // CRITICAL FIX: Gate query by dialog visibility and refetch when dialog opens
+    enabled: open,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
 
   const tonBalance = parseFloat(user?.tonBalance || "0");
   const MINIMUM_WITHDRAWAL = 0.001;
 
-  const { data: withdrawalsResponse } = useQuery<{ withdrawals?: any[] }>({
+  const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
     retry: false,
+    // Gate query by dialog visibility
+    enabled: open,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
+
+  // Explicitly refetch fresh data whenever dialog opens
+  useEffect(() => {
+    if (open) {
+      refetchUser();
+      refetchWithdrawals();
+    }
+  }, [open, refetchUser, refetchWithdrawals]);
 
   const withdrawalsData = withdrawalsResponse?.withdrawals || [];
   const hasPendingWithdrawal = withdrawalsData.some(w => w.status === 'pending');
