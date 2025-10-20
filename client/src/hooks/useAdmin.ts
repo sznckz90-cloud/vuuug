@@ -5,8 +5,13 @@ export function useAdmin() {
   
   // Check if current user is admin based on their Telegram ID
   // In development mode, allow test user to be admin
-  const isAdmin = (user as any)?.telegram_id === "6653616672" || 
-                  ((user as any)?.telegram_id === "123456789" && import.meta.env.DEV);
+  const telegramId = (user as any)?.telegram_id || (user as any)?.telegramId;
+  const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+  
+  const isAdmin = telegramId === "6653616672" || 
+                  (telegramId === "123456789" && isDevelopment);
+  
+  console.log('🔍 Admin check:', { telegramId, isDevelopment, isAdmin, user: !!user });
   
   return {
     isAdmin,

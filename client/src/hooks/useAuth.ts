@@ -96,12 +96,24 @@ export function useAuth() {
   // Try to use cached data first for instant loading
   const cachedData = getCachedUserData();
   
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading, isFetched, isInitialData } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
     // Use cached data as initial data for instant rendering
     initialData: cachedData,
+    // CRITICAL FIX: Always refetch from database on mount to ensure fresh data
+    refetchOnMount: true,
+    // Force refetch to ensure we always get fresh data from database
+    staleTime: 0,
   });
+
+  // Update localStorage cache ONLY when data comes from successful server fetch (not from initialData)
+  useEffect(() => {
+    // Only cache if data was fetched from server (not initial cached data)
+    if (user && isFetched && !isLoading && !isInitialData) {
+      cacheUserData(user);
+    }
+  }, [user, isLoading, isFetched, isInitialData]);
 
   const telegramAuthMutation = useMutation({
     mutationFn: authenticateWithTelegram,
@@ -125,20 +137,6 @@ export function useAuth() {
       return;
     }
     
-    // Skip if user already authenticated via query
-    if (user) {
-      console.log('✅ User already authenticated, skipping Telegram auth');
-      hasAttemptedAuth.current = true;
-      return;
-    }
-    
-    // Skip if recently authenticated (within 24 hours)
-    if (wasRecentlyAuthenticated()) {
-      console.log('✅ User was recently authenticated, using cached session');
-      hasAttemptedAuth.current = true;
-      return;
-    }
-    
     // Initialize Telegram WebApp
     if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
@@ -154,10 +152,10 @@ export function useAuth() {
       // Don't await - let it run in background
       telegramAuthMutation.mutate(initData);
     } else {
-      console.warn('⚠️ No Telegram initData available - using cached data if available');
+      console.log('ℹ️ No Telegram initData - will use backend session if available');
       hasAttemptedAuth.current = true;
     }
-  }, [user]); // Only depend on user
+  }, []); // Run once on mount
 
   const authenticateWithTelegramWebApp = () => {
     const initData = getTelegramInitData();
