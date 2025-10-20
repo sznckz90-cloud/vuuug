@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
-import { Share2, Users, Coins } from 'lucide-react';
+import { Share2, Users, Coins, Copy } from 'lucide-react';
 
 interface User {
   id: string;
@@ -116,11 +116,11 @@ export default function Affiliates() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pb-24 pt-6">
-        <Card className="mb-4 frosted-glass border border-[#4cd3ff]/20 diamond-glow">
-          <CardContent className="pt-4 pb-4">
+      <main className="max-w-md mx-auto px-4">
+        <Card className="mb-4 minimal-card">
+          <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <Users className="w-8 h-8 text-white" />
+              <Users className="w-7 h-7 text-[#007BFF]" />
               <h1 className="text-2xl font-bold text-white">Affiliates program</h1>
             </div>
             
@@ -137,29 +137,40 @@ export default function Affiliates() {
               {referralLink}
             </div>
             
-            <Button
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-              onClick={shareReferralLink}
-              disabled={!referralLink}
-            >
-              <Share2 className="w-4 h-4 mr-2" />
-              Share Link
-            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                className="h-12 btn-primary"
+                onClick={copyReferralLink}
+                disabled={!referralLink}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy
+              </Button>
+              
+              <Button
+                className="h-12 btn-primary"
+                onClick={shareReferralLink}
+                disabled={!referralLink}
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Card className="frosted-glass border border-[#4cd3ff]/20 diamond-glow">
+          <Card className="minimal-card">
             <CardContent className="pt-4 pb-4">
               <div className="text-xs text-muted-foreground mb-1">Total Claim</div>
               <div className="text-xl font-bold text-[#e5e5e5] flex items-center gap-1">
                 {totalClaimedPAD.toLocaleString()} 
-                <span className="text-sm bg-black px-2 py-0.5 rounded text-white">PAD</span>
+                <span className="text-sm bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-400/30 px-2 py-0.5 rounded text-cyan-300 font-semibold">PAD</span>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="frosted-glass border border-[#4cd3ff]/20 diamond-glow">
+          <Card className="minimal-card">
             <CardContent className="pt-4 pb-4">
               <div className="text-xs text-muted-foreground mb-1">Total Invites</div>
               <div className="text-xl font-bold text-[#e5e5e5]">{stats?.totalInvites || 0}</div>
@@ -167,13 +178,13 @@ export default function Affiliates() {
           </Card>
         </div>
 
-        <Card className="frosted-glass border border-[#4cd3ff]/20 diamond-glow">
+        <Card className="minimal-card">
           <CardContent className="pt-3 pb-3">
             <Button
-              className={`w-full h-12 text-base font-bold ${
+              className={`w-full h-12 text-base ${
                 hasBonus 
-                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                  : 'bg-muted/50 text-muted-foreground cursor-not-allowed'
+                  ? 'btn-primary' 
+                  : 'btn-secondary cursor-not-allowed'
               }`}
               onClick={handleClaim}
               disabled={!hasBonus || claimMutation.isPending}

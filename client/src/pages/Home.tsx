@@ -72,7 +72,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pb-24 pt-4">
+      <main className="max-w-md mx-auto px-4">
         {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
@@ -84,12 +84,10 @@ export default function Home() {
         />
 
         {/* Income Statistics */}
-        <Card className="mb-3 frosted-glass rounded-2xl diamond-glow">
+        <Card className="mb-3 minimal-card">
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2 mb-2">
-              <DiamondIcon size={16} withGlow />
-              <h3 className="text-sm font-semibold text-primary">PAD Rewards</h3>
-              <SparkleIcon size={12} className="ml-auto" />
+              <h3 className="text-sm font-semibold text-white">PAD Rewards</h3>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -112,7 +110,7 @@ export default function Home() {
         <AdWatchingSection user={user as User} />
 
         {/* Promo Code Section - Inline */}
-        <Card className="mb-3 frosted-glass rounded-2xl diamond-glow">
+        <Card className="mb-3 minimal-card">
           <CardContent className="pt-3 pb-3">
             <PromoCodeInput />
           </CardContent>
@@ -121,7 +119,7 @@ export default function Home() {
         {/* Main Action Buttons - Responsive Grid (Task and Share removed) */}
         <div className="grid grid-cols-2 gap-3">
           <Button
-            className="h-12 bg-primary hover:bg-primary/90 text-white border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(34,211,238,0.5)] font-semibold"
+            className="h-12 btn-primary"
             onClick={() => setWithdrawDialogOpen(true)}
           >
             <ArrowDown className="w-5 h-5 mr-2" />
@@ -129,7 +127,7 @@ export default function Home() {
           </Button>
           
           <Button
-            className="h-12 bg-primary hover:bg-primary/90 text-white border-0 rounded-2xl transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(34,211,238,0.5)] font-semibold"
+            className="h-12 btn-primary"
             onClick={() => setHistoryDialogOpen(true)}
           >
             <History className="w-5 h-5 mr-2" />
