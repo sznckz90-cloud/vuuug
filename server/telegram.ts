@@ -457,26 +457,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const result = await storage.approveWithdrawal(withdrawalId, `Approved by admin ${chatId}`);
           
           if (result.success && result.withdrawal) {
-            // Get user to send notification
-            const user = await storage.getUser(result.withdrawal.userId);
-            if (user && user.telegram_id) {
-              const withdrawalDetails = result.withdrawal.details as any;
-              const amount = withdrawalDetails?.netAmount ? withdrawalDetails.netAmount : result.withdrawal.amount;
-              const formattedAmount = formatTON(amount);
-              const txHash = result.withdrawal.transactionHash || 'N/A';
-              
-              // Escape special characters for MarkdownV2
-              const escapedAmount = escapeMarkdownV2(formattedAmount);
-              const escapedTxHash = escapeMarkdownV2(txHash);
-              
-              // Create withdrawal success message in MarkdownV2 format
-              let userMessage = `🎉 *Withdrawal Successful\\!* ✅\n\n`;
-              userMessage += `🔔 *Payout:* ${escapedAmount} TON\n`;
-              userMessage += `📝 *Txn Hash:* ${escapedTxHash}\n\n`;
-              userMessage += `✨ Keep earning & growing\\! Your journey to success continues 💪`;
-              
-              await sendUserTelegramNotification(user.telegram_id, userMessage, null, 'MarkdownV2');
-            }
+            // ✅ No Telegram notification sent to user (per requirements)
             
             // Update admin message
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
@@ -600,12 +581,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const result = await storage.rejectWithdrawal(withdrawalId, `Rejected by admin ${chatId}`);
           
           if (result.success && result.withdrawal) {
-            // Get user to send notification
-            const user = await storage.getUser(result.withdrawal.userId);
-            if (user && user.telegram_id) {
-              const userMessage = `❌ Withdrawal Rejected\n\nYour withdrawal request of $${parseFloat(result.withdrawal.amount).toFixed(2)} via ${result.withdrawal.method} has been rejected by the admin.\n\n💰 Your balance remains unchanged.`;
-              await sendUserTelegramNotification(user.telegram_id, userMessage);
-            }
+            // ✅ No Telegram notification sent to user (per requirements)
             
             // Update admin message
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {

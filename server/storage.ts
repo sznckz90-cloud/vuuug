@@ -1922,14 +1922,7 @@ export class DatabaseStorage implements IStorage {
         description: `Daily task completed: ${promotion.title}`,
       });
 
-      // Send task completion notification to user via Telegram
-      try {
-        const { sendTaskCompletionNotification } = await import('./telegram');
-        await sendTaskCompletionNotification(userId, rewardAmount);
-      } catch (error) {
-        console.error('Failed to send task completion notification:', error);
-        // Don't fail the task completion if notification fails
-      }
+      // ✅ No Telegram notification sent (per requirements)
 
       return { success: true, message: 'Daily task completed successfully' };
     } catch (error) {
@@ -2249,13 +2242,7 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`📊 TASK_CLAIM_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
 
-      // Send notification
-      try {
-        const { sendTaskCompletionNotification } = await import('./telegram');
-        await sendTaskCompletionNotification(userId, rewardAmount);
-      } catch (error) {
-        console.error('Failed to send task completion notification:', error);
-      }
+      // ✅ No Telegram notification sent (per requirements)
 
       return { 
         success: true, 
