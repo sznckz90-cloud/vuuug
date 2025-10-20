@@ -22,7 +22,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   const { toast } = useToast();
 
   const { data: user, refetch: refetchUser } = useQuery<User>({
-    queryKey: ['/api/user'],
+    queryKey: ['/api/auth/user'],
     retry: false,
     // CRITICAL FIX: Gate query by dialog visibility and refetch when dialog opens
     enabled: open,
@@ -68,8 +68,8 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
         description: "You have sent a withdrawal request.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
       onOpenChange(false);
     },
     onError: (error: any) => {

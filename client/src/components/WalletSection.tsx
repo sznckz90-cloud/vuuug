@@ -36,13 +36,13 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
       showNotification(`Converted ${data.padAmount.toLocaleString()} PAD → ${data.tonAmount.toFixed(4)} TON`, "success");
       
       // CRITICAL FIX: Explicitly invalidate AND refetch to ensure database is source of truth
-      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
       
       // Explicitly refetch to force fresh data from database
-      await queryClient.refetchQueries({ queryKey: ["/api/user"] });
       await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/user/stats"] });
     },
     onError: (error: Error) => {
       showNotification(error.message, "error");

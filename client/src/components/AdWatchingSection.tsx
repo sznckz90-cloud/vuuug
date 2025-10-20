@@ -49,11 +49,17 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       setCooldownRemaining(0);
     },
     onError: (error: any) => {
-      // Handle daily limit error (429)
+      console.error('❌ Ad reward processing error:', error);
+      
+      // Handle different error types
       if (error.status === 429) {
-        showNotification("Daily limit reached", "error");
+        showNotification("Daily ad limit reached (50 ads/day)", "error");
+      } else if (error.status === 401 || error.status === 403) {
+        showNotification("Authentication error. Please refresh the page.", "error");
+      } else if (error.message) {
+        showNotification(`Error: ${error.message}`, "error");
       } else {
-        showNotification("Failed to process ad reward", "error");
+        showNotification("Network error. Check your connection and try again.", "error");
       }
       setCooldownRemaining(0);
     },
@@ -97,13 +103,16 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     const attemptAdDisplay = async (): Promise<boolean> => {
       try {
         if (typeof window.show_9368336 === 'function') {
+          console.log('📺 Starting ad display...');
           await window.show_9368336();
+          console.log('✅ Ad display completed');
           return true;
         } else {
+          console.log('⚠️ Ad provider not available, crediting reward anyway');
           return true;
         }
       } catch (error) {
-        console.error('Ad display attempt failed:', error);
+        console.error('❌ Ad display error:', error);
         return false;
       }
     };
@@ -112,19 +121,22 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       let adSuccess = await attemptAdDisplay();
       
       if (!adSuccess && !retryAttempted) {
-        console.log('First ad attempt failed, retrying...');
+        console.log('🔄 First ad attempt failed, retrying...');
         retryAttempted = true;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
         adSuccess = await attemptAdDisplay();
       }
       
       if (adSuccess) {
+        console.log('💰 Crediting ad reward...');
         watchAdMutation.mutate('rewarded');
       } else {
-        showNotification("Ad failed, please try again.", "error");
+        console.error('❌ Ad failed after retry');
+        showNotification("Ad display failed. Please try again.", "error");
       }
     } catch (error) {
-      console.error('Ad watching failed:', error);
-      showNotification("Ad failed, please try again.", "error");
+      console.error('❌ Unexpected error in ad watching:', error);
+      showNotification("Unexpected error. Please try again.", "error");
     }
   };
 
