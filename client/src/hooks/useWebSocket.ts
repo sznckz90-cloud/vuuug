@@ -84,7 +84,11 @@ export function useWebSocket() {
               break;
               
             case 'withdrawal_requested':
-              showNotification("Withdrawal requested", "info");
+              // ✅ FIX: Show proper notification message for withdrawal request
+              showNotification("You have sent a withdrawal request.", "success");
+              // Invalidate queries to update UI
+              queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
               break;
               
             case 'withdrawal_approved':
