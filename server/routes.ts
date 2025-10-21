@@ -1092,6 +1092,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New simplified task completion endpoints
+  app.post('/api/tasks/complete/share', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, skipAuth: true });
+      }
+      
+      // Reward: 0.0001 TON = 1,000 PAD
+      const rewardAmount = '0.0001';
+      
+      await db.transaction(async (tx) => {
+        const [user] = await tx
+          .select({ balance: users.balance })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) throw new Error('User not found');
+        
+        const newBalance = (parseFloat(user.balance || '0') + parseFloat(rewardAmount)).toFixed(8);
+        
+        await tx.update(users)
+          .set({ balance: newBalance, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+      });
+      
+      res.json({
+        success: true,
+        message: 'Task completed!',
+        rewardAmount
+      });
+      
+    } catch (error) {
+      console.error('Error completing share task:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to complete task'
+      });
+    }
+  });
+
+  app.post('/api/tasks/complete/channel', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, skipAuth: true });
+      }
+      
+      // Reward: 0.0001 TON = 1,000 PAD
+      const rewardAmount = '0.0001';
+      
+      await db.transaction(async (tx) => {
+        const [user] = await tx
+          .select({ balance: users.balance })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) throw new Error('User not found');
+        
+        const newBalance = (parseFloat(user.balance || '0') + parseFloat(rewardAmount)).toFixed(8);
+        
+        await tx.update(users)
+          .set({ balance: newBalance, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+      });
+      
+      res.json({
+        success: true,
+        message: 'Task completed!',
+        rewardAmount
+      });
+      
+    } catch (error) {
+      console.error('Error completing channel task:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to complete task'
+      });
+    }
+  });
+
+  app.post('/api/tasks/complete/community', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, skipAuth: true });
+      }
+      
+      // Reward: 0.0001 TON = 1,000 PAD
+      const rewardAmount = '0.0001';
+      
+      await db.transaction(async (tx) => {
+        const [user] = await tx
+          .select({ balance: users.balance })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) throw new Error('User not found');
+        
+        const newBalance = (parseFloat(user.balance || '0') + parseFloat(rewardAmount)).toFixed(8);
+        
+        await tx.update(users)
+          .set({ balance: newBalance, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+      });
+      
+      res.json({
+        success: true,
+        message: 'Task completed!',
+        rewardAmount
+      });
+      
+    } catch (error) {
+      console.error('Error completing community task:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to complete task'
+      });
+    }
+  });
+
   // Old task system removed - using daily tasks system only
 
   // ================================
@@ -2055,14 +2182,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 🔐 UNIQUENESS CHECK: Ensure wallet ID is not already used by another account
-      const walletToCheck = cwalletId?.trim() || walletId?.trim();
+      const walletToCheck = (cwalletId || walletId)?.trim();
       if (walletToCheck) {
         const [walletInUse] = await db
           .select({ id: users.id })
           .from(users)
           .where(and(
             eq(users.cwalletId, walletToCheck),
-            ne(users.id, userId)
+            sql`${users.id} != ${userId}`
           ))
           .limit(1);
         
@@ -2070,7 +2197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('🚫 Wallet ID already linked to another account');
           return res.status(400).json({
             success: false,
-            message: 'This wallet ID is already linked to another account.'
+            message: '⚠️ This wallet ID is already linked to another account.'
           });
         }
       }
@@ -2138,14 +2265,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 🔐 UNIQUENESS CHECK: Ensure wallet ID is not already used by another account
-      const walletToCheck = cwalletId?.trim() || walletId?.trim();
+      const walletToCheck = (cwalletId || walletId)?.trim();
       if (walletToCheck) {
         const [walletInUse] = await db
           .select({ id: users.id })
           .from(users)
           .where(and(
             eq(users.cwalletId, walletToCheck),
-            ne(users.id, userId)
+            sql`${users.id} != ${userId}`
           ))
           .limit(1);
         
@@ -2153,7 +2280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('🚫 Wallet ID already linked to another account');
           return res.status(400).json({
             success: false,
-            message: 'This wallet ID is already linked to another account.'
+            message: '⚠️ This wallet ID is already linked to another account.'
           });
         }
       }

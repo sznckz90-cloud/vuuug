@@ -127,7 +127,8 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
       case 'paid':
       case 'Successfull':
       case 'Approved':
-        return <Badge className="bg-green-600">Approved</Badge>;
+      case 'success':
+        return <Badge className="bg-green-600">Success</Badge>;
       case 'rejected':
         return <Badge className="bg-red-600">Rejected</Badge>;
       default:

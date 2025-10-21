@@ -1456,9 +1456,9 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(users.id, withdrawal.userId));
 
-      // Update withdrawal status to Approved and mark as deducted
+      // Update withdrawal status to success and mark as deducted
       const updateData: any = { 
-        status: 'Approved', 
+        status: 'success', 
         deducted: true,
         updatedAt: new Date() 
       };
