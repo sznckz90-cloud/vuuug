@@ -71,8 +71,14 @@ export default function Affiliates() {
     if (!referralLink) return;
     
     const shareText = `Earn PAD in Telegram!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
     
-    if (navigator.share) {
+    // Try Telegram Web App methods first
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(shareUrl);
+    } else if (window.Telegram?.WebApp?.switchInlineQuery) {
+      window.Telegram.WebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
+    } else if (navigator.share) {
       navigator.share({
         title: 'Join CashWatch',
         text: shareText,
@@ -80,14 +86,9 @@ export default function Affiliates() {
       }).catch(() => {
         copyReferralLink();
       });
-    } else if (window.Telegram?.WebApp?.switchInlineQuery) {
-      window.Telegram.WebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
-    } else if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(
-        `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`
-      );
     } else {
-      copyReferralLink();
+      // Fallback: open in new window or copy
+      window.open(shareUrl, '_blank');
     }
   };
 
@@ -190,12 +191,12 @@ export default function Affiliates() {
               disabled={!hasBonus || claimMutation.isPending}
             >
               <Coins className="w-4 h-4 mr-2" />
-              {claimMutation.isPending ? 'Claiming...' : 'Claim PAD'}
+              {claimMutation.isPending ? 'Claiming...' : hasBonus ? 'Claim PAD' : 'No referral bonus available'}
             </Button>
             
             {!hasBonus && (
               <p className="text-xs text-center text-muted-foreground mt-2">
-                No referral bonus available.
+                Invite friends to earn referral bonuses
               </p>
             )}
           </CardContent>

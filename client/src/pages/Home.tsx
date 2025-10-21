@@ -72,7 +72,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4">
+      <main className="max-w-md mx-auto px-4 mt-6">
         {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
