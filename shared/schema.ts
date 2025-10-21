@@ -66,6 +66,11 @@ export const users = pgTable("users", {
   channelVisited: boolean("channel_visited").default(false),
   appShared: boolean("app_shared").default(false),
   lastResetDate: timestamp("last_reset_date"),
+  // Daily task completion tracking
+  taskShareCompletedToday: boolean("task_share_completed_today").default(false),
+  taskChannelCompletedToday: boolean("task_channel_completed_today").default(false),
+  taskCommunityCompletedToday: boolean("task_community_completed_today").default(false),
+  taskCheckinCompletedToday: boolean("task_checkin_completed_today").default(false),
   // Wallet details
   tonWalletAddress: text("ton_wallet_address"),
   tonWalletComment: text("ton_wallet_comment"),
