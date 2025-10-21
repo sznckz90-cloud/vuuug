@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { showNotification } from '@/components/AppNotification';
 
 interface User {
   id: string;
@@ -62,14 +63,19 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
       });
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "✅ Withdrawal Request Sent",
-        description: "You have sent a withdrawal request.",
-      });
+    onSuccess: async () => {
+      showNotification("You have sent a withdrawal request.", "success");
+      
       queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+      
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
+        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] }),
+        queryClient.refetchQueries({ queryKey: ['/api/withdrawals'] })
+      ]);
+      
       onOpenChange(false);
     },
     onError: (error: any) => {

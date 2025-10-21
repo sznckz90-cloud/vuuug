@@ -36,12 +36,17 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
     onSuccess: async (data) => {
       showNotification("Convert successful.", "success");
       
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
+      // Invalidate all balance-related queries
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
       
-      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/user/stats"] });
+      // Force immediate refetch for live balance update
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["/api/auth/user"] }),
+        queryClient.refetchQueries({ queryKey: ["/api/user/stats"] }),
+        queryClient.refetchQueries({ queryKey: ["/api/withdrawals"] })
+      ]);
     },
     onError: (error: Error) => {
       showNotification(error.message, "error");
@@ -49,8 +54,8 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
   });
 
   const handleConvert = () => {
-    if (padBalance < 100000) {
-      showNotification("Minimum 100,000 PAD required to convert.", "error");
+    if (padBalance < 10000) {
+      showNotification("Minimum 10,000 PAD required to convert.", "error");
       return;
     }
 
@@ -83,7 +88,7 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
           <Button
             className="w-full h-11 btn-primary"
             onClick={handleConvert}
-            disabled={convertMutation.isPending || padBalance < 100000}
+            disabled={convertMutation.isPending}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             {convertMutation.isPending ? "Converting..." : "Convert"}

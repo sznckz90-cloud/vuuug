@@ -1,225 +1,306 @@
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { showNotification } from '@/components/AppNotification';
-import { apiRequest } from '@/lib/queryClient';
-import { Tv, Check, RefreshCw } from 'lucide-react';
-import { formatCurrency, formatTaskReward } from '@/lib/utils';
+import { PlayCircle, Share2, Megaphone, Users, Play, Check } from 'lucide-react';
+import { tonToPAD } from '@shared/constants';
 
-interface DailyTask {
-  id: number;
-  level: number;
-  title: string;
-  description: string;
-  required: number;
-  progress: number;
-  completed: boolean;
-  claimed: boolean;
-  rewardAmount: string;
-  canClaim: boolean;
+interface User {
+  referralCode?: string;
 }
-
-interface TasksResponse {
-  success: boolean;
-  tasks: DailyTask[];
-  adsWatchedToday: number;
-  resetInfo: {
-    nextReset: string;
-    resetDate: string;
-  };
-}
-
-// Function to check if we're in Telegram WebApp environment
-const getTelegramInitData = (): string | null => {
-  if (typeof window !== 'undefined') {
-    // First try to get from Telegram WebApp
-    if (window.Telegram?.WebApp?.initData) {
-      return window.Telegram.WebApp.initData;
-    }
-    
-    // Fallback: try to get from URL params (for testing)
-    const urlParams = new URLSearchParams(window.location.search);
-    const tgData = urlParams.get('tgData');
-    if (tgData) {
-      return tgData;
-    }
-  }
-  return null;
-};
 
 export default function TaskSection() {
   const queryClient = useQueryClient();
-  const [telegramInitData, setTelegramInitData] = useState<string | null>(null);
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
-  // Check for Telegram environment on component mount
-  useEffect(() => {
-    const initData = getTelegramInitData();
-    setTelegramInitData(initData);
-  }, []);
-
-  // Fetch daily tasks using new API
-  const { data: tasksResponse, isLoading: tasksLoading, refetch } = useQuery<TasksResponse>({
-    queryKey: ['/api/tasks/daily'],
+  const { data: user } = useQuery<User>({
+    queryKey: ['/api/auth/user'],
     retry: false,
   });
-  
-  // Sort tasks: unclaimed/in-progress first, then claimed tasks at bottom
-  const tasks = (tasksResponse?.tasks || []).sort((a, b) => {
-    if (a.claimed && !b.claimed) return 1;
-    if (!a.claimed && b.claimed) return -1;
-    return a.level - b.level;
-  });
-  const adsWatchedToday = tasksResponse?.adsWatchedToday || 0;
 
-  // Claim task reward mutation
-  const claimTaskMutation = useMutation({
-    mutationFn: async (taskLevel: number) => {
-      const currentTelegramData = getTelegramInitData();
-      
-      if (!currentTelegramData) {
-        throw new Error('Please open this app inside Telegram to complete tasks');
-      }
-      
-      const response = await fetch(`/api/tasks/claim/${taskLevel}`, {
+  const watchAdMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/ads/watch', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-data': currentTelegramData,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ adType: 'task_reward' }),
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to claim task');
-      }
-      
-      return response.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to watch ad');
+      return data;
     },
-    onSuccess: (data) => {
-      showNotification("Task completed!", "success", parseFloat(data.rewardAmount));
-      
-      // Refresh tasks and balance
-      refetch();
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
+        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
+      ]);
+      setCompletedTasks(prev => new Set([...prev, 'watch-ad']));
+      const rewardPAD = tonToPAD(parseFloat(data.rewardAmount || '0.000005'));
+      showNotification(`You received ${rewardPAD} PAD on your balance`, 'success');
     },
     onError: (error: any) => {
-      showNotification(error.message || "Failed to claim task", "error");
+      showNotification(error.message || 'Failed to complete task', 'error');
     },
   });
 
-  // Get next claimable task
-  const getNextClaimableTask = () => {
-    return tasks.find(task => !task.claimed);
-  };
+  const shareTaskMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/tasks/complete/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to complete task');
+      return data;
+    },
+    onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
+        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
+      ]);
+      setCompletedTasks(prev => new Set([...prev, 'share-friends']));
+      showNotification('You received 1,000 PAD on your balance', 'success');
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to complete task', 'error');
+    },
+  });
 
-  // Check if task is available (sequential logic)
-  const isTaskAvailable = (task: DailyTask) => {
-    if (task.level === 1) return true; // First task is always available
+  const channelTaskMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/tasks/complete/channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to complete task');
+      return data;
+    },
+    onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
+        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
+      ]);
+      setCompletedTasks(prev => new Set([...prev, 'check-updates']));
+      showNotification('You received 1,000 PAD on your balance', 'success');
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to complete task', 'error');
+    },
+  });
+
+  const communityTaskMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/tasks/complete/community', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to complete task');
+      return data;
+    },
+    onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
+        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
+      ]);
+      setCompletedTasks(prev => new Set([...prev, 'join-community']));
+      showNotification('You received 1,000 PAD on your balance', 'success');
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to complete task', 'error');
+    },
+  });
+
+  const handleWatchAd = async () => {
+    if (completedTasks.has('watch-ad')) return;
     
-    // Check if previous task is claimed
-    const previousTask = tasks.find(t => t.level === task.level - 1);
-    return previousTask?.claimed || false;
+    try {
+      if (typeof window.show_9368336 === 'function') {
+        await window.show_9368336();
+      }
+      watchAdMutation.mutate();
+    } catch (error) {
+      console.error('Ad display error:', error);
+    }
   };
 
-  // Render task card
-  const renderTaskCard = (task: DailyTask) => {
-    const progressPercentage = task.required > 0 ? (task.progress / task.required) * 100 : 0;
-    const isAvailable = isTaskAvailable(task);
+  const handleShareTask = () => {
+    if (completedTasks.has('share-friends')) return;
+    
+    const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+    const referralLink = user?.referralCode 
+      ? `https://t.me/${botUsername}?start=${user.referralCode}`
+      : '';
+    
+    if (!referralLink) {
+      showNotification('Unable to generate referral link', 'error');
+      return;
+    }
+    
+    const shareText = `Earn PAD in Telegram!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+    
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(shareUrl);
+    } else if (navigator.share) {
+      navigator.share({
+        title: 'Join CashWatch',
+        text: shareText,
+        url: referralLink,
+      }).catch(() => {});
+    } else {
+      window.open(shareUrl, '_blank');
+    }
+    
+    shareTaskMutation.mutate();
+  };
+
+  const handleChannelTask = () => {
+    if (completedTasks.has('check-updates')) return;
+    
+    window.open('https://t.me/PaidAdsNews', '_blank');
+    
+    setTimeout(() => {
+      channelTaskMutation.mutate();
+    }, 2000);
+  };
+
+  const handleCommunityTask = () => {
+    if (completedTasks.has('join-community')) return;
+    
+    window.open('https://t.me/PaidAdsCommunity', '_blank');
+    
+    setTimeout(() => {
+      communityTaskMutation.mutate();
+    }, 2000);
+  };
+
+  const renderTask = (
+    id: string,
+    icon: React.ReactNode,
+    title: string,
+    reward: string,
+    buttonText: string,
+    onClick: () => void,
+    isLoading: boolean
+  ) => {
+    const isCompleted = completedTasks.has(id);
     
     return (
-      <Card key={task.id} className={`mb-2 neon-glow-border shadow-lg ${!isAvailable ? 'opacity-50' : ''}`}>
-        <CardHeader className="pb-1.5 pt-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Tv className="text-primary" size={18} />
-              <CardTitle className="text-base">{task.title}</CardTitle>
+      <Card className="minimal-card mb-2">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-[#007BFF] flex-shrink-0">
+                {icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-white font-medium text-xs truncate">{title}</h3>
+                <p className="text-[#007BFF] text-xs font-bold">{reward}</p>
+              </div>
             </div>
-            <Badge variant="outline" className="px-2 py-0.5 text-xs">
-              {formatTaskReward(task.rewardAmount)}
-            </Badge>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="pt-0 pb-2.5">
-          {/* Progress bar */}
-          <div className="mb-2">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>Progress</span>
-              <span>{Math.min(task.progress, task.required)}/{task.required} ads</span>
-            </div>
-            <Progress value={progressPercentage} className="h-1.5" />
-          </div>
-          
-          {/* Show message if task is locked */}
-          {!isAvailable && !task.claimed && (
-            <div className="text-xs text-muted-foreground text-center py-1">
-              Complete previous tasks first
-            </div>
-          )}
-
-          {/* Claim button */}
-          {task.claimed ? (
-            <Button disabled className="w-full h-8 flex items-center gap-2 bg-green-600 text-white text-sm">
-              <Check size={14} />
-              Done
-            </Button>
-          ) : task.completed && isAvailable ? (
-            <Button 
-              onClick={() => claimTaskMutation.mutate(task.level)}
-              disabled={claimTaskMutation.isPending}
-              className="w-full h-8 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm"
+            <Button
+              onClick={onClick}
+              disabled={isCompleted || isLoading}
+              className={`h-8 px-3 text-xs flex-shrink-0 min-w-[70px] ${isCompleted ? 'bg-green-600' : 'btn-primary'}`}
             >
-              {claimTaskMutation.isPending ? (
-                <RefreshCw size={14} className="animate-spin" />
+              {isCompleted ? (
+                <span className="flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  Done
+                </span>
+              ) : isLoading ? (
+                'Wait...'
               ) : (
-                "claim"
+                buttonText
               )}
             </Button>
-          ) : null}
+          </div>
         </CardContent>
       </Card>
     );
   };
 
-  if (tasksLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <RefreshCw className="animate-spin text-muted-foreground" size={24} />
-        <span className="ml-2">Loading tasks...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-2">
-      {/* Show warning if Telegram WebApp is not available */}
-      {!telegramInitData && (
-        <Alert className="mb-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-2">
-          <AlertDescription className="text-yellow-800 dark:text-yellow-200 text-xs">
-            Open in Telegram to complete tasks and earn rewards.
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {/* Task cards */}
-      {tasks.length > 0 ? (
-        <div className="space-y-0">
-          {tasks.map(renderTaskCard)}
-        </div>
-      ) : (
-        <Card className="neon-glow-border shadow-lg">
-          <CardContent className="p-6 text-center">
-            <Tv className="mx-auto text-muted-foreground mb-4" size={48} />
-            <p className="text-muted-foreground">Loading your daily tasks...</p>
-            <p className="text-sm text-muted-foreground mt-2">Tasks reset at 00:00 UTC daily</p>
-          </CardContent>
-        </Card>
-      )}
+    <div className="space-y-4">
+      <Tabs defaultValue="main" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="main" className="flex items-center gap-2">
+            <PlayCircle className="w-4 h-4" />
+            Main
+          </TabsTrigger>
+          <TabsTrigger value="partner" className="flex items-center gap-2">
+            <Share2 className="w-4 h-4" />
+            Partner
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="main" className="space-y-0">
+          {renderTask(
+            'watch-ad',
+            <PlayCircle className="w-5 h-5" />,
+            'Just check in',
+            '+500 PAD',
+            'Start',
+            handleWatchAd,
+            watchAdMutation.isPending
+          )}
+          
+          {renderTask(
+            'share-friends',
+            <Share2 className="w-5 h-5" />,
+            'Share with Friends',
+            '+1,000 PAD',
+            'Share',
+            handleShareTask,
+            shareTaskMutation.isPending
+          )}
+          
+          {renderTask(
+            'check-updates',
+            <Megaphone className="w-5 h-5" />,
+            'Check for Updates',
+            '+1,000 PAD',
+            'Start',
+            handleChannelTask,
+            channelTaskMutation.isPending
+          )}
+          
+          {renderTask(
+            'join-community',
+            <Users className="w-5 h-5" />,
+            'Join community',
+            '+1,000 PAD',
+            'Join',
+            handleCommunityTask,
+            communityTaskMutation.isPending
+          )}
+        </TabsContent>
+
+        <TabsContent value="partner" className="space-y-0">
+          <Card className="minimal-card">
+            <CardContent className="p-6 text-center">
+              <Share2 className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground text-sm">Partner tasks coming soon</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

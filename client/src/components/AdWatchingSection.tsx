@@ -30,11 +30,18 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       }
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Invalidate queries first
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/daily"] });
+      
+      // Force immediate refetch for live balance update
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["/api/auth/user"] }),
+        queryClient.refetchQueries({ queryKey: ["/api/user/stats"] })
+      ]);
       
       // Set last ad watch time to enforce 30-second cooldown
       setLastAdWatchTime(Date.now());
