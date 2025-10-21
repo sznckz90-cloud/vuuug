@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +20,26 @@ export default function TaskSection() {
     queryKey: ['/api/auth/user'],
     retry: false,
   });
+
+  // Fetch daily task completion status from backend
+  const { data: taskStatus } = useQuery({
+    queryKey: ['/api/tasks/daily/status'],
+    queryFn: async () => {
+      const res = await fetch('/api/tasks/daily/status', {
+        credentials: 'include',
+      });
+      if (!res.ok) return { completedTasks: [] };
+      return res.json();
+    },
+    retry: false,
+  });
+
+  // Update completedTasks from backend data
+  useEffect(() => {
+    if (taskStatus?.completedTasks) {
+      setCompletedTasks(new Set(taskStatus.completedTasks));
+    }
+  }, [taskStatus]);
 
   const watchAdMutation = useMutation({
     mutationFn: async () => {
@@ -202,7 +223,7 @@ export default function TaskSection() {
     const isCompleted = completedTasks.has(id);
     
     return (
-      <Card className="minimal-card mb-2">
+      <Card className="minimal-card mb-3">
         <CardContent className="p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">

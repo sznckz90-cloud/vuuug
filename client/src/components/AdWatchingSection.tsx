@@ -106,18 +106,27 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     if (cooldownRemaining > 0) return;
     
     try {
-      // ✅ FIX: Display ad and credit reward immediately after completion (no retry delay)
+      // ✅ FIX: Credit reward instantly when ad completes (no SDK cleanup wait)
       if (typeof window.show_9368336 === 'function') {
         console.log('📺 Starting ad display...');
-        await window.show_9368336();
-        console.log('✅ Ad display completed');
+        
+        // Start ad display with immediate reward on completion
+        window.show_9368336()
+          .then(() => {
+            // Ad completed - credit reward immediately (don't wait for cleanup)
+            console.log('✅ Ad completed - crediting reward instantly');
+            watchAdMutation.mutate('rewarded');
+          })
+          .catch((error) => {
+            // Ad failed or was closed early
+            console.log('⚠️ Ad error, crediting reward anyway:', error);
+            watchAdMutation.mutate('rewarded');
+          });
+        
       } else {
         console.log('⚠️ Ad provider not available, crediting reward anyway');
+        watchAdMutation.mutate('rewarded');
       }
-      
-      // ✅ FIX: Credit reward instantly after ad closes (no delay)
-      console.log('💰 Crediting ad reward immediately...');
-      watchAdMutation.mutate('rewarded');
       
     } catch (error) {
       console.error('❌ Ad display error:', error);
