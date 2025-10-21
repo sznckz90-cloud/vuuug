@@ -111,6 +111,7 @@ function WithdrawalRequestCard({ withdrawal, onUpdate }: { withdrawal: any; onUp
   const getStatusBadge = () => {
     switch (withdrawal.status) {
       case 'paid':
+      case 'success':
       case 'Successfull':
       case 'Approved':
         return <Badge className="bg-green-600">Approved</Badge>;
