@@ -1092,7 +1092,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // New simplified task completion endpoints
+  // Get daily task completion status
+  app.get('/api/tasks/daily/status', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, completedTasks: [] });
+      }
+
+      const [user] = await db
+        .select({
+          taskShareCompleted: users.taskShareCompletedToday,
+          taskChannelCompleted: users.taskChannelCompletedToday,
+          taskCommunityCompleted: users.taskCommunityCompletedToday,
+          taskCheckinCompleted: users.taskCheckinCompletedToday
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      const completedTasks = [];
+      if (user?.taskShareCompleted) completedTasks.push('share-friends');
+      if (user?.taskChannelCompleted) completedTasks.push('check-updates');
+      if (user?.taskCommunityCompleted) completedTasks.push('join-community');
+      if (user?.taskCheckinCompleted) completedTasks.push('watch-ad');
+
+      res.json({
+        success: true,
+        completedTasks
+      });
+      
+    } catch (error) {
+      console.error('Error fetching task status:', error);
+      res.json({ success: true, completedTasks: [] });
+    }
+  });
+
+  // New simplified task completion endpoints with daily tracking
   app.post('/api/tasks/complete/share', async (req: any, res) => {
     try {
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
@@ -1101,23 +1137,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, skipAuth: true });
       }
       
+      // Check if already completed today
+      const [user] = await db
+        .select({ taskShareCompletedToday: users.taskShareCompletedToday })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (user?.taskShareCompletedToday) {
+        return res.status(400).json({
+          success: false,
+          message: 'Task already completed today'
+        });
+      }
+      
       // Reward: 0.0001 TON = 1,000 PAD
       const rewardAmount = '0.0001';
       
       await db.transaction(async (tx) => {
-        const [user] = await tx
-          .select({ balance: users.balance })
-          .from(users)
-          .where(eq(users.id, userId))
-          .for('update');
-        
-        if (!user) throw new Error('User not found');
-        
-        const newBalance = (parseFloat(user.balance || '0') + parseFloat(rewardAmount)).toFixed(8);
-        
+        // Update balance and mark task complete
         await tx.update(users)
-          .set({ balance: newBalance, updatedAt: new Date() })
+          .set({ 
+            balance: sql`${users.balance} + ${rewardAmount}`,
+            taskShareCompletedToday: true,
+            updatedAt: new Date()
+          })
           .where(eq(users.id, userId));
+        
+        // Add earning record
+        await storage.addEarning({
+          userId,
+          amount: rewardAmount,
+          source: 'task_share',
+          description: 'Share with Friends task completed'
+        });
       });
       
       res.json({
@@ -1143,23 +1195,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, skipAuth: true });
       }
       
+      // Check if already completed today
+      const [user] = await db
+        .select({ taskChannelCompletedToday: users.taskChannelCompletedToday })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (user?.taskChannelCompletedToday) {
+        return res.status(400).json({
+          success: false,
+          message: 'Task already completed today'
+        });
+      }
+      
       // Reward: 0.0001 TON = 1,000 PAD
       const rewardAmount = '0.0001';
       
       await db.transaction(async (tx) => {
-        const [user] = await tx
-          .select({ balance: users.balance })
-          .from(users)
-          .where(eq(users.id, userId))
-          .for('update');
-        
-        if (!user) throw new Error('User not found');
-        
-        const newBalance = (parseFloat(user.balance || '0') + parseFloat(rewardAmount)).toFixed(8);
-        
         await tx.update(users)
-          .set({ balance: newBalance, updatedAt: new Date() })
+          .set({ 
+            balance: sql`${users.balance} + ${rewardAmount}`,
+            taskChannelCompletedToday: true,
+            updatedAt: new Date()
+          })
           .where(eq(users.id, userId));
+        
+        await storage.addEarning({
+          userId,
+          amount: rewardAmount,
+          source: 'task_channel',
+          description: 'Check for Updates task completed'
+        });
       });
       
       res.json({
@@ -1185,23 +1251,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, skipAuth: true });
       }
       
+      // Check if already completed today
+      const [user] = await db
+        .select({ taskCommunityCompletedToday: users.taskCommunityCompletedToday })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (user?.taskCommunityCompletedToday) {
+        return res.status(400).json({
+          success: false,
+          message: 'Task already completed today'
+        });
+      }
+      
       // Reward: 0.0001 TON = 1,000 PAD
       const rewardAmount = '0.0001';
       
       await db.transaction(async (tx) => {
-        const [user] = await tx
-          .select({ balance: users.balance })
-          .from(users)
-          .where(eq(users.id, userId))
-          .for('update');
-        
-        if (!user) throw new Error('User not found');
-        
-        const newBalance = (parseFloat(user.balance || '0') + parseFloat(rewardAmount)).toFixed(8);
-        
         await tx.update(users)
-          .set({ balance: newBalance, updatedAt: new Date() })
+          .set({ 
+            balance: sql`${users.balance} + ${rewardAmount}`,
+            taskCommunityCompletedToday: true,
+            updatedAt: new Date()
+          })
           .where(eq(users.id, userId));
+        
+        await storage.addEarning({
+          userId,
+          amount: rewardAmount,
+          source: 'task_community',
+          description: 'Join Community task completed'
+        });
       });
       
       res.json({
@@ -2815,7 +2895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(withdrawals)
         .leftJoin(users, eq(withdrawals.userId, users.id))
-        .where(sql`${withdrawals.status} IN ('paid', 'rejected', 'Successfull', 'Approved')`)
+        .where(sql`${withdrawals.status} IN ('paid', 'success', 'rejected', 'Successfull', 'Approved')`)
         .orderBy(desc(withdrawals.updatedAt));
       
       res.json({
