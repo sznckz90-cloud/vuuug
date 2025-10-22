@@ -16,7 +16,20 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
     *   Removed Tasks navigation item from bottom navigation bar
     *   Added middleware to block all /api/tasks/* endpoints (returns 403 error)
 *   **UI Enhancement**: Added "Claim Streak" button directly to Home page for easier access
-*   **Telegram Bot**: Simplified welcome message to show only brief greeting instead of detailed feature list
+*   **Telegram Bot**: Complete bot overhaul - inline buttons only
+    *   Simplified welcome message: "👋 Welcome to Paid Ads! Start earning crypto rewards now!"
+    *   Removed all keyboard navigation (Account, Affiliates, How-to buttons)
+    *   Removed task completion and referral commission notifications
+    *   Bot now only handles: welcome messages, withdrawal notifications, and admin approval/rejection
+    *   Admin receives withdrawal requests with inline Approve/Reject buttons
+    *   Users receive instant notifications for approval/rejection via Telegram bot
+*   **Withdrawal Flow Enhancements**:
+    *   3 friend invite requirement: Withdrawal button locked until user invites ≥3 friends
+    *   Balance deduction only occurs after admin approval (not on request submission)
+    *   Wallet ID uniqueness validation prevents duplicate addresses
+    *   Admin approval flow: Balance deducted → User notified → Buttons disabled
+    *   Admin rejection flow: No balance change → User notified → Buttons disabled
+    *   Added loading spinner animation to withdrawal request button
 *   **Real-time Updates**: Enhanced withdrawal approval system with instant WebSocket updates
     *   Admin dashboard now gets real-time updates when withdrawals are approved/rejected
     *   User dashboard updates instantly without manual refresh
