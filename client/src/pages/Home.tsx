@@ -5,7 +5,6 @@ import StreakCard from "@/components/StreakCard";
 import PromoCodeDialog from "@/components/PromoCodeDialog";
 import PromoCodeInput from "@/components/PromoCodeInput";
 import WithdrawDialog from "@/components/WithdrawDialog";
-import HistoryDialog from "@/components/HistoryDialog";
 import WalletSection from "@/components/WalletSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { History, ArrowDown, Flame } from "lucide-react";
+import { ArrowDown, Flame } from "lucide-react";
 import { tonToPAD } from "@shared/constants";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
@@ -35,7 +34,6 @@ export default function Home() {
   const [streakDialogOpen, setStreakDialogOpen] = React.useState(false);
   const [promoDialogOpen, setPromoDialogOpen] = React.useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
-  const [historyDialogOpen, setHistoryDialogOpen] = React.useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<{
     todayEarnings?: string;
@@ -118,31 +116,21 @@ export default function Home() {
         </Card>
 
         {/* Main Action Buttons - Centered */}
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              className="h-12 btn-primary"
-              onClick={() => setStreakDialogOpen(true)}
-            >
-              <Flame className="w-5 h-5 mr-2" />
-              Streak
-            </Button>
-            
-            <Button
-              className="h-12 btn-primary"
-              onClick={() => setWithdrawDialogOpen(true)}
-            >
-              <ArrowDown className="w-5 h-5 mr-2" />
-              Withdraw
-            </Button>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            className="h-12 btn-primary"
+            onClick={() => setStreakDialogOpen(true)}
+          >
+            <Flame className="w-5 h-5 mr-2" />
+            Streak
+          </Button>
           
           <Button
-            className="h-12 btn-primary w-full"
-            onClick={() => setHistoryDialogOpen(true)}
+            className="h-12 btn-primary"
+            onClick={() => setWithdrawDialogOpen(true)}
           >
-            <History className="w-5 h-5 mr-2" />
-            History
+            <ArrowDown className="w-5 h-5 mr-2" />
+            Withdraw
           </Button>
         </div>
 
@@ -163,12 +151,6 @@ export default function Home() {
         <WithdrawDialog 
           open={withdrawDialogOpen}
           onOpenChange={setWithdrawDialogOpen}
-        />
-
-        {/* History Dialog */}
-        <HistoryDialog 
-          open={historyDialogOpen}
-          onOpenChange={setHistoryDialogOpen}
         />
       </main>
     </Layout>
