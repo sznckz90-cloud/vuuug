@@ -7,10 +7,12 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
+import { Loader2 } from 'lucide-react';
 
 interface User {
   id: string;
   tonBalance: string;
+  friendsInvited?: number;
 }
 
 interface WithdrawDialogProps {
@@ -34,6 +36,8 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
   const tonBalance = parseFloat(user?.tonBalance || "0");
   const MINIMUM_WITHDRAWAL = 0.001;
+  const friendsInvited = user?.friendsInvited || 0;
+  const MINIMUM_FRIENDS_REQUIRED = 3;
 
   const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
@@ -88,6 +92,15 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
   });
 
   const handleWithdraw = () => {
+    if (friendsInvited < MINIMUM_FRIENDS_REQUIRED) {
+      toast({
+        title: "❌ Withdrawal locked",
+        description: "You need to invite at least 3 friends to unlock withdrawals.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (hasPendingWithdrawal) {
       toast({
         title: "Pending withdrawal exists",
@@ -136,6 +149,17 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
             </div>
           </div>
 
+          {friendsInvited < MINIMUM_FRIENDS_REQUIRED && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-xs text-red-500 font-medium">
+                You need to invite at least 3 friends to unlock withdrawals.
+              </p>
+              <p className="text-xs text-red-400 mt-1">
+                Friends invited: {friendsInvited}/3
+              </p>
+            </div>
+          )}
+
           {hasPendingWithdrawal && (
             <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
               <p className="text-xs text-yellow-500">
@@ -155,10 +179,15 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
           </Button>
           <Button
             onClick={handleWithdraw}
-            disabled={withdrawMutation.isPending || hasPendingWithdrawal || tonBalance < MINIMUM_WITHDRAWAL}
-            className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+            disabled={withdrawMutation.isPending || hasPendingWithdrawal || tonBalance < MINIMUM_WITHDRAWAL || friendsInvited < MINIMUM_FRIENDS_REQUIRED}
+            className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {withdrawMutation.isPending ? "Processing..." : "Withdraw All"}
+            {withdrawMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : "Withdraw All"}
           </Button>
         </div>
       </DialogContent>
