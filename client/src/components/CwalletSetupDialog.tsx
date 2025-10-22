@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Wallet, HelpCircle } from "lucide-react";
+import { Wallet, HelpCircle, Info } from "lucide-react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
@@ -92,8 +92,9 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
               className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
             />
             {!isWalletLocked && (
-              <p className="text-xs text-red-500 font-medium">
-                ⚠️ One-time setup only – set carefully!
+              <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                One-time setup only – set carefully!
               </p>
             )}
           </div>

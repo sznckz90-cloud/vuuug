@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { showNotification } from '@/components/AppNotification';
-import { PlayCircle, Share2, Megaphone, Users, Play, Check } from 'lucide-react';
+import { PlayCircle, Share2, Megaphone, Users, Play, Check, Flame } from 'lucide-react';
 import { tonToPAD } from '@shared/constants';
 
 interface User {
@@ -41,16 +41,15 @@ export default function TaskSection() {
     }
   }, [taskStatus]);
 
-  const watchAdMutation = useMutation({
+  const claimStreakMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/ads/watch', {
+      const res = await fetch('/api/streak/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ adType: 'task_reward' }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to watch ad');
+      if (!res.ok) throw new Error(data.message || 'Failed to claim streak');
       return data;
     },
     onSuccess: async (data) => {
@@ -60,12 +59,19 @@ export default function TaskSection() {
         queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
         queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
       ]);
-      setCompletedTasks(prev => new Set([...prev, 'watch-ad']));
-      const rewardPAD = tonToPAD(parseFloat(data.rewardAmount || '0.000005'));
-      showNotification(`You received ${rewardPAD} PAD on your balance`, 'success');
+      setCompletedTasks(prev => new Set([...prev, 'claim-streak']));
+      const rewardAmount = parseFloat(data.rewardEarned || '0');
+      if (rewardAmount > 0) {
+        const rewardPAD = tonToPAD(rewardAmount);
+        if (data.isBonusDay) {
+          showNotification(`5-day streak bonus! +${rewardPAD} PAD`, 'success');
+        } else {
+          showNotification(`Daily streak claimed! +${rewardPAD} PAD`, 'success');
+        }
+      }
     },
     onError: (error: any) => {
-      showNotification(error.message || 'Failed to complete task', 'error');
+      showNotification(error.message || 'Failed to claim streak', 'error');
     },
   });
 
@@ -147,17 +153,9 @@ export default function TaskSection() {
     },
   });
 
-  const handleWatchAd = async () => {
-    if (completedTasks.has('watch-ad')) return;
-    
-    try {
-      if (typeof window.show_9368336 === 'function') {
-        await window.show_9368336();
-      }
-      watchAdMutation.mutate();
-    } catch (error) {
-      console.error('Ad display error:', error);
-    }
+  const handleClaimStreak = () => {
+    if (completedTasks.has('claim-streak')) return;
+    claimStreakMutation.mutate();
   };
 
   const handleShareTask = () => {
@@ -223,7 +221,7 @@ export default function TaskSection() {
     const isCompleted = completedTasks.has(id);
     
     return (
-      <Card className="minimal-card mb-3">
+      <Card className="minimal-card">
         <CardContent className="p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -271,15 +269,15 @@ export default function TaskSection() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="main" className="space-y-0">
+        <TabsContent value="main" className="space-y-4">
           {renderTask(
-            'watch-ad',
-            <PlayCircle className="w-5 h-5" />,
-            'Just check in',
-            '+500 PAD',
-            'Start',
-            handleWatchAd,
-            watchAdMutation.isPending
+            'claim-streak',
+            <Flame className="w-5 h-5" />,
+            'Claim Streak',
+            '+100 PAD',
+            'Claim',
+            handleClaimStreak,
+            claimStreakMutation.isPending
           )}
           
           {renderTask(
