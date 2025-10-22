@@ -1106,7 +1106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           taskShareCompleted: users.taskShareCompletedToday,
           taskChannelCompleted: users.taskChannelCompletedToday,
           taskCommunityCompleted: users.taskCommunityCompletedToday,
-          taskCheckinCompleted: users.taskCheckinCompletedToday
+          lastStreakDate: users.lastStreakDate
         })
         .from(users)
         .where(eq(users.id, userId));
@@ -1115,7 +1115,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user?.taskShareCompleted) completedTasks.push('share-friends');
       if (user?.taskChannelCompleted) completedTasks.push('check-updates');
       if (user?.taskCommunityCompleted) completedTasks.push('join-community');
-      if (user?.taskCheckinCompleted) completedTasks.push('watch-ad');
+      
+      if (user?.lastStreakDate) {
+        const lastClaim = new Date(user.lastStreakDate);
+        const hoursSinceLastClaim = (new Date().getTime() - lastClaim.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceLastClaim < 24) {
+          completedTasks.push('claim-streak');
+        }
+      }
 
       res.json({
         success: true,
@@ -2262,7 +2269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 🔐 UNIQUENESS CHECK: Ensure wallet ID is not already used by another account
-      const walletToCheck = (cwalletId || walletId)?.trim();
+      const walletToCheck = cwalletId?.trim();
       if (walletToCheck) {
         const [walletInUse] = await db
           .select({ id: users.id })
@@ -2345,7 +2352,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 🔐 UNIQUENESS CHECK: Ensure wallet ID is not already used by another account
-      const walletToCheck = (cwalletId || walletId)?.trim();
+      const walletToCheck = cwalletId?.trim();
       if (walletToCheck) {
         const [walletInUse] = await db
           .select({ id: users.id })
