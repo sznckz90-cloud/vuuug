@@ -93,16 +93,22 @@ export function useWebSocket() {
               
             case 'withdrawal_approved':
               showNotification("Withdrawal approved!", "success");
-              // Invalidate withdrawal queries to update UI immediately
+              // Invalidate withdrawal queries to update UI immediately (user + admin)
               queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/processed'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
               queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
               queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
               break;
               
             case 'withdrawal_rejected':
               showNotification("Withdrawal rejected", "error");
-              // Invalidate withdrawal queries to update UI immediately
+              // Invalidate withdrawal queries to update UI immediately (user + admin)
               queryClient.invalidateQueries({ queryKey: ['/api/withdrawals'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/processed'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
               queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
               queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
               break;
