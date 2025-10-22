@@ -39,7 +39,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
       return response.json();
     },
     onSuccess: () => {
-      showNotification("✅ Wallet saved successfully!", "success");
+      showNotification("Wallet saved successfully.", "success");
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       onOpenChange(false);
@@ -77,15 +77,16 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <p className="text-xs text-[#c0c0c0] flex items-center gap-2">
-            <span className="text-red-500 font-semibold">One time setup</span> • Used to withdraw your funds
-            {isWalletLocked && (
-              <span className="text-[#6ddeff] ml-2 flex items-center gap-1">
-                <Lock className="w-3 h-3" />
-                Locked
-              </span>
-            )}
-          </p>
+          {isWalletLocked ? (
+            <p className="text-xs text-[#6ddeff] flex items-center gap-2">
+              <Lock className="w-3 h-3" />
+              Wallet linked successfully.
+            </p>
+          ) : (
+            <p className="text-xs text-[#c0c0c0] flex items-center gap-2">
+              <span className="text-red-500 font-semibold">One time setup</span> • Used to withdraw your funds
+            </p>
+          )}
 
           <div className="space-y-2">
             <Input
