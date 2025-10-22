@@ -7,7 +7,6 @@ import { useEffect, lazy, Suspense } from "react";
 
 // Lazy load pages for better performance
 const Home = lazy(() => import("@/pages/Home"));
-const Tasks = lazy(() => import("@/pages/Tasks"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
@@ -27,7 +26,6 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={Home} />
-        <Route path="/tasks" component={Tasks} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
