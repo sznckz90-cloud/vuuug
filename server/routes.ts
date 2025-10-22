@@ -560,21 +560,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ads/watch', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { adType } = req.body;
-      
-      console.log(`📺 Ad watch request from user ${userId}, type: ${adType}`);
       
       // Get user to check daily ad limit
       const user = await storage.getUser(userId);
       if (!user) {
-        console.error(`❌ User not found: ${userId}`);
         return res.status(404).json({ message: "User not found" });
       }
       
       // Enforce 50 ads per day limit
       const adsWatchedToday = user.adsWatchedToday || 0;
       if (adsWatchedToday >= 50) {
-        console.log(`⚠️ Daily limit reached for user ${userId}: ${adsWatchedToday}/50`);
         return res.status(429).json({ 
           message: "Daily ad limit reached. You can watch up to 50 ads per day.",
           limit: 50,
@@ -582,13 +577,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Add earning for watched ad with new rate (1000 PAD = 0.0001 TON with 10M PAD = 1 TON conversion)
+      // Add earning for watched ad (1000 PAD = 0.0001 TON)
       const adRewardTON = "0.00010000";
       const adRewardPAD = Math.round(parseFloat(adRewardTON) * 10000000);
       
-      console.log(`💰 Crediting ${adRewardPAD} PAD (${adRewardTON} TON) to user ${userId}`);
-      
-      const earning = await storage.addEarning({
+      await storage.addEarning({
         userId,
         amount: adRewardTON,
         source: 'ad_watch',
@@ -597,7 +590,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Increment ads watched count
       await storage.incrementAdsWatched(userId);
-      console.log(`📊 User ${userId} ads watched: ${adsWatchedToday + 1}/50`);
       
       // Check and activate referral bonuses (anti-fraud: requires 10 ads)
       await storage.checkAndActivateReferralBonus(userId);
@@ -605,7 +597,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process 10% referral commission for referrer (if user was referred)
       if (user.referredBy) {
         const referralCommissionTON = (parseFloat(adRewardTON) * 0.1).toFixed(8);
-        console.log(`🎁 Crediting referral commission to ${user.referredBy}: ${referralCommissionTON} TON`);
         await storage.addEarning({
           userId: user.referredBy,
           amount: referralCommissionTON,
@@ -616,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get updated balance
       const updatedUser = await storage.getUser(userId);
-      const balancePAD = Math.round(parseFloat(updatedUser?.balance || "0") * 100000);
+      const newAdsWatched = updatedUser?.adsWatchedToday || 0;
       
       // Send real-time update to user
       sendRealtimeUpdate(userId, {
@@ -626,12 +617,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date().toISOString()
       });
       
-      console.log(`✅ Ad reward processed successfully for user ${userId}, new balance: ${balancePAD} PAD`);
-      
       res.json({ 
         success: true, 
         rewardPAD: adRewardPAD,
-        balance: balancePAD
+        newBalance: updatedUser?.balance || "0",
+        adsWatchedToday: newAdsWatched
       });
     } catch (error) {
       console.error("❌ Error processing ad watch:", error);
