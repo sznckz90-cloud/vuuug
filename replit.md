@@ -10,6 +10,19 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes
 
+## October 22, 2025
+*   **Feature Removal**: Completely removed Task page from application
+    *   Removed /tasks route from client routing
+    *   Removed Tasks navigation item from bottom navigation bar
+    *   Added middleware to block all /api/tasks/* endpoints (returns 403 error)
+*   **UI Enhancement**: Added "Claim Streak" button directly to Home page for easier access
+*   **Telegram Bot**: Simplified welcome message to show only brief greeting instead of detailed feature list
+*   **Real-time Updates**: Enhanced withdrawal approval system with instant WebSocket updates
+    *   Admin dashboard now gets real-time updates when withdrawals are approved/rejected
+    *   User dashboard updates instantly without manual refresh
+    *   Added WebSocket connection to admin page
+    *   Broadcasts withdrawal status changes to all connected clients
+
 ## October 21, 2025
 *   **Setup**: Successfully configured the project to run in Replit environment with PostgreSQL database
 *   **Fix**: Admin withdrawal approval button now works correctly (status='success' is properly recognized)
