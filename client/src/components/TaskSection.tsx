@@ -221,7 +221,7 @@ export default function TaskSection() {
     const isCompleted = completedTasks.has(id);
     
     return (
-      <Card className="minimal-card">
+      <Card className="minimal-card mb-4">
         <CardContent className="p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -244,7 +244,7 @@ export default function TaskSection() {
                   Done
                 </span>
               ) : isLoading ? (
-                'Wait...'
+                'Processing...'
               ) : (
                 buttonText
               )}
@@ -269,7 +269,7 @@ export default function TaskSection() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="main" className="space-y-4">
+        <TabsContent value="main" className="space-y-0">
           {renderTask(
             'claim-streak',
             <Flame className="w-5 h-5" />,

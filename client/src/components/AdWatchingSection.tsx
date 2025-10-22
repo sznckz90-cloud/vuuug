@@ -31,34 +31,27 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       return response.json();
     },
     onSuccess: async (data) => {
-      // Invalidate queries first
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      // Optimized: Only invalidate and refetch user data (balance included in response)
+      queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
+        ...old,
+        balance: data.newBalance,
+        adsWatchedToday: data.adsWatchedToday
+      }));
+      
+      // Invalidate other queries without refetching
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/daily"] });
       
-      // Force immediate refetch for live balance update
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["/api/auth/user"] }),
-        queryClient.refetchQueries({ queryKey: ["/api/user/stats"] })
-      ]);
-      
-      // Set last ad watch time to enforce 30-second cooldown
+      // Set last ad watch time
       setLastAdWatchTime(Date.now());
       
-      // Get PAD amount from response
-      const rewardPAD = data.rewardPAD || 1000;
+      // Show reward notification instantly
+      showNotification(`You received ${data.rewardPAD || 1000} PAD on your balance`, "success");
       
-      // ✅ Show reward notification instantly - no countdown
-      showNotification(`You received ${rewardPAD} PAD on your balance`, "success");
-      
-      // Reset cooldown immediately (no delay)
+      // Reset cooldown immediately
       setCooldownRemaining(0);
     },
     onError: (error: any) => {
-      console.error('❌ Ad reward processing error:', error);
-      
-      // Handle different error types
       if (error.status === 429) {
         showNotification("Daily ad limit reached (50 ads/day)", "error");
       } else if (error.status === 401 || error.status === 403) {
@@ -78,22 +71,16 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     
     const startAutoAds = () => {
       interval = setInterval(() => {
-        // Check if 30 seconds have passed since last ad
-        if (Date.now() - lastAdWatchTime < 30000) {
-          return; // Block early popup
-        }
+        if (Date.now() - lastAdWatchTime < 30000) return;
         
         if (typeof window.show_9368336 === 'function') {
           try {
             window.show_9368336();
-          } catch (error) {
-            console.log('Auto ad display:', error);
-          }
+          } catch {}
         }
-      }, 30000); // Check every 30 seconds
+      }, 30000);
     };
     
-    // Start after initial delay
     const timer = setTimeout(startAutoAds, 30000);
     
     return () => {
@@ -106,30 +93,23 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     if (cooldownRemaining > 0) return;
     
     try {
-      // ✅ FIX: Credit reward instantly when ad completes (no SDK cleanup wait)
+      // Optimized: Credit reward instantly when ad completes
       if (typeof window.show_9368336 === 'function') {
-        console.log('📺 Starting ad display...');
-        
         // Start ad display with immediate reward on completion
         window.show_9368336()
           .then(() => {
-            // Ad completed - credit reward immediately (don't wait for cleanup)
-            console.log('✅ Ad completed - crediting reward instantly');
+            // Ad completed - credit reward immediately
             watchAdMutation.mutate('rewarded');
           })
-          .catch((error) => {
-            // Ad failed or was closed early
-            console.log('⚠️ Ad error, crediting reward anyway:', error);
+          .catch(() => {
+            // Ad failed or closed early - still credit reward
             watchAdMutation.mutate('rewarded');
           });
-        
       } else {
-        console.log('⚠️ Ad provider not available, crediting reward anyway');
+        // Ad provider not available - credit anyway
         watchAdMutation.mutate('rewarded');
       }
-      
     } catch (error) {
-      console.error('❌ Ad display error:', error);
       showNotification("Ad display failed. Please try again.", "error");
     }
   };

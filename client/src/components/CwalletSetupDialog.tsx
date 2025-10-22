@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Wallet, HelpCircle, Info } from "lucide-react";
+import { Wallet, HelpCircle, Info, Lock } from "lucide-react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
@@ -39,7 +39,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
       return response.json();
     },
     onSuccess: () => {
-      showNotification("Cwallet ID saved successfully", "success");
+      showNotification("✅ Wallet saved successfully!", "success");
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       onOpenChange(false);
@@ -77,9 +77,14 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <p className="text-xs text-[#c0c0c0]">
+          <p className="text-xs text-[#c0c0c0] flex items-center gap-2">
             <span className="text-red-500 font-semibold">One time setup</span> • Used to withdraw your funds
-            {isWalletLocked && <span className="text-[#6ddeff] ml-2">🔒 Locked</span>}
+            {isWalletLocked && (
+              <span className="text-[#6ddeff] ml-2 flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                Locked
+              </span>
+            )}
           </p>
 
           <div className="space-y-2">
