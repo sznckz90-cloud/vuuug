@@ -1,8 +1,6 @@
 // Telegram Bot API integration for sending notifications
 import TelegramBot from 'node-telegram-bot-api';
 import { storage } from './storage';
-import { db } from './db';
-import { sql } from 'drizzle-orm';
 
 const isAdmin = (telegramId: string): boolean => {
   const adminId = process.env.TELEGRAM_ADMIN_ID;
@@ -107,44 +105,7 @@ function extractBotUsernameFromUrl(url: string): string | null {
   }
 }
 
-// All claim reward processing moved to the App only
-
-// Send task completion notification to user
-export async function sendTaskCompletionNotification(userId: string, rewardAmount: string): Promise<boolean> {
-  try {
-    const user = await storage.getUser(userId);
-    if (!user || !user.telegram_id) {
-      console.log('❌ User not found or no telegram_id for task completion notification');
-      return false;
-    }
-
-    const notificationMessage = `🎉 Task Completed! ✅ You earned $${parseFloat(rewardAmount).toFixed(5)} 💎`;
-
-    const success = await sendUserTelegramNotification(user.telegram_id, notificationMessage);
-    console.log(`✅ Task completion notification sent to user ${userId}:`, success);
-    return success;
-  } catch (error) {
-    console.error('❌ Error sending task completion notification:', error);
-    return false;
-  }
-}
-
-// Send referral commission notification when friend watches an ad
-export async function sendReferralCommissionNotification(referrerTelegramId: string, friendUsername: string, commissionAmount: string): Promise<boolean> {
-  try {
-    const formattedAmount = formatTON(commissionAmount);
-    const notificationMessage = `🎉 Your friend @${friendUsername} just watched an ad!\n💰 You earned ${formattedAmount} TON`;
-
-    const success = await sendUserTelegramNotification(referrerTelegramId, notificationMessage);
-    console.log(`✅ Referral commission notification sent to ${referrerTelegramId}:`, success);
-    return success;
-  } catch (error) {
-    console.error('❌ Error sending referral commission notification:', error);
-    return false;
-  }
-}
-
-// Promotion posting features removed - no longer needed
+// All old Telegram notifications removed - bot uses inline buttons only
 
 export async function sendTelegramMessage(message: string): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_ID) {
@@ -244,95 +205,23 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
 
 Start earning crypto rewards now!`;
 
-  // Get app URL from environment
-  const appUrl = process.env.RENDER_EXTERNAL_URL || 
-                 (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null) ||
-                 (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
-                 "https://workspace.replit.app";
-
-  const inlineKeyboard = {
-    inline_keyboard: [
-      [
-        {
-          text: "👨‍💻 Watch & Earn",
-          web_app: { url: appUrl }
-        }
-      ],
-      [
-        {
-          text: "📢 Project News",
-          url: "https://t.me/PaidAdsNews"
-        }
-      ],
-      [
-        {
-          text: "💁‍♂️ Technical Support",
-          url: "https://t.me/szxzyz"
-        }
-      ]
+const inlineKeyboard = {
+  inline_keyboard: [
+    [
+      {
+        text: "🚀 Start Earning",
+        web_app: { url: process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com" }
+      }
     ]
-  };
+  ]
+};
 
   return { message, inlineKeyboard };
 }
 
 export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   const { message, inlineKeyboard } = formatWelcomeMessage();
-  
-  // Send welcome message with inline keyboard only (no reply keyboard)
-  const welcomeSent = await sendUserTelegramNotification(userId, message, inlineKeyboard);
-  
-  return welcomeSent;
-}
-
-// Format account dashboard with refresh button
-export async function formatAccountDashboard(userId: string): Promise<{ message: string; inlineKeyboard: any }> {
-  const user = await storage.getUser(userId);
-  if (!user) {
-    throw new Error('User not found');
-  }
-  
-  // Get user stats from database
-  const referralStats = await storage.getUserReferrals(userId);
-  
-  // Calculate referral earnings (total from all referral sources)
-  const referralEarnings = await storage.getUserReferralEarnings(userId);
-  
-  // Format username
-  const username = user.username ? `@${user.username}` : user.firstName || 'User';
-  
-  // Format join date
-  const joinDate = user.createdAt ? new Date(user.createdAt.toString()).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  }) : 'Unknown';
-  
-  // Get earnings (default to 0 if null)
-  const totalEarnings = formatTON(user.totalEarned || '0');
-  const balance = formatTON(user.balance || '0');
-  const refEarnings = formatTON(referralEarnings || '0');
-  
-  const message = `📊 My Earnings Dashboard
-
-👤 Username: ${username}
-🆔 User ID: ${user.telegram_id}
-
-📅 Joined on: ${joinDate}
-💵 Balance: ${balance} TON
-💰 Earned total: ${totalEarnings} TON
-👥 Referrals: ${referralStats?.length || 0}
-💰 Referral Income: ${refEarnings} TON`;
-  
-  const inlineKeyboard = {
-    inline_keyboard: [
-      [
-        { text: "🔄 Refresh", callback_data: "refresh_account" }
-      ]
-    ]
-  };
-  
-  return { message, inlineKeyboard };
+  return await sendUserTelegramNotification(userId, message, inlineKeyboard);
 }
 
 // Admin broadcast functionality
@@ -451,16 +340,29 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const result = await storage.approveWithdrawal(withdrawalId, `Approved by admin ${chatId}`);
           
           if (result.success && result.withdrawal) {
-            // ✅ No Telegram notification sent to user (per requirements)
+            // Get user to send notification
+            const user = await storage.getUser(result.withdrawal.userId);
+            if (user && user.telegram_id) {
+              const withdrawalDetails = result.withdrawal.details as any;
+              const amount = result.withdrawal.amount;
+              const formattedAmount = formatTON(amount);
+              const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
+              
+              // Send user notification
+              const userMessage = `🔔 Payout was made in the amount of ${formattedAmount} TON to Cwallet: ${walletAddress}`;
+              
+              await sendUserTelegramNotification(user.telegram_id, userMessage);
+            }
             
-            // Update admin message
+            // Update admin message and disable buttons
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
                 message_id: callbackQuery.message.message_id,
-                text: `✅ APPROVED\n\n${callbackQuery.message.text}\n\nStatus: Paid and processed by admin\nTime: ${new Date().toLocaleString()}`
+                text: `✅ <b>APPROVED</b>\n\n${callbackQuery.message.text}\n\n<b>Status:</b> Payout approved successfully\n<b>Time:</b> ${new Date().toUTCString()}`,
+                parse_mode: 'HTML'
               })
             });
             
@@ -469,7 +371,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
                 callback_query_id: callbackQuery.id,
-                text: 'Withdrawal approved successfully'
+                text: '✅ Payout approved successfully'
               })
             });
           } else {
@@ -498,62 +400,6 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         return true;
       }
       
-      // Handle account refresh button
-      if (data === 'refresh_account') {
-        try {
-          // Get user from database
-          const user = await storage.getUserByTelegramId(chatId);
-          if (!user) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                callback_query_id: callbackQuery.id,
-                text: 'User not found',
-                show_alert: true
-              })
-            });
-            return true;
-          }
-          
-          // Get refreshed account dashboard data
-          const { message: accountMessage, inlineKeyboard } = await formatAccountDashboard(user.id);
-          
-          // Update the message with refreshed data
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              message_id: callbackQuery.message.message_id,
-              text: accountMessage,
-              reply_markup: inlineKeyboard
-            })
-          });
-          
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: '✅ Dashboard refreshed'
-            })
-          });
-        } catch (error) {
-          console.error('Error refreshing account dashboard:', error);
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: 'Error refreshing dashboard',
-              show_alert: true
-            })
-          });
-        }
-        return true;
-      }
-      
       // Handle admin withdrawal rejection
       if (data && data.startsWith('withdraw_reject_')) {
         const withdrawalId = data.replace('withdraw_reject_', '');
@@ -575,16 +421,22 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const result = await storage.rejectWithdrawal(withdrawalId, `Rejected by admin ${chatId}`);
           
           if (result.success && result.withdrawal) {
-            // ✅ No Telegram notification sent to user (per requirements)
+            // Get user to send notification
+            const user = await storage.getUser(result.withdrawal.userId);
+            if (user && user.telegram_id) {
+              const userMessage = `❌ Your withdrawal request was rejected. Please check your wallet info.`;
+              await sendUserTelegramNotification(user.telegram_id, userMessage);
+            }
             
-            // Update admin message
+            // Update admin message and disable buttons
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
                 message_id: callbackQuery.message.message_id,
-                text: `❌ REJECTED\n\n${callbackQuery.message.text}\n\nStatus: Rejected by admin\nTime: ${new Date().toLocaleString()}`
+                text: `🚫 <b>REJECTED</b>\n\n${callbackQuery.message.text}\n\n<b>Status:</b> Request rejected successfully\n<b>Time:</b> ${new Date().toUTCString()}`,
+                parse_mode: 'HTML'
               })
             });
             
@@ -593,7 +445,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
                 callback_query_id: callbackQuery.id,
-                text: 'Withdrawal rejected'
+                text: '🚫 Request rejected successfully'
               })
             });
           } else {
@@ -670,8 +522,6 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       // Handle promotion task claim (DISABLED - no promotion system)
       if (parameter && parameter.startsWith('task_')) {
         console.log('⚠️ Promotion system disabled');
-        const errorMessage = '❌ This feature is not available.';
-        await sendUserTelegramNotification(chatId, errorMessage);
         return true;
       }
       
@@ -718,26 +568,13 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                 console.error(`❌ Referral verification failed - not found in database after creation`);
               }
               
-              // Update referral status to completed immediately
-              try {
-                await db.execute(sql`
-                  UPDATE referrals 
-                  SET status = 'completed' 
-                  WHERE referrer_id = ${referrer.id} AND referee_id = ${dbUser.id}
-                `);
-                console.log(`✅ Updated referral status to completed`);
-              } catch (updateError) {
-                console.error('❌ Failed to update referral status:', updateError);
-              }
-              
               // Send notification to referrer about successful referral
               try {
-                const notificationMessage = `🎉 New Friend Joined!  
-
-Earn up to 20% commission from their ad activity!`;
+                const referrerName = referrer.firstName || referrer.username || 'User';
+                const newUserName = dbUser.firstName || dbUser.username || 'User';
                 await sendUserTelegramNotification(
                   referrer.telegram_id || '',
-                  notificationMessage
+                  `🎉 Great news! ${newUserName} joined using your referral link. You'll earn $0.01 when they watch 10 ads!`
                 );
                 console.log(`📧 Referral notification sent to referrer: ${referrer.telegram_id}`);
               } catch (notificationError) {
@@ -782,35 +619,14 @@ Earn up to 20% commission from their ad activity!`;
         }
       }
 
-      // Always send welcome message with referral code
+      // Send welcome message to user
       console.log('📤 Sending welcome message to:', chatId);
-      
-      // Ensure referral code exists for this user
-      let finalUser = dbUser;
-      if (!dbUser.referralCode) {
-        console.log('🔄 Generating missing referral code for user:', dbUser.id);
-        try {
-          await storage.generateReferralCode(dbUser.id);
-          // Fetch updated user with referral code
-          finalUser = await storage.getUser(dbUser.id) || dbUser;
-        } catch (error) {
-          console.error('❌ Failed to generate referral code:', error);
-        }
-      }
-      
-      const messageSent = await sendWelcomeMessage(chatId);
-      console.log('📧 Welcome message sent successfully:', messageSent);
-
+      const welcomeSent = await sendWelcomeMessage(chatId);
+      console.log('📧 Welcome message sent successfully:', welcomeSent);
       return true;
     }
 
-    // All keyboard button handlers removed - bot uses inline buttons only
-
-
-    // All claim verification removed - tasks can only be completed in the App
-
-
-
+    // All keyboard navigation removed - bot uses inline buttons only for withdrawal management
 
     // Admin command to list pending withdrawal requests
     if (text === '/payouts' || text === '/withdrawals') {
@@ -873,12 +689,8 @@ Earn up to 20% commission from their ad activity!`;
       }
     }
 
-    // For any other message, send welcome message with inline buttons
-    console.log('❓ Unknown command, sending welcome message to:', chatId);
-    
-    const messageSent = await sendWelcomeMessage(chatId);
-    console.log('📧 Welcome message sent successfully:', messageSent);
-    
+    // All other messages ignored - bot only responds to /start and callback queries
+    console.log('ℹ️ Message ignored (bot uses inline buttons only):', text);
     return true;
   } catch (error) {
     console.error('Error handling Telegram message:', error);
@@ -886,59 +698,37 @@ Earn up to 20% commission from their ad activity!`;
   }
 }
 
+// Keyboard navigation removed - bot uses inline buttons only for withdrawal management
+
 // Set up webhook (this should be called once to register the webhook with Telegram)
 export async function setupTelegramWebhook(webhookUrl: string): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
-    console.error('❌ Telegram bot token not configured');
+    console.error('Telegram bot token not configured');
     return false;
   }
 
-  const maxRetries = 3;
-  let lastError: any = null;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ['message', 'callback_query'],
+      }),
+    });
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`🔄 Telegram webhook setup attempt ${attempt}/${maxRetries}...`);
-      
-      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: webhookUrl,
-          allowed_updates: ['message', 'callback_query'],
-        }),
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Telegram webhook set successfully:', data);
-        return true;
-      } else {
-        const errorData = await response.text();
-        console.error(`❌ Failed to set Telegram webhook (attempt ${attempt}):`, errorData);
-        lastError = new Error(errorData);
-      }
-    } catch (error: any) {
-      lastError = error;
-      
-      if (error.name === 'TimeoutError' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-        console.error(`⏱️ Webhook setup timeout (attempt ${attempt}/${maxRetries}):`, error.message);
-      } else {
-        console.error(`❌ Error setting up webhook (attempt ${attempt}/${maxRetries}):`, error.message);
-      }
-      
-      // Exponential backoff: wait before retrying
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-        console.log(`⏳ Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+    if (response.ok) {
+      console.log('Telegram webhook set successfully');
+      return true;
+    } else {
+      const errorData = await response.text();
+      console.error('Failed to set Telegram webhook:', errorData);
+      return false;
     }
+  } catch (error) {
+    console.error('Error setting up Telegram webhook:', error);
+    return false;
   }
-
-  console.error(`❌ Failed to set Telegram webhook after ${maxRetries} attempts:`, lastError);
-  return false;
 }

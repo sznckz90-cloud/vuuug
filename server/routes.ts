@@ -1715,24 +1715,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test endpoint to check bot functionality
+  // Test endpoint removed - bot uses inline buttons only
   app.get('/api/telegram/test/:chatId', async (req: any, res) => {
-    try {
-      const { chatId } = req.params;
-      console.log('🧪 Testing bot with chat ID:', chatId);
-      
-      const { sendWelcomeMessage } = await import('./telegram');
-      const success = await sendWelcomeMessage(chatId);
-      
-      res.json({ 
-        success, 
-        message: success ? 'Test message sent!' : 'Failed to send test message',
-        chatId 
-      });
-    } catch (error) {
-      console.error('Test endpoint error:', error);
-      res.status(500).json({ error: 'Test failed', details: error });
-    }
+    res.json({ 
+      success: false, 
+      message: 'Test endpoint removed - bot uses inline buttons only'
+    });
   });
 
   // Admin stats endpoint
@@ -2603,11 +2591,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and get TON balance AND saved wallet ID (SELECT FOR UPDATE)
+        // Lock user row and get TON balance, wallet ID, friendsInvited, and telegram_id (SELECT FOR UPDATE)
         const [user] = await tx
           .select({ 
             tonBalance: users.tonBalance,
-            cwalletId: users.cwalletId
+            cwalletId: users.cwalletId,
+            friendsInvited: users.friendsInvited,
+            telegram_id: users.telegram_id,
+            username: users.username
           })
           .from(users)
           .where(eq(users.id, userId))
@@ -2617,9 +2608,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
 
+        // ✅ NEW: Check if user has invited at least 3 friends
+        const friendsInvited = user.friendsInvited || 0;
+        if (friendsInvited < 3) {
+          throw new Error('You need to invite at least 3 friends to unlock withdrawals.');
+        }
+
         // Check if user has a saved wallet ID
         if (!user.cwalletId) {
           throw new Error('No wallet ID found. Please set up your Cwallet ID first.');
+        }
+
+        // ✅ NEW: Check wallet ID uniqueness - prevent same wallet from being used by multiple users
+        const [existingWallet] = await tx
+          .select({ userId: users.id })
+          .from(users)
+          .where(and(
+            eq(users.cwalletId, user.cwalletId),
+            sql`${users.id} != ${userId}`
+          ))
+          .limit(1);
+
+        if (existingWallet) {
+          throw new Error('This wallet ID is already in use by another user. Please use a unique wallet ID.');
         }
 
         const currentTonBalance = parseFloat(user.tonBalance || '0');
@@ -2630,25 +2641,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('You need at least 0.001 TON');
         }
 
-        // INSTANT DEDUCTION: Deduct balance immediately (not on admin approval)
-        await tx
-          .update(users)
-          .set({
-            tonBalance: '0',
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, userId));
+        // ✅ CHANGED: Do NOT deduct balance immediately - wait for admin approval
+        // Balance will be deducted when admin approves the withdrawal
 
-        console.log(`✅ Withdrawn all TON balance: ${currentTonBalance} TON → 0 TON`);
+        console.log(`📝 Creating withdrawal request for ${currentTonBalance} TON (balance NOT deducted yet)`);
 
-        // Create withdrawal request with deducted flag set to TRUE
+        // Create withdrawal request with deducted flag set to FALSE
         // ✅ FIX: Automatically attach saved wallet ID from database using correct field name
         const withdrawalData: any = {
           userId,
           amount: currentTonBalance.toFixed(8),
           method: 'cwallet',
           status: 'pending',
-          deducted: true, // Balance already deducted
+          deducted: false, // ✅ CHANGED: Balance will be deducted on admin approval
           refunded: false,
           details: {
             paymentDetails: user.cwalletId, // ✅ Use paymentDetails field for admin dashboard
@@ -2659,17 +2664,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
-        return { withdrawal, withdrawnAmount: currentTonBalance };
+        return { 
+          withdrawal, 
+          withdrawnAmount: currentTonBalance, 
+          userTelegramId: user.telegram_id,
+          username: user.username 
+        };
       });
 
-      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, withdrawn all TON: ${newWithdrawal.withdrawnAmount} TON`);
+      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, amount: ${newWithdrawal.withdrawnAmount} TON`);
 
-      // ✅ FIX: Send withdrawal_requested notification instead of balance_update
+      // ✅ Send withdrawal_requested notification via WebSocket
       sendRealtimeUpdate(userId, {
         type: 'withdrawal_requested',
         amount: newWithdrawal.withdrawnAmount.toFixed(8),
         message: 'You have sent a withdrawal request.'
       });
+
+      // ✅ NEW: Send withdrawal notification to admin via Telegram bot with inline buttons
+      const adminMessage = `
+💸 <b>New Withdrawal Request</b>
+
+• <b>User:</b> @${newWithdrawal.username || 'Unknown'} (${userId.substring(0, 8)})
+• <b>Amount:</b> ${newWithdrawal.withdrawnAmount.toFixed(4)} TON
+• <b>Wallet:</b> ${newWithdrawal.withdrawal.details?.paymentDetails || 'N/A'}
+• <b>Time:</b> ${new Date().toUTCString()}
+      `.trim();
+
+      // Create inline keyboard with Approve and Reject buttons
+      const inlineKeyboard = {
+        inline_keyboard: [[
+          { text: "🔘 Approve", callback_data: `withdraw_paid_${newWithdrawal.withdrawal.id}` },
+          { text: "❌ Reject", callback_data: `withdraw_reject_${newWithdrawal.withdrawal.id}` }
+        ]]
+      };
+
+      // Send message with inline buttons
+      if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_ID) {
+        fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: process.env.TELEGRAM_ADMIN_ID,
+            text: adminMessage,
+            parse_mode: 'HTML',
+            reply_markup: inlineKeyboard
+          })
+        }).catch(err => {
+          console.error('❌ Failed to send admin notification:', err);
+        });
+      }
+
+      // ✅ NEW: Send confirmation message to user via Telegram bot
+      if (newWithdrawal.userTelegramId) {
+        const userMessage = "✅ You have sent a withdrawal request and it will be processed within an hour.";
+        sendUserTelegramNotification(newWithdrawal.userTelegramId, userMessage).catch(err => {
+          console.error('❌ Failed to send user notification:', err);
+        });
+      }
 
       res.json({
         success: true,
@@ -2694,6 +2746,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (errorMessage === 'Insufficient TON balance' || 
           errorMessage === 'User not found' ||
           errorMessage === 'No wallet ID found. Please set up your Cwallet ID first.' ||
+          errorMessage === 'You need to invite at least 3 friends to unlock withdrawals.' ||
+          errorMessage === 'This wallet ID is already in use by another user. Please use a unique wallet ID.' ||
           errorMessage === 'Cannot create new request until current one is processed') {
         return res.status(400).json({ 
           success: false, 
