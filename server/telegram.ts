@@ -568,18 +568,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                 console.error(`❌ Referral verification failed - not found in database after creation`);
               }
               
-              // Send notification to referrer about successful referral
-              try {
-                const referrerName = referrer.firstName || referrer.username || 'User';
-                const newUserName = dbUser.firstName || dbUser.username || 'User';
-                await sendUserTelegramNotification(
-                  referrer.telegram_id || '',
-                  `🎉 Great news! ${newUserName} joined using your referral link. You'll earn $0.01 when they watch 10 ads!`
-                );
-                console.log(`📧 Referral notification sent to referrer: ${referrer.telegram_id}`);
-              } catch (notificationError) {
-                console.error('❌ Failed to send referral notification:', notificationError);
-              }
+              // Referral notifications removed - only withdrawal notifications are sent via Telegram
+              console.log(`ℹ️ Referral created for ${referrer.telegram_id}, no notification sent (feature disabled)`);
+
             }
           } else {
             console.log(`❌ Invalid referral code: ${referralCode} - no user found with this referral code`);

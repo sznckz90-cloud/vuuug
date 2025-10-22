@@ -720,7 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       sendRealtimeUpdate(userId, {
         type: 'streak_reward',
         amount: result.rewardEarned,
-        message: result.isBonusDay ? '🎉 5-day streak bonus!' : '✅ Daily streak claimed!',
+        message: '✅ Daily streak claimed!',
         timestamp: new Date().toISOString()
       });
       
@@ -728,8 +728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         newStreak: result.newStreak,
         rewardEarned: result.rewardEarned,
-        isBonusDay: result.isBonusDay,
-        message: result.isBonusDay ? 'Congratulations! You completed a 5-day streak!' : 'Streak updated successfully'
+        message: 'Streak updated successfully'
       });
     } catch (error) {
       console.error("Error processing streak:", error);
@@ -1600,7 +1599,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Ensure all users have referral codes
       await storage.ensureAllUsersHaveReferralCodes();
       
-      // Step 3: Get repair summary
+      // Step 3: Sync friendsInvited counts from database for withdrawal unlock
+      await storage.syncFriendsInvitedCounts();
+      
+      // Step 4: Get repair summary
       const totalReferralsResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(referrals);
@@ -1619,7 +1621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message: 'Emergency referral data repair completed successfully!',
+        message: 'Emergency referral data repair completed successfully! Your friendsInvited count has been synced for withdrawal unlock.',
         summary: {
           totalReferrals: totalReferralsResult[0]?.count || 0,
           completedReferrals: completedReferralsResult[0]?.count || 0,

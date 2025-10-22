@@ -563,7 +563,7 @@ export class DatabaseStorage implements IStorage {
     return bucketStart;
   }
 
-  async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string; isBonusDay: boolean }> {
+  async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string }> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
     if (!user) {
@@ -574,14 +574,13 @@ export class DatabaseStorage implements IStorage {
     const lastStreakDate = user.lastStreakDate;
     let newStreak = 1;
     let rewardEarned = "0";
-    let isBonusDay = false;
 
     if (lastStreakDate) {
       const lastClaim = new Date(lastStreakDate);
       const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60);
       
       if (hoursSinceLastClaim < 24) {
-        return { newStreak: user.currentStreak || 0, rewardEarned: "0", isBonusDay: false };
+        return { newStreak: user.currentStreak || 0, rewardEarned: "0" };
       }
       
       const daysSinceLastClaim = Math.floor(hoursSinceLastClaim / 24);
@@ -593,13 +592,8 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    if (newStreak === 5) {
-      rewardEarned = "0.0015";
-      isBonusDay = true;
-      newStreak = 0;
-    } else {
-      rewardEarned = "0.0001";
-    }
+    // Unlimited streak with flat 500 PAD (0.00005 TON) reward
+    rewardEarned = "0.00005000";
 
     await db
       .update(users)
@@ -614,12 +608,12 @@ export class DatabaseStorage implements IStorage {
       await this.addEarning({
         userId,
         amount: rewardEarned,
-        source: isBonusDay ? 'streak_bonus_5day' : 'daily_streak',
-        description: isBonusDay ? '5-day streak bonus completed!' : `Daily streak claim`,
+        source: 'daily_streak',
+        description: `Daily streak claim`,
       });
     }
 
-    return { newStreak, rewardEarned, isBonusDay };
+    return { newStreak, rewardEarned };
   }
 
   // Helper function for consistent 12:00 PM UTC reset date calculation
@@ -763,7 +757,17 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, referredId));
     
-    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}, referred_by updated to: ${referrer.referralCode}`);
+    // Increment the referrer's friendsInvited count (for withdrawal unlock)
+    const currentCount = referrer.friendsInvited || 0;
+    await db
+      .update(users)
+      .set({
+        friendsInvited: currentCount + 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, referrerId));
+    
+    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}, friendsInvited incremented to ${currentCount + 1}`);
     return referral;
   }
 
@@ -931,6 +935,52 @@ export class DatabaseStorage implements IStorage {
       console.log('✅ Referral data synchronization completed');
     } catch (error) {
       console.error('❌ Error in fixExistingReferralData:', error);
+    }
+  }
+
+  // Sync friendsInvited counts from the referrals table for all users
+  async syncFriendsInvitedCounts(): Promise<void> {
+    try {
+      console.log('🔄 Starting friendsInvited count synchronization...');
+      
+      // Get all users
+      const allUsers = await db.select({ id: users.id }).from(users);
+      console.log(`Found ${allUsers.length} total users to sync`);
+      
+      let syncedCount = 0;
+      
+      for (const user of allUsers) {
+        try {
+          // Count actual referrals for this user
+          const [result] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(referrals)
+            .where(eq(referrals.referrerId, user.id));
+          
+          const actualCount = result?.count || 0;
+          
+          // Update the friendsInvited field
+          await db
+            .update(users)
+            .set({ 
+              friendsInvited: actualCount,
+              updatedAt: new Date()
+            })
+            .where(eq(users.id, user.id));
+          
+          syncedCount++;
+          
+          if (actualCount > 0) {
+            console.log(`✅ Synced user ${user.id}: ${actualCount} friends invited`);
+          }
+        } catch (error) {
+          console.error(`❌ Error syncing user ${user.id}:`, error);
+        }
+      }
+      
+      console.log(`✅ friendsInvited sync completed: ${syncedCount} users updated`);
+    } catch (error) {
+      console.error('❌ Error in syncFriendsInvitedCounts:', error);
     }
   }
 
@@ -2325,6 +2375,7 @@ export class DatabaseStorage implements IStorage {
       console.log(`🔄 Resetting ${usersNeedingReset.length} users for period ${currentDateString}`);
       
       // 2. Reset all users' daily counters and tracking fields
+      // NOTE: friendsInvited is NOT reset - it's a lifetime count for withdrawal unlock
       await db.update(users)
         .set({ 
           adsWatchedToday: 0,
@@ -2332,7 +2383,6 @@ export class DatabaseStorage implements IStorage {
           appShared: false,
           linkShared: false,
           friendInvited: false,
-          friendsInvited: 0,
           lastResetDate: currentDate,
           lastResetAt: periodStart,
           lastAdDate: currentDate 
