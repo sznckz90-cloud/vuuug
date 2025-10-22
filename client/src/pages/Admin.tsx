@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import Layout from "@/components/Layout";
 import { Link } from "wouter";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -252,6 +253,9 @@ export default function AdminPage() {
   const { toast } = useToast();
   const { isAdmin, isLoading: adminLoading } = useAdmin();
   const queryClient = useQueryClient();
+  
+  // Connect to WebSocket for real-time updates
+  useWebSocket();
 
   // Fetch admin stats - hooks must be called before any conditional returns
   const { data: stats } = useQuery<AdminStats>({
