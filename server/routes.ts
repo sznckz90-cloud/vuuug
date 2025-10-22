@@ -1001,9 +1001,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   
-  // ===== NEW SIMPLE TASK SYSTEM =====
+  // ===== TASK SYSTEM DISABLED =====
+  // Middleware to block all task-related API endpoints
+  app.use('/api/tasks', (req, res, next) => {
+    res.status(403).json({
+      success: false,
+      message: 'Task feature has been disabled'
+    });
+  });
   
-  // Get user's daily tasks (new system)
+  // Get user's daily tasks (new system) - DISABLED
   app.get('/api/tasks/daily', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
@@ -2930,6 +2937,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: result.withdrawal.method,
             message: `Your withdrawal of ${result.withdrawal.amount} TON has been approved and processed`
           });
+          
+          // Broadcast to all admins for instant UI update
+          broadcastUpdate({
+            type: 'withdrawal_approved',
+            withdrawalId: result.withdrawal.id,
+            amount: result.withdrawal.amount,
+            userId: result.withdrawal.userId
+          });
         }
         
         res.json({
@@ -2972,6 +2987,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             amount: result.withdrawal.amount,
             method: result.withdrawal.method,
             message: `Your withdrawal of ${result.withdrawal.amount} TON has been rejected`
+          });
+          
+          // Broadcast to all admins for instant UI update
+          broadcastUpdate({
+            type: 'withdrawal_rejected',
+            withdrawalId: result.withdrawal.id,
+            amount: result.withdrawal.amount,
+            userId: result.withdrawal.userId
           });
         }
         

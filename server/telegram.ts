@@ -242,13 +242,7 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
   const message = `👋 Welcome to Paid Ads!
 
-Turn your time into crypto rewards! Earn TON by:
-
-🎬 Watching ads
-👥 Inviting friends
-📝 Completing daily tasks
-
-🚀 Maximize your earnings and track your progress easily.`;
+Start earning crypto rewards now!`;
 
   // Get app URL from environment
   const appUrl = process.env.RENDER_EXTERNAL_URL || 
