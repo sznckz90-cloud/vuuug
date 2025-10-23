@@ -691,35 +691,116 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 
 // Keyboard navigation removed - bot uses inline buttons only for withdrawal management
 
-// Set up webhook (this should be called once to register the webhook with Telegram)
-export async function setupTelegramWebhook(webhookUrl: string): Promise<boolean> {
+export async function checkBotStatus(): Promise<{ ok: boolean; username?: string; error?: string }> {
   if (!TELEGRAM_BOT_TOKEN) {
-    console.error('Telegram bot token not configured');
-    return false;
+    return { ok: false, error: 'Bot token not configured' };
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: webhookUrl,
-        allowed_updates: ['message', 'callback_query'],
-      }),
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`, {
+      method: 'GET',
     });
 
     if (response.ok) {
-      console.log('Telegram webhook set successfully');
-      return true;
+      const data = await response.json();
+      return { ok: true, username: data.result?.username };
     } else {
       const errorData = await response.text();
-      console.error('Failed to set Telegram webhook:', errorData);
-      return false;
+      return { ok: false, error: errorData };
     }
   } catch (error) {
-    console.error('Error setting up Telegram webhook:', error);
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function getWebhookInfo(): Promise<any> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    return { ok: false, error: 'Bot token not configured' };
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo`, {
+      method: 'GET',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.result;
+    } else {
+      const errorData = await response.text();
+      return { error: errorData };
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function setupTelegramWebhook(webhookUrl: string, retries = 3): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('❌ Telegram bot token not configured');
     return false;
   }
+
+  console.log(`🔧 Setting up Telegram webhook: ${webhookUrl}`);
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const botStatus = await checkBotStatus();
+      if (!botStatus.ok) {
+        console.error(`❌ Bot token is invalid: ${botStatus.error}`);
+        return false;
+      }
+      
+      console.log(`✅ Bot token valid: @${botStatus.username}`);
+      
+      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: webhookUrl,
+          allowed_updates: ['message', 'callback_query'],
+          drop_pending_updates: true,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.ok) {
+        console.log('✅ Telegram webhook configured successfully');
+        
+        const webhookInfo = await getWebhookInfo();
+        if (webhookInfo && webhookInfo.url === webhookUrl) {
+          console.log(`✅ Webhook verified: ${webhookInfo.url}`);
+          console.log(`📊 Pending updates: ${webhookInfo.pending_update_count || 0}`);
+          console.log('🤖 Bot Active ✅');
+          return true;
+        } else {
+          console.warn('⚠️ Webhook set but verification failed');
+          return true;
+        }
+      } else {
+        const errorMsg = data.description || JSON.stringify(data);
+        console.error(`❌ Failed to set webhook (attempt ${attempt}/${retries}):`, errorMsg);
+        
+        if (attempt < retries) {
+          const delay = attempt * 2000;
+          console.log(`⏳ Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Error setting webhook (attempt ${attempt}/${retries}):`, error);
+      
+      if (attempt < retries) {
+        const delay = attempt * 2000;
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  console.error('❌ Failed to set up webhook after all retries');
+  return false;
 }

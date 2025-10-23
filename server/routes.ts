@@ -1782,8 +1782,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get various statistics for admin dashboard using drizzle
       const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
       const totalEarningsSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
-      const totalWithdrawalsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(eq(withdrawals.status, 'completed'));
+      const totalWithdrawalsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
       const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(eq(withdrawals.status, 'pending'));
+      const successfulWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+      const rejectedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(eq(withdrawals.status, 'rejected'));
+      const activePromosCount = await db.select({ count: sql<number>`count(*)` }).from(promoCodes).where(eq(promoCodes.isActive, true));
       const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
       const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
 
@@ -1792,6 +1795,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalEarnings: totalEarningsSum[0]?.total || '0',
         totalWithdrawals: totalWithdrawalsSum[0]?.total || '0',
         pendingWithdrawals: pendingWithdrawalsCount[0]?.count || 0,
+        successfulWithdrawals: successfulWithdrawalsCount[0]?.count || 0,
+        rejectedWithdrawals: rejectedWithdrawalsCount[0]?.count || 0,
+        activePromos: activePromosCount[0]?.count || 0,
         dailyActiveUsers: dailyActiveCount[0]?.count || 0,
         totalAdsWatched: totalAdsSum[0]?.total || 0,
       });

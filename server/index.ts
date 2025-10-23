@@ -83,6 +83,27 @@ app.get('/api/test-direct', (req: any, res) => {
   res.json({ status: 'Direct API route working!', timestamp: new Date().toISOString() });
 });
 
+// Webhook status endpoint
+app.get('/api/telegram/webhook/status', async (req: any, res) => {
+  try {
+    const { checkBotStatus, getWebhookInfo } = await import('./telegram');
+    
+    const botStatus = await checkBotStatus();
+    const webhookInfo = await getWebhookInfo();
+    
+    res.json({
+      bot: botStatus,
+      webhook: webhookInfo,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to check webhook status',
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -178,10 +199,11 @@ app.use((req, res, next) => {
       }
     }, 5 * 60 * 1000); // Every 5 minutes
     
-    // Auto-setup Telegram webhook on server start
+    // Auto-setup Telegram webhook on server start with retry logic
     if (process.env.TELEGRAM_BOT_TOKEN) {
       try {
-        const { setupTelegramWebhook } = await import('./telegram');
+        const { setupTelegramWebhook, checkBotStatus, getWebhookInfo } = await import('./telegram');
+        
         // Use the correct domain for the webhook (Render, Replit, or require env)
         const domain = process.env.RENDER_EXTERNAL_URL?.replace(/^https?:\/\//, '') ||
                       process.env.REPLIT_DOMAIN || 
@@ -191,18 +213,42 @@ app.use((req, res, next) => {
           log('❌ No webhook domain configured - set RENDER_EXTERNAL_URL or ensure Replit environment variables are available');
           return;
         }
+        
         const webhookUrl = `https://${domain}/api/telegram/webhook`;
-        log(`Setting up Telegram webhook: ${webhookUrl}`);
+        log(`🔧 Setting up Telegram webhook: ${webhookUrl}`);
         
         const success = await setupTelegramWebhook(webhookUrl);
         if (success) {
-          log('✅ Telegram webhook configured successfully');
+          log('✅ Telegram bot is active and ready to receive messages');
         } else {
-          log('❌ Failed to configure Telegram webhook');
+          log('❌ Failed to configure Telegram webhook - bot may not respond to messages');
+          
+          setTimeout(async () => {
+            log('🔄 Retrying webhook setup...');
+            const retrySuccess = await setupTelegramWebhook(webhookUrl);
+            if (retrySuccess) {
+              log('✅ Webhook configured on retry');
+            }
+          }, 10000);
         }
+        
+        setInterval(async () => {
+          try {
+            const webhookInfo = await getWebhookInfo();
+            if (webhookInfo.error || !webhookInfo.url) {
+              log('⚠️ Webhook connection lost, reconnecting...');
+              await setupTelegramWebhook(webhookUrl);
+            }
+          } catch (error) {
+            log('⚠️ Webhook health check failed:', String(error));
+          }
+        }, 5 * 60 * 1000);
+        
       } catch (error) {
         log('❌ Error setting up Telegram webhook:', String(error));
       }
+    } else {
+      log('⚠️ TELEGRAM_BOT_TOKEN not set - bot functionality disabled');
     }
   });
 })();
