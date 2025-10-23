@@ -10,6 +10,14 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes
 
+## October 23, 2025
+*   **Critical Fixes**: Fixed three major user-facing issues
+    *   **Ad Reward Notifications**: Made ad watching endpoint extremely robust with nested error handling to ensure success notifications always display. Non-critical failures (referral bonuses, commissions) are logged but don't affect user experience.
+    *   **Withdrawal Unlock (Friends Count)**: Fixed 0/3 friends display issue. The `/api/auth/user` endpoint now always calculates `friendsInvited` from actual referrals in database and syncs the count, ensuring withdrawal unlock logic works correctly.
+    *   **Wallet Setup Notifications**: Removed ⚠️ emoji from wallet error messages for cleaner, professional error handling.
+*   **Data Persistence**: All fixes ensure proper database synchronization and data persistence across app reloads.
+*   **Deployment**: Configured autoscale deployment with build and run commands for production.
+
 ## October 22, 2025
 *   **Feature Removal**: Completely removed Task page from application
     *   Removed /tasks route from client routing
