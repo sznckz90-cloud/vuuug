@@ -319,6 +319,14 @@ export default function AdminPage() {
     enabled: isAdmin,
   });
 
+  // Fetch chart analytics data
+  const { data: chartData } = useQuery({
+    queryKey: ["/api/admin/analytics/chart"],
+    queryFn: () => apiRequest("GET", "/api/admin/analytics/chart").then(res => res.json()),
+    refetchInterval: 30000,
+    enabled: isAdmin,
+  });
+
   // Admin access check - now after all hooks
   if (adminLoading) {
     return (
@@ -524,13 +532,13 @@ export default function AdminPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {/* Quick Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    {/* Quick Stats Row - Fixed overflow with proper text wrapping */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                       <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
                             <p className="text-blue-600 text-xs font-medium uppercase tracking-wide">Total Users</p>
-                            <p className="text-2xl font-bold text-blue-900">
+                            <p className="text-2xl font-bold text-blue-900 truncate">
                               {stats?.totalUsers?.toLocaleString() || '0'}
                             </p>
                             <p className="text-blue-600 text-xs mt-1">
@@ -538,55 +546,55 @@ export default function AdminPage() {
                               Growing
                             </p>
                           </div>
-                          <i className="fas fa-users text-blue-600 text-2xl"></i>
+                          <i className="fas fa-users text-blue-600 text-2xl flex-shrink-0"></i>
                         </div>
                       </div>
                       
                       <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-green-600 text-xs font-medium uppercase tracking-wide">Total Earnings</p>
-                            <p className="text-2xl font-bold text-green-900">
-                              {formatCurrency(stats?.totalEarnings || '0')}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-green-600 text-xs font-medium uppercase tracking-wide">Total Ads</p>
+                            <p className="text-2xl font-bold text-green-900 truncate">
+                              {stats?.totalAdsWatched?.toLocaleString() || '0'}
                             </p>
                             <p className="text-green-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
-                              +{formatCurrency(parseFloat(stats?.totalEarnings || '0') * 0.1, false)} today
+                              <i className="fas fa-video text-green-600 mr-1"></i>
+                              All time
                             </p>
                           </div>
-                          <i className="fas fa-dollar-sign text-green-600 text-2xl"></i>
+                          <i className="fas fa-play-circle text-green-600 text-2xl flex-shrink-0"></i>
                         </div>
                       </div>
                       
                       <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-purple-600 text-xs font-medium uppercase tracking-wide">Withdrawals</p>
-                            <p className="text-2xl font-bold text-purple-900">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-purple-600 text-xs font-medium uppercase tracking-wide">Total Withdrawn</p>
+                            <p className="text-xl font-bold text-purple-900 break-words">
                               {formatCurrency(stats?.totalWithdrawals || '0')}
                             </p>
                             <p className="text-purple-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
+                              <i className="fas fa-clock text-purple-600 mr-1"></i>
                               {stats?.pendingWithdrawals || 0} pending
                             </p>
                           </div>
-                          <i className="fas fa-money-bill-wave text-purple-600 text-2xl"></i>
+                          <i className="fas fa-money-bill-wave text-purple-600 text-2xl flex-shrink-0"></i>
                         </div>
                       </div>
                       
                       <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
                             <p className="text-orange-600 text-xs font-medium uppercase tracking-wide">Active Users</p>
-                            <p className="text-2xl font-bold text-orange-900">
+                            <p className="text-2xl font-bold text-orange-900 truncate">
                               {stats?.dailyActiveUsers?.toLocaleString() || '0'}
                             </p>
                             <p className="text-orange-600 text-xs mt-1">
-                              <i className="fas fa-arrow-up text-green-600 mr-1"></i>
+                              <i className="fas fa-clock text-orange-600 mr-1"></i>
                               Last 24h
                             </p>
                           </div>
-                          <i className="fas fa-chart-line text-orange-600 text-2xl"></i>
+                          <i className="fas fa-chart-line text-orange-600 text-2xl flex-shrink-0"></i>
                         </div>
                       </div>
                     </div>
@@ -607,36 +615,9 @@ export default function AdminPage() {
                       </div>
                       
                       <div className="h-80 w-full">
-                        {stats ? (
+                        {chartData?.success && chartData?.data ? (
                           <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart
-                              data={[
-                                { 
-                                  period: 'Week 1', 
-                                  users: Math.round((stats.totalUsers || 0) * 0.6), 
-                                  earnings: parseFloat(stats.totalEarnings || '0') * 0.6,
-                                  withdrawals: parseFloat(stats.totalWithdrawals || '0') * 0.5
-                                },
-                                { 
-                                  period: 'Week 2', 
-                                  users: Math.round((stats.totalUsers || 0) * 0.75), 
-                                  earnings: parseFloat(stats.totalEarnings || '0') * 0.75,
-                                  withdrawals: parseFloat(stats.totalWithdrawals || '0') * 0.7
-                                },
-                                { 
-                                  period: 'Week 3', 
-                                  users: Math.round((stats.totalUsers || 0) * 0.9), 
-                                  earnings: parseFloat(stats.totalEarnings || '0') * 0.9,
-                                  withdrawals: parseFloat(stats.totalWithdrawals || '0') * 0.85
-                                },
-                                { 
-                                  period: 'Current', 
-                                  users: stats.totalUsers || 0, 
-                                  earnings: parseFloat(stats.totalEarnings || '0'),
-                                  withdrawals: parseFloat(stats.totalWithdrawals || '0')
-                                }
-                              ]}
-                            >
+                            <AreaChart data={chartData.data}>
                               <defs>
                                 <linearGradient id="usersGradient" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -715,7 +696,7 @@ export default function AdminPage() {
                           <div className="flex items-center justify-center h-full text-gray-400">
                             <div className="text-center">
                               <i className="fas fa-spinner fa-spin text-3xl mb-4"></i>
-                              <p>Loading real-time data...</p>
+                              <p>Loading live analytics data...</p>
                             </div>
                           </div>
                         )}
@@ -823,7 +804,7 @@ function UserTrackingSearch() {
     <div className="space-y-4">
       <div className="flex gap-2">
         <Input
-          placeholder="Enter UID (referral code)"
+          placeholder="Enter UID (referral code) or User ID"
           value={uid}
           onChange={(e) => setUid(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}

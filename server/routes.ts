@@ -1809,22 +1809,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin user tracking endpoint - search by UID/referral code
+  // Admin chart analytics endpoint - get real time-series data
+  app.get('/api/admin/analytics/chart', authenticateAdmin, async (req: any, res) => {
+    try {
+      // Get data for last 7 days grouped by date
+      const last7DaysData = await db.execute(sql`
+        WITH date_series AS (
+          SELECT generate_series(
+            CURRENT_DATE - INTERVAL '6 days',
+            CURRENT_DATE,
+            INTERVAL '1 day'
+          )::date AS date
+        ),
+        daily_stats AS (
+          SELECT 
+            DATE(e.created_at) as date,
+            COUNT(DISTINCT e.user_id) as active_users,
+            COALESCE(SUM(e.amount), 0) as earnings
+          FROM ${earnings} e
+          WHERE e.created_at >= CURRENT_DATE - INTERVAL '6 days'
+          GROUP BY DATE(e.created_at)
+        ),
+        daily_withdrawals AS (
+          SELECT 
+            DATE(w.created_at) as date,
+            COALESCE(SUM(w.amount), 0) as withdrawals
+          FROM ${withdrawals} w
+          WHERE w.created_at >= CURRENT_DATE - INTERVAL '6 days'
+            AND w.status IN ('completed', 'success', 'paid', 'Approved')
+          GROUP BY DATE(w.created_at)
+        ),
+        daily_user_count AS (
+          SELECT 
+            DATE(u.created_at) as date,
+            COUNT(*) as new_users
+          FROM ${users} u
+          WHERE u.created_at >= CURRENT_DATE - INTERVAL '6 days'
+          GROUP BY DATE(u.created_at)
+        )
+        SELECT 
+          ds.date,
+          COALESCE(s.active_users, 0) as active_users,
+          COALESCE(s.earnings, 0) as earnings,
+          COALESCE(w.withdrawals, 0) as withdrawals,
+          COALESCE(u.new_users, 0) as new_users
+        FROM date_series ds
+        LEFT JOIN daily_stats s ON ds.date = s.date
+        LEFT JOIN daily_withdrawals w ON ds.date = w.date
+        LEFT JOIN daily_user_count u ON ds.date = u.date
+        ORDER BY ds.date ASC
+      `);
+
+      // Get cumulative user count for each day
+      const totalUsersBeforeWeek = await db.select({ count: sql<number>`count(*)` })
+        .from(users)
+        .where(sql`${users.createdAt} < CURRENT_DATE - INTERVAL '6 days'`);
+      
+      // Ensure initial count is a number to prevent string concatenation
+      let cumulativeUsers = Number(totalUsersBeforeWeek[0]?.count || 0);
+      
+      const chartData = last7DaysData.rows.map((row: any, index: number) => {
+        cumulativeUsers += Number(row.new_users || 0);
+        return {
+          period: new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          users: Number(cumulativeUsers), // Ensure it's a number in the output
+          earnings: parseFloat(row.earnings || '0'),
+          withdrawals: parseFloat(row.withdrawals || '0'),
+          activeUsers: Number(row.active_users || 0)
+        };
+      });
+
+      res.json({
+        success: true,
+        data: chartData
+      });
+    } catch (error) {
+      console.error("Error fetching chart analytics:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to fetch analytics data" 
+      });
+    }
+  });
+
+  // Admin user tracking endpoint - search by UID/referral code OR user ID
   app.get('/api/admin/user-tracking/:uid', authenticateAdmin, async (req: any, res) => {
     try {
       const { uid } = req.params;
       
-      // Search user by referral code (UID)
+      // Search user by referral code OR user ID
       const userResults = await db
         .select()
         .from(users)
-        .where(eq(users.referralCode, uid))
+        .where(sql`${users.referralCode} = ${uid} OR ${users.id} = ${uid}`)
         .limit(1);
       
       if (userResults.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'User not found'
+          message: 'User not found - please check the UID/ID and try again'
         });
       }
       
@@ -1846,6 +1929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         user: {
           uid: user.referralCode,
+          userId: user.id,
           balance: user.balance,
           totalEarnings: user.totalEarned,
           withdrawalCount: withdrawalCount[0]?.count || 0,
