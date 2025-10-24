@@ -184,60 +184,85 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-[20px] bg-black/95 border border-blue-600/30">
-        <div className="p-4">
-          <div className="text-center mb-3">
-            <h2 className="text-xl font-bold text-white mb-1 flex items-center justify-center">
-              <Flame className="text-blue-400 mr-2" size={20} />
+      <DialogContent 
+        className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        hideCloseButton={true}
+      >
+        <div className="space-y-4 py-4">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-[#4cd3ff] mb-1 flex items-center justify-center">
+              <Flame className="text-[#4cd3ff] mr-2" size={20} />
               Daily Streak Rewards
             </h2>
           </div>
           
-          <div className="text-center mb-6">
-            <h2 className="text-6xl font-bold text-white mb-1">
+          <div className="p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20 text-center">
+            <div className="text-xs text-muted-foreground mb-2">Current Streak</div>
+            <div className="text-6xl font-bold text-[#4cd3ff]">
               {currentStreak}
-            </h2>
+            </div>
           </div>
           
           {!isMember ? (
-            <div className="mb-3 p-3 bg-orange-950/50 border border-orange-600/50 rounded-lg">
-              <p className="text-sm font-medium text-orange-200 mb-2">
-                Channel membership required!
-              </p>
-              <p className="text-xs text-orange-300 mb-3">
-                You must join our channel to claim daily rewards.
-              </p>
+            <>
+              <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                <p className="text-sm font-medium text-orange-500 mb-2">
+                  Channel membership required!
+                </p>
+                <p className="text-xs text-orange-400 mb-3">
+                  You must join our channel to claim daily rewards.
+                </p>
+                <Button
+                  onClick={handleJoinChannel}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold transition-colors text-sm"
+                >
+                  <Send className="mr-2" size={16} />
+                  Join Channel
+                </Button>
+              </div>
+              
               <Button
-                onClick={handleJoinChannel}
-                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-[20px] font-semibold transition-colors text-sm"
+                onClick={() => onOpenChange?.(false)}
+                variant="outline"
+                className="w-full border-white/20 hover:bg-white/10 text-white"
               >
-                <Send className="mr-2" size={16} />
-                Join Channel
+                Close
               </Button>
-            </div>
+            </>
           ) : (
-            <Button
-              onClick={handleClaimStreak}
-              disabled={isClaiming || !canClaim}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-[20px] font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
-              data-testid="button-claim-streak"
-            >
-              {isClaiming ? (
-                <>
-                  <Loader className="mr-2 animate-spin" size={16} />
-                  Watching Ad...
-                </>
-              ) : canClaim ? (
-                <span className="flex items-center">
-                  <Flame className="mr-2" size={16} />
-                  Claim Streak
-                </span>
-              ) : (
-                <span className="text-xs font-normal opacity-80">
-                  Next claim in: {timeUntilNextClaim} UTC
-                </span>
-              )}
-            </Button>
+            <>
+              <Button
+                onClick={handleClaimStreak}
+                disabled={isClaiming || !canClaim}
+                className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black py-3 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
+                data-testid="button-claim-streak"
+              >
+                {isClaiming ? (
+                  <>
+                    <Loader className="mr-2 animate-spin" size={16} />
+                    Watching Ad...
+                  </>
+                ) : canClaim ? (
+                  <span className="flex items-center">
+                    <Flame className="mr-2" size={16} />
+                    Claim Streak
+                  </span>
+                ) : (
+                  <span className="text-xs font-normal opacity-80">
+                    Next claim in: {timeUntilNextClaim} UTC
+                  </span>
+                )}
+              </Button>
+              
+              <Button
+                onClick={() => onOpenChange?.(false)}
+                variant="outline"
+                className="w-full border-white/20 hover:bg-white/10 text-white"
+              >
+                Close
+              </Button>
+            </>
           )}
         </div>
       </DialogContent>
