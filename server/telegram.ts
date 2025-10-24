@@ -201,20 +201,33 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
-  const message = `👋 Welcome to Paid Ads!
+  const message = `👋 Welcome to Paid Adz!
 
-Start earning crypto rewards now!`;
+🚀 You've entered the world of Paid Adz, where every click earns you $PAD Tokens — your key to real $TON rewards.
 
-const inlineKeyboard = {
-  inline_keyboard: [
-    [
-      {
-        text: "🚀 Start Earning",
-        web_app: { url: process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com" }
-      }
+⚡ Just earn $PAD and convert it instantly to $TON anytime you want!
+
+📈 Start earning now and watch your balance grow every day.`;
+
+  // Get the app URL from environment variables
+  const appUrl = process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com";
+
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [
+        {
+          text: "🚀 Let's Go",
+          web_app: { url: appUrl }
+        }
+      ],
+      [
+        {
+          text: "🤝 Join Community",
+          url: "https://t.me/PaidADsNews"
+        }
+      ]
     ]
-  ]
-};
+  };
 
   return { message, inlineKeyboard };
 }

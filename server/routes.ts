@@ -764,7 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parseFloat(result.rewardEarned) === 0) {
         return res.status(400).json({ 
           success: false,
-          message: 'You have already claimed your daily reward. Come back in 24 hours!'
+          message: 'You have already claimed your daily reward. Come back after 12:00 PM UTC!'
         });
       }
       
@@ -779,6 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         newStreak: result.newStreak,
         rewardEarned: result.rewardEarned,
+        isBonusDay: result.isBonusDay,
         message: 'Streak updated successfully'
       });
     } catch (error) {
