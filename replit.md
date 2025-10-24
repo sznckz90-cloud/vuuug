@@ -10,6 +10,43 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes
 
+## October 24, 2025
+*   **Initial Setup**: Successfully configured GitHub import to run in Replit environment
+    *   Installed all npm dependencies
+    *   Pushed database schema to PostgreSQL
+    *   Configured Server workflow on port 5000 with Vite dev server
+    *   Set up autoscale deployment with build and run commands
+*   **PAD → TON Conversion Fix**: Fixed conversion button glitch
+    *   Updated minimum conversion from 100,000 PAD to 10,000 PAD (0.001 TON)
+    *   Synchronized client and server validation for consistent experience
+    *   Conversion rate remains: 10,000,000 PAD = 1 TON
+    *   TON balance updates instantly after conversion via database transaction
+*   **Admin Dashboard Redesign**: Improved layout and data display
+    *   Updated title to "👑 Admin Dashboard" (single line, no overflow)
+    *   Removed "Modern platform analytics & management" subtitle and admin badge for cleaner look
+    *   Reorganized analytics into vertical layout with no horizontal scroll
+    *   Structured sections: User Stats, Ad Stats, Balance Stats, Total Requests (Pending/Approved/Rejected)
+    *   All analytics pull real data from PostgreSQL database
+*   **Streak Section UX Enhancement**: Updated streak dialog to match withdrawal section behavior
+    *   Removed X close button from streak dialog
+    *   Added dedicated "Close" button at bottom for clear exit action
+    *   Prevented dialog from closing when clicking outside (requires explicit close button click)
+    *   Improved user experience with consistent modal behavior across app
+*   **Database Connection Fixes**: Fixed admin dashboard and promo code issues
+    *   Fixed admin stats endpoint by adding missing `promoCodes` import - now pulls real data from database
+    *   Fixed promo code conversion glitch: Changed from wrong rate (100,000) to correct rate (10,000,000)
+    *   When creating 1 PAD promo, users now correctly receive 1 PAD (not 100 PAD)
+    *   All admin analytics now display accurate data from PostgreSQL
+*   **Icon Improvements**: Replaced emoji with proper icon components
+    *   Changed crown emoji (👑) to Crown icon from lucide-react in Admin Dashboard
+    *   More consistent and professional appearance across the app
+*   **Streak Section Styling**: Updated streak dialog to match withdrawal section colors
+    *   Applied frosted-glass effect with white/10 border for consistency
+    *   Changed title and icon color to cyan (#4cd3ff) to match withdrawal section
+    *   Updated streak counter display with dark background (bg-[#0d0d0d])
+    *   Changed claim button to cyan color scheme with black text
+    *   Unified visual language between streak and withdrawal dialogs
+
 ## October 23, 2025
 *   **Critical Fixes**: Fixed three major user-facing issues
     *   **Ad Reward Notifications**: Made ad watching endpoint extremely robust with nested error handling to ensure success notifications always display. Non-critical failures (referral bonuses, commissions) are logged but don't affect user experience.
