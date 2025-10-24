@@ -10,7 +10,8 @@ import {
   referralCommissions,
   withdrawals,
   userBalances,
-  dailyTasks
+  dailyTasks,
+  promoCodes
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
@@ -2469,13 +2470,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Conversion rate: 10,000,000 PAD = 1 TON
       const CONVERSION_RATE = 10000000;
-      // Minimum conversion: 100,000 PAD
-      const minimumPad = 100000;
+      // Minimum conversion: 10,000 PAD (0.001 TON)
+      const minimumPad = 10000;
       
       if (convertAmount < minimumPad) {
         return res.status(400).json({
           success: false,
-          message: `Minimum 100,000 PAD required to convert.`
+          message: `Minimum 10,000 PAD required to convert.`
         });
       }
       
