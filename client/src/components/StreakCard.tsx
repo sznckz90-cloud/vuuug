@@ -159,15 +159,11 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
         // Mark dialog as shown for today after claiming
         const today = new Date().toISOString().split('T')[0];
         localStorage.setItem('streakDialogShown', today);
-        // Close dialog after claiming
-        onOpenChange?.(false);
       } else {
         claimStreakMutation.mutate();
         // Mark dialog as shown for today after claiming
         const today = new Date().toISOString().split('T')[0];
         localStorage.setItem('streakDialogShown', today);
-        // Close dialog after claiming
-        onOpenChange?.(false);
       }
     } catch (error) {
       console.error('Ad watching failed:', error);
