@@ -77,28 +77,27 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
     const updateTimer = () => {
       const now = new Date();
       
-      // Check if user has claimed today (same UTC date)
+      // Check if user has claimed today (after UTC 12:00 PM)
       if (user?.lastStreakDate) {
         const lastClaim = new Date(user.lastStreakDate);
-        const lastClaimUTCDate = new Date(Date.UTC(
-          lastClaim.getUTCFullYear(),
-          lastClaim.getUTCMonth(),
-          lastClaim.getUTCDate()
-        ));
-        const todayUTCDate = new Date(Date.UTC(
+        
+        // Get today's UTC 12:00 PM
+        const todayNoon = new Date(Date.UTC(
           now.getUTCFullYear(),
           now.getUTCMonth(),
-          now.getUTCDate()
+          now.getUTCDate(),
+          12, 0, 0, 0
         ));
         
-        // If already claimed today, calculate time until next UTC 00:00
-        if (lastClaimUTCDate.getTime() === todayUTCDate.getTime()) {
-          const nextMidnight = new Date(Date.UTC(
+        // If last claim was after today's noon, calculate time until tomorrow's noon
+        if (lastClaim.getTime() >= todayNoon.getTime()) {
+          const nextNoon = new Date(Date.UTC(
             now.getUTCFullYear(),
             now.getUTCMonth(),
-            now.getUTCDate() + 1
+            now.getUTCDate() + 1,
+            12, 0, 0, 0
           ));
-          const diff = nextMidnight.getTime() - now.getTime();
+          const diff = nextNoon.getTime() - now.getTime();
 
           const hours = Math.floor(diff / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -137,14 +136,15 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
     
     setIsClaiming(true);
     
-    // Immediately set countdown to disable button until next UTC midnight
+    // Immediately set countdown to disable button until next UTC 12:00 PM
     const now = new Date();
-    const nextMidnight = new Date(Date.UTC(
+    const nextNoon = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
-      now.getUTCDate() + 1
+      now.getUTCDate() + 1,
+      12, 0, 0, 0
     ));
-    const diff = nextMidnight.getTime() - now.getTime();
+    const diff = nextNoon.getTime() - now.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -191,23 +191,12 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
               <Flame className="text-blue-400 mr-2" size={20} />
               Daily Streak Rewards
             </h2>
-            <p className="text-gray-400 text-sm">
-              Earn 10 PAD daily • 150 PAD bonus on 5th day
-            </p>
           </div>
           
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-400 text-sm">Current streak</span>
-            <span className="text-lg font-bold text-white" data-testid="text-current-streak">
-              {currentStreak} days
-            </span>
-          </div>
-          
-          <div className="bg-gray-800 rounded-full h-2 mb-4 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-blue-500 to-blue-400 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${streakProgress}%` }}
-            ></div>
+          <div className="text-center mb-6">
+            <h2 className="text-6xl font-bold text-white mb-1">
+              {currentStreak}
+            </h2>
           </div>
           
           {!isMember ? (
