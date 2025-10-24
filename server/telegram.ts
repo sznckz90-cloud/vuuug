@@ -26,6 +26,7 @@ interface TelegramMessage {
   chat_id: string;
   text: string;
   parse_mode?: 'HTML' | 'Markdown' | 'MarkdownV2';
+  protect_content?: boolean;
   reply_markup?: {
     inline_keyboard: Array<Array<{
       text: string;
@@ -117,7 +118,8 @@ export async function sendTelegramMessage(message: string): Promise<boolean> {
     const telegramMessage: TelegramMessage = {
       chat_id: TELEGRAM_ADMIN_ID,
       text: message,
-      parse_mode: 'HTML'
+      parse_mode: 'HTML',
+      protect_content: false
     };
 
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -152,10 +154,14 @@ export async function sendUserTelegramNotification(userId: string, message: stri
   try {
     console.log(`📞 Sending message to Telegram API for user ${userId}...`);
     
+    // Check if user is admin - only admin can forward messages
+    const isAdminUser = isAdmin(userId);
+    
     const telegramMessage: TelegramMessage = {
       chat_id: userId,
       text: message,
-      parse_mode: parseMode
+      parse_mode: parseMode,
+      protect_content: !isAdminUser
     };
 
     if (replyMarkup) {
@@ -174,6 +180,7 @@ export async function sendUserTelegramNotification(userId: string, message: stri
     }
 
     console.log('📡 Request payload:', JSON.stringify(telegramMessage, null, 2));
+    console.log(`🔒 Forward protection: ${!isAdminUser ? 'ENABLED' : 'DISABLED'} for user ${userId} (Admin: ${isAdminUser})`);
 
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
