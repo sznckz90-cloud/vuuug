@@ -13,7 +13,9 @@ import Layout from "@/components/Layout";
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { formatCurrency } from "@/lib/utils";
+import { PAD_TO_TON } from "@shared/constants";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Crown } from "lucide-react";
 
 interface AdminStats {
   totalUsers: number;
@@ -94,98 +96,100 @@ export default function AdminPage() {
       <main className="max-w-7xl mx-auto px-4 pb-20 pt-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center">
-              <i className="fas fa-crown text-orange-600 mr-3"></i>
-              Admin Dashboard
-            </h1>
-            <p className="text-muted-foreground">Modern platform analytics & management</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button 
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                queryClient.invalidateQueries();
-                toast({ title: "✅ Data refreshed successfully" });
-              }}
-              className="h-9 px-4"
-            >
-              <i className="fas fa-sync-alt mr-2"></i>
-              Refresh
-            </Button>
-            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 px-3 py-1">
-              <i className="fas fa-shield-alt mr-1"></i>
-              Admin
-            </Badge>
-          </div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2 truncate">
+            <Crown className="w-6 h-6 text-orange-600" />
+            Admin Dashboard
+          </h1>
+          <Button 
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              queryClient.invalidateQueries();
+              toast({ title: "✅ Data refreshed successfully" });
+            }}
+            className="h-9 px-4"
+          >
+            <i className="fas fa-sync-alt mr-2"></i>
+            Refresh
+          </Button>
         </div>
 
-        {/* Overview Section - Compact Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-          <StatCard
-            icon="users"
-            label="Total Users"
-            value={stats?.totalUsers?.toLocaleString() || '0'}
-            iconColor="text-blue-600"
-            bgColor="bg-blue-50"
-          />
-          <StatCard
-            icon="user-check"
-            label="Active Users"
-            value={stats?.dailyActiveUsers?.toLocaleString() || '0'}
-            iconColor="text-green-600"
-            bgColor="bg-green-50"
-          />
-          <StatCard
-            icon="play-circle"
-            label="Total Ads"
-            value={stats?.totalAdsWatched?.toLocaleString() || '0'}
-            iconColor="text-purple-600"
-            bgColor="bg-purple-50"
-          />
-          <StatCard
-            icon="gem"
-            label="Total PAD"
-            value={formatCurrency(stats?.totalEarnings || '0')}
-            iconColor="text-cyan-600"
-            bgColor="bg-cyan-50"
-          />
-          <StatCard
-            icon="wallet"
-            label="TON Withdrawn"
-            value={formatCurrency(stats?.totalWithdrawals || '0')}
-            iconColor="text-indigo-600"
-            bgColor="bg-indigo-50"
-          />
-          <StatCard
-            icon="tag"
-            label="Active Promos"
-            value={stats?.activePromos?.toString() || '0'}
-            iconColor="text-pink-600"
-            bgColor="bg-pink-50"
-          />
-          <StatCard
-            icon="clock"
-            label="Pending"
-            value={stats?.pendingWithdrawals?.toString() || '0'}
-            iconColor="text-yellow-600"
-            bgColor="bg-yellow-50"
-          />
-          <StatCard
-            icon="check-circle"
-            label="Approved"
-            value={stats?.successfulWithdrawals?.toString() || '0'}
-            iconColor="text-green-600"
-            bgColor="bg-green-50"
-          />
-          <StatCard
-            icon="times-circle"
-            label="Rejected"
-            value={stats?.rejectedWithdrawals?.toString() || '0'}
-            iconColor="text-red-600"
-            bgColor="bg-red-50"
-          />
+        {/* App Dashboard - Vertical Layout */}
+        <div className="space-y-4 mb-6">
+          <h2 className="text-lg font-semibold text-foreground">App Dashboard</h2>
+          
+          {/* User Stats */}
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              icon="users"
+              label="Total Users"
+              value={stats?.totalUsers?.toLocaleString() || '0'}
+              iconColor="text-blue-600"
+              bgColor="bg-blue-50"
+            />
+            <StatCard
+              icon="user-check"
+              label="Active Users"
+              value={stats?.dailyActiveUsers?.toLocaleString() || '0'}
+              iconColor="text-green-600"
+              bgColor="bg-green-50"
+            />
+          </div>
+
+          {/* Ad Stats */}
+          <div className="grid grid-cols-1">
+            <StatCard
+              icon="play-circle"
+              label="Total Ads"
+              value={stats?.totalAdsWatched?.toLocaleString() || '0'}
+              iconColor="text-purple-600"
+              bgColor="bg-purple-50"
+            />
+          </div>
+
+          {/* Balance Stats */}
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              icon="gem"
+              label="Total PAD"
+              value={formatCurrency(stats?.totalEarnings || '0')}
+              iconColor="text-cyan-600"
+              bgColor="bg-cyan-50"
+            />
+            <StatCard
+              icon="wallet"
+              label="TON Withdrawn"
+              value={formatCurrency(stats?.totalWithdrawals || '0')}
+              iconColor="text-indigo-600"
+              bgColor="bg-indigo-50"
+            />
+          </div>
+
+          {/* Withdrawal Requests */}
+          <h3 className="text-sm font-medium text-muted-foreground mt-4">Total Requests</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard
+              icon="clock"
+              label="Pending"
+              value={stats?.pendingWithdrawals?.toString() || '0'}
+              iconColor="text-yellow-600"
+              bgColor="bg-yellow-50"
+            />
+            <StatCard
+              icon="check-circle"
+              label="Approved"
+              value={stats?.successfulWithdrawals?.toString() || '0'}
+              iconColor="text-green-600"
+              bgColor="bg-green-50"
+            />
+            <StatCard
+              icon="times-circle"
+              label="Rejected"
+              value={stats?.rejectedWithdrawals?.toString() || '0'}
+              iconColor="text-red-600"
+              bgColor="bg-red-50"
+            />
+          </div>
         </div>
 
         {/* Tabs Navigation */}
@@ -479,8 +483,8 @@ function PromoCreatorSection() {
       return;
     }
 
-    // FIX: Convert PAD to TON before sending (1 PAD = 0.00001 TON)
-    const tonAmount = padAmount / 100000;
+    // Convert PAD to TON before sending (1 PAD = 0.0000001 TON, using PAD_TO_TON constant)
+    const tonAmount = padAmount / PAD_TO_TON;
 
     setIsCreating(true);
     try {
