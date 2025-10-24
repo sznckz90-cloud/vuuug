@@ -10,7 +10,25 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes
 
-## October 24, 2025
+## October 24, 2025 (Latest Session)
+*   **Telegram Bot Message Forwarding Restrictions**: Implemented protect_content flag for bot messages
+    *   Added TELEGRAM_ADMIN_ID environment variable for admin identification
+    *   Updated sendUserTelegramNotification to restrict forwarding for non-admin users
+    *   Admin users (TELEGRAM_ADMIN_ID) can still forward messages
+    *   Normal users cannot forward bot messages to other chats, groups, or channels
+    *   Protection silently enforced - no error messages shown to users
+    *   Added logging to show forward protection status in server logs
+*   **Streak Countdown Timer Fix**: Fixed disappearing countdown after claiming streak
+    *   Removed auto-close behavior after claiming streak
+    *   Users can now see the countdown timer after claiming
+    *   Dialog stays open to display time until next claim (HH:MM:SS format)
+    *   Users manually close dialog when ready using "Close" button
+*   **Admin Panel Layout Fix**: Fixed overflow in Balance Stats section
+    *   Changed "Total PAD" and "TON Withdrawn" layout from 2-column to 1-column (vertical stacking)
+    *   Prevents overflow when displaying large numbers
+    *   Improved readability and consistency across different screen sizes
+
+## October 24, 2025 (Earlier)
 *   **Initial Setup**: Successfully configured GitHub import to run in Replit environment
     *   Installed all npm dependencies
     *   Pushed database schema to PostgreSQL
