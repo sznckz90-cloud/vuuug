@@ -100,7 +100,8 @@ export interface IStorage {
   
   // Telegram user operations
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
-  upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }>;
+  getTelegramUser(telegramId: string): Promise<{ user: User | undefined }>;
+  upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>, deviceInfo?: { deviceId: string; fingerprint?: any } | null): Promise<{ user: User; isNewUser: boolean }>;
   
   
   // Daily reset system
@@ -185,7 +186,12 @@ export class DatabaseStorage implements IStorage {
     return { user, isNewUser };
   }
 
-  async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
+  async getTelegramUser(telegramId: string): Promise<{ user: User | undefined }> {
+    const user = await this.getUserByTelegramId(telegramId);
+    return { user };
+  }
+
+  async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>, deviceInfo?: { deviceId: string; fingerprint?: any } | null): Promise<{ user: User; isNewUser: boolean }> {
     // Sanitize user data to prevent SQL issues
     const sanitizedData = {
       ...userData,
@@ -240,6 +246,9 @@ export class DatabaseStorage implements IStorage {
         SET first_name = ${sanitizedData.firstName}, 
             last_name = ${sanitizedData.lastName}, 
             username = ${sanitizedData.username},
+            device_id = ${deviceInfo?.deviceId || existingUser.deviceId},
+            device_fingerprint = ${deviceInfo?.fingerprint ? JSON.stringify(deviceInfo.fingerprint) : existingUser.deviceFingerprint},
+            last_login_at = NOW(),
             updated_at = NOW()
         WHERE telegram_id = ${telegramId}
         RETURNING *
@@ -271,14 +280,16 @@ export class DatabaseStorage implements IStorage {
           INSERT INTO users (
             telegram_id, email, first_name, last_name, username, personal_code, 
             withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
-            daily_earnings, level, flagged, banned
+            daily_earnings, level, flagged, banned, device_id, device_fingerprint,
+            is_primary_account
           )
           VALUES (
             ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
             ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
             ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
             ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-            ${sanitizedData.banned}
+            ${sanitizedData.banned}, ${deviceInfo?.deviceId}, ${deviceInfo?.fingerprint ? JSON.stringify(deviceInfo.fingerprint) : null},
+            true
           )
           RETURNING *
         `);

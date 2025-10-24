@@ -570,6 +570,31 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             if (referrer.id === dbUser.id) {
               console.log(`⚠️  Self-referral prevented: referrer.id=${referrer.id} === dbUser.id=${dbUser.id}`);
             } else {
+              const { detectSelfReferral, banUserForMultipleAccounts, sendWarningToMainAccount } = await import('./deviceTracking');
+              const selfReferralCheck = await detectSelfReferral(dbUser.id, referralCode);
+              
+              if (selfReferralCheck.isSelfReferral && selfReferralCheck.shouldBan) {
+                console.log(`⚠️ Device-based self-referral detected! User ${dbUser.id} tried to refer themselves using device matching.`);
+                
+                await banUserForMultipleAccounts(
+                  dbUser.id,
+                  "Self-referral attempt detected - multiple accounts on same device"
+                );
+                
+                if (selfReferralCheck.referrerId) {
+                  await sendWarningToMainAccount(selfReferralCheck.referrerId);
+                }
+                
+                await sendUserTelegramNotification(
+                  chatId,
+                  "Your account has been banned for violating our multi-account policy.\n\n" +
+                  "Reason: Self-referral attempt detected.\n\n" +
+                  "Please contact support if you believe this is a mistake: https://t.me/PaidAdsCommunity"
+                );
+                
+                return true;
+              }
+              
               console.log(`💾 Creating referral relationship: ${referrer.id} -> ${dbUser.id}`);
               const createdReferral = await storage.createReferral(referrer.id, dbUser.id);
               console.log(`✅ Referral created successfully in database:`, {

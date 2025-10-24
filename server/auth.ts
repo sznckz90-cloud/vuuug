@@ -7,6 +7,12 @@ import connectPg from "connect-pg-simple";
 import crypto from "crypto";
 import { storage } from "./storage";
 import { pool } from "./db";
+import { 
+  validateDeviceAndDetectDuplicate, 
+  banUserForMultipleAccounts,
+  sendWarningToMainAccount,
+  type DeviceInfo 
+} from "./deviceTracking";
 
 // Session configuration
 export function getSession() {
@@ -85,6 +91,20 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
   try {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
+    const deviceId = req.headers['x-device-id'] as string;
+    const deviceFingerprint = req.headers['x-device-fingerprint'];
+    
+    let deviceInfo: DeviceInfo | null = null;
+    if (deviceId) {
+      deviceInfo = {
+        deviceId,
+        fingerprint: deviceFingerprint ? JSON.parse(deviceFingerprint as string) : {
+          userAgent: req.headers['user-agent'],
+          platform: req.headers['sec-ch-ua-platform'],
+        }
+      };
+    }
+    
     // Development mode - allow test users (only in development, not production)
     if (!telegramData && (process.env.NODE_ENV === 'development' || process.env.REPL_ID)) {
       console.log('🔧 Development mode: Using test user authentication');
@@ -152,6 +172,32 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       return res.status(401).json({ message: "Invalid Telegram authentication data" });
     }
     
+    if (deviceInfo) {
+      const deviceValidation = await validateDeviceAndDetectDuplicate(
+        telegramUser.id.toString(),
+        deviceInfo
+      );
+      
+      if (deviceValidation.shouldBan && deviceValidation.primaryAccountId) {
+        const { user: existingUser } = await storage.getTelegramUser(telegramUser.id.toString());
+        
+        if (existingUser) {
+          await banUserForMultipleAccounts(
+            existingUser.id,
+            deviceValidation.reason || "Multiple accounts detected on the same device"
+          );
+          
+          await sendWarningToMainAccount(deviceValidation.primaryAccountId);
+        }
+        
+        return res.status(403).json({ 
+          banned: true,
+          message: "Your account has been banned for violating our multi-account policy.",
+          reason: deviceValidation.reason
+        });
+      }
+    }
+    
     // Get or create user in database using Telegram-specific method
     const { user: upsertedUser, isNewUser } = await storage.upsertTelegramUser(telegramUser.id.toString(), {
       email: `${telegramUser.username || telegramUser.id}@telegram.user`,
@@ -167,8 +213,8 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       level: 1,
       flagged: false,
       banned: false,
-      referralCode: '', // This will be overridden by crypto generation in upsertTelegramUser
-    });
+      referralCode: '',
+    }, deviceInfo);
     
     // Send welcome message for new users with referral code
     if (isNewUser) {
