@@ -148,7 +148,7 @@ export default function AdminPage() {
           </div>
 
           {/* Balance Stats */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <StatCard
               icon="gem"
               label="Total PAD"
