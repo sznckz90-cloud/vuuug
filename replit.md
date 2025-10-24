@@ -16,6 +16,29 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
     *   Pushed database schema to PostgreSQL
     *   Configured Server workflow on port 5000 with Vite dev server
     *   Set up autoscale deployment with build and run commands
+*   **Streak Countdown Timer Enhancement**: Improved countdown display after claiming
+    *   Redesigned button to show clean countdown timer in HH:MM:SS format
+    *   Removed extra text labels - shows only the countdown numbers
+    *   Timer displays in large bold font (text-lg) with clear tracking
+    *   Changed disabled button opacity from 50% to 70% for better visibility
+*   **Admin Dashboard Layout Fixes**: Fixed overflow issues in App Dashboard section
+    *   Changed grid from md:grid-cols-4 to md:grid-cols-2 lg:grid-cols-4 for better responsiveness
+    *   Added flex-1 min-w-0 to text containers to prevent overflow with long numbers
+    *   Applied truncate class to user count and break-words to withdrawal amounts
+    *   Replaced "Total Earnings" box with "Total Ads" showing totalAdsWatched statistic
+    *   Reduced Total Withdrawn font from text-2xl to text-xl to prevent overflow
+    *   Added flex-shrink-0 to icons to maintain proper sizing
+*   **Real-Time Chart Analytics**: Replaced fake demo data with live database analytics
+    *   Created new `/api/admin/analytics/chart` endpoint for 7-day time-series data
+    *   Endpoint queries earnings, withdrawals, and user data grouped by date
+    *   Returns cumulative user count and daily active user metrics
+    *   Fixed type coercion bug to ensure numeric values (not string concatenation)
+    *   Chart now displays actual platform growth instead of calculated percentages
+*   **Enhanced User Search**: Admin panel now searches by both referral code and user ID
+    *   Modified SQL query to use OR condition: searches both referralCode and ID fields
+    *   Updated input placeholder to indicate dual search capability
+    *   Added userId to response payload for better admin tracking
+    *   Improved error message clarity when user not found
 *   **PAD → TON Conversion Fix**: Fixed conversion button glitch
     *   Updated minimum conversion from 100,000 PAD to 10,000 PAD (0.001 TON)
     *   Synchronized client and server validation for consistent experience
