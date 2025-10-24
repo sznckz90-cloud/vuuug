@@ -3,16 +3,16 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppNotification from "@/components/AppNotification";
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, useState } from "react";
+import { setupDeviceTracking } from "@/lib/deviceId";
+import BanScreen from "@/components/BanScreen";
 
-// Lazy load pages for better performance
 const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
-// Loading component for Suspense fallback
 function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -36,18 +36,25 @@ function Router() {
 }
 
 function App() {
+  const [isBanned, setIsBanned] = useState(false);
+  const [banReason, setBanReason] = useState<string>();
+
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.ready();
       
-      // Cache user data if available
       if (tg.initDataUnsafe?.user) {
         localStorage.setItem("tg_user", JSON.stringify(tg.initDataUnsafe.user));
       }
       
-      // Call auth endpoint
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const { deviceId, fingerprint } = setupDeviceTracking();
+      
+      const headers: Record<string, string> = { 
+        "Content-Type": "application/json",
+        "x-device-id": deviceId,
+        "x-device-fingerprint": JSON.stringify(fingerprint)
+      };
       let body: any = {};
       
       if (tg.initData) {
@@ -66,9 +73,21 @@ function App() {
         method: "POST",
         headers,
         body: JSON.stringify(body),
-      }).catch(() => {});
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.banned) {
+            setIsBanned(true);
+            setBanReason(data.reason);
+          }
+        })
+        .catch(() => {});
     }
   }, []);
+
+  if (isBanned) {
+    return <BanScreen reason={banReason} />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
