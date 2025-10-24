@@ -235,23 +235,23 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
               <Button
                 onClick={handleClaimStreak}
                 disabled={isClaiming || !canClaim}
-                className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black py-3 rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center"
+                className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black py-3 rounded-lg font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                 data-testid="button-claim-streak"
               >
                 {isClaiming ? (
-                  <>
+                  <div className="flex items-center justify-center">
                     <Loader className="mr-2 animate-spin" size={16} />
-                    Watching Ad...
-                  </>
+                    <span>Watching Ad...</span>
+                  </div>
                 ) : canClaim ? (
-                  <span className="flex items-center">
+                  <div className="flex items-center justify-center">
                     <Flame className="mr-2" size={16} />
-                    Claim Streak
-                  </span>
+                    <span>Claim Streak</span>
+                  </div>
                 ) : (
-                  <span className="text-xs font-normal opacity-80">
-                    Next claim in: {timeUntilNextClaim} UTC
-                  </span>
+                  <div className="flex items-center justify-center">
+                    <span className="text-lg font-bold tracking-wider">{timeUntilNextClaim}</span>
+                  </div>
                 )}
               </Button>
               
