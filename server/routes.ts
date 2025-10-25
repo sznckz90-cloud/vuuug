@@ -704,8 +704,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.error('❌ TELEGRAM_BOT_TOKEN not configured');
         return res.status(500).json({ 
+          success: false,
           isMember: false, 
-          message: 'Bot token not configured' 
+          message: 'Channel verification is temporarily unavailable. Please try again later.',
+          error_code: 'VERIFICATION_UNAVAILABLE'
         });
       }
       
@@ -726,7 +728,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: false,
         isMember: false,
-        message: 'Failed to verify membership' 
+        message: 'Unable to verify channel membership. Please make sure you have joined the channel and try again.',
+        error_code: 'VERIFICATION_ERROR'
       });
     }
   });
@@ -749,14 +752,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!isMember) {
           return res.status(403).json({ 
             success: false,
-            message: 'You must join our channel to claim daily rewards',
-            requiresChannelJoin: true
+            message: 'Please join our Telegram channel first to claim your daily streak reward.',
+            requiresChannelJoin: true,
+            channelUsername: '@PaidAdsNews'
           });
         }
       } else if (process.env.NODE_ENV !== 'development') {
         return res.status(500).json({ 
           success: false,
-          message: 'Channel verification not available. Please contact support.'
+          message: 'Channel verification is temporarily unavailable. Please try again later.',
+          error_code: 'VERIFICATION_UNAVAILABLE'
         });
       }
       

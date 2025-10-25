@@ -560,17 +560,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userBalances.userId, userId));
   }
 
-  // Helper function to get the correct day bucket start (12:00 PM UTC)
+  // Helper function to get the correct day bucket start (00:00 UTC)
   private getDayBucketStart(date: Date): Date {
     const bucketStart = new Date(date);
-    bucketStart.setUTCHours(12, 0, 0, 0);
+    bucketStart.setUTCHours(0, 0, 0, 0);
     
-    // If the event occurred before 12:00 PM UTC on its calendar day,
-    // it belongs to the previous day's bucket
-    if (date.getTime() < bucketStart.getTime()) {
-      bucketStart.setUTCDate(bucketStart.getUTCDate() - 1);
-    }
-    
+    // Get the start of the current UTC day
     return bucketStart;
   }
 
@@ -627,18 +622,10 @@ export class DatabaseStorage implements IStorage {
     return { newStreak, rewardEarned };
   }
 
-  // Helper function for consistent 12:00 PM UTC reset date calculation
+  // Helper function for consistent 00:00 UTC reset date calculation
   private getResetDate(date = new Date()): string {
-    const utcDate = date.toISOString().split('T')[0];
-    
-    // If current time is before 12:00 PM UTC, consider it still "yesterday" for tasks
-    if (date.getUTCHours() < 12) {
-      const yesterday = new Date(date);
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-      return yesterday.toISOString().split('T')[0];
-    }
-    
-    return utcDate;
+    // Simply return the current UTC date (resets at midnight UTC / 5:30 AM IST)
+    return date.toISOString().split('T')[0];
   }
 
   async incrementAdsWatched(userId: string): Promise<void> {
@@ -1927,16 +1914,10 @@ export class DatabaseStorage implements IStorage {
   // Task completion system removed - using Ads Watch Tasks system only
 
 
-  // Get current date in YYYY-MM-DD format for 12:00 PM UTC reset
+  // Get current date in YYYY-MM-DD format for 00:00 UTC reset (5:30 AM IST)
   private getCurrentTaskDate(): string {
     const now = new Date();
-    const resetHour = 12; // 12:00 PM UTC
-    
-    // If current time is before 12:00 PM UTC, use yesterday's date
-    if (now.getUTCHours() < resetHour) {
-      now.setUTCDate(now.getUTCDate() - 1);
-    }
-    
+    // Reset at midnight UTC (5:30 AM IST)
     return now.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
   }
 
@@ -2362,15 +2343,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Daily reset system - runs at 12:00 PM UTC
+  // Daily reset system - runs at 00:00 UTC (5:30 AM IST)
   async performDailyReset(): Promise<void> {
     try {
-      console.log('🔄 Starting daily reset at 12:00 PM UTC...');
+      console.log('🔄 Starting daily reset at 00:00 UTC (5:30 AM IST)...');
       
       const currentDate = new Date();
       const currentDateString = currentDate.toISOString().split('T')[0];
       const periodStart = new Date(currentDate);
-      periodStart.setUTCHours(12, 0, 0, 0); // 12:00 PM UTC period start
+      periodStart.setUTCHours(0, 0, 0, 0); // 00:00 UTC period start (5:30 AM IST)
       
       // 1. Check if reset was already performed for this period (idempotency)
       const usersNeedingReset = await db.select({ id: users.id })
@@ -2448,7 +2429,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(dailyTaskCompletions)
         .where(sql`${dailyTaskCompletions.completionDate} < ${weekAgoString}`);
       
-      console.log('✅ Daily reset completed successfully at 12:00 PM UTC');
+      console.log('✅ Daily reset completed successfully at 00:00 UTC (5:30 AM IST)');
       console.log(`   - Reset ${usersNeedingReset.length} users for period ${currentDateString}`);
       console.log('   - Reset ads watched today to 0');
       console.log('   - Reset channel visited, app shared, link shared, friend invited to false');
@@ -2460,12 +2441,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Check if it's time for daily reset (12:00 PM UTC)
+  // Check if it's time for daily reset (00:00 UTC / 5:30 AM IST)
   async checkAndPerformDailyReset(): Promise<void> {
     const now = new Date();
     
-    // Check if it's exactly 12:00 PM UTC (within 1 minute window)
-    const isResetTime = now.getUTCHours() === 12 && now.getUTCMinutes() === 0;
+    // Check if it's exactly 00:00 UTC (5:30 AM IST) within 1 minute window
+    const isResetTime = now.getUTCHours() === 0 && now.getUTCMinutes() === 0;
     
     if (isResetTime) {
       await this.performDailyReset();

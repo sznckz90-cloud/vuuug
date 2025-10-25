@@ -154,22 +154,30 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
     
     if (!telegramData) {
       return res.status(401).json({ 
-        message: "Telegram authentication required. Please access this app through Telegram WebApp.",
-        telegram_required: true 
+        message: "Authentication required. Please open this app from your Telegram app to continue.",
+        telegram_required: true,
+        error_code: "NO_TELEGRAM_DATA"
       });
     }
     
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
       console.error('❌ TELEGRAM_BOT_TOKEN not configured');
-      return res.status(500).json({ message: "Authentication service unavailable" });
+      return res.status(500).json({ 
+        message: "Service temporarily unavailable. Please try again later.",
+        error_code: "AUTH_SERVICE_ERROR"
+      });
     }
     
     // Verify Telegram data integrity
     const { isValid, user: telegramUser } = verifyTelegramWebAppData(telegramData, botToken);
     
     if (!isValid || !telegramUser) {
-      return res.status(401).json({ message: "Invalid Telegram authentication data" });
+      console.log('❌ Authentication failed - invalid Telegram data');
+      return res.status(401).json({ 
+        message: "Authentication failed. Please restart the app from Telegram and try again.",
+        error_code: "INVALID_AUTH_DATA"
+      });
     }
     
     if (deviceInfo) {
