@@ -30,7 +30,7 @@ import {
   type DailyTask,
   type InsertDailyTask,
 } from "../shared/schema";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -207,7 +207,6 @@ export class DatabaseStorage implements IStorage {
       level: userData.level || 1,
       flagged: userData.flagged || false,
       banned: userData.banned || false
-      // NOTE: Don't generate referral code here - it will be handled separately for new users only
     };
     
     // Check if user already exists by Telegram ID
@@ -215,23 +214,30 @@ export class DatabaseStorage implements IStorage {
     
     // If not found by telegram_id, check if user exists by personal_code (for migration scenarios)
     if (!existingUser && sanitizedData.personalCode) {
-      const result = await db.execute(sql`
-        SELECT * FROM users WHERE personal_code = ${sanitizedData.personalCode} LIMIT 1
-      `);
-      const userByPersonalCode = result.rows[0] as User | undefined;
+      const personalCodeQuery = `SELECT * FROM users WHERE personal_code = $1 LIMIT 1`;
+      const personalCodeResult = await pool.query(personalCodeQuery, [sanitizedData.personalCode]);
+      const userByPersonalCode = personalCodeResult.rows[0] as User | undefined;
       
       if (userByPersonalCode) {
         // User exists but doesn't have telegram_id set - update it
-        const updateResult = await db.execute(sql`
+        const updateQuery = `
           UPDATE users 
-          SET telegram_id = ${telegramId},
-              first_name = ${sanitizedData.firstName}, 
-              last_name = ${sanitizedData.lastName}, 
-              username = ${sanitizedData.username},
+          SET telegram_id = $1,
+              first_name = $2, 
+              last_name = $3, 
+              username = $4,
               updated_at = NOW()
-          WHERE personal_code = ${sanitizedData.personalCode}
+          WHERE personal_code = $5
           RETURNING *
-        `);
+        `;
+        const updateValues = [
+          telegramId,
+          sanitizedData.firstName,
+          sanitizedData.lastName,
+          sanitizedData.username,
+          sanitizedData.personalCode
+        ];
+        const updateResult = await pool.query(updateQuery, updateValues);
         const user = updateResult.rows[0] as User;
         return { user, isNewUser: false };
       }
@@ -245,18 +251,27 @@ export class DatabaseStorage implements IStorage {
         ? JSON.stringify(deviceInfo.fingerprint)
         : (existingUser.deviceFingerprint ? JSON.stringify(existingUser.deviceFingerprint) : null);
       
-      const result = await db.execute(sql`
+      const updateQuery = `
         UPDATE users 
-        SET first_name = ${sanitizedData.firstName}, 
-            last_name = ${sanitizedData.lastName}, 
-            username = ${sanitizedData.username},
-            device_id = ${deviceInfo?.deviceId || existingUser.deviceId},
-            device_fingerprint = ${fingerprintValue}::jsonb,
+        SET first_name = $1, 
+            last_name = $2, 
+            username = $3,
+            device_id = $4,
+            device_fingerprint = $5::jsonb,
             last_login_at = NOW(),
             updated_at = NOW()
-        WHERE telegram_id = ${telegramId}
+        WHERE telegram_id = $6
         RETURNING *
-      `);
+      `;
+      const updateValues = [
+        sanitizedData.firstName,
+        sanitizedData.lastName,
+        sanitizedData.username,
+        deviceInfo?.deviceId || existingUser.deviceId || null,
+        fingerprintValue,
+        telegramId
+      ];
+      const result = await pool.query(updateQuery, updateValues);
       const user = result.rows[0] as User;
       
       // Ensure existing user has referral code
@@ -285,23 +300,36 @@ export class DatabaseStorage implements IStorage {
           : null;
         
         // Try to create with the provided email first
-        const result = await db.execute(sql`
+        const insertQuery = `
           INSERT INTO users (
             telegram_id, email, first_name, last_name, username, personal_code, 
             withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
             daily_earnings, level, flagged, banned, device_id, device_fingerprint,
             is_primary_account
           )
-          VALUES (
-            ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
-            ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
-            ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
-            ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-            ${sanitizedData.banned}, ${deviceInfo?.deviceId}, ${fingerprintValue}::jsonb,
-            true
-          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)
           RETURNING *
-        `);
+        `;
+        const insertValues = [
+          telegramId,
+          finalEmail,
+          sanitizedData.firstName,
+          sanitizedData.lastName,
+          sanitizedData.username,
+          sanitizedData.personalCode,
+          sanitizedData.withdrawBalance,
+          sanitizedData.totalEarnings,
+          sanitizedData.adsWatched,
+          sanitizedData.dailyAdsWatched,
+          sanitizedData.dailyEarnings,
+          sanitizedData.level,
+          sanitizedData.flagged,
+          sanitizedData.banned,
+          deviceInfo?.deviceId || null,
+          fingerprintValue,
+          true
+        ];
+        const result = await pool.query(insertQuery, insertValues);
         const user = result.rows[0] as User;
         
         // Auto-generate referral code for new users
@@ -333,21 +361,32 @@ export class DatabaseStorage implements IStorage {
           }
           
           // Try again with modified data
-          const result = await db.execute(sql`
+          const retryInsertQuery = `
             INSERT INTO users (
               telegram_id, email, first_name, last_name, username, personal_code, 
               withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
               daily_earnings, level, flagged, banned
             )
-            VALUES (
-              ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
-              ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
-              ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
-              ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-              ${sanitizedData.banned}
-            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
-          `);
+          `;
+          const retryValues = [
+            telegramId,
+            finalEmail,
+            sanitizedData.firstName,
+            sanitizedData.lastName,
+            sanitizedData.username,
+            sanitizedData.personalCode,
+            sanitizedData.withdrawBalance,
+            sanitizedData.totalEarnings,
+            sanitizedData.adsWatched,
+            sanitizedData.dailyAdsWatched,
+            sanitizedData.dailyEarnings,
+            sanitizedData.level,
+            sanitizedData.flagged,
+            sanitizedData.banned
+          ];
+          const result = await pool.query(retryInsertQuery, retryValues);
           const user = result.rows[0] as User;
           
           // Auto-generate referral code for new users
