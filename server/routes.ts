@@ -2762,14 +2762,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and get TON balance, wallet ID, friendsInvited, and telegram_id (SELECT FOR UPDATE)
+        // Lock user row and get TON balance, wallet ID, friendsInvited, telegram_id, and device info (SELECT FOR UPDATE)
         const [user] = await tx
           .select({ 
             tonBalance: users.tonBalance,
             cwalletId: users.cwalletId,
             friendsInvited: users.friendsInvited,
             telegram_id: users.telegram_id,
-            username: users.username
+            username: users.username,
+            banned: users.banned,
+            bannedReason: users.bannedReason,
+            deviceId: users.deviceId
           })
           .from(users)
           .where(eq(users.id, userId))
@@ -2777,6 +2780,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!user) {
           throw new Error('User not found');
+        }
+
+        // CRITICAL: Check if user is banned - prevent banned accounts from withdrawing
+        if (user.banned) {
+          throw new Error(`Account is banned: ${user.bannedReason || 'Multi-account violation'}`);
+        }
+
+        // CRITICAL: Check for duplicate accounts on same device trying to withdraw
+        if (user.deviceId) {
+          const duplicateAccounts = await tx
+            .select({ id: users.id, banned: users.banned, isPrimaryAccount: users.isPrimaryAccount })
+            .from(users)
+            .where(and(
+              eq(users.deviceId, user.deviceId),
+              sql`${users.id} != ${userId}`
+            ));
+
+          if (duplicateAccounts.length > 0) {
+            // Determine if current user is the primary account
+            const [currentUserFull] = await tx
+              .select({ isPrimaryAccount: users.isPrimaryAccount })
+              .from(users)
+              .where(eq(users.id, userId));
+            
+            const isPrimary = currentUserFull?.isPrimaryAccount === true;
+            
+            if (!isPrimary) {
+              // Ban this duplicate account only
+              const { banUserForMultipleAccounts, sendWarningToMainAccount } = await import('./deviceTracking');
+              await banUserForMultipleAccounts(
+                userId,
+                'Duplicate account attempted withdrawal - only one account per device is allowed'
+              );
+              
+              // Send warning to primary account
+              const primaryAccount = duplicateAccounts.find(u => u.isPrimaryAccount === true) || duplicateAccounts[0];
+              if (primaryAccount) {
+                await sendWarningToMainAccount(primaryAccount.id);
+              }
+              
+              throw new Error('Withdrawal blocked - multiple accounts detected on this device. This account has been banned.');
+            }
+          }
         }
 
         // ✅ NEW: Check if user has invited at least 3 friends
@@ -2967,15 +3013,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction for atomicity
       const result = await db.transaction(async (tx) => {
-        // Lock user row and get TON balance
+        // Lock user row and get TON balance, ban status, and device info
         const [user] = await tx
-          .select({ tonBalance: users.tonBalance })
+          .select({ 
+            tonBalance: users.tonBalance,
+            banned: users.banned,
+            bannedReason: users.bannedReason,
+            deviceId: users.deviceId
+          })
           .from(users)
           .where(eq(users.id, userId))
           .for('update');
         
         if (!user) {
           throw new Error('User not found');
+        }
+
+        // CRITICAL: Check if user is banned
+        if (user.banned) {
+          throw new Error(`Account is banned: ${user.bannedReason || 'Multi-account violation'}`);
+        }
+
+        // CRITICAL: Check for duplicate accounts on same device
+        if (user.deviceId) {
+          const duplicateAccounts = await tx
+            .select({ id: users.id, isPrimaryAccount: users.isPrimaryAccount })
+            .from(users)
+            .where(and(
+              eq(users.deviceId, user.deviceId),
+              sql`${users.id} != ${userId}`
+            ));
+
+          if (duplicateAccounts.length > 0) {
+            // Determine if current user is the primary account
+            const [currentUserFull] = await tx
+              .select({ isPrimaryAccount: users.isPrimaryAccount })
+              .from(users)
+              .where(eq(users.id, userId));
+            
+            const isPrimary = currentUserFull?.isPrimaryAccount === true;
+            
+            if (!isPrimary) {
+              // Ban this duplicate account only
+              const { banUserForMultipleAccounts, sendWarningToMainAccount } = await import('./deviceTracking');
+              await banUserForMultipleAccounts(
+                userId,
+                'Duplicate account attempted withdrawal - only one account per device is allowed'
+              );
+              
+              // Send warning to primary account
+              const primaryAccount = duplicateAccounts.find(u => u.isPrimaryAccount === true) || duplicateAccounts[0];
+              if (primaryAccount) {
+                await sendWarningToMainAccount(primaryAccount.id);
+              }
+              
+              throw new Error('Withdrawal blocked - multiple accounts detected on this device. This account has been banned.');
+            }
+          }
         }
 
         const currentTonBalance = parseFloat(user.tonBalance || '0');

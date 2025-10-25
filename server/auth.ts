@@ -186,21 +186,50 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
         deviceInfo
       );
       
-      if (deviceValidation.shouldBan && deviceValidation.primaryAccountId) {
+      if (deviceValidation.shouldBan) {
+        // CRITICAL: Create or update user as banned to persist the ban in database
+        let bannedUser;
         const { user: existingUser } = await storage.getTelegramUser(telegramUser.id.toString());
         
         if (existingUser) {
+          // User exists, ban them
           await banUserForMultipleAccounts(
             existingUser.id,
             deviceValidation.reason || "Multiple accounts detected on the same device"
           );
-          
+          bannedUser = existingUser;
+        } else {
+          // User doesn't exist yet, create them as banned
+          const { user: newBannedUser } = await storage.upsertTelegramUser(telegramUser.id.toString(), {
+            email: `${telegramUser.username || telegramUser.id}@telegram.user`,
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            username: telegramUser.username,
+            personalCode: telegramUser.username || telegramUser.id.toString(),
+            withdrawBalance: '0',
+            totalEarnings: '0',
+            adsWatched: 0,
+            dailyAdsWatched: 0,
+            dailyEarnings: '0',
+            level: 1,
+            flagged: false,
+            banned: true,  // Create as banned
+            bannedReason: deviceValidation.reason || "Multiple accounts detected on the same device",
+            referralCode: '',
+          }, deviceInfo);
+          bannedUser = newBannedUser;
+        }
+        
+        // Send warning to primary account
+        if (deviceValidation.primaryAccountId) {
           await sendWarningToMainAccount(deviceValidation.primaryAccountId);
         }
         
+        console.log(`🚫 Duplicate account banned: ${bannedUser.id} (Telegram: ${telegramUser.id})`);
+        
         return res.status(403).json({ 
           banned: true,
-          message: "Your account has been banned for violating our multi-account policy.",
+          message: "Your account has been banned for violating our multi-account policy. Only one account per device is allowed.",
           reason: deviceValidation.reason
         });
       }

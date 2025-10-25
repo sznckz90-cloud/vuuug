@@ -22,6 +22,7 @@ export async function validateDeviceAndDetectDuplicate(
   isValid: boolean;
   shouldBan: boolean;
   primaryAccountId?: string;
+  duplicateAccountIds?: string[];
   reason?: string;
 }> {
   try {
@@ -52,6 +53,14 @@ export async function validateDeviceAndDetectDuplicate(
     );
 
     if (currentUserAccount) {
+      if (currentUserAccount.banned) {
+        return {
+          isValid: false,
+          shouldBan: true,
+          reason: currentUserAccount.bannedReason || "Account is banned"
+        };
+      }
+
       await db
         .update(users)
         .set({
@@ -70,11 +79,16 @@ export async function validateDeviceAndDetectDuplicate(
       u => u.isPrimaryAccount === true
     ) || existingUsersWithDevice[0];
 
+    const duplicateAccountIds = existingUsersWithDevice
+      .filter(u => u.telegram_id !== telegramId && !u.banned)
+      .map(u => u.id);
+
     return {
       isValid: false,
       shouldBan: true,
       primaryAccountId: primaryAccount.id,
-      reason: "Multiple accounts detected on the same device"
+      duplicateAccountIds,
+      reason: "Multiple accounts detected on the same device - only one account per device is allowed"
     };
   } catch (error) {
     console.error("Device validation error:", error);
@@ -101,9 +115,35 @@ export async function banUserForMultipleAccounts(
       })
       .where(eq(users.id, userId));
 
-    console.log(`User ${userId} banned for: ${reason}`);
+    console.log(`✅ User ${userId} banned for: ${reason}`);
   } catch (error) {
     console.error("Error banning user:", error);
+    throw error;
+  }
+}
+
+export async function banMultipleUsers(
+  userIds: string[],
+  reason: string
+): Promise<void> {
+  try {
+    if (userIds.length === 0) return;
+
+    for (const userId of userIds) {
+      await db
+        .update(users)
+        .set({
+          banned: true,
+          bannedReason: reason,
+          bannedAt: new Date(),
+          isPrimaryAccount: false,
+        })
+        .where(eq(users.id, userId));
+    }
+
+    console.log(`✅ Banned ${userIds.length} accounts for: ${reason}`);
+  } catch (error) {
+    console.error("Error banning multiple users:", error);
     throw error;
   }
 }

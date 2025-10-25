@@ -768,6 +768,43 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Referred user not found: ${referredId}`);
     }
     
+    // CRITICAL: Detect device-based self-referrals (same device creating multiple accounts)
+    if (referrer.deviceId && referred.deviceId && referrer.deviceId === referred.deviceId) {
+      console.error(`🚨 Self-referral attempt detected! Same device ID: ${referrer.deviceId}`);
+      
+      // Determine which account is primary
+      const isPrimaryReferrer = referrer.isPrimaryAccount === true;
+      const isPrimaryReferred = referred.isPrimaryAccount === true;
+      
+      const { banUserForMultipleAccounts, sendWarningToMainAccount } = await import('./deviceTracking');
+      
+      if (isPrimaryReferrer && !isPrimaryReferred) {
+        // Referrer is primary, ban the referred account
+        await banUserForMultipleAccounts(
+          referredId,
+          'Self-referral attempt - duplicate account tried to use referral from same device'
+        );
+        await sendWarningToMainAccount(referrerId);
+        throw new Error('Referral invalid - same device detected. Duplicate account has been banned.');
+      } else if (!isPrimaryReferrer && isPrimaryReferred) {
+        // Referred is primary, ban the referrer account
+        await banUserForMultipleAccounts(
+          referrerId,
+          'Self-referral attempt - duplicate account tried to refer user from same device'
+        );
+        await sendWarningToMainAccount(referredId);
+        throw new Error('Referral invalid - same device detected. Duplicate account has been banned.');
+      } else {
+        // Both are duplicates or can't determine, ban the newer one (referred)
+        await banUserForMultipleAccounts(
+          referredId,
+          'Self-referral attempt - same device detected'
+        );
+        await sendWarningToMainAccount(referrerId);
+        throw new Error('Referral invalid - same device detected. Account has been banned.');
+      }
+    }
+    
     // Check if referral already exists
     const existingReferral = await db
       .select()
