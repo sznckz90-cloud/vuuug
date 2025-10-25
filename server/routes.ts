@@ -19,6 +19,7 @@ import crypto from "crypto";
 import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership } from "./telegram";
 import { authenticateTelegram, requireAuth, optionalAuth } from "./auth";
 import { isAuthenticated } from "./replitAuth";
+import { config, getChannelConfig } from "./config";
 
 // Store WebSocket connections for real-time updates
 // Map: sessionId -> { socket: WebSocket, userId: string }
@@ -285,6 +286,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/test', (req: any, res) => {
     console.log('✅ Test route called!');
     res.json({ status: 'API routes working!', timestamp: new Date().toISOString() });
+  });
+
+  // Get channel configuration for frontend
+  app.get('/api/config/channel', (req: any, res) => {
+    res.json(getChannelConfig());
   });
 
   // Debug route to check database columns
@@ -697,7 +703,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({ 
             success: true,
             isMember: true,
-            channelUsername: '@PaidAdsNews',
+            channelUsername: config.telegram.channelId,
+            channelUrl: config.telegram.channelUrl,
             message: 'Development mode: membership check bypassed'
           });
         }
@@ -711,17 +718,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Check membership for @PaidAdsNews channel
+      // Check membership for configured channel
       const isMember = await verifyChannelMembership(
         parseInt(telegramId), 
-        '@PaidAdsNews', 
+        config.telegram.channelId, 
         botToken
       );
       
       res.json({ 
         success: true,
         isMember,
-        channelUsername: '@PaidAdsNews'
+        channelUsername: config.telegram.channelId,
+        channelUrl: config.telegram.channelUrl
       });
     } catch (error) {
       console.error("Error checking channel membership:", error);
@@ -745,7 +753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (botToken) {
         const isMember = await verifyChannelMembership(
           parseInt(telegramId), 
-          '@PaidAdsNews', 
+          config.telegram.channelId, 
           botToken
         );
         
@@ -754,7 +762,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             success: false,
             message: 'Please join our Telegram channel first to claim your daily streak reward.',
             requiresChannelJoin: true,
-            channelUsername: '@PaidAdsNews'
+            channelUsername: config.telegram.channelId,
+            channelUrl: config.telegram.channelUrl
           });
         }
       } else if (process.env.NODE_ENV !== 'development') {

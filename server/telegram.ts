@@ -41,35 +41,103 @@ interface TelegramMessage {
 
 // All claim state functions removed
 
-export async function verifyChannelMembership(userId: number, channelUsername: string, botToken: string): Promise<boolean> {
+export async function verifyChannelMembership(userId: number, channelIdOrUsername: string, botToken: string): Promise<boolean> {
   try {
     const bot = new TelegramBot(botToken);
-    const member = await bot.getChatMember(channelUsername, userId);
     
-    // Valid membership statuses: 'creator', 'administrator', 'member'
-    // Invalid statuses: 'left', 'kicked', 'restricted'
-    const validStatuses = ['creator', 'administrator', 'member'];
-    const isValid = validStatuses.includes(member.status);
+    // Support both numeric channel IDs (e.g., -1001234567890) and @username formats
+    let channelIdentifier = channelIdOrUsername;
     
-    console.log(`🔍 Telegram verification: User ${userId} status in ${channelUsername}: ${member.status} (valid: ${isValid})`);
-    return isValid;
+    // Normalize channel identifier
+    if (channelIdentifier.startsWith('@')) {
+      // Already in @username format, use as-is
+    } else if (channelIdentifier.startsWith('-100')) {
+      // Numeric channel ID format, use as-is
+    } else if (!channelIdentifier.startsWith('@') && !channelIdentifier.startsWith('-')) {
+      // Plain username without @, add it
+      channelIdentifier = `@${channelIdentifier}`;
+    }
     
-  } catch (error: any) {
-    console.error(`❌ Telegram verification error for user ${userId} in ${channelUsername}:`, error?.message || error);
+    console.log(`🔍 Checking membership for user ${userId} in channel ${channelIdentifier}...`);
     
-    // Handle common Telegram API errors gracefully
-    if (error?.code === 'ETELEGRAM') {
-      if (error.response?.body?.error_code === 400) {
-        console.log(`⚠️ Channel not found or user not accessible: ${channelUsername}`);
+    // First, verify bot has admin access to the channel
+    try {
+      const botInfo = await bot.getMe();
+      const botMember = await bot.getChatMember(channelIdentifier, botInfo.id);
+      
+      if (!['creator', 'administrator'].includes(botMember.status)) {
+        console.error(`❌ CRITICAL: Bot @${botInfo.username} is NOT an admin in ${channelIdentifier}!`);
+        console.error(`   Current bot status: ${botMember.status}`);
+        console.error(`   ⚠️ Please make the bot an ADMINISTRATOR in the channel to enable membership verification.`);
         return false;
       }
-      if (error.response?.body?.error_code === 403) {
-        console.log(`⚠️ Bot doesn't have access to channel: ${channelUsername}`);
+      
+      console.log(`✅ Bot @${botInfo.username} has admin access to ${channelIdentifier}`);
+    } catch (botCheckError: any) {
+      console.error(`❌ Could not verify bot permissions in ${channelIdentifier}:`, botCheckError?.message);
+      console.error(`   Make sure the bot is added as an ADMINISTRATOR to the channel.`);
+      return false;
+    }
+    
+    // Now check user membership with retry logic
+    let lastError: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const member = await bot.getChatMember(channelIdentifier, userId);
+        
+        // Valid membership statuses: 'creator', 'administrator', 'member'
+        // Invalid statuses: 'left', 'kicked', 'restricted'
+        const validStatuses = ['creator', 'administrator', 'member'];
+        const isValid = validStatuses.includes(member.status);
+        
+        console.log(`🔍 User ${userId} status in ${channelIdentifier}: ${member.status} (valid: ${isValid})`);
+        return isValid;
+      } catch (retryError: any) {
+        lastError = retryError;
+        if (attempt < 2) {
+          console.log(`⚠️ Attempt ${attempt} failed, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      }
+    }
+    
+    throw lastError;
+    
+  } catch (error: any) {
+    console.error(`❌ Telegram verification error for user ${userId} in ${channelIdOrUsername}:`, error?.message || error);
+    
+    // Handle common Telegram API errors gracefully with specific guidance
+    if (error?.code === 'ETELEGRAM') {
+      const errorCode = error.response?.body?.error_code;
+      const errorDescription = error.response?.body?.description;
+      
+      if (errorCode === 400) {
+        if (errorDescription?.includes('PARTICIPANT_ID_INVALID')) {
+          console.log(`⚠️ User ${userId} has never interacted with the channel ${channelIdOrUsername}`);
+          console.log(`   This is normal for new users - they need to join the channel first.`);
+        } else if (errorDescription?.includes('CHAT_ADMIN_REQUIRED')) {
+          console.error(`❌ Bot needs ADMIN privileges in ${channelIdOrUsername} to check membership!`);
+        } else {
+          console.log(`⚠️ Channel not found or user not accessible: ${channelIdOrUsername}`);
+          console.log(`   Error: ${errorDescription}`);
+        }
+        return false;
+      }
+      
+      if (errorCode === 403) {
+        console.error(`❌ Bot doesn't have access to channel: ${channelIdOrUsername}`);
+        console.error(`   Please add the bot as an ADMINISTRATOR to the channel.`);
+        return false;
+      }
+      
+      if (errorCode === 401) {
+        console.error(`❌ Invalid bot token or bot was blocked`);
         return false;
       }
     }
     
     // Default to false for any verification errors
+    console.error(`   Use numeric channel ID (e.g., -1001234567890) for more reliable verification.`);
     return false;
   }
 }
