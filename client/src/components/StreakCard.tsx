@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
@@ -185,13 +185,16 @@ export default function StreakCard({ user, open = false, onOpenChange }: StreakC
         onInteractOutside={(e) => e.preventDefault()}
         hideCloseButton={true}
       >
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-[#4cd3ff] mb-1 flex items-center justify-center">
+            <Flame className="text-[#4cd3ff] mr-2" size={20} />
+            Daily Streak Rewards
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Claim your daily streak rewards and maintain your earning streak
+          </DialogDescription>
+        </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-[#4cd3ff] mb-1 flex items-center justify-center">
-              <Flame className="text-[#4cd3ff] mr-2" size={20} />
-              Daily Streak Rewards
-            </h2>
-          </div>
           
           <div className="p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20 text-center">
             <div className="text-xs text-muted-foreground mb-2">Current Streak</div>
