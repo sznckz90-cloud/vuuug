@@ -241,13 +241,17 @@ export class DatabaseStorage implements IStorage {
     
     if (existingUser) {
       // For existing users, update fields and ensure referral code exists
+      const fingerprintValue = deviceInfo?.fingerprint 
+        ? JSON.stringify(deviceInfo.fingerprint)
+        : (existingUser.deviceFingerprint ? JSON.stringify(existingUser.deviceFingerprint) : null);
+      
       const result = await db.execute(sql`
         UPDATE users 
         SET first_name = ${sanitizedData.firstName}, 
             last_name = ${sanitizedData.lastName}, 
             username = ${sanitizedData.username},
             device_id = ${deviceInfo?.deviceId || existingUser.deviceId},
-            device_fingerprint = ${deviceInfo?.fingerprint || existingUser.deviceFingerprint},
+            device_fingerprint = ${fingerprintValue}::jsonb,
             last_login_at = NOW(),
             updated_at = NOW()
         WHERE telegram_id = ${telegramId}
@@ -275,6 +279,11 @@ export class DatabaseStorage implements IStorage {
       // If it does, we'll create a unique email by appending the telegram ID
       let finalEmail = userData.email;
       try {
+        // Prepare fingerprint value for JSONB column
+        const fingerprintValue = deviceInfo?.fingerprint 
+          ? JSON.stringify(deviceInfo.fingerprint)
+          : null;
+        
         // Try to create with the provided email first
         const result = await db.execute(sql`
           INSERT INTO users (
@@ -288,7 +297,7 @@ export class DatabaseStorage implements IStorage {
             ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
             ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
             ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-            ${sanitizedData.banned}, ${deviceInfo?.deviceId}, ${deviceInfo?.fingerprint || null},
+            ${sanitizedData.banned}, ${deviceInfo?.deviceId}, ${fingerprintValue}::jsonb,
             true
           )
           RETURNING *
