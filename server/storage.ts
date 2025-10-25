@@ -2230,8 +2230,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Claim task reward
-  async claimTaskReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
+  // Claim promotion/task reward
+  async claimPromotionReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
     try {
       const promotion = await this.getPromotion(promotionId);
       if (!promotion) {
@@ -2768,8 +2768,8 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Claim a completed task reward
-  async claimTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
+  // Claim a completed daily task reward
+  async claimDailyTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
     const resetDate = this.getCurrentResetDate();
     
     // Get the specific task

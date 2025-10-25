@@ -1117,7 +1117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const result = await storage.claimTaskReward(userId, taskLevel);
+      const result = await storage.claimDailyTaskReward(userId, taskLevel);
       
       if (result.success) {
         res.json({
@@ -3285,7 +3285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🎁 Task claim attempt: UserID=${userId}, TaskID=${promotionId}`);
       
-      const result = await storage.claimTaskReward(userId, promotionId);
+      const result = await storage.claimPromotionReward(userId, promotionId);
       
       if (result.success) {
         console.log(`✅ Task claimed successfully: ${result.message}, Reward: ${result.rewardAmount}`);
