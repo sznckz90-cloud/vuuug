@@ -10,15 +10,17 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
-**October 25, 2025 - Replit Environment Setup**
-*   Fixed SQL syntax errors in Telegram authentication (`upsertTelegramUser`)
-*   Resolved JSONB column handling - removed manual `JSON.stringify()` calls (Drizzle handles this automatically)
+**October 25, 2025 - Replit Environment Setup & Bug Fixes**
+*   Fixed critical SQL syntax error in Telegram authentication (`upsertTelegramUser` function)
+*   Resolved JSONB column handling in raw SQL queries - added proper JSON.stringify() with `::jsonb` cast for `device_fingerprint` column
 *   Added missing database columns: `banned_reason`, `banned_at`, `device_id`, `device_fingerprint`, `is_primary_account`
 *   Updated database migration script to properly create all schema columns
+*   Fixed Dialog accessibility warnings - added DialogTitle and DialogDescription to StreakCard component
 *   Configured Vite dev server with `allowedHosts: true` for Replit proxy compatibility
 *   Set up deployment configuration for production (autoscale mode)
 *   Created .gitignore file for Node.js/TypeScript project
-*   All authentication endpoints now working correctly (no more column errors)
+*   All authentication endpoints now working correctly in both development and production
+*   Note: When using `db.execute(sql`...`)` with JSONB columns, objects must be stringified before insertion
 
 # User Preferences
 
