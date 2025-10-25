@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { setupDeviceTracking } from "../lib/deviceId";
 
 // LocalStorage keys for caching
 const AUTH_CACHE_KEY = 'cashwatch_user_cache';
@@ -70,10 +71,15 @@ const wasRecentlyAuthenticated = (): boolean => {
 const authenticateWithTelegram = async (initData: string) => {
   console.log('📨 Telegram initData received:', initData?.slice(0, 30) + '...');
   
+  // Get device tracking information
+  const { deviceId, fingerprint } = setupDeviceTracking();
+  
   const response = await fetch('/api/auth/telegram', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-device-id': deviceId,
+      'x-device-fingerprint': JSON.stringify(fingerprint),
     },
     body: JSON.stringify({ initData }),
   });
@@ -81,6 +87,14 @@ const authenticateWithTelegram = async (initData: string) => {
   console.log(`📡 Auth response status: ${response.status}`);
   
   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    
+    // Check if user was banned for multiple accounts
+    if (errorData.banned) {
+      console.error('❌ Account banned:', errorData.reason);
+      throw new Error(errorData.message || 'Account banned for multi-account violation');
+    }
+    
     throw new Error('Telegram authentication failed');
   }
   
