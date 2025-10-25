@@ -247,7 +247,7 @@ export class DatabaseStorage implements IStorage {
             last_name = ${sanitizedData.lastName}, 
             username = ${sanitizedData.username},
             device_id = ${deviceInfo?.deviceId || existingUser.deviceId},
-            device_fingerprint = ${deviceInfo?.fingerprint ? JSON.stringify(deviceInfo.fingerprint) : existingUser.deviceFingerprint},
+            device_fingerprint = ${deviceInfo?.fingerprint || existingUser.deviceFingerprint},
             last_login_at = NOW(),
             updated_at = NOW()
         WHERE telegram_id = ${telegramId}
@@ -288,7 +288,7 @@ export class DatabaseStorage implements IStorage {
             ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
             ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
             ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
-            ${sanitizedData.banned}, ${deviceInfo?.deviceId}, ${deviceInfo?.fingerprint ? JSON.stringify(deviceInfo.fingerprint) : null},
+            ${sanitizedData.banned}, ${deviceInfo?.deviceId}, ${deviceInfo?.fingerprint || null},
             true
           )
           RETURNING *

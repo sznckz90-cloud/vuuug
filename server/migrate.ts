@@ -55,6 +55,11 @@ export async function ensureDatabaseSchema(): Promise<void> {
         flagged BOOLEAN DEFAULT false,
         flag_reason TEXT,
         banned BOOLEAN DEFAULT false,
+        banned_reason TEXT,
+        banned_at TIMESTAMP,
+        device_id TEXT,
+        device_fingerprint JSONB,
+        is_primary_account BOOLEAN DEFAULT true,
         last_login_at TIMESTAMP,
         last_login_ip TEXT,
         last_login_device TEXT,
@@ -71,6 +76,11 @@ export async function ensureDatabaseSchema(): Promise<void> {
     
     // Add missing columns to existing users table (for production databases)
     try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_reason TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at TIMESTAMP`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS device_id TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS device_fingerprint JSONB`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_primary_account BOOLEAN DEFAULT true`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_visited BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_shared BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS friends_invited INTEGER DEFAULT 0`);
