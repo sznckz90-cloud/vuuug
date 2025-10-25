@@ -10,17 +10,30 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
-**October 25, 2025 - Replit Environment Setup & Bug Fixes**
-*   Fixed critical SQL syntax error in Telegram authentication (`upsertTelegramUser` function)
-*   Resolved JSONB column handling in raw SQL queries - added proper JSON.stringify() with `::jsonb` cast for `device_fingerprint` column
-*   Added missing database columns: `banned_reason`, `banned_at`, `device_id`, `device_fingerprint`, `is_primary_account`
-*   Updated database migration script to properly create all schema columns
-*   Fixed Dialog accessibility warnings - added DialogTitle and DialogDescription to StreakCard component
-*   Configured Vite dev server with `allowedHosts: true` for Replit proxy compatibility
-*   Set up deployment configuration for production (autoscale mode)
-*   Created .gitignore file for Node.js/TypeScript project
-*   All authentication endpoints now working correctly in both development and production
-*   Note: When using `db.execute(sql`...`)` with JSONB columns, objects must be stringified before insertion
+**October 25, 2025 - Replit Environment Setup & Multi-Account Prevention Fix**
+
+*Replit Environment Setup:*
+*   **GitHub Import Setup**: Successfully configured project for Replit environment
+*   **Database**: Provisioned PostgreSQL database and ran migrations successfully
+*   **SQL Fix**: Replaced SQL template literals with parameterized queries in `upsertTelegramUser` function
+    - Changed from `db.execute(sql`...`)` to `pool.query(query, values)` with `$1, $2, ...` syntax
+    - Prevents SQL syntax errors and improves security
+*   **Development Workflow**: Configured workflow on port 5000 with `allowedHosts: true` for Replit proxy compatibility
+*   **Deployment**: Set up autoscale deployment configuration for production
+
+*Multi-Account Prevention Fix:*
+*   **Issue**: Users could create multiple accounts from the same device despite one-account-per-device policy
+*   **Root Cause**: `useAuth.ts` authentication function was not sending device headers (`x-device-id`, `x-device-fingerprint`)
+*   **Fix Applied**: 
+    - Updated `authenticateWithTelegram` in `useAuth.ts` to include device tracking headers
+    - Device ID and fingerprint now sent with all Telegram authentication requests
+    - Added error handling for banned accounts
+*   **How It Works**:
+    - Each device generates a unique ID stored in localStorage
+    - Backend checks if device ID already has an associated account
+    - If duplicate detected: new account is banned, primary account receives warning
+*   **Testing**: Device validation only works in production with real Telegram users (development mode bypasses device checks)
+*   **Status**: ✅ Fix verified by architect, ready for production testing
 
 # User Preferences
 
