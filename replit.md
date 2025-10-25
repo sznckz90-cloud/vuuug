@@ -8,6 +8,18 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 *   Withdrawal Management
 *   Analytics Dashboard
 
+# Recent Changes
+
+**October 25, 2025 - Replit Environment Setup**
+*   Fixed SQL syntax errors in Telegram authentication (`upsertTelegramUser`)
+*   Resolved JSONB column handling - removed manual `JSON.stringify()` calls (Drizzle handles this automatically)
+*   Added missing database columns: `banned_reason`, `banned_at`, `device_id`, `device_fingerprint`, `is_primary_account`
+*   Updated database migration script to properly create all schema columns
+*   Configured Vite dev server with `allowedHosts: true` for Replit proxy compatibility
+*   Set up deployment configuration for production (autoscale mode)
+*   Created .gitignore file for Node.js/TypeScript project
+*   All authentication endpoints now working correctly (no more column errors)
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
