@@ -10,6 +10,13 @@ const isAdmin = (telegramId: string): boolean => {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
 
+// State management for admin rejection flow
+const pendingRejections = new Map<string, {
+  withdrawalId: string;
+  messageId: number;
+  timestamp: number;
+}>();
+
 // Utility function to format TON amounts - removes trailing zeros, max 5 decimals
 function formatTON(value: string | number): string {
   let num = parseFloat(String(value)).toFixed(5);
@@ -488,7 +495,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         return true;
       }
       
-      // Handle admin withdrawal rejection
+      // Handle admin withdrawal rejection - ask for reason
       if (data && data.startsWith('withdraw_reject_')) {
         const withdrawalId = data.replace('withdraw_reject_', '');
         
@@ -506,49 +513,36 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         }
         
         try {
-          const result = await storage.rejectWithdrawal(withdrawalId, `Rejected by admin ${chatId}`);
+          // Store pending rejection state
+          pendingRejections.set(chatId, {
+            withdrawalId,
+            messageId: callbackQuery.message.message_id,
+            timestamp: Date.now()
+          });
           
-          if (result.success && result.withdrawal) {
-            // Get user to send notification
-            const user = await storage.getUser(result.withdrawal.userId);
-            if (user && user.telegram_id) {
-              const userMessage = `❌ Your withdrawal request was rejected. Please check your wallet info.`;
-              await sendUserTelegramNotification(user.telegram_id, userMessage);
+          // Clean up old pending rejections (older than 5 minutes)
+          for (const [key, value] of pendingRejections.entries()) {
+            if (Date.now() - value.timestamp > 5 * 60 * 1000) {
+              pendingRejections.delete(key);
             }
-            
-            // Update admin message and disable buttons
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: chatId,
-                message_id: callbackQuery.message.message_id,
-                text: `🚫 <b>REJECTED</b>\n\n${callbackQuery.message.text}\n\n<b>Status:</b> Request rejected successfully\n<b>Time:</b> ${new Date().toUTCString()}`,
-                parse_mode: 'HTML'
-              })
-            });
-            
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                callback_query_id: callbackQuery.id,
-                text: '🚫 Request rejected successfully'
-              })
-            });
-          } else {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                callback_query_id: callbackQuery.id,
-                text: result.message,
-                show_alert: true
-              })
-            });
           }
+          
+          // Ask admin for rejection reason
+          await sendUserTelegramNotification(chatId, 
+            '💬 Please type the reason for rejecting this withdrawal request.\n\n' +
+            'The user will see this reason in their notification.'
+          );
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Please type the rejection reason'
+            })
+          });
         } catch (error) {
-          console.error('Error rejecting withdrawal:', error);
+          console.error('Error initiating rejection:', error);
           await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -598,7 +592,59 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
 
     console.log(`📝 User upserted: ID=${dbUser.id}, TelegramID=${dbUser.telegram_id}, RefCode=${dbUser.referralCode}, IsNew=${isNewUser}`);
 
-
+    // Check if admin has a pending rejection waiting for a reason
+    if (isAdmin(chatId) && pendingRejections.has(chatId)) {
+      const rejectionState = pendingRejections.get(chatId)!;
+      const rejectionReason = text;
+      
+      try {
+        // Process the rejection with the admin's reason
+        const result = await storage.rejectWithdrawal(rejectionState.withdrawalId, rejectionReason);
+        
+        if (result.success && result.withdrawal) {
+          // Get user to send notification with rejection reason
+          const user = await storage.getUser(result.withdrawal.userId);
+          if (user && user.telegram_id) {
+            const userMessage = `❌ Your withdrawal request was rejected.\n\nReason: ${rejectionReason}`;
+            await sendUserTelegramNotification(user.telegram_id, userMessage);
+          }
+          
+          // Update original admin message
+          try {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: rejectionState.messageId,
+                text: `🚫 <b>REJECTED</b>\n\nWithdrawal ID: ${rejectionState.withdrawalId}\n\n<b>Status:</b> Request rejected\n<b>Reason:</b> ${rejectionReason}\n<b>Time:</b> ${new Date().toUTCString()}`,
+                parse_mode: 'HTML'
+              })
+            });
+          } catch (editError) {
+            console.log('Could not edit original message:', editError);
+          }
+          
+          // Confirm rejection to admin
+          await sendUserTelegramNotification(chatId, 
+            `✅ Withdrawal rejected successfully.\n\nReason sent to user: "${rejectionReason}"`
+          );
+        } else {
+          await sendUserTelegramNotification(chatId, 
+            `❌ Error: ${result.message}`
+          );
+        }
+      } catch (error) {
+        console.error('Error processing rejection with reason:', error);
+        await sendUserTelegramNotification(chatId, 
+          '❌ Error processing rejection. Please try again.'
+        );
+      }
+      
+      // Clear the pending rejection state
+      pendingRejections.delete(chatId);
+      return true;
+    }
     
     
     // Handle /start command with referral processing and promotion claims

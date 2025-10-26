@@ -11,7 +11,8 @@ import {
   withdrawals,
   userBalances,
   dailyTasks,
-  promoCodes
+  promoCodes,
+  transactions
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
@@ -2410,6 +2411,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Validate that wallet ID contains only numbers
+      if (!/^\d+$/.test(cwalletId.trim())) {
+        console.log('🚫 Invalid wallet format - numbers only');
+        return res.status(400).json({
+          success: false,
+          message: 'Wallet ID must contain only numbers'
+        });
+      }
+      
       // 🔒 WALLET LOCK: Check if wallet is already set - only allow one-time setup
       const [existingUser] = await db
         .select({ cwalletId: users.cwalletId })
@@ -2493,6 +2503,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Validate that wallet ID contains only numbers
+      if (!/^\d+$/.test(walletId.trim())) {
+        console.log('🚫 Invalid wallet format - numbers only');
+        return res.status(400).json({
+          success: false,
+          message: 'Wallet ID must contain only numbers'
+        });
+      }
+      
       // 🔒 WALLET LOCK: Check if wallet is already set - only allow one-time setup
       const [existingUser] = await db
         .select({ cwalletId: users.cwalletId })
@@ -2549,6 +2568,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: error instanceof Error ? error.message : 'Failed to save wallet'
+      });
+    }
+  });
+  
+  // Change wallet endpoint - requires 5000 PAD fee
+  app.post('/api/wallet/change', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log("⚠️ Wallet change requested without session - skipping");
+        return res.status(401).json({
+          success: false,
+          message: 'Please log in to change wallet'
+        });
+      }
+      
+      const { newWalletId } = req.body;
+      
+      console.log('🔄 Wallet change request for user:', userId);
+      
+      if (!newWalletId || !newWalletId.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid wallet ID'
+        });
+      }
+      
+      // Validate that wallet ID contains only numbers
+      if (!/^\d+$/.test(newWalletId.trim())) {
+        console.log('🚫 Invalid wallet format - numbers only');
+        return res.status(400).json({
+          success: false,
+          message: 'Wallet ID must contain only numbers'
+        });
+      }
+      
+      // Use database transaction to ensure atomicity
+      const result = await db.transaction(async (tx) => {
+        // Get current user with balance
+        const [user] = await tx
+          .select({
+            id: users.id,
+            balance: users.balance,
+            cwalletId: users.cwalletId
+          })
+          .from(users)
+          .where(eq(users.id, userId));
+        
+        if (!user) {
+          throw new Error('User not found');
+        }
+        
+        // Check if user has an existing wallet
+        if (!user.cwalletId) {
+          throw new Error('No wallet set. Please set up your wallet first.');
+        }
+        
+        // Check if new wallet is same as current
+        if (user.cwalletId === newWalletId.trim()) {
+          throw new Error('New wallet ID is the same as current wallet');
+        }
+        
+        // Check wallet uniqueness
+        const [walletInUse] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(
+            eq(users.cwalletId, newWalletId.trim()),
+            sql`${users.id} != ${userId}`
+          ))
+          .limit(1);
+        
+        if (walletInUse) {
+          throw new Error('This wallet ID is already linked to another account');
+        }
+        
+        // Calculate fee: 5000 PAD = 0.0005 TON (conversion rate: 10,000,000 PAD = 1 TON)
+        const FEE_IN_TON = 0.0005;
+        const currentBalance = parseFloat(user.balance || '0');
+        
+        if (currentBalance < FEE_IN_TON) {
+          throw new Error(`Insufficient balance. You need ${5000} PAD to change wallet. Current balance: ${Math.floor(currentBalance * 10000000)} PAD`);
+        }
+        
+        // Deduct fee from balance
+        const newBalance = currentBalance - FEE_IN_TON;
+        
+        // Update wallet and balance atomically
+        await tx
+          .update(users)
+          .set({
+            cwalletId: newWalletId.trim(),
+            balance: newBalance.toFixed(8),
+            walletUpdatedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        // Record transaction
+        await tx.insert(transactions).values({
+          userId: userId,
+          amount: FEE_IN_TON.toFixed(8),
+          type: 'deduction',
+          source: 'wallet_change_fee',
+          description: 'Fee for changing wallet ID',
+          metadata: { oldWallet: user.cwalletId, newWallet: newWalletId.trim() }
+        });
+        
+        return {
+          newBalance: newBalance.toFixed(8),
+          newWallet: newWalletId.trim(),
+          feeCharged: FEE_IN_TON.toFixed(8)
+        };
+      });
+      
+      console.log('✅ Wallet changed successfully with fee deduction');
+      
+      res.json({
+        success: true,
+        message: 'Wallet updated successfully',
+        data: {
+          newWalletId: result.newWallet,
+          newBalance: result.newBalance,
+          feeCharged: result.feeCharged
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Error changing wallet:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to change wallet'
       });
     }
   });
@@ -3164,6 +3316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updatedAt: withdrawals.updatedAt,
           transactionHash: withdrawals.transactionHash,
           adminNotes: withdrawals.adminNotes,
+          rejectionReason: withdrawals.rejectionReason,
           user: {
             firstName: users.firstName,
             lastName: users.lastName,
@@ -3209,6 +3362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updatedAt: withdrawals.updatedAt,
           transactionHash: withdrawals.transactionHash,
           adminNotes: withdrawals.adminNotes,
+          rejectionReason: withdrawals.rejectionReason,
           user: {
             firstName: users.firstName,
             lastName: users.lastName,

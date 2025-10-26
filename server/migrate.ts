@@ -217,6 +217,14 @@ export async function ensureDatabaseSchema(): Promise<void> {
       console.log('ℹ️ [MIGRATION] Deducted and refunded columns already exist in withdrawals table');
     }
     
+    // Add rejection_reason column for admin rejection messages
+    try {
+      await db.execute(sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
+      console.log('✅ [MIGRATION] Rejection reason column added to withdrawals table');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] Rejection reason column already exists in withdrawals table');
+    }
+    
     // Promotions table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS promotions (

@@ -1609,7 +1609,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async rejectWithdrawal(withdrawalId: string, adminNotes?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+  async rejectWithdrawal(withdrawalId: string, rejectionReason?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
     try {
       // Get withdrawal details
       const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
@@ -1626,14 +1626,17 @@ export class DatabaseStorage implements IStorage {
       console.log(`❌ Withdrawal #${withdrawalId} rejected - no refund needed (balance was never deducted)`);
       console.log(`💡 User balance remains unchanged at: ${withdrawal.amount} TON will stay available`);
 
-      // Update withdrawal status to rejected
+      // Update withdrawal status to rejected with rejection reason
       const updateData: any = { 
         status: 'rejected', 
         refunded: false,
         deducted: false,
         updatedAt: new Date() 
       };
-      if (adminNotes) updateData.adminNotes = adminNotes;
+      if (rejectionReason) {
+        updateData.rejectionReason = rejectionReason;
+        updateData.adminNotes = `Rejected: ${rejectionReason}`;
+      }
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
