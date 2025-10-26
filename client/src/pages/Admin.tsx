@@ -742,6 +742,7 @@ function PayoutLogsSection({ data }: { data: any }) {
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Wallet</TableHead>
+                  <TableHead>Reason</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -764,6 +765,17 @@ function PayoutLogsSection({ data }: { data: any }) {
                         </span>
                       ) : (
                         'N/A'
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px]">
+                      {payout.status === 'rejected' && payout.rejectionReason ? (
+                        <span className="text-red-500" title={payout.rejectionReason}>
+                          {payout.rejectionReason.length > 30 
+                            ? `${payout.rejectionReason.slice(0, 30)}...` 
+                            : payout.rejectionReason}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                   </TableRow>
