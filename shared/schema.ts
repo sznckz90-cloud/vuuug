@@ -121,6 +121,7 @@ export const withdrawals = pgTable("withdrawals", {
   comment: text("comment"),
   transactionHash: varchar("transaction_hash"),
   adminNotes: text("admin_notes"),
+  rejectionReason: text("rejection_reason"),
   deducted: boolean("deducted").default(false),
   refunded: boolean("refunded").default(false),
   createdAt: timestamp("created_at").defaultNow(),
