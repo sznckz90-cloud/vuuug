@@ -341,6 +341,29 @@ export async function ensureDatabaseSchema(): Promise<void> {
       )
     `);
     
+    // Admin settings table - for configurable app parameters
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS admin_settings (
+        id SERIAL PRIMARY KEY,
+        setting_key VARCHAR UNIQUE NOT NULL,
+        setting_value TEXT NOT NULL,
+        description TEXT,
+        updated_by VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Initialize default admin settings if they don't exist
+    await db.execute(sql`
+      INSERT INTO admin_settings (setting_key, setting_value, description)
+      VALUES 
+        ('daily_ad_limit', '50', 'Maximum number of ads a user can watch per day'),
+        ('ad_reward_pad', '1000', 'PAD reward amount per ad watched'),
+        ('ad_reward_ton', '0.00010000', 'TON reward amount per ad watched')
+      ON CONFLICT (setting_key) DO NOTHING
+    `);
+    
     // Promotion claims table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS promotion_claims (

@@ -17,6 +17,9 @@ const pendingRejections = new Map<string, {
   timestamp: number;
 }>();
 
+// State management for admin broadcast flow
+const pendingBroadcasts = new Map<string, { timestamp: number }>();
+
 // Utility function to format TON amounts - removes trailing zeros, max 5 decimals
 function formatTON(value: string | number): string {
   let num = parseFloat(String(value)).toFixed(5);
@@ -229,14 +232,11 @@ export async function sendUserTelegramNotification(userId: string, message: stri
   try {
     console.log(`📞 Sending message to Telegram API for user ${userId}...`);
     
-    // Check if user is admin - only admin can forward messages
-    const isAdminUser = isAdmin(userId);
-    
     const telegramMessage: TelegramMessage = {
       chat_id: userId,
       text: message,
       parse_mode: parseMode,
-      protect_content: !isAdminUser
+      protect_content: false
     };
 
     if (replyMarkup) {
@@ -255,7 +255,7 @@ export async function sendUserTelegramNotification(userId: string, message: stri
     }
 
     console.log('📡 Request payload:', JSON.stringify(telegramMessage, null, 2));
-    console.log(`🔒 Forward protection: ${!isAdminUser ? 'ENABLED' : 'DISABLED'} for user ${userId} (Admin: ${isAdminUser})`);
+    console.log(`🔒 Forward protection: DISABLED for user ${userId} (all users can forward messages)`);
 
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -412,6 +412,107 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         } catch (error) {
           console.error('❌ Error refreshing stats:', error);
         }
+      }
+      
+      // Handle admin panel refresh button
+      if (data === 'admin_refresh' && isAdmin(chatId)) {
+        try {
+          const { db } = await import('./db');
+          const { sql } = await import('drizzle-orm');
+          const { users, earnings, withdrawals } = await import('../shared/schema');
+          
+          const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+          const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
+          const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
+          const todayAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatchedToday}), 0)` }).from(users);
+          const totalPADSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
+          const tonWithdrawnSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+          const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'pending'`);
+          const approvedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+          const rejectedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'rejected'`);
+          
+          const totalUsers = totalUsersCount[0]?.count || 0;
+          const activeUsers = dailyActiveCount[0]?.count || 0;
+          const totalAds = totalAdsSum[0]?.total || 0;
+          const todayAds = todayAdsSum[0]?.total || 0;
+          const totalPAD = Math.round(parseFloat(totalPADSum[0]?.total || '0') * 100000);
+          const tonWithdrawn = formatTON(tonWithdrawnSum[0]?.total || '0');
+          const pendingRequests = pendingWithdrawalsCount[0]?.count || 0;
+          const approvedRequests = approvedWithdrawalsCount[0]?.count || 0;
+          const rejectedRequests = rejectedWithdrawalsCount[0]?.count || 0;
+          
+          const adminPanelMessage = `📊 <b>Admin Control Panel</b>\n\n` +
+            `<b>𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
+            `Total Users: ${totalUsers}\n` +
+            `Active Users: ${activeUsers}\n` +
+            `Total Ads: ${totalAds}\n` +
+            `Today Ads: ${todayAds}\n` +
+            `Total PAD: ${totalPAD}\n` +
+            `TON Withdrawn: ${tonWithdrawn}\n\n` +
+            `<b>𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
+            `Pending: ${pendingRequests}\n` +
+            `Approved: ${approvedRequests}\n` +
+            `Rejected: ${rejectedRequests}`;
+          
+          // Answer callback query and edit message
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQuery.id, text: '🔄 Refreshed' })
+          });
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              message_id: callbackQuery.message.message_id,
+              text: adminPanelMessage,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: '🔔 Announce', callback_data: 'admin_announce' },
+                    { text: '🔄 Refresh', callback_data: 'admin_refresh' }
+                  ]
+                ]
+              }
+            })
+          });
+        } catch (error) {
+          console.error('❌ Error refreshing admin panel:', error);
+        }
+        return true;
+      }
+      
+      // Handle admin announce button - prompt for broadcast message
+      if (data === 'admin_announce' && isAdmin(chatId)) {
+        // Store pending broadcast state
+        pendingBroadcasts.set(chatId, { timestamp: Date.now() });
+        
+        // Clean up old pending broadcasts (older than 5 minutes)
+        for (const [key, value] of pendingBroadcasts.entries()) {
+          if (Date.now() - value.timestamp > 5 * 60 * 1000) {
+            pendingBroadcasts.delete(key);
+          }
+        }
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            callback_query_id: callbackQuery.id,
+            text: 'Send your broadcast message as a text'
+          })
+        });
+        
+        await sendUserTelegramNotification(chatId, 
+          '📢 <b>Broadcast Message</b>\n\n' +
+          'Please type the message you want to send to all users.\n\n' +
+          'The next message you send will be broadcast to all users.'
+        );
+        
+        return true;
       }
       
       // Handle admin withdrawal approval
@@ -646,6 +747,131 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       return true;
     }
     
+    // Check if admin has a pending broadcast waiting for message
+    if (isAdmin(chatId) && pendingBroadcasts.has(chatId)) {
+      const broadcastMessage = text;
+      
+      try {
+        // Get all users with Telegram IDs
+        const { db } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const { users } = await import('../shared/schema');
+        
+        const allUsers = await db.select({ 
+          telegramId: users.telegram_id 
+        }).from(users).where(sql`${users.telegram_id} IS NOT NULL`);
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        await sendUserTelegramNotification(chatId, 
+          `📢 Broadcasting message to ${allUsers.length} users...\n\nPlease wait...`
+        );
+        
+        // Send message to each user
+        for (const user of allUsers) {
+          if (user.telegramId && user.telegramId !== chatId) {
+            const sent = await sendUserTelegramNotification(user.telegramId, broadcastMessage);
+            if (sent) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          }
+        }
+        
+        // Send summary to admin
+        await sendUserTelegramNotification(chatId, 
+          `✅ <b>Broadcast Complete</b>\n\n` +
+          `📊 Total users: ${allUsers.length}\n` +
+          `✅ Successfully sent: ${successCount}\n` +
+          `❌ Failed: ${failCount}`
+        );
+      } catch (error) {
+        console.error('Error broadcasting message:', error);
+        await sendUserTelegramNotification(chatId, 
+          '❌ Error broadcasting message. Please try again.'
+        );
+      }
+      
+      // Clear the pending broadcast state
+      pendingBroadcasts.delete(chatId);
+      return true;
+    }
+    
+    // Handle /szxzyz command - Admin Control Panel
+    if (text === '/szxzyz') {
+      if (!isAdmin(chatId)) {
+        // Non-admin users get redirected to /start
+        await sendUserTelegramNotification(chatId, 'Please use /start');
+        return true;
+      }
+      
+      // Fetch admin statistics from the database
+      try {
+        const { db } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const { users, earnings, withdrawals } = await import('../shared/schema');
+        
+        const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+        const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
+        const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
+        const todayAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatchedToday}), 0)` }).from(users);
+        const totalPADSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
+        const tonWithdrawnSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+        const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'pending'`);
+        const approvedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+        const rejectedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'rejected'`);
+        
+        const totalUsers = totalUsersCount[0]?.count || 0;
+        const activeUsers = dailyActiveCount[0]?.count || 0;
+        const totalAds = totalAdsSum[0]?.total || 0;
+        const todayAds = todayAdsSum[0]?.total || 0;
+        const totalPAD = Math.round(parseFloat(totalPADSum[0]?.total || '0') * 100000);
+        const tonWithdrawn = formatTON(tonWithdrawnSum[0]?.total || '0');
+        const pendingRequests = pendingWithdrawalsCount[0]?.count || 0;
+        const approvedRequests = approvedWithdrawalsCount[0]?.count || 0;
+        const rejectedRequests = rejectedWithdrawalsCount[0]?.count || 0;
+        
+        const adminPanelMessage = `📊 <b>Admin Control Panel</b>\n\n` +
+          `<b>𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
+          `Total Users: ${totalUsers}\n` +
+          `Active Users: ${activeUsers}\n` +
+          `Total Ads: ${totalAds}\n` +
+          `Today Ads: ${todayAds}\n` +
+          `Total PAD: ${totalPAD}\n` +
+          `TON Withdrawn: ${tonWithdrawn}\n\n` +
+          `<b>𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
+          `Pending: ${pendingRequests}\n` +
+          `Approved: ${approvedRequests}\n` +
+          `Rejected: ${rejectedRequests}`;
+        
+        // Send message with inline buttons
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: adminPanelMessage,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '🔔 Announce', callback_data: 'admin_announce' },
+                  { text: '🔄 Refresh', callback_data: 'admin_refresh' }
+                ]
+              ]
+            }
+          })
+        });
+        
+        return true;
+      } catch (error) {
+        console.error('Error handling /szxzyz command:', error);
+        await sendUserTelegramNotification(chatId, '❌ Error loading admin panel. Please try again.');
+        return true;
+      }
+    }
     
     // Handle /start command with referral processing and promotion claims
     if (text.startsWith('/start')) {

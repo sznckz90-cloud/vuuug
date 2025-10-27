@@ -12,7 +12,8 @@ import {
   userBalances,
   dailyTasks,
   promoCodes,
-  transactions
+  transactions,
+  adminSettings
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
@@ -582,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Ad watching endpoint - 200 ads per day limit
+  // Ad watching endpoint - configurable daily limit and reward amount
   app.post('/api/ads/watch', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
@@ -593,19 +594,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      // Enforce 50 ads per day limit
+      // Fetch admin settings for daily limit and reward amount
+      const dailyAdLimitSetting = await db.select().from(admin_settings).where(eq(admin_settings.key, 'daily_ad_limit')).limit(1);
+      const rewardPerAdSetting = await db.select().from(admin_settings).where(eq(admin_settings.key, 'reward_per_ad')).limit(1);
+      
+      const dailyAdLimit = dailyAdLimitSetting[0]?.value ? parseInt(dailyAdLimitSetting[0].value) : 50;
+      const rewardPerAdPAD = rewardPerAdSetting[0]?.value ? parseInt(rewardPerAdSetting[0].value) : 1000;
+      
+      // Enforce daily ad limit (configurable, default 50)
       const adsWatchedToday = user.adsWatchedToday || 0;
-      if (adsWatchedToday >= 50) {
+      if (adsWatchedToday >= dailyAdLimit) {
         return res.status(429).json({ 
-          message: "Daily ad limit reached. You can watch up to 50 ads per day.",
-          limit: 50,
+          message: `Daily ad limit reached. You can watch up to ${dailyAdLimit} ads per day.`,
+          limit: dailyAdLimit,
           watched: adsWatchedToday
         });
       }
       
-      // Add earning for watched ad (1000 PAD = 0.0001 TON)
-      const adRewardTON = "0.00010000";
-      const adRewardPAD = Math.round(parseFloat(adRewardTON) * 10000000);
+      // Calculate reward in TON from PAD amount (1000 PAD = 0.0001 TON)
+      const adRewardTON = (rewardPerAdPAD / 10000000).toFixed(8);
+      const adRewardPAD = rewardPerAdPAD;
       
       try {
         // Process reward with error handling to ensure success response
@@ -1806,21 +1814,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activePromosCount = await db.select({ count: sql<number>`count(*)` }).from(promoCodes).where(eq(promoCodes.isActive, true));
       const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
       const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
+      const todayAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatchedToday}), 0)` }).from(users);
+      const tonWithdrawnSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
 
       res.json({
         totalUsers: totalUsersCount[0]?.count || 0,
         totalEarnings: totalEarningsSum[0]?.total || '0',
         totalWithdrawals: totalWithdrawalsSum[0]?.total || '0',
+        tonWithdrawn: tonWithdrawnSum[0]?.total || '0',
         pendingWithdrawals: pendingWithdrawalsCount[0]?.count || 0,
         successfulWithdrawals: successfulWithdrawalsCount[0]?.count || 0,
         rejectedWithdrawals: rejectedWithdrawalsCount[0]?.count || 0,
         activePromos: activePromosCount[0]?.count || 0,
         dailyActiveUsers: dailyActiveCount[0]?.count || 0,
         totalAdsWatched: totalAdsSum[0]?.total || 0,
+        todayAdsWatched: todayAdsSum[0]?.total || 0,
       });
     } catch (error) {
       console.error("Error fetching admin stats:", error);
       res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  // Get admin settings
+  app.get('/api/admin/settings', authenticateAdmin, async (req: any, res) => {
+    try {
+      const settings = await db.select().from(admin_settings);
+      
+      // Find specific settings
+      const dailyAdLimitSetting = settings.find(s => s.key === 'daily_ad_limit');
+      const rewardPerAdSetting = settings.find(s => s.key === 'reward_per_ad');
+      
+      // Return in format expected by frontend
+      res.json({
+        dailyAdLimit: dailyAdLimitSetting?.value ? parseInt(dailyAdLimitSetting.value) : 50,
+        rewardPerAd: rewardPerAdSetting?.value ? parseInt(rewardPerAdSetting.value) : 1000,
+      });
+    } catch (error) {
+      console.error("Error fetching admin settings:", error);
+      res.status(500).json({ message: "Failed to fetch admin settings" });
+    }
+  });
+  
+  // Update admin settings
+  app.put('/api/admin/settings', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { dailyAdLimit, rewardPerAd } = req.body;
+      
+      if (dailyAdLimit === undefined && rewardPerAd === undefined) {
+        return res.status(400).json({ message: "At least one setting must be provided" });
+      }
+      
+      // Update daily ad limit if provided
+      if (dailyAdLimit !== undefined) {
+        await db.execute(sql`
+          INSERT INTO ${admin_settings} (key, value, updated_at)
+          VALUES ('daily_ad_limit', ${dailyAdLimit.toString()}, NOW())
+          ON CONFLICT (key) 
+          DO UPDATE SET value = ${dailyAdLimit.toString()}, updated_at = NOW()
+        `);
+      }
+      
+      // Update reward per ad if provided
+      if (rewardPerAd !== undefined) {
+        await db.execute(sql`
+          INSERT INTO ${admin_settings} (key, value, updated_at)
+          VALUES ('reward_per_ad', ${rewardPerAd.toString()}, NOW())
+          ON CONFLICT (key) 
+          DO UPDATE SET value = ${rewardPerAd.toString()}, updated_at = NOW()
+        `);
+      }
+      
+      res.json({ success: true, message: "Settings updated successfully" });
+    } catch (error) {
+      console.error("Error updating admin settings:", error);
+      res.status(500).json({ success: false, message: "Failed to update admin settings" });
+    }
+  });
+  
+  // Broadcast message to all users (for admin use)
+  app.post('/api/admin/broadcast', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { message } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+      
+      // Get all users with Telegram IDs
+      const allUsers = await db.select({ 
+        telegramId: users.telegram_id 
+      }).from(users).where(sql`${users.telegram_id} IS NOT NULL`);
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Send message to each user
+      for (const user of allUsers) {
+        if (user.telegramId) {
+          const sent = await sendUserTelegramNotification(user.telegramId, message);
+          if (sent) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Broadcast sent`,
+        details: {
+          total: allUsers.length,
+          sent: successCount,
+          failed: failCount
+        }
+      });
+    } catch (error) {
+      console.error("Error broadcasting message:", error);
+      res.status(500).json({ message: "Failed to broadcast message" });
     }
   });
 
