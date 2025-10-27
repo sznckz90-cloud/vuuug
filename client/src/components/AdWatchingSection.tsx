@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -20,6 +20,17 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
   const [lastAdWatchTime, setLastAdWatchTime] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
+  // Fetch app settings dynamically (ad limit, reward amount)
+  const { data: appSettings } = useQuery({
+    queryKey: ["/api/app-settings"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/app-settings");
+      return response.json();
+    },
+    staleTime: 30000, // Cache for 30 seconds to avoid too many requests
+    refetchInterval: 60000, // Refetch every minute to get latest settings
+  });
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
@@ -53,7 +64,8 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     },
     onError: (error: any) => {
       if (error.status === 429) {
-        showNotification("Daily ad limit reached (50 ads/day)", "error");
+        const limit = error.limit || appSettings?.dailyAdLimit || 50;
+        showNotification(`Daily ad limit reached (${limit} ads/day)`, "error");
       } else if (error.status === 401 || error.status === 403) {
         showNotification("Authentication error. Please refresh the page.", "error");
       } else if (error.message) {
@@ -114,9 +126,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     }
   };
 
-  // Get ads watched today from user data
+  // Get ads watched today from user data and daily limit from app settings
   const adsWatchedToday = user?.adsWatchedToday || 0;
-  const dailyLimit = 50;
+  const dailyLimit = appSettings?.dailyAdLimit || 50;
 
   return (
     <Card className="rounded-2xl minimal-card mb-3">
