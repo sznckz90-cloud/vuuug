@@ -201,6 +201,17 @@ export const dailyTasks = pgTable("daily_tasks", {
   unique("daily_tasks_user_task_date_unique").on(table.userId, table.taskLevel, table.resetDate),
 ]);
 
+// Admin settings table - for configurable app parameters
+export const adminSettings = pgTable("admin_settings", {
+  id: serial("id").primaryKey(),
+  settingKey: varchar("setting_key").notNull().unique(),
+  settingValue: text("setting_value").notNull(),
+  description: text("description"),
+  updatedBy: varchar("updated_by"), // Admin user ID who last updated
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
@@ -213,6 +224,7 @@ export const insertReferralSchema = createInsertSchema(referrals).omit({ id: tru
 export const insertReferralCommissionSchema = createInsertSchema(referralCommissions).omit({ id: true, createdAt: true });
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPromoCodeUsageSchema = createInsertSchema(promoCodeUsage).omit({ id: true, usedAt: true });
+export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -235,3 +247,5 @@ export type UserBalance = typeof userBalances.$inferSelect;
 export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
 export type DailyTask = typeof dailyTasks.$inferSelect;
 export type InsertDailyTask = z.infer<typeof insertDailyTaskSchema>;
+export type AdminSetting = typeof adminSettings.$inferSelect;
+export type InsertAdminSetting = z.infer<typeof insertAdminSettingSchema>;
