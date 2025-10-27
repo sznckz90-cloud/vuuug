@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +21,13 @@ interface AdminStats {
   totalUsers: number;
   totalEarnings: string;
   totalWithdrawals: string;
+  tonWithdrawn: string;
   pendingWithdrawals: number;
   successfulWithdrawals: number;
   rejectedWithdrawals: number;
   dailyActiveUsers: number;
   totalAdsWatched: number;
+  todayAdsWatched: number;
   activePromos: number;
 }
 
@@ -137,13 +139,20 @@ export default function AdminPage() {
           </div>
 
           {/* Ad Stats */}
-          <div className="grid grid-cols-1">
+          <div className="grid grid-cols-2 gap-3">
             <StatCard
               icon="play-circle"
               label="Total Ads"
               value={stats?.totalAdsWatched?.toLocaleString() || '0'}
               iconColor="text-purple-600"
               bgColor="bg-purple-50"
+            />
+            <StatCard
+              icon="calendar-day"
+              label="Today Ads"
+              value={stats?.todayAdsWatched?.toLocaleString() || '0'}
+              iconColor="text-orange-600"
+              bgColor="bg-orange-50"
             />
           </div>
 
@@ -159,7 +168,7 @@ export default function AdminPage() {
             <StatCard
               icon="wallet"
               label="TON Withdrawn"
-              value={formatCurrency(stats?.totalWithdrawals || '0')}
+              value={formatCurrency(stats?.tonWithdrawn || '0')}
               iconColor="text-indigo-600"
               bgColor="bg-indigo-50"
             />
@@ -194,7 +203,7 @@ export default function AdminPage() {
 
         {/* Tabs Navigation */}
         <Tabs defaultValue="analytics" className="w-full">
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl mx-auto mb-6">
+          <TabsList className="grid grid-cols-5 w-full max-w-3xl mx-auto mb-6">
             <TabsTrigger value="analytics">
               <i className="fas fa-chart-line mr-2"></i>
               Analytics
@@ -210,6 +219,10 @@ export default function AdminPage() {
             <TabsTrigger value="payouts">
               <i className="fas fa-money-check-alt mr-2"></i>
               Payouts
+            </TabsTrigger>
+            <TabsTrigger value="settings">
+              <i className="fas fa-cog mr-2"></i>
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -231,6 +244,11 @@ export default function AdminPage() {
           {/* Payout Logs Tab */}
           <TabsContent value="payouts" className="space-y-4">
             <PayoutLogsSection data={payoutLogsData} />
+          </TabsContent>
+          
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-4">
+            <SettingsSection />
           </TabsContent>
         </Tabs>
       </main>
@@ -786,6 +804,192 @@ function PayoutLogsSection({ data }: { data: any }) {
         )}
         <div className="mt-4 text-sm text-muted-foreground">
           Showing {filteredPayouts.length} of {payouts.length} payout records
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Settings Section Component
+function SettingsSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Fetch current settings
+  const { data: settingsData, isLoading } = useQuery({
+    queryKey: ["/api/admin/settings"],
+    queryFn: () => apiRequest("GET", "/api/admin/settings").then(res => res.json()),
+  });
+  
+  const [dailyAdLimit, setDailyAdLimit] = useState('50');
+  const [rewardPerAd, setRewardPerAd] = useState('1000');
+  
+  // Update form when settings data loads
+  useEffect(() => {
+    if (settingsData) {
+      setDailyAdLimit(settingsData.dailyAdLimit?.toString() || '50');
+      setRewardPerAd(settingsData.rewardPerAd?.toString() || '1000');
+    }
+  }, [settingsData]);
+  
+  const handleSaveSettings = async () => {
+    const adLimit = parseInt(dailyAdLimit);
+    const reward = parseInt(rewardPerAd);
+    
+    if (isNaN(adLimit) || adLimit <= 0) {
+      toast({
+        title: "⚠️ Validation Error",
+        description: "Daily ad limit must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(reward) || reward <= 0) {
+      toast({
+        title: "⚠️ Validation Error",
+        description: "Reward per ad must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const response = await apiRequest('PUT', '/api/admin/settings', {
+        dailyAdLimit: adLimit,
+        rewardPerAd: reward
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "✅ Settings Updated",
+          description: "App settings have been updated successfully",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      } else {
+        throw new Error(result.message || 'Failed to update settings');
+      }
+    } catch (error: any) {
+      toast({
+        title: "❌ Error",
+        description: error.message || "Failed to update settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <i className="fas fa-spinner fa-spin text-3xl text-primary mb-2"></i>
+          <p className="text-muted-foreground">Loading settings...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <i className="fas fa-cog mr-2 text-blue-600"></i>
+          App Settings
+        </CardTitle>
+        <p className="text-sm text-muted-foreground mt-2">
+          Configure app-wide settings for ad limits and reward amounts
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Daily Ad Limit Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="daily-ad-limit" className="text-base font-semibold">
+              <i className="fas fa-calendar-day mr-2 text-orange-600"></i>
+              Daily Ad Limit
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Maximum number of ads a user can watch per day
+            </p>
+            <Input
+              id="daily-ad-limit"
+              type="number"
+              value={dailyAdLimit}
+              onChange={(e) => setDailyAdLimit(e.target.value)}
+              placeholder="50"
+              min="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.dailyAdLimit || 50} ads per day
+            </p>
+          </div>
+          
+          {/* Reward Per Ad Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="reward-per-ad" className="text-base font-semibold">
+              <i className="fas fa-gem mr-2 text-purple-600"></i>
+              Reward Per Ad (PAD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Amount of PAD tokens awarded for watching one ad
+            </p>
+            <Input
+              id="reward-per-ad"
+              type="number"
+              value={rewardPerAd}
+              onChange={(e) => setRewardPerAd(e.target.value)}
+              placeholder="1000"
+              min="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.rewardPerAd || 1000} PAD per ad
+            </p>
+          </div>
+        </div>
+        
+        {/* Save Button */}
+        <div className="pt-4 border-t">
+          <Button
+            onClick={handleSaveSettings}
+            disabled={isSaving}
+            className="w-full md:w-auto"
+            size="lg"
+          >
+            {isSaving ? (
+              <>
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                Saving...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-save mr-2"></i>
+                Save Settings
+              </>
+            )}
+          </Button>
+        </div>
+        
+        {/* Info Box */}
+        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-start gap-2">
+            <i className="fas fa-info-circle text-blue-600 mt-1"></i>
+            <div className="text-sm text-blue-900 dark:text-blue-100">
+              <p className="font-semibold mb-1">Settings Information</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>Changes take effect immediately for all users</li>
+                <li>Daily ad limit resets at midnight (UTC)</li>
+                <li>Reward amounts are distributed when ads are watched</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
