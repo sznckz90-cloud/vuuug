@@ -506,10 +506,43 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           })
         });
         
+        // Send message with cancel button
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: '📢 <b>Broadcast Message</b>\n\n' +
+              'Please type the message you want to send to all users.\n\n' +
+              'The next message you send will be broadcast to all users.',
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '❌ Cancel Broadcast', callback_data: 'cancel_broadcast' }
+              ]]
+            }
+          })
+        });
+        
+        return true;
+      }
+      
+      // Handle cancel broadcast button
+      if (data === 'cancel_broadcast' && isAdmin(chatId)) {
+        // Clear pending broadcast state
+        pendingBroadcasts.delete(chatId);
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            callback_query_id: callbackQuery.id,
+            text: 'Broadcast cancelled'
+          })
+        });
+        
         await sendUserTelegramNotification(chatId, 
-          '📢 <b>Broadcast Message</b>\n\n' +
-          'Please type the message you want to send to all users.\n\n' +
-          'The next message you send will be broadcast to all users.'
+          '⚠️ Broadcast cancelled successfully.'
         );
         
         return true;
@@ -761,31 +794,64 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           telegramId: users.telegram_id 
         }).from(users).where(sql`${users.telegram_id} IS NOT NULL`);
         
+        // Use Set for deduplication - ensure one message per unique user ID
+        const uniqueUserIds = new Set<string>();
+        const dedupedUsers = allUsers.filter(user => {
+          if (user.telegramId && !uniqueUserIds.has(user.telegramId)) {
+            uniqueUserIds.add(user.telegramId);
+            return true;
+          }
+          return false;
+        });
+        
         let successCount = 0;
         let failCount = 0;
+        let skippedCount = 0;
+        
+        // Get app URL from environment variables
+        const appUrl = process.env.RENDER_EXTERNAL_URL || 
+                      (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://lighting-sats-app.onrender.com');
+        
+        // Add footer to broadcast message with WebApp URL and Channel link
+        const messageWithFooter = broadcastMessage + '\n\n' +
+          `🌐 Open App: ${appUrl}\n` +
+          `📢 Join Channel: https://t.me/PaidAdsNews`;
         
         await sendUserTelegramNotification(chatId, 
-          `📢 Broadcasting message to ${allUsers.length} users...\n\nPlease wait...`
+          `📢 Broadcasting message to ${dedupedUsers.length} unique users...\n\nPlease wait...`
         );
         
-        // Send message to each user
-        for (const user of allUsers) {
-          if (user.telegramId && user.telegramId !== chatId) {
-            const sent = await sendUserTelegramNotification(user.telegramId, broadcastMessage);
+        // Send message to each unique user
+        for (const user of dedupedUsers) {
+          // Skip admin to avoid self-messaging
+          if (user.telegramId === chatId) {
+            skippedCount++;
+            continue;
+          }
+          
+          try {
+            const sent = await sendUserTelegramNotification(user.telegramId, messageWithFooter);
             if (sent) {
               successCount++;
             } else {
               failCount++;
             }
+            // Small delay to avoid Telegram rate limits
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (error) {
+            console.error(`Failed to send to ${user.telegramId}:`, error);
+            failCount++;
           }
         }
         
-        // Send summary to admin
+        // Send detailed summary to admin
         await sendUserTelegramNotification(chatId, 
-          `✅ <b>Broadcast Complete</b>\n\n` +
-          `📊 Total users: ${allUsers.length}\n` +
+          `✅ <b>Broadcast sent successfully to ${successCount} users.</b>\n\n` +
+          `📊 <b>Statistics:</b>\n` +
           `✅ Successfully sent: ${successCount}\n` +
-          `❌ Failed: ${failCount}`
+          `❌ Failed/Inactive: ${failCount}\n` +
+          `⚙️ Skipped: ${skippedCount} (admin)\n` +
+          `📈 Total unique users: ${dedupedUsers.length}`
         );
       } catch (error) {
         console.error('Error broadcasting message:', error);

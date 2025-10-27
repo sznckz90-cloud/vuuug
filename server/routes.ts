@@ -583,6 +583,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get current app settings (public endpoint for frontend to fetch ad limits)
+  app.get('/api/app-settings', async (req: any, res) => {
+    try {
+      // Fetch admin settings for daily limit and reward amount
+      const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
+      const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
+      
+      const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 50;
+      const rewardPerAd = rewardPerAdSetting[0]?.settingValue ? parseInt(rewardPerAdSetting[0].settingValue) : 1000;
+      
+      res.json({
+        dailyAdLimit,
+        rewardPerAd
+      });
+    } catch (error) {
+      console.error("Error fetching app settings:", error);
+      res.status(500).json({ message: "Failed to fetch app settings" });
+    }
+  });
+
   // Ad watching endpoint - configurable daily limit and reward amount
   app.post('/api/ads/watch', authenticateTelegram, async (req: any, res) => {
     try {
@@ -595,11 +615,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Fetch admin settings for daily limit and reward amount
-      const dailyAdLimitSetting = await db.select().from(admin_settings).where(eq(admin_settings.key, 'daily_ad_limit')).limit(1);
-      const rewardPerAdSetting = await db.select().from(admin_settings).where(eq(admin_settings.key, 'reward_per_ad')).limit(1);
+      const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
+      const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
       
-      const dailyAdLimit = dailyAdLimitSetting[0]?.value ? parseInt(dailyAdLimitSetting[0].value) : 50;
-      const rewardPerAdPAD = rewardPerAdSetting[0]?.value ? parseInt(rewardPerAdSetting[0].value) : 1000;
+      const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 50;
+      const rewardPerAdPAD = rewardPerAdSetting[0]?.settingValue ? parseInt(rewardPerAdSetting[0].settingValue) : 1000;
       
       // Enforce daily ad limit (configurable, default 50)
       const adsWatchedToday = user.adsWatchedToday || 0;
@@ -1839,16 +1859,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get admin settings
   app.get('/api/admin/settings', authenticateAdmin, async (req: any, res) => {
     try {
-      const settings = await db.select().from(admin_settings);
+      const settings = await db.select().from(adminSettings);
       
       // Find specific settings
-      const dailyAdLimitSetting = settings.find(s => s.key === 'daily_ad_limit');
-      const rewardPerAdSetting = settings.find(s => s.key === 'reward_per_ad');
+      const dailyAdLimitSetting = settings.find(s => s.settingKey === 'daily_ad_limit');
+      const rewardPerAdSetting = settings.find(s => s.settingKey === 'reward_per_ad');
       
       // Return in format expected by frontend
       res.json({
-        dailyAdLimit: dailyAdLimitSetting?.value ? parseInt(dailyAdLimitSetting.value) : 50,
-        rewardPerAd: rewardPerAdSetting?.value ? parseInt(rewardPerAdSetting.value) : 1000,
+        dailyAdLimit: dailyAdLimitSetting?.settingValue ? parseInt(dailyAdLimitSetting.settingValue) : 50,
+        rewardPerAd: rewardPerAdSetting?.settingValue ? parseInt(rewardPerAdSetting.settingValue) : 1000,
       });
     } catch (error) {
       console.error("Error fetching admin settings:", error);
@@ -1868,20 +1888,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update daily ad limit if provided
       if (dailyAdLimit !== undefined) {
         await db.execute(sql`
-          INSERT INTO ${admin_settings} (key, value, updated_at)
+          INSERT INTO admin_settings (setting_key, setting_value, updated_at)
           VALUES ('daily_ad_limit', ${dailyAdLimit.toString()}, NOW())
-          ON CONFLICT (key) 
-          DO UPDATE SET value = ${dailyAdLimit.toString()}, updated_at = NOW()
+          ON CONFLICT (setting_key) 
+          DO UPDATE SET setting_value = ${dailyAdLimit.toString()}, updated_at = NOW()
         `);
       }
       
       // Update reward per ad if provided
       if (rewardPerAd !== undefined) {
         await db.execute(sql`
-          INSERT INTO ${admin_settings} (key, value, updated_at)
+          INSERT INTO admin_settings (setting_key, setting_value, updated_at)
           VALUES ('reward_per_ad', ${rewardPerAd.toString()}, NOW())
-          ON CONFLICT (key) 
-          DO UPDATE SET value = ${rewardPerAd.toString()}, updated_at = NOW()
+          ON CONFLICT (setting_key) 
+          DO UPDATE SET setting_value = ${rewardPerAd.toString()}, updated_at = NOW()
         `);
       }
       

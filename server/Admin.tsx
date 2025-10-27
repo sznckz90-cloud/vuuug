@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -422,6 +422,10 @@ export default function AdminPage() {
                   <i className="fas fa-tag mr-2"></i>
                   Promo Creator
                 </TabsTrigger>
+                <TabsTrigger value="settings" data-testid="tab-settings" className="flex-1 min-w-[140px]">
+                  <i className="fas fa-cog mr-2"></i>
+                  Settings
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -749,6 +753,21 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <i className="fas fa-cog mr-2 text-indigo-600"></i>
+                    App Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <SettingsSection />
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
       </main>
@@ -875,6 +894,173 @@ function UserTrackingSearch() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function SettingsSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [settings, setSettings] = useState({
+    dailyAdLimit: '',
+    rewardPerAd: ''
+  });
+
+  // Fetch current settings
+  const { data: settingsData, isLoading } = useQuery({
+    queryKey: ["/api/admin/settings"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/admin/settings");
+      return response.json();
+    },
+  });
+
+  // Update local state when data loads
+  useEffect(() => {
+    if (settingsData) {
+      setSettings({
+        dailyAdLimit: settingsData.dailyAdLimit?.toString() || '',
+        rewardPerAd: settingsData.rewardPerAd?.toString() || ''
+      });
+    }
+  }, [settingsData]);
+
+  const handleUpdateSettings = async () => {
+    if (!settings.dailyAdLimit || !settings.rewardPerAd) {
+      toast({
+        title: "Validation Error",
+        description: "Both fields are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const dailyAdLimit = parseInt(settings.dailyAdLimit);
+    const rewardPerAd = parseInt(settings.rewardPerAd);
+
+    if (isNaN(dailyAdLimit) || dailyAdLimit <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Daily ad limit must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isNaN(rewardPerAd) || rewardPerAd <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Reward per ad must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await apiRequest('PUT', '/api/admin/settings', {
+        dailyAdLimit,
+        rewardPerAd
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "✅ Settings Updated Successfully!",
+          description: `Ad limit: ${dailyAdLimit}/day, Reward: ${rewardPerAd} PAD per ad`,
+        });
+        
+        // Invalidate app settings cache so users get updated values
+        queryClient.invalidateQueries({ queryKey: ["/api/app-settings"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      } else {
+        throw new Error(result.message || 'Failed to update settings');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground mr-2"></i>
+        <p className="text-muted-foreground">Loading settings...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label htmlFor="daily-ad-limit">Daily Ad Limit</Label>
+          <Input
+            id="daily-ad-limit"
+            type="number"
+            placeholder="e.g., 50"
+            value={settings.dailyAdLimit}
+            onChange={(e) => setSettings({ ...settings, dailyAdLimit: e.target.value })}
+            min="1"
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            Maximum ads users can watch per day
+          </p>
+        </div>
+        <div>
+          <Label htmlFor="reward-per-ad">Reward Per Ad (PAD)</Label>
+          <Input
+            id="reward-per-ad"
+            type="number"
+            placeholder="e.g., 1000"
+            value={settings.rewardPerAd}
+            onChange={(e) => setSettings({ ...settings, rewardPerAd: e.target.value })}
+            min="1"
+            step="100"
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            PAD tokens earned per ad watched
+          </p>
+        </div>
+      </div>
+
+      <Button 
+        onClick={handleUpdateSettings}
+        disabled={isUpdating}
+        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
+      >
+        {isUpdating ? (
+          <>
+            <i className="fas fa-spinner fa-spin mr-2"></i>
+            Updating...
+          </>
+        ) : (
+          <>
+            <i className="fas fa-save mr-2"></i>
+            Save Settings
+          </>
+        )}
+      </Button>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <i className="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
+          <div>
+            <p className="font-semibold text-blue-900 mb-1">Important Note</p>
+            <p className="text-sm text-blue-800">
+              Changes will take effect immediately for all users. The app will automatically refresh settings every minute.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
