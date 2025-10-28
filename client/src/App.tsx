@@ -11,6 +11,9 @@ const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
+const Tasks = lazy(() => import("@/pages/Tasks"));
+const AddTask = lazy(() => import("@/pages/AddTask"));
+const MyTasks = lazy(() => import("@/pages/MyTasks"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -26,6 +29,9 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/tasks" component={Tasks} />
+        <Route path="/add-task" component={AddTask} />
+        <Route path="/my-tasks" component={MyTasks} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
