@@ -1670,137 +1670,7 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  // Ensure all required system tasks exist for production deployment
-  async ensureSystemTasksExist(): Promise<void> {
-    try {
-      // Get first available user to be the owner, or create a system user
-      let firstUser = await db.select({ id: users.id }).from(users).limit(1).then(users => users[0]);
-      
-      if (!firstUser) {
-        console.log('⚠️ No users found, creating system user for task ownership');
-        // Create a system user for task ownership
-        const systemUser = await db.insert(users).values({
-          id: 'system-user',
-          username: 'System',
-          firstName: 'System',
-          lastName: 'Tasks',
-          referralCode: 'SYSTEM',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }).returning({ id: users.id });
-        firstUser = systemUser[0];
-        console.log('✅ System user created for task ownership');
-      }
-
-      // Define all system tasks with exact specifications
-      const systemTasks = [
-        // Fixed daily tasks
-        {
-          id: 'channel-visit-check-update',
-          type: 'channel_visit',
-          url: 'https://t.me/PaidAdsNews',
-          rewardPerUser: '0.00015000', // 0.00015 TON formatted to 8 digits for precision
-          title: 'Channel visit (Check Update)',
-          description: 'Visit our Telegram channel for updates and news'
-        },
-        {
-          id: 'app-link-share',
-          type: 'share_link',
-          url: 'share://referral',
-          rewardPerUser: '0.00020000', // 0.00020 TON formatted to 8 digits for precision
-          title: 'App link share (Share link)',
-          description: 'Share your affiliate link with friends'
-        },
-        {
-          id: 'invite-friend-valid',
-          type: 'invite_friend',
-          url: 'invite://friend',
-          rewardPerUser: '0.00050000', // 0.00050 TON formatted to 8 digits for precision
-          title: 'Invite friend (valid)',
-          description: 'Invite 1 valid friend to earn rewards'
-        },
-        // Daily ads goal tasks
-        {
-          id: 'ads-goal-mini',
-          type: 'ads_goal_mini',
-          url: 'watch://ads/mini',
-          rewardPerUser: '0.00045000', // 0.00045 TON formatted to 8 digits for precision
-          title: 'Mini (Watch 15 ads)',
-          description: 'Watch 15 ads to complete this daily goal'
-        },
-        {
-          id: 'ads-goal-light',
-          type: 'ads_goal_light',
-          url: 'watch://ads/light',
-          rewardPerUser: '0.00060000', // 0.00060 TON formatted to 8 digits for precision
-          title: 'Light (Watch 25 ads)',
-          description: 'Watch 25 ads to complete this daily goal'
-        },
-        {
-          id: 'ads-goal-medium',
-          type: 'ads_goal_medium',
-          url: 'watch://ads/medium',
-          rewardPerUser: '0.00070000', // 0.00070 TON formatted to 8 digits for precision
-          title: 'Medium (Watch 45 ads)',
-          description: 'Watch 45 ads to complete this daily goal'
-        },
-        {
-          id: 'ads-goal-hard',
-          type: 'ads_goal_hard',
-          url: 'watch://ads/hard',
-          rewardPerUser: '0.00080000', // 0.00080 TON formatted to 8 digits for precision
-          title: 'Hard (Watch 75 ads)',
-          description: 'Watch 75 ads to complete this daily goal'
-        }
-      ];
-
-      // Create or update each system task
-      for (const task of systemTasks) {
-        const existingTask = await this.getPromotion(task.id);
-        
-        if (existingTask) {
-          // Update existing task to match current specifications
-          await db.update(promotions)
-            .set({
-              type: task.type,
-              url: task.url,
-              rewardPerUser: task.rewardPerUser,
-              title: task.title,
-              description: task.description,
-              status: 'active',
-              isApproved: true // System tasks are pre-approved
-            })
-            .where(eq(promotions.id, task.id));
-          
-          console.log(`✅ System task updated: ${task.title}`);
-        } else {
-          // Create new system task
-          await db.insert(promotions).values({
-            id: task.id,
-            ownerId: firstUser.id,
-            type: task.type,
-            url: task.url,
-            cost: '0',
-            rewardPerUser: task.rewardPerUser,
-            limit: 100000, // High limit for system tasks
-            claimedCount: 0,
-            status: 'active',
-            isApproved: true, // System tasks are pre-approved
-            title: task.title,
-            description: task.description,
-            createdAt: new Date()
-          });
-          
-          console.log(`✅ System task created: ${task.title}`);
-        }
-      }
-
-      console.log('✅ All system tasks ensured successfully');
-    } catch (error) {
-      console.error('❌ Error ensuring system tasks exist:', error);
-      // Don't throw - server should still start even if task creation fails
-    }
-  }
+  // Legacy promotion system removed - now using dailyTasks table instead
 
 
   // Ensure admin user with unlimited balance exists for production deployment
@@ -1869,152 +1739,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Promotion system removed - using Ads Watch Tasks system only
-
-  async getAvailablePromotionsForUser(userId: string): Promise<any> {
-    // Get all active and approved promotions - ALWAYS show them
-    const allPromotions = await db.select().from(promotions)
-      .where(and(eq(promotions.status, 'active'), eq(promotions.isApproved, true)))
-      .orderBy(desc(promotions.createdAt));
-
-    const currentDate = this.getCurrentTaskDate();
-    const availablePromotions = [];
-
-    for (const promotion of allPromotions) {
-      // Check if this is a daily task type
-      const isDailyTask = [
-        'channel_visit', 'share_link', 'invite_friend',
-        'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'
-      ].includes(promotion.type);
-
-      const periodDate = isDailyTask ? currentDate : undefined;
-      
-      // Get current task status from the new system
-      const taskStatus = await this.getTaskStatus(userId, promotion.id, periodDate);
-      
-      let completionStatus = 'locked';
-      let statusMessage = 'Click to start';
-      let progress = null;
-      let buttonText = 'Start';
-
-      if (taskStatus) {
-        if (taskStatus.status === 'claimed') {
-          completionStatus = 'claimed';
-          statusMessage = '✅ Done';
-          buttonText = '✅ Done';
-        } else if (taskStatus.status === 'claimable') {
-          completionStatus = 'claimable';
-          statusMessage = 'Ready to claim!';
-          buttonText = 'Claim';
-        } else {
-          // Status is 'locked' - check if we can make it claimable
-          const verificationResult = await this.verifyTask(userId, promotion.id, promotion.type);
-          if (verificationResult.status === 'claimable') {
-            completionStatus = 'claimable';
-            statusMessage = 'Ready to claim!';
-            buttonText = 'Claim';
-          } else {
-            completionStatus = 'locked';
-            if (promotion.type.startsWith('ads_goal_')) {
-              const user = await this.getUser(userId);
-              const adsWatchedToday = user?.adsWatchedToday || 0;
-              const adsGoalThresholds = {
-                'ads_goal_mini': 15,
-                'ads_goal_light': 25,
-                'ads_goal_medium': 45,
-                'ads_goal_hard': 75
-              };
-              const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
-              statusMessage = `Watch ${Math.max(0, requiredAds - adsWatchedToday)} more ads (${adsWatchedToday}/${requiredAds})`;
-              progress = {
-                current: adsWatchedToday,
-                required: requiredAds,
-                percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
-              };
-              buttonText = 'Watch Ads';
-            } else if (promotion.type === 'invite_friend') {
-              statusMessage = 'Invite a friend first';
-              buttonText = 'Copy Link';
-            } else if (promotion.type === 'share_link') {
-              statusMessage = 'Share your affiliate link first';
-              buttonText = 'Share Link';
-            } else if (promotion.type === 'channel_visit') {
-              statusMessage = 'Visit the channel';
-              buttonText = 'Visit Channel';
-            }
-          }
-        }
-      } else {
-        // No task status yet - create initial status
-        await this.setTaskStatus(userId, promotion.id, 'locked', periodDate);
-        
-        // Set default messages based on task type
-        if (promotion.type === 'channel_visit') {
-          statusMessage = 'Visit the channel';
-          buttonText = 'Visit Channel';
-        } else if (promotion.type === 'share_link') {
-          statusMessage = 'Share your affiliate link';
-          buttonText = 'Share Link';
-        } else if (promotion.type === 'invite_friend') {
-          statusMessage = 'Invite a friend';
-          buttonText = 'Copy Link';
-        } else if (promotion.type.startsWith('ads_goal_')) {
-          const adsGoalThresholds = {
-            'ads_goal_mini': 15,
-            'ads_goal_light': 25,
-            'ads_goal_medium': 45,
-            'ads_goal_hard': 75
-          };
-          const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
-          const user = await this.getUser(userId);
-          const adsWatchedToday = user?.adsWatchedToday || 0;
-          statusMessage = `Watch ${Math.max(0, requiredAds - adsWatchedToday)} more ads (${adsWatchedToday}/${requiredAds})`;
-          progress = {
-            current: adsWatchedToday,
-            required: requiredAds,
-            percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
-          };
-          buttonText = 'Watch Ads';
-        }
-      }
-
-      // ALWAYS add the task - never filter out
-      availablePromotions.push({
-        ...promotion,
-        completionStatus,
-        statusMessage,
-        buttonText,
-        progress
-      });
-    }
-
-    return {
-      success: true,
-      tasks: availablePromotions.map(p => ({
-        id: p.id,
-        title: p.title || 'Untitled Task',
-        description: p.description || '',
-        type: p.type,
-        channelUsername: p.url?.match(/t\.me\/([^/?]+)/)?.[1],
-        botUsername: p.url?.match(/t\.me\/([^/?]+)/)?.[1],
-        reward: p.rewardPerUser || '0',
-        completedCount: p.claimedCount || 0,
-        totalSlots: p.limit || 1000,
-        isActive: p.status === 'active',
-        createdAt: p.createdAt,
-        claimUrl: p.url,
-        // New task status system properties
-        completionStatus: (p as any).completionStatus,
-        statusMessage: (p as any).statusMessage,
-        buttonText: (p as any).buttonText,
-        progress: (p as any).progress
-      })),
-      total: availablePromotions.length
-    };
-  }
-
-
-  // Task completion system removed - using Ads Watch Tasks system only
+  // Legacy promotion/task status system removed - using dailyTasks table instead
 
 
   // Get current date in YYYY-MM-DD format for 00:00 UTC reset (5:30 AM IST)
@@ -2025,56 +1750,7 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  async completeDailyTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
-    try {
-      // Check if promotion exists
-      const promotion = await this.getPromotion(promotionId);
-      if (!promotion) {
-        return { success: false, message: 'Daily task not found' };
-      }
-
-      // Check if user already completed this daily task today
-      const hasCompleted = await this.hasUserCompletedDailyTask(promotionId, userId);
-      if (hasCompleted) {
-        return { success: false, message: 'You have already completed this daily task today' };
-      }
-
-      const currentDate = this.getCurrentTaskDate();
-
-      // Record daily task completion
-      await db.insert(dailyTaskCompletions).values({
-        promotionId,
-        userId,
-        taskType: promotion.type, // Use promotion type as task type
-        rewardAmount,
-        progress: 1,
-        required: 1,
-        completed: true,
-        claimed: true,
-        completionDate: currentDate,
-      });
-
-      console.log(`📊 DAILY_TASK_COMPLETION_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Date=${currentDate}, Status=SUCCESS, Title="${promotion.title}"`);
-
-      // Add reward to user's earnings balance
-      await this.addBalance(userId, rewardAmount);
-
-      // Add earning record
-      await this.addEarning({
-        userId,
-        amount: rewardAmount,
-        source: 'daily_task_completion',
-        description: `Daily task completed: ${promotion.title}`,
-      });
-
-      // ✅ No Telegram notification sent (per requirements)
-
-      return { success: true, message: 'Daily task completed successfully' };
-    } catch (error) {
-      console.error('Error completing daily task:', error);
-      return { success: false, message: 'Error completing daily task' };
-    }
-  }
+  // Legacy completeDailyTask removed - using new dailyTasks claim system instead
 
   async checkAdsGoalCompletion(userId: string, adsGoalType: string): Promise<boolean> {
     const user = await this.getUser(userId);
@@ -2176,232 +1852,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // ============== NEW TASK STATUS SYSTEM FUNCTIONS ==============
-  
-  // Get or create task status for user
-  async getTaskStatus(userId: string, promotionId: string, periodDate?: string): Promise<TaskStatus | null> {
-    try {
-      const [taskStatus] = await db.select().from(taskStatuses)
-        .where(and(
-          eq(taskStatuses.userId, userId),
-          eq(taskStatuses.promotionId, promotionId),
-          periodDate ? eq(taskStatuses.periodDate, periodDate) : sql`${taskStatuses.periodDate} IS NULL`
-        ));
-      return taskStatus || null;
-    } catch (error) {
-      console.error('Error getting task status:', error);
-      return null;
-    }
-  }
-
-  // Update or create task status
-  async setTaskStatus(
-    userId: string, 
-    promotionId: string, 
-    status: 'locked' | 'claimable' | 'claimed',
-    periodDate?: string,
-    progressCurrent?: number,
-    progressRequired?: number,
-    metadata?: any
-  ): Promise<{ success: boolean; message: string }> {
-    try {
-      const existingStatus = await this.getTaskStatus(userId, promotionId, periodDate);
-      
-      if (existingStatus) {
-        // Update existing status
-        await db.update(taskStatuses)
-          .set({
-            status,
-            progressCurrent,
-            progressRequired,
-            metadata,
-            updatedAt: sql`now()`
-          })
-          .where(eq(taskStatuses.id, existingStatus.id));
-      } else {
-        // Create new status
-        await db.insert(taskStatuses).values({
-          userId,
-          promotionId,
-          periodDate,
-          status,
-          progressCurrent: progressCurrent || 0,
-          progressRequired: progressRequired || 0,
-          metadata
-        });
-      }
-      
-      return { success: true, message: 'Task status updated successfully' };
-    } catch (error) {
-      console.error('Error setting task status:', error);
-      return { success: false, message: 'Failed to update task status' };
-    }
-  }
-
-  // Verify task and update status to claimable
-  async verifyTask(userId: string, promotionId: string, taskType: string): Promise<{ success: boolean; message: string; status?: 'claimable' | 'locked' | 'claimed' }> {
-    try {
-      const promotion = await this.getPromotion(promotionId);
-      if (!promotion) {
-        return { success: false, message: 'Task not found' };
-      }
-
-      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(taskType);
-      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
-
-      // Check current status
-      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
-      if (currentStatus?.status === 'claimed') {
-        return { success: false, message: 'Task already claimed', status: 'claimed' };
-      }
-
-      let verified = false;
-      let progressCurrent = 0;
-      let progressRequired = 0;
-
-      // Perform verification based on task type
-      switch (taskType) {
-        case 'channel_visit':
-          // Channel visit is immediately claimable after user clicks
-          verified = true;
-          break;
-          
-        case 'share_link':
-          // Check if user has shared their link
-          verified = await this.hasSharedLinkToday(userId);
-          break;
-          
-        case 'invite_friend':
-          // Check if user has valid referral today
-          verified = await this.hasValidReferralToday(userId);
-          break;
-          
-        case 'ads_goal_mini':
-        case 'ads_goal_light':
-        case 'ads_goal_medium':
-        case 'ads_goal_hard':
-          // Check if user met ads goal
-          const user = await this.getUser(userId);
-          const adsWatchedToday = user?.adsWatchedToday || 0;
-          
-          const adsGoalThresholds = {
-            'ads_goal_mini': 15,
-            'ads_goal_light': 25,
-            'ads_goal_medium': 45,
-            'ads_goal_hard': 75
-          };
-          
-          progressRequired = adsGoalThresholds[taskType as keyof typeof adsGoalThresholds] || 0;
-          progressCurrent = adsWatchedToday;
-          verified = adsWatchedToday >= progressRequired;
-          break;
-          
-        default:
-          verified = true; // For other task types, assume verified
-      }
-
-      const newStatus = verified ? 'claimable' : 'locked';
-      await this.setTaskStatus(userId, promotionId, newStatus, periodDate, progressCurrent, progressRequired);
-
-      return { 
-        success: true, 
-        message: verified ? 'Task verified, ready to claim!' : 'Task requirements not met yet',
-        status: newStatus
-      };
-    } catch (error) {
-      console.error('Error verifying task:', error);
-      return { success: false, message: 'Failed to verify task' };
-    }
-  }
-
-  // Claim promotion/task reward
-  async claimPromotionReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
-    try {
-      const promotion = await this.getPromotion(promotionId);
-      if (!promotion) {
-        return { success: false, message: 'Task not found' };
-      }
-
-      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(promotion.type);
-      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
-
-      // Check current status
-      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
-      if (!currentStatus) {
-        return { success: false, message: 'Task status not found' };
-      }
-      
-      if (currentStatus.status === 'claimed') {
-        return { success: false, message: 'Task already claimed' };
-      }
-      
-      if (currentStatus.status !== 'claimable') {
-        return { success: false, message: 'Task not ready to claim' };
-      }
-
-      // Prevent users from claiming their own tasks
-      if (promotion.ownerId === userId) {
-        return { success: false, message: 'You cannot claim your own task' };
-      }
-
-      const rewardAmount = promotion.rewardPerUser || '0';
-      
-      // Record claim in appropriate table
-      if (isDailyTask) {
-        await db.insert(dailyTaskCompletions).values({
-          promotionId,
-          userId,
-          taskType: promotion.type,
-          rewardAmount,
-          progress: 1,
-          required: 1,
-          completed: true,
-          claimed: true,
-          completionDate: periodDate!,
-        });
-      } else {
-        await db.insert(taskCompletions).values({
-          promotionId,
-          userId,
-          rewardAmount,
-          verified: true,
-        });
-      }
-
-      // Add reward to balance
-      await this.addBalance(userId, rewardAmount);
-
-      // Add earning record
-      await this.addEarning({
-        userId,
-        amount: rewardAmount,
-        source: isDailyTask ? 'daily_task_completion' : 'task_completion',
-        description: `Task completed: ${promotion.title}`,
-      });
-
-      // Update task status to claimed
-      await this.setTaskStatus(userId, promotionId, 'claimed', periodDate);
-
-      // Get updated balance
-      const updatedBalance = await this.getUserBalance(userId);
-
-      console.log(`📊 TASK_CLAIM_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
-
-      // ✅ No Telegram notification sent (per requirements)
-
-      return { 
-        success: true, 
-        message: 'Task claimed successfully!',
-        rewardAmount,
-        newBalance: updatedBalance?.balance || '0'
-      };
-    } catch (error) {
-      console.error('Error claiming task reward:', error);
-      return { success: false, message: 'Failed to claim task reward' };
-    }
-  }
-
-  // ============== END NEW TASK STATUS SYSTEM FUNCTIONS ==============
+  // Legacy task status system removed - taskStatuses table doesn't exist
 
   // Method to record that user visited channel (called from frontend)
   async recordChannelVisit(userId: string): Promise<{ success: boolean; message: string }> {
@@ -2459,7 +1910,7 @@ export class DatabaseStorage implements IStorage {
       // 1. Check if reset was already performed for this period (idempotency)
       const usersNeedingReset = await db.select({ id: users.id })
         .from(users)
-        .where(sql`${users.lastResetAt} < ${periodStart.toISOString()} OR ${users.lastResetAt} IS NULL`)
+        .where(sql`${users.lastResetDate} < ${periodStart.toISOString()} OR ${users.lastResetDate} IS NULL`)
         .limit(1000); // Process in batches
       
       if (usersNeedingReset.length === 0) {
@@ -2476,61 +1927,21 @@ export class DatabaseStorage implements IStorage {
           adsWatchedToday: 0,
           channelVisited: false,
           appShared: false,
-          linkShared: false,
-          friendInvited: false,
           lastResetDate: currentDate,
-          lastResetAt: periodStart,
           lastAdDate: currentDate 
         })
-        .where(sql`${users.lastResetAt} < ${periodStart.toISOString()} OR ${users.lastResetAt} IS NULL`);
+        .where(sql`${users.lastResetDate} < ${periodStart.toISOString()} OR ${users.lastResetDate} IS NULL`);
       
-      // 3. Create daily task completion records for all task types for this period
-      const taskTypes = ['channel_visit', 'share_link', 'invite_friend', 'ads_mini', 'ads_light', 'ads_medium', 'ads_hard'];
-      const taskRewards = {
-        'channel_visit': '0.000025',
-        'share_link': '0.000025', 
-        'invite_friend': '0.00005',
-        'ads_mini': '0.000035', // 15 ads
-        'ads_light': '0.000055', // 25 ads
-        'ads_medium': '0.000095', // 45 ads
-        'ads_hard': '0.000155' // 75 ads
-      };
-      const taskRequirements = {
-        'channel_visit': 1,
-        'share_link': 1,
-        'invite_friend': 1,
-        'ads_mini': 15,
-        'ads_light': 25,
-        'ads_medium': 45,
-        'ads_hard': 75
-      };
+      // 3. Daily tasks are auto-created when getUserDailyTasks is called
+      // No need to pre-create them in the reset
       
-      for (const user of usersNeedingReset) {
-        for (const taskType of taskTypes) {
-          try {
-            await db.insert(dailyTaskCompletions).values({
-              userId: user.id,
-              taskType,
-              rewardAmount: taskRewards[taskType as keyof typeof taskRewards],
-              progress: 0,
-              required: taskRequirements[taskType as keyof typeof taskRequirements],
-              completed: false,
-              claimed: false,
-              completionDate: currentDateString,
-            }).onConflictDoNothing(); // Ignore if already exists
-          } catch (error) {
-            console.warn(`⚠️ Failed to create daily task ${taskType} for user ${user.id}:`, error);
-          }
-        }
-      }
-      
-      // 4. Clean up old daily task completions (older than 7 days)
+      // 4. Clean up old daily tasks (older than 7 days)
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       const weekAgoString = weekAgo.toISOString().split('T')[0];
       
-      await db.delete(dailyTaskCompletions)
-        .where(sql`${dailyTaskCompletions.completionDate} < ${weekAgoString}`);
+      await db.delete(dailyTasks)
+        .where(sql`${dailyTasks.resetDate} < ${weekAgoString}`);
       
       console.log('✅ Daily reset completed successfully at 00:00 UTC (5:30 AM IST)');
       console.log(`   - Reset ${usersNeedingReset.length} users for period ${currentDateString}`);
@@ -2690,24 +2101,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Promotion claims methods
-  async hasUserClaimedPromotion(promotionId: string, userId: string): Promise<boolean> {
-    const [claim] = await db.select().from(promotionClaims)
-      .where(and(
-        eq(promotionClaims.promotionId, promotionId),
-        eq(promotionClaims.userId, userId)
-      ));
-    return !!claim;
-  }
-
-
-  async incrementPromotionClaimedCount(promotionId: string): Promise<void> {
-    await db.update(promotions)
-      .set({
-        claimedCount: sql`${promotions.claimedCount} + 1`,
-      })
-      .where(eq(promotions.id, promotionId));
-  }
+  // Legacy promotion claims methods removed - using dailyTasks instead
 
   // ===== NEW SIMPLE TASK SYSTEM =====
   
