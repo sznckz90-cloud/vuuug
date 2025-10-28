@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, CheckSquare, Users } from "lucide-react";
+import { Home, CheckSquare, Users, ClipboardList } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 
@@ -22,6 +22,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
+    { href: "/tasks", icon: ClipboardList, label: "Tasks" },
     { href: "/affiliates", icon: Users, label: "Affiliates" },
   ];
 
