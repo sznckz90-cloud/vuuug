@@ -10,6 +10,26 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**October 28, 2025 - Broadcast Functionality Enhancement**
+
+*Telegram Bot Broadcast Improvements:*
+*   **Issue**: Admin broadcast messages used plain text links instead of interactive buttons
+*   **Fix Applied**: 
+    - Replaced plain text footer links with Telegram inline buttons in `server/telegram.ts`
+    - "🚀 Open App" button (web_app type) opens the application directly
+    - "🤝 Join Community" button (URL type) links to Telegram channel
+    - Improved rate limiting with batched sending (25 messages/batch, 1 second pause between batches)
+    - Maintains ~25 messages/second to stay within Telegram's 30 msg/s rate limit
+*   **How It Works**:
+    - Admin uses `/szxzyz` command to open admin panel
+    - Clicks "🔔 Announce" button to start broadcast
+    - Types broadcast message (with "❌ Cancel Broadcast" option available)
+    - Message is sent to all users with inline buttons
+    - Deduplication ensures one message per unique telegram_id
+    - Admin receives detailed summary: success count, failed count, skipped count
+*   **Testing**: Requires TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_ID environment variables
+*   **Status**: ✅ Verified by architect, ready for production use
+
 **October 25, 2025 - Replit Environment Setup & Multi-Account Prevention Fix**
 
 *Replit Environment Setup:*
