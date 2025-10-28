@@ -812,17 +812,40 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         const appUrl = process.env.RENDER_EXTERNAL_URL || 
                       (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://lighting-sats-app.onrender.com');
         
-        // Add footer to broadcast message with WebApp URL and Channel link
-        const messageWithFooter = broadcastMessage + '\n\n' +
-          `🌐 Open App: ${appUrl}\n` +
-          `📢 Join Channel: https://t.me/PaidAdsNews`;
+        // Create inline buttons for broadcast message
+        const broadcastButtons = {
+          inline_keyboard: [
+            [
+              {
+                text: "🚀 Open App",
+                web_app: { url: appUrl }
+              },
+              {
+                text: "🤝 Join Community",
+                url: "https://t.me/PaidAdsNews"
+              }
+            ]
+          ]
+        };
         
         await sendUserTelegramNotification(chatId, 
           `📢 Broadcasting message to ${dedupedUsers.length} unique users...\n\nPlease wait...`
         );
         
-        // Send message to each unique user
-        for (const user of dedupedUsers) {
+        // Send message to each unique user with batching for rate limiting
+        // Telegram allows ~30 messages per second, so we batch in chunks of 25
+        const BATCH_SIZE = 25;
+        const BATCH_DELAY_MS = 1000; // 1 second between batches
+        
+        for (let i = 0; i < dedupedUsers.length; i++) {
+          const user = dedupedUsers[i];
+          
+          // Skip if no telegram ID (already filtered, but TypeScript needs this)
+          if (!user.telegramId) {
+            skippedCount++;
+            continue;
+          }
+          
           // Skip admin to avoid self-messaging
           if (user.telegramId === chatId) {
             skippedCount++;
@@ -830,14 +853,25 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           }
           
           try {
-            const sent = await sendUserTelegramNotification(user.telegramId, messageWithFooter);
+            const sent = await sendUserTelegramNotification(
+              user.telegramId, 
+              broadcastMessage, 
+              broadcastButtons
+            );
             if (sent) {
               successCount++;
             } else {
               failCount++;
             }
-            // Small delay to avoid Telegram rate limits
-            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Apply batch delay every BATCH_SIZE messages
+            if ((i + 1) % BATCH_SIZE === 0 && i < dedupedUsers.length - 1) {
+              console.log(`📦 Batch ${Math.floor((i + 1) / BATCH_SIZE)} sent, pausing for rate limit...`);
+              await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+            } else {
+              // Small delay between individual messages within a batch
+              await new Promise(resolve => setTimeout(resolve, 40));
+            }
           } catch (error) {
             console.error(`Failed to send to ${user.telegramId}:`, error);
             failCount++;
