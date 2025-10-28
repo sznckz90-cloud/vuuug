@@ -9,6 +9,8 @@ import {
   userBalances,
   transactions,
   dailyTasks,
+  advertiserTasks,
+  taskClicks,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -29,6 +31,10 @@ import {
   type InsertTransaction,
   type DailyTask,
   type InsertDailyTask,
+  type AdvertiserTask,
+  type InsertAdvertiserTask,
+  type TaskClick,
+  type InsertTaskClick,
 } from "../shared/schema";
 import { db, pool } from "./db";
 import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
@@ -124,6 +130,15 @@ export interface IStorage {
     totalPayouts: string;
     newUsersLast24h: number;
   }>;
+  
+  // Task management operations
+  createTask(task: InsertAdvertiserTask): Promise<AdvertiserTask>;
+  getActiveTasks(): Promise<AdvertiserTask[]>;
+  getTaskById(taskId: string): Promise<AdvertiserTask | undefined>;
+  getMyTasks(userId: string): Promise<AdvertiserTask[]>;
+  increaseTaskLimit(taskId: string, additionalClicks: number, additionalCost: string): Promise<AdvertiserTask>;
+  recordTaskClick(taskId: string, publisherId: string): Promise<{ success: boolean; message: string; reward?: string }>;
+  hasUserClickedTask(taskId: string, publisherId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2987,6 +3002,150 @@ export class DatabaseStorage implements IStorage {
       console.error('❌ Error checking daily reset:', error);
       // Don't throw to avoid disrupting the interval
     }
+  }
+
+  // Task management operations
+  async createTask(task: InsertAdvertiserTask): Promise<AdvertiserTask> {
+    const [createdTask] = await db
+      .insert(advertiserTasks)
+      .values(task)
+      .returning();
+    
+    return createdTask;
+  }
+
+  async getActiveTasks(): Promise<AdvertiserTask[]> {
+    return db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.status, "active"))
+      .orderBy(desc(advertiserTasks.createdAt));
+  }
+
+  async getTaskById(taskId: string): Promise<AdvertiserTask | undefined> {
+    const [task] = await db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.id, taskId));
+    
+    return task;
+  }
+
+  async getMyTasks(userId: string): Promise<AdvertiserTask[]> {
+    return db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.advertiserId, userId))
+      .orderBy(desc(advertiserTasks.createdAt));
+  }
+
+  async increaseTaskLimit(taskId: string, additionalClicks: number, additionalCost: string): Promise<AdvertiserTask> {
+    const [updatedTask] = await db
+      .update(advertiserTasks)
+      .set({
+        totalClicksRequired: sql`${advertiserTasks.totalClicksRequired} + ${additionalClicks}`,
+        totalCost: sql`${advertiserTasks.totalCost} + ${additionalCost}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(advertiserTasks.id, taskId))
+      .returning();
+    
+    return updatedTask;
+  }
+
+  async recordTaskClick(taskId: string, publisherId: string): Promise<{ success: boolean; message: string; reward?: string }> {
+    try {
+      // Check if user already clicked this task
+      const hasClicked = await this.hasUserClickedTask(taskId, publisherId);
+      if (hasClicked) {
+        return { success: false, message: "You have already clicked this task" };
+      }
+
+      // Get task details
+      const task = await this.getTaskById(taskId);
+      if (!task) {
+        return { success: false, message: "Task not found" };
+      }
+
+      // Check if task is active
+      if (task.status !== "active") {
+        return { success: false, message: "Task is not active" };
+      }
+
+      // Check if task has reached its limit
+      if (task.currentClicks >= task.totalClicksRequired) {
+        return { success: false, message: "Task has reached its click limit" };
+      }
+
+      const rewardAmount = "0.0001750"; // 1750 PAD
+
+      // Record the click
+      await db.insert(taskClicks).values({
+        taskId,
+        publisherId,
+        rewardAmount,
+      });
+
+      // Update task click count
+      const [updatedTask] = await db
+        .update(advertiserTasks)
+        .set({
+          currentClicks: sql`${advertiserTasks.currentClicks} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(advertiserTasks.id, taskId))
+        .returning();
+
+      // Check if task is now completed
+      if (updatedTask.currentClicks >= updatedTask.totalClicksRequired) {
+        await db
+          .update(advertiserTasks)
+          .set({
+            status: "completed",
+            completedAt: new Date(),
+          })
+          .where(eq(advertiserTasks.id, taskId));
+      }
+
+      // Add reward to publisher
+      await this.addEarning({
+        userId: publisherId,
+        amount: rewardAmount,
+        source: "task_click",
+        description: `Clicked on task: ${task.title}`,
+      });
+
+      // Log transaction
+      await this.logTransaction({
+        userId: publisherId,
+        amount: rewardAmount,
+        type: "addition",
+        source: "task_click",
+        description: `Task click reward: ${task.title}`,
+        metadata: { taskId, taskTitle: task.title }
+      });
+
+      return {
+        success: true,
+        message: "Task clicked successfully",
+        reward: rewardAmount,
+      };
+    } catch (error) {
+      console.error("Error recording task click:", error);
+      return { success: false, message: "Failed to record task click" };
+    }
+  }
+
+  async hasUserClickedTask(taskId: string, publisherId: string): Promise<boolean> {
+    const [click] = await db
+      .select()
+      .from(taskClicks)
+      .where(and(
+        eq(taskClicks.taskId, taskId),
+        eq(taskClicks.publisherId, publisherId)
+      ));
+    
+    return !!click;
   }
 }
 

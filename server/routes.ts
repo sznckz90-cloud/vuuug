@@ -2965,6 +2965,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Advertiser Task System API routes
+  
+  // Get all active advertiser tasks (public task feed)
+  app.get('/api/advertiser-tasks', authenticateTelegram, async (req: any, res) => {
+    try {
+      const tasks = await storage.getActiveTasks();
+      res.json({ success: true, tasks });
+    } catch (error) {
+      console.error("Error fetching advertiser tasks:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Get my created tasks
+  app.get('/api/advertiser-tasks/my-tasks', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const myTasks = await storage.getMyTasks(userId);
+      res.json({ success: true, tasks: myTasks });
+    } catch (error) {
+      console.error("Error fetching my tasks:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch your tasks" });
+    }
+  });
+
+  // Create new advertiser task
+  app.post('/api/advertiser-tasks/create', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { title, link, totalClicksRequired } = req.body;
+
+      // Validation
+      if (!title || !link || !totalClicksRequired) {
+        return res.status(400).json({
+          success: false,
+          message: "Title, link, and total clicks required are mandatory"
+        });
+      }
+
+      if (totalClicksRequired < 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Minimum 100 clicks required"
+        });
+      }
+
+      const costPerClick = "0.00035"; // 3500 PAD per click
+      const totalCost = (parseFloat(costPerClick) * totalClicksRequired).toFixed(8);
+
+      // Deduct payment from user balance
+      const deductResult = await storage.deductBalance(userId, totalCost);
+      if (!deductResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: deductResult.message
+        });
+      }
+
+      // Create the task
+      const task = await storage.createTask({
+        advertiserId: userId,
+        title,
+        link,
+        totalClicksRequired,
+        costPerClick,
+        totalCost,
+      });
+
+      // Log transaction
+      await storage.logTransaction({
+        userId,
+        amount: totalCost,
+        type: "deduction",
+        source: "task_creation",
+        description: `Created task: ${title}`,
+        metadata: { taskId: task.id, totalClicksRequired }
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Task created successfully",
+        task 
+      });
+    } catch (error) {
+      console.error("Error creating task:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to create task" 
+      });
+    }
+  });
+
+  // Record task click (when publisher clicks on a task)
+  app.post('/api/advertiser-tasks/:taskId/click', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskId } = req.params;
+
+      const result = await storage.recordTaskClick(taskId, userId);
+      
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error recording task click:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to record task click" 
+      });
+    }
+  });
+
+  // Increase task click limit
+  app.post('/api/advertiser-tasks/:taskId/increase-limit', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskId } = req.params;
+      const { additionalClicks } = req.body;
+
+      // Validation
+      if (!additionalClicks || additionalClicks < 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Minimum 100 additional clicks required"
+        });
+      }
+
+      // Verify task ownership
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          message: "Task not found"
+        });
+      }
+
+      if (task.advertiserId !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: "You don't own this task"
+        });
+      }
+
+      const costPerClick = "0.00035";
+      const additionalCost = (parseFloat(costPerClick) * additionalClicks).toFixed(8);
+
+      // Deduct payment
+      const deductResult = await storage.deductBalance(userId, additionalCost);
+      if (!deductResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: deductResult.message
+        });
+      }
+
+      // Increase task limit
+      const updatedTask = await storage.increaseTaskLimit(taskId, additionalClicks, additionalCost);
+
+      // Log transaction
+      await storage.logTransaction({
+        userId,
+        amount: additionalCost,
+        type: "deduction",
+        source: "task_limit_increase",
+        description: `Increased limit for task: ${task.title}`,
+        metadata: { taskId, additionalClicks }
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Task limit increased successfully",
+        task: updatedTask 
+      });
+    } catch (error) {
+      console.error("Error increasing task limit:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to increase task limit" 
+      });
+    }
+  });
+
+  // Check if user has clicked a task
+  app.get('/api/advertiser-tasks/:taskId/has-clicked', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskId } = req.params;
+
+      const hasClicked = await storage.hasUserClickedTask(taskId, userId);
+      
+      res.json({ success: true, hasClicked });
+    } catch (error) {
+      console.error("Error checking task click:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to check task click status" 
+      });
+    }
+  });
   
   // User withdrawal endpoints
   
