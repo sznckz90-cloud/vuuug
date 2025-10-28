@@ -212,6 +212,33 @@ export const adminSettings = pgTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Advertiser tasks table
+export const advertiserTasks = pgTable("advertiser_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  advertiserId: varchar("advertiser_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  link: text("link").notNull(),
+  totalClicksRequired: integer("total_clicks_required").notNull(),
+  currentClicks: integer("current_clicks").default(0).notNull(),
+  costPerClick: decimal("cost_per_click", { precision: 12, scale: 8 }).default("0.00035").notNull(), // 0.00035 TON = 3500 PAD
+  totalCost: decimal("total_cost", { precision: 12, scale: 8 }).notNull(),
+  status: varchar("status").default("active").notNull(), // active, completed, paused
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Task clicks tracking table - to prevent duplicate clicks
+export const taskClicks = pgTable("task_clicks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").references(() => advertiserTasks.id).notNull(),
+  publisherId: varchar("publisher_id").references(() => users.id).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).default("0.0001750").notNull(), // 1750 PAD = 0.000175 TON
+  clickedAt: timestamp("clicked_at").defaultNow(),
+}, (table) => [
+  unique("task_clicks_unique").on(table.taskId, table.publisherId),
+]);
+
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
@@ -225,6 +252,8 @@ export const insertReferralCommissionSchema = createInsertSchema(referralCommiss
 export const insertPromoCodeSchema = createInsertSchema(promoCodes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPromoCodeUsageSchema = createInsertSchema(promoCodeUsage).omit({ id: true, usedAt: true });
 export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAdvertiserTaskSchema = createInsertSchema(advertiserTasks).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export const insertTaskClickSchema = createInsertSchema(taskClicks).omit({ id: true, clickedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -249,3 +278,7 @@ export type DailyTask = typeof dailyTasks.$inferSelect;
 export type InsertDailyTask = z.infer<typeof insertDailyTaskSchema>;
 export type AdminSetting = typeof adminSettings.$inferSelect;
 export type InsertAdminSetting = z.infer<typeof insertAdminSettingSchema>;
+export type AdvertiserTask = typeof advertiserTasks.$inferSelect;
+export type InsertAdvertiserTask = z.infer<typeof insertAdvertiserTaskSchema>;
+export type TaskClick = typeof taskClicks.$inferSelect;
+export type InsertTaskClick = z.infer<typeof insertTaskClickSchema>;
