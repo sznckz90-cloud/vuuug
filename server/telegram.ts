@@ -781,8 +781,13 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
     }
     
     // Check if admin has a pending broadcast waiting for message
-    if (isAdmin(chatId) && pendingBroadcasts.has(chatId)) {
+    // CRITICAL: Use delete() in condition for atomic check-and-clear
+    // Map.delete() returns true if key existed, false otherwise
+    // This ensures ONLY the first webhook event proceeds, preventing duplicates
+    if (isAdmin(chatId) && pendingBroadcasts.delete(chatId)) {
       const broadcastMessage = text;
+      
+      console.log(`📢 [BROADCAST START] Admin ${chatId} initiating broadcast: "${broadcastMessage.substring(0, 50)}..."`);
       
       try {
         // Get all users with Telegram IDs
@@ -812,14 +817,16 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         const appUrl = process.env.RENDER_EXTERNAL_URL || 
                       (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://lighting-sats-app.onrender.com');
         
-        // Create inline buttons for broadcast message
+        // Create inline buttons for broadcast message (stacked vertically)
         const broadcastButtons = {
           inline_keyboard: [
             [
               {
                 text: "🚀 Open App",
                 web_app: { url: appUrl }
-              },
+              }
+            ],
+            [
               {
                 text: "🤝 Join Community",
                 url: "https://t.me/PaidAdsNews"
@@ -879,6 +886,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         }
         
         // Send detailed summary to admin
+        console.log(`📢 [BROADCAST COMPLETE] Success: ${successCount}, Failed: ${failCount}, Skipped: ${skippedCount}`);
         await sendUserTelegramNotification(chatId, 
           `✅ <b>Broadcast sent successfully to ${successCount} users.</b>\n\n` +
           `📊 <b>Statistics:</b>\n` +
@@ -888,14 +896,13 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           `📈 Total unique users: ${dedupedUsers.length}`
         );
       } catch (error) {
-        console.error('Error broadcasting message:', error);
+        console.error('❌ [BROADCAST ERROR]:', error);
         await sendUserTelegramNotification(chatId, 
           '❌ Error broadcasting message. Please try again.'
         );
       }
       
-      // Clear the pending broadcast state
-      pendingBroadcasts.delete(chatId);
+      // State already cleared at the start to prevent duplicates
       return true;
     }
     
