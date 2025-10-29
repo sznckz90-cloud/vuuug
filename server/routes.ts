@@ -3078,7 +3078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         success: true, 
-        message: "✅ Your task has been published successfully!",
+        message: "Task created successfully",
         task 
       });
     } catch (error) {

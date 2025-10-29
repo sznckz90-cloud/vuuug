@@ -364,6 +364,37 @@ export async function ensureDatabaseSchema(): Promise<void> {
       ON CONFLICT (setting_key) DO NOTHING
     `);
     
+    // Advertiser tasks table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS advertiser_tasks (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        advertiser_id VARCHAR NOT NULL REFERENCES users(id),
+        task_type VARCHAR NOT NULL,
+        title TEXT NOT NULL,
+        link TEXT NOT NULL,
+        total_clicks_required INTEGER NOT NULL,
+        current_clicks INTEGER DEFAULT 0 NOT NULL,
+        cost_per_click DECIMAL(12, 8) DEFAULT 0.0003 NOT NULL,
+        total_cost DECIMAL(12, 8) NOT NULL,
+        status VARCHAR DEFAULT 'active' NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP
+      )
+    `);
+    
+    // Task clicks tracking table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS task_clicks (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id VARCHAR NOT NULL REFERENCES advertiser_tasks(id),
+        publisher_id VARCHAR NOT NULL REFERENCES users(id),
+        reward_amount DECIMAL(12, 8) DEFAULT 0.0001750 NOT NULL,
+        clicked_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(task_id, publisher_id)
+      )
+    `);
+    
     // Promotion claims table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS promotion_claims (
