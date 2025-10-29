@@ -2995,38 +2995,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/advertiser-tasks/create', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
-      const { title, link, totalClicksRequired } = req.body;
+      const { taskType, title, link, totalClicksRequired } = req.body;
 
       // Validation
-      if (!title || !link || !totalClicksRequired) {
+      if (!taskType || !title || !link || !totalClicksRequired) {
         return res.status(400).json({
           success: false,
-          message: "Title, link, and total clicks required are mandatory"
+          message: "Task type, title, link, and total clicks required are mandatory"
         });
       }
 
-      if (totalClicksRequired < 100) {
+      // Validate task type
+      if (taskType !== "channel" && taskType !== "bot") {
         return res.status(400).json({
           success: false,
-          message: "Minimum 100 clicks required"
+          message: "Task type must be either 'channel' or 'bot'"
         });
       }
 
-      const costPerClick = "0.00035"; // 3500 PAD per click
+      // Minimum 500 clicks required
+      if (totalClicksRequired < 500) {
+        return res.status(400).json({
+          success: false,
+          message: "Minimum 500 clicks required"
+        });
+      }
+
+      const costPerClick = "0.0003"; // 0.0003 TON per click (500 clicks = 0.15 TON)
       const totalCost = (parseFloat(costPerClick) * totalClicksRequired).toFixed(8);
 
-      // Deduct payment from user balance
-      const deductResult = await storage.deductBalance(userId, totalCost);
-      if (!deductResult.success) {
-        return res.status(400).json({
+      // Get user's TON balance
+      const [user] = await db
+        .select({ tonBalance: users.tonBalance })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) {
+        return res.status(404).json({
           success: false,
-          message: deductResult.message
+          message: "User not found"
         });
       }
+
+      const currentTonBalance = parseFloat(user.tonBalance || '0');
+      const requiredAmount = parseFloat(totalCost);
+
+      // Check if user has sufficient TON balance
+      if (currentTonBalance < requiredAmount) {
+        return res.status(400).json({
+          success: false,
+          message: "Insufficient TON balance. Please convert PAD to TON before creating a task."
+        });
+      }
+
+      // Deduct TON balance
+      const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
+      await db
+        .update(users)
+        .set({ tonBalance: newTonBalance })
+        .where(eq(users.id, userId));
 
       // Create the task
       const task = await storage.createTask({
         advertiserId: userId,
+        taskType,
         title,
         link,
         totalClicksRequired,
@@ -3040,13 +3072,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         amount: totalCost,
         type: "deduction",
         source: "task_creation",
-        description: `Created task: ${title}`,
-        metadata: { taskId: task.id, totalClicksRequired }
+        description: `Created ${taskType} task: ${title}`,
+        metadata: { taskId: task.id, taskType, totalClicksRequired }
       });
 
       res.json({ 
         success: true, 
-        message: "Task created successfully",
+        message: "✅ Your task has been published successfully!",
         task 
       });
     } catch (error) {
@@ -3087,11 +3119,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { taskId } = req.params;
       const { additionalClicks } = req.body;
 
-      // Validation
-      if (!additionalClicks || additionalClicks < 100) {
+      // Validation - minimum 500 additional clicks
+      if (!additionalClicks || additionalClicks < 500) {
         return res.status(400).json({
           success: false,
-          message: "Minimum 100 additional clicks required"
+          message: "Minimum 500 additional clicks required"
         });
       }
 
@@ -3111,17 +3143,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const costPerClick = "0.00035";
+      const costPerClick = "0.0003"; // 0.0003 TON per click
       const additionalCost = (parseFloat(costPerClick) * additionalClicks).toFixed(8);
 
-      // Deduct payment
-      const deductResult = await storage.deductBalance(userId, additionalCost);
-      if (!deductResult.success) {
-        return res.status(400).json({
+      // Get user's TON balance
+      const [user] = await db
+        .select({ tonBalance: users.tonBalance })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) {
+        return res.status(404).json({
           success: false,
-          message: deductResult.message
+          message: "User not found"
         });
       }
+
+      const currentTonBalance = parseFloat(user.tonBalance || '0');
+      const requiredAmount = parseFloat(additionalCost);
+
+      // Check if user has sufficient TON balance
+      if (currentTonBalance < requiredAmount) {
+        return res.status(400).json({
+          success: false,
+          message: "Insufficient TON balance. Please convert PAD to TON before adding more clicks."
+        });
+      }
+
+      // Deduct TON balance
+      const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
+      await db
+        .update(users)
+        .set({ tonBalance: newTonBalance })
+        .where(eq(users.id, userId));
 
       // Increase task limit
       const updatedTask = await storage.increaseTaskLimit(taskId, additionalClicks, additionalCost);
