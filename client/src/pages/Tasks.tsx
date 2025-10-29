@@ -11,6 +11,7 @@ import { ExternalLink, CheckCircle, Target, PlusCircle, FileText, Clock, Trendin
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Task {
   id: string;
@@ -126,16 +127,11 @@ export default function Tasks() {
 
   const createTaskMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/advertiser-tasks/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          taskType,
-          title,
-          link,
-          totalClicksRequired: clicksNum,
-        }),
+      const response = await apiRequest("POST", "/api/advertiser-tasks/create", {
+        taskType,
+        title,
+        link,
+        totalClicksRequired: clicksNum,
       });
       const data = await response.json();
       if (!data.success) {
