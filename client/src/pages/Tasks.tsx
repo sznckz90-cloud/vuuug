@@ -308,8 +308,8 @@ export default function Tasks() {
       <main className="max-w-md mx-auto px-4 mt-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">
-              <Target className="inline-block w-6 h-6 mr-2 mb-1" />
+            <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+              <CheckCircle className="w-6 h-6 text-primary" />
               Tasks
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -328,59 +328,78 @@ export default function Tasks() {
               </Button>
             </DialogTrigger>
             <DialogContent 
-              className="sm:max-w-md max-h-[85vh] frosted-glass border border-white/10 rounded-2xl"
+              className="sm:max-w-md max-h-[90vh] flex flex-col frosted-glass border border-white/10 rounded-2xl p-0 overflow-hidden"
               onInteractOutside={(e) => e.preventDefault()}
               hideCloseButton
             >
-              <DialogHeader>
+              <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
                 <DialogTitle>Manage Tasks</DialogTitle>
               </DialogHeader>
               
-              <Tabs value={createDialogTab} onValueChange={setCreateDialogTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="add-task">Add Task</TabsTrigger>
-                  <TabsTrigger value="my-task">My Task</TabsTrigger>
-                </TabsList>
+              <Tabs value={createDialogTab} onValueChange={setCreateDialogTab} className="w-full flex-1 flex flex-col overflow-hidden">
+                <div className="grid grid-cols-2 gap-2 mx-6 mb-4 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={`h-auto py-3 transition-all font-bold text-sm ${
+                      createDialogTab === "add-task" 
+                        ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-500/20" 
+                        : "hover:bg-cyan-500/10 hover:border-cyan-500/50 text-muted-foreground"
+                    }`}
+                    onClick={() => setCreateDialogTab("add-task")}
+                  >
+                    Add Task
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={`h-auto py-3 transition-all font-bold text-sm ${
+                      createDialogTab === "my-task" 
+                        ? "bg-gradient-to-r from-pink-500/20 to-purple-500/20 border-pink-500 text-pink-300 shadow-lg shadow-pink-500/20" 
+                        : "hover:bg-pink-500/10 hover:border-pink-500/50 text-muted-foreground"
+                    }`}
+                    onClick={() => setCreateDialogTab("my-task")}
+                  >
+                    My Task
+                  </Button>
+                </div>
 
-                <TabsContent value="add-task" className="space-y-4">
+                <TabsContent value="add-task" className="space-y-4 overflow-y-auto px-6 flex-1">
                   <div className="space-y-4">
                     <div>
-                      <Label className="text-sm font-semibold mb-3 block">Task Type:</Label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <Label className="text-xs font-medium mb-2 block text-muted-foreground">Select Type:</Label>
+                      <div className="grid grid-cols-2 gap-2">
                         <Button
                           type="button"
-                          variant={taskType === "channel" ? "default" : "outline"}
-                          className={`h-auto py-4 flex flex-col items-center gap-2 ${taskType === "channel" ? "bg-primary" : ""}`}
+                          variant="outline"
+                          className={`h-auto py-2.5 flex items-center justify-center gap-2 transition-all ${
+                            taskType === "channel" 
+                              ? "bg-purple-500/20 border-purple-500 text-purple-400 hover:bg-purple-500/30" 
+                              : "hover:bg-purple-500/10 hover:border-purple-500/50"
+                          }`}
                           onClick={() => setTaskType("channel")}
                         >
-                          <Radio className="w-6 h-6" />
-                          <span className="font-semibold">Channel</span>
+                          <Radio className="w-4 h-4" />
+                          <span className="font-semibold text-sm">Channel</span>
                         </Button>
                         <Button
                           type="button"
-                          variant={taskType === "bot" ? "default" : "outline"}
-                          className={`h-auto py-4 flex flex-col items-center gap-2 ${taskType === "bot" ? "bg-primary" : ""}`}
+                          variant="outline"
+                          className={`h-auto py-2.5 flex items-center justify-center gap-2 transition-all ${
+                            taskType === "bot" 
+                              ? "bg-blue-500/20 border-blue-500 text-blue-400 hover:bg-blue-500/30" 
+                              : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                          }`}
                           onClick={() => setTaskType("bot")}
                         >
-                          <BotIcon className="w-6 h-6" />
-                          <span className="font-semibold">Bot</span>
+                          <BotIcon className="w-4 h-4" />
+                          <span className="font-semibold text-sm">Bot</span>
                         </Button>
                       </div>
                     </div>
 
                     {taskType && (
                       <>
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                          <p className="text-sm text-blue-300">
-                            {taskType === "channel" 
-                              ? "Promote your Telegram Channel to real users" 
-                              : "Promote your Telegram Bot to real users"}
-                          </p>
-                          <p className="text-xs text-blue-400 mt-2">
-                            💰 Cost for 500 user clicks: 0.15 TON
-                          </p>
-                        </div>
-
                         <form onSubmit={handleCreateTask} className="space-y-4">
                           <div>
                             <Label htmlFor="title">Task Title</Label>
@@ -446,36 +465,20 @@ export default function Tasks() {
                             </div>
                           </div>
 
-                          <div className="flex gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="flex-1"
-                              onClick={() => {
-                                setIsCreateDialogOpen(false);
-                                setTaskType(null);
-                                setTitle("");
-                                setLink("");
-                                setTotalClicks("500");
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              type="submit"
-                              className="flex-1 btn-primary"
-                              disabled={createTaskMutation.isPending || tonBalance < totalCostTON}
-                            >
-                              {createTaskMutation.isPending ? "Publishing..." : `Pay & Publish`}
-                            </Button>
-                          </div>
+                          <Button
+                            type="submit"
+                            className="w-full btn-primary"
+                            disabled={createTaskMutation.isPending || tonBalance < totalCostTON}
+                          >
+                            {createTaskMutation.isPending ? "Publishing..." : `Pay & Publish`}
+                          </Button>
                         </form>
                       </>
                     )}
                   </div>
                 </TabsContent>
 
-                <TabsContent value="my-task">
+                <TabsContent value="my-task" className="overflow-y-auto px-6 flex-1">
                   {myTasksLoading ? (
                     <div className="text-center py-8">
                       <div className="animate-spin text-primary text-2xl mb-2">
@@ -496,7 +499,7 @@ export default function Tasks() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-4 pb-4">
                       {activeMyTasks.length > 0 && (
                         <>
                           <h2 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -599,11 +602,11 @@ export default function Tasks() {
                 </TabsContent>
               </Tabs>
               
-              <div className="mt-4 pt-4 border-t border-border">
+              <div className="px-6 pb-4 pt-3 border-t border-border shrink-0">
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full"
+                  className="w-full h-9 text-sm"
                   onClick={() => {
                     setIsCreateDialogOpen(false);
                     setTaskType("channel");
@@ -695,15 +698,15 @@ export default function Tasks() {
         {/* Add More Clicks Dialog */}
         <Dialog open={isAddClicksDialogOpen} onOpenChange={setIsAddClicksDialogOpen}>
           <DialogContent 
-            className="sm:max-w-md max-h-[85vh] frosted-glass border border-white/10 rounded-2xl"
+            className="sm:max-w-md max-h-[90vh] flex flex-col frosted-glass border border-white/10 rounded-2xl p-0 overflow-hidden"
             onInteractOutside={(e) => e.preventDefault()}
             hideCloseButton
           >
-            <DialogHeader>
+            <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
               <DialogTitle>Add More Clicks</DialogTitle>
             </DialogHeader>
             {selectedTask && (
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto px-6 pb-6 flex-1">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">
                     Task: <span className="text-white font-semibold">{selectedTask.title}</span>
@@ -746,27 +749,13 @@ export default function Tasks() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setIsAddClicksDialogOpen(false);
-                      setSelectedTask(null);
-                      setAdditionalClicks("500");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1 btn-primary"
-                    onClick={handleIncreaseClicks}
-                    disabled={increaseClicksMutation.isPending || tonBalance < additionalCostTON}
-                  >
-                    {increaseClicksMutation.isPending ? "Processing..." : `Pay & Add`}
-                  </Button>
-                </div>
+                <Button
+                  className="w-full btn-primary"
+                  onClick={handleIncreaseClicks}
+                  disabled={increaseClicksMutation.isPending || tonBalance < additionalCostTON}
+                >
+                  {increaseClicksMutation.isPending ? "Processing..." : `Pay & Add`}
+                </Button>
               </div>
             )}
           </DialogContent>
