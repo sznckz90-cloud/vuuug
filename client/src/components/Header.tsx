@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Wallet, Settings } from "lucide-react";
+import { Wallet, Settings, PlusCircle } from "lucide-react";
 import CwalletSetupDialog from "@/components/CwalletSetupDialog";
 import { useAdmin } from "@/hooks/useAdmin";
 
@@ -42,8 +42,18 @@ export default function Header() {
             <span className="text-xs text-[#c0c0c0] font-medium">{uid}</span>
           </div>
 
-          {/* Right: Wallet Button + Admin Button */}
+          {/* Right: Create Task + Wallet Button + Admin Button */}
           <div className="flex items-center gap-2">
+            <Link href="/tasks?create=true">
+              <Button
+                variant="ghost"
+                className="h-9 px-3 text-[#4cd3ff] hover:text-[#6ddeff] hover:bg-[#4cd3ff]/10"
+              >
+                <PlusCircle className="w-4 h-4 mr-1" />
+                +Task
+              </Button>
+            </Link>
+
             <Button
               variant="ghost"
               onClick={() => setCwalletDialogOpen(true)}
