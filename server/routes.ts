@@ -110,11 +110,20 @@ function sendRealtimeUpdate(userId: string, update: any) {
 
 // Broadcast update to all connected users
 function broadcastUpdate(update: any) {
-  connectedUsers.forEach((connection, userId) => {
+  let messagesSent = 0;
+  connectedUsers.forEach((connection, sessionId) => {
     if (connection.socket.readyState === WebSocket.OPEN) {
-      connection.socket.send(JSON.stringify(update));
+      try {
+        connection.socket.send(JSON.stringify(update));
+        messagesSent++;
+      } catch (error) {
+        console.error(`❌ Failed to broadcast to session ${sessionId}:`, error);
+        connectedUsers.delete(sessionId);
+      }
     }
   });
+  console.log(`📡 Broadcast sent to ${messagesSent} connected sessions`);
+  return messagesSent;
 }
 
 // Check if user is admin
@@ -2997,6 +3006,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.user.id;
       const { taskType, title, link, totalClicksRequired } = req.body;
 
+      console.log('📝 Task creation request:', { userId, taskType, title, link, totalClicksRequired });
+
       // Validation
       if (!taskType || !title || !link || !totalClicksRequired) {
         return res.status(400).json({
@@ -3040,6 +3051,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentTonBalance = parseFloat(user.tonBalance || '0');
       const requiredAmount = parseFloat(totalCost);
 
+      console.log('💰 Payment check:', { currentTonBalance, requiredAmount, sufficient: currentTonBalance >= requiredAmount });
+
       // Check if user has sufficient TON balance
       if (currentTonBalance < requiredAmount) {
         return res.status(400).json({
@@ -3055,6 +3068,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ tonBalance: newTonBalance })
         .where(eq(users.id, userId));
 
+      console.log('✅ Payment deducted:', { oldBalance: currentTonBalance, newBalance: newTonBalance, deducted: totalCost });
+
       // Create the task
       const task = await storage.createTask({
         advertiserId: userId,
@@ -3066,6 +3081,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalCost,
       });
 
+      console.log('✅ Task saved to database:', task);
+
       // Log transaction
       await storage.logTransaction({
         userId,
@@ -3075,6 +3092,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: `Created ${taskType} task: ${title}`,
         metadata: { taskId: task.id, taskType, totalClicksRequired }
       });
+
+      // Send payment success notification to task creator
+      sendRealtimeUpdate(userId, {
+        type: 'taskPaymentSuccess',
+        message: `Payment successful! ${totalCost} TON deducted`,
+        tonBalance: newTonBalance,
+        task: {
+          id: task.id,
+          title: task.title,
+          totalCost: task.totalCost
+        }
+      });
+
+      // Broadcast task creation to all users to update feed
+      broadcastUpdate({
+        type: 'task:created',
+        task: task
+      });
+
+      console.log('📡 WebSocket notifications sent for task creation');
 
       res.json({ 
         success: true, 
