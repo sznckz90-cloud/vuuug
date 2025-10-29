@@ -216,11 +216,12 @@ export const adminSettings = pgTable("admin_settings", {
 export const advertiserTasks = pgTable("advertiser_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   advertiserId: varchar("advertiser_id").references(() => users.id).notNull(),
+  taskType: varchar("task_type").notNull(), // "channel" or "bot"
   title: text("title").notNull(),
   link: text("link").notNull(),
   totalClicksRequired: integer("total_clicks_required").notNull(),
   currentClicks: integer("current_clicks").default(0).notNull(),
-  costPerClick: decimal("cost_per_click", { precision: 12, scale: 8 }).default("0.00035").notNull(), // 0.00035 TON = 3500 PAD
+  costPerClick: decimal("cost_per_click", { precision: 12, scale: 8 }).default("0.0003").notNull(), // 0.0003 TON per click (500 clicks = 0.15 TON)
   totalCost: decimal("total_cost", { precision: 12, scale: 8 }).notNull(),
   status: varchar("status").default("active").notNull(), // active, completed, paused
   createdAt: timestamp("created_at").defaultNow(),
