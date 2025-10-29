@@ -10,6 +10,19 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**October 29, 2025 - Task Creation UI Updates & Database Fix**
+
+*Task Creation System Improvements:*
+*   **Database Fix**: Created missing `advertiser_tasks` and `task_clicks` tables in the database
+*   **UI Updates**: 
+    - Moved "+Task" button to top header (right side, next to "Set Wallet" button)
+    - Removed "Cost Summary" section from task creation form
+    - Updated submit button to show cost: "Pay X TON & Publish"
+    - Removed emojis from notification messages
+*   **Backend**: TON balance deduction logic already implemented in `/api/advertiser-tasks/create` endpoint (lines 3051-3056 in server/routes.ts)
+*   **Migration**: Updated `server/migrate.ts` to automatically create task tables on future deployments
+*   **Status**: ✅ Task creation system is now fully functional
+
 **October 28, 2025 - Broadcast Functionality Enhancement**
 
 *Telegram Bot Broadcast Improvements:*
