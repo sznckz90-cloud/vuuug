@@ -141,6 +141,19 @@ export function useWebSocket() {
               window.dispatchEvent(taskRemovedEvent);
               break;
               
+            case 'taskPaymentSuccess':
+              // Payment success notification for task creation
+              showNotification(message.message || "Payment successful!", "success");
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              break;
+              
+            case 'task:created':
+              // New task created - update feed for all users
+              queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks/my-tasks'] });
+              console.log('✨ New task created - feed updated');
+              break;
+              
             default:
               // Remove default black notifications to prevent duplicates
               // Only log unhandled messages for debugging
