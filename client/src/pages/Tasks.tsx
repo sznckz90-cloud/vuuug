@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, CheckCircle, Target, PlusCircle, FileText, Clock, TrendingUp, Radio, Bot as BotIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 
 interface Task {
   id: string;
@@ -29,10 +30,22 @@ interface Task {
 export default function Tasks() {
   const { user, isLoading } = useAuth();
   const queryClient = useQueryClient();
+  const [location] = useLocation();
   
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createDialogTab, setCreateDialogTab] = useState("add-task");
   const [isAddClicksDialogOpen, setIsAddClicksDialogOpen] = useState(false);
+
+  // Check URL parameters to auto-open create dialog
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      setIsCreateDialogOpen(true);
+      setTaskType("channel");
+      // Clean up URL
+      window.history.replaceState({}, '', '/tasks');
+    }
+  }, [location]);
   
   const [taskType, setTaskType] = useState<"channel" | "bot" | null>(null);
   const [title, setTitle] = useState("");
@@ -132,8 +145,8 @@ export default function Tasks() {
     },
     onSuccess: (data) => {
       toast({
-        title: "Success!",
-        description: data.message,
+        title: "Task created successfully",
+        description: "Your task has been published and is now active.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
@@ -147,8 +160,8 @@ export default function Tasks() {
     },
     onError: (error: Error) => {
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Task creation failed",
+        description: error.message || "Please try again.",
         variant: "destructive",
       });
     },
@@ -306,25 +319,25 @@ export default function Tasks() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 mt-6">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-primary" />
-              Tasks
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Earn PAD by completing tasks
-            </p>
-          </div>
-          
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+            <CheckCircle className="w-6 h-6 text-primary" />
+            Tasks
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Earn PAD by completing tasks
+          </p>
+        </div>
+
+        <div className="hidden">
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button 
                 className="btn-primary"
                 onClick={() => setTaskType("channel")}
               >
-                <PlusCircle className="w-4 h-4 mr-2" />
-                Create Task
+                <PlusCircle className="w-4 h-4 mr-1" />
+                +Task
               </Button>
             </DialogTrigger>
             <DialogContent 
@@ -443,34 +456,12 @@ export default function Tasks() {
                             </p>
                           </div>
 
-                          <div className="bg-secondary/50 rounded-lg p-4 space-y-2">
-                            <h3 className="font-semibold text-white text-sm mb-2">Cost Summary</h3>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Total clicks:</span>
-                              <span className="font-semibold text-white">{clicksNum.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Cost per click:</span>
-                              <span className="text-white">0.0003 TON</span>
-                            </div>
-                            <div className="flex justify-between text-sm pt-2 border-t border-border">
-                              <span className="text-muted-foreground font-semibold">Total cost:</span>
-                              <span className="font-bold text-white">{totalCostTON.toFixed(4)} TON</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Your TON balance:</span>
-                              <span className={`font-semibold ${tonBalance >= totalCostTON ? "text-green-500" : "text-red-500"}`}>
-                                {tonBalance.toFixed(4)} TON
-                              </span>
-                            </div>
-                          </div>
-
                           <Button
                             type="submit"
                             className="w-full btn-primary"
                             disabled={createTaskMutation.isPending || tonBalance < totalCostTON}
                           >
-                            {createTaskMutation.isPending ? "Publishing..." : `Pay & Publish`}
+                            {createTaskMutation.isPending ? "Publishing..." : `Pay ${totalCostTON.toFixed(4)} TON & Publish`}
                           </Button>
                         </form>
                       </>
