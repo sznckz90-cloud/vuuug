@@ -21,8 +21,8 @@ export default function Layout({ children }: LayoutProps) {
   });
 
   const navItems = [
+    { href: "/tasks", icon: ClipboardList, label: "Task" },
     { href: "/", icon: Home, label: "Home" },
-    { href: "/tasks", icon: ClipboardList, label: "Tasks" },
     { href: "/affiliates", icon: Users, label: "Affiliates" },
   ];
 
