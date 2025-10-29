@@ -364,7 +364,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
       ON CONFLICT (setting_key) DO NOTHING
     `);
     
-    // Advertiser tasks table
+    // Advertiser tasks table - CRITICAL for task creation system
+    console.log('🔄 [MIGRATION] Creating advertiser_tasks table...');
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS advertiser_tasks (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -382,8 +383,10 @@ export async function ensureDatabaseSchema(): Promise<void> {
         completed_at TIMESTAMP
       )
     `);
+    console.log('✅ [MIGRATION] advertiser_tasks table created');
     
-    // Task clicks tracking table
+    // Task clicks tracking table - CRITICAL for preventing duplicate clicks
+    console.log('🔄 [MIGRATION] Creating task_clicks table...');
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS task_clicks (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -394,6 +397,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         UNIQUE(task_id, publisher_id)
       )
     `);
+    console.log('✅ [MIGRATION] task_clicks table created');
     
     // Promotion claims table
     await db.execute(sql`
