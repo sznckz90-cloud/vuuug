@@ -12,6 +12,7 @@ const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Tasks = lazy(() => import("@/pages/Tasks"));
+const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -28,6 +29,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/tasks" component={Tasks} />
+        <Route path="/create-task" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
