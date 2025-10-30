@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { ArrowDown, Flame } from "lucide-react";
+import { ArrowDown, PlusCircle } from "lucide-react";
 import { tonToPAD } from "@shared/constants";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
@@ -119,10 +119,10 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3">
           <Button
             className="h-12 btn-primary"
-            onClick={() => setStreakDialogOpen(true)}
+            onClick={() => setLocation("/tasks?create=true")}
           >
-            <Flame className="w-5 h-5 mr-2" />
-            Streak
+            <PlusCircle className="w-5 h-5 mr-2" />
+            +Task
           </Button>
           
           <Button

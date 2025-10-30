@@ -148,11 +148,10 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
       
-      setTaskType(null);
+      // Reset form fields but stay on add-task tab
       setTitle("");
       setLink("");
       setTotalClicks("500");
-      setCreateDialogTab("my-task");
     },
     onError: (error: Error) => {
       toast({
@@ -208,7 +207,23 @@ export default function Tasks() {
       return;
     }
 
-    window.open(task.link, "_blank");
+    // Handle Telegram links specially
+    let linkToOpen = task.link;
+    if (task.link.includes('t.me/')) {
+      // Extract username from t.me link
+      const match = task.link.match(/t\.me\/([^/?]+)/);
+      if (match && match[1]) {
+        const username = match[1];
+        linkToOpen = `tg://resolve?domain=${username}`;
+      }
+    }
+
+    // Try to open with Telegram WebApp if available, otherwise use window.open
+    if (window.Telegram?.WebApp?.openTelegramLink && linkToOpen.startsWith('tg://')) {
+      window.Telegram.WebApp.openTelegramLink(linkToOpen);
+    } else {
+      window.open(linkToOpen, "_blank");
+    }
 
     setTimeout(() => {
       clickTaskMutation.mutate(task.id);
@@ -647,14 +662,6 @@ export default function Tasks() {
                           </span>
                         </div>
                         <h3 className="font-semibold text-white mb-1">{task.title}</h3>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Earn {padReward.toLocaleString()} PAD per click
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{task.currentClicks} / {task.totalClicksRequired} clicks</span>
-                          <span>•</span>
-                          <span>{remaining} remaining</span>
-                        </div>
                       </div>
                     </div>
 
@@ -673,7 +680,7 @@ export default function Tasks() {
                       disabled={clickTaskMutation.isPending}
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
-                      {clickTaskMutation.isPending ? "Processing..." : "Visit & Earn"}
+                      {clickTaskMutation.isPending ? "Processing..." : "Start"}
                     </Button>
                   </CardContent>
                 </Card>
@@ -687,7 +694,6 @@ export default function Tasks() {
           <DialogContent 
             className="sm:max-w-md max-h-[90vh] flex flex-col frosted-glass border border-white/10 rounded-2xl p-0 overflow-hidden"
             onInteractOutside={(e) => e.preventDefault()}
-            hideCloseButton
           >
             <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
               <DialogTitle>Add More Clicks</DialogTitle>
