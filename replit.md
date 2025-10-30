@@ -10,6 +10,37 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**October 30, 2025 - Task System UX Improvements & Notification Standardization**
+
+*Task System UX Enhancements:*
+*   **Task Creation Flow**: 
+    - Modal now closes automatically after successful task creation
+    - Replaced toast notifications with AppNotification for consistent UX
+    - Feed automatically refreshes to show newly created tasks
+*   **Task Card Layout**: 
+    - Redesigned task cards to be compact and minimal
+    - Display format: Icon + Title + Reward + [Start]/[Check] button
+    - Removed progress bars and unnecessary text like click counters
+    - Card padding reduced from p-4 to p-3 for tighter layout
+*   **Add More Clicks System**: 
+    - Added visible close (×) button in top-right corner of modal
+    - Modal closes automatically after successful click addition
+    - Updated all notifications to use AppNotification with message "Clicks added successfully!"
+    - TON balance verification already implemented, now shows proper error: "Insufficient TON balance"
+*   **Start/Check Button Behavior**: 
+    - Button changes from "Start" to "Check" after user clicks task link
+    - Properly handles Telegram channels with `tg://resolve?domain=` format
+    - Telegram bots open directly in Telegram app
+    - External websites open in new browser tab
+    - After successful completion, task is removed from feed
+*   **Notification System**: 
+    - All notifications (success, error, validation) now use AppNotification component
+    - Replaced all toast() calls with showNotification() for consistency
+    - Smooth animations on all user-facing messages
+    - Validation errors for task creation and click additions now use AppNotification
+*   **Testing**: All changes verified by architect, ready for production deployment
+*   **Status**: ✅ Complete UX overhaul verified, ready for production
+
 **October 29, 2025 - Task Creation UI Updates & Database Fix**
 
 *Task Creation System Improvements:*
