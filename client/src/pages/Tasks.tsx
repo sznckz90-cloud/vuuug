@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, CheckCircle, Target, PlusCircle, FileText, Clock, TrendingUp, Radio, Bot as BotIcon } from "lucide-react";
+import { ExternalLink, CheckCircle, Target, PlusCircle, FileText, Clock, TrendingUp, Radio, Bot as BotIcon, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -54,6 +55,7 @@ export default function Tasks() {
   const [totalClicks, setTotalClicks] = useState("500");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [additionalClicks, setAdditionalClicks] = useState("500");
+  const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
 
   const costPerClick = 0.0003;
   const rewardPerClick = 0.000175;
@@ -107,21 +109,19 @@ export default function Tasks() {
       }
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, taskId) => {
       const padReward = Math.floor(parseFloat(data.reward) * 10000000);
-      toast({
-        title: "Success!",
-        description: `${data.message} You earned ${padReward.toLocaleString()} PAD!`,
-      });
+      showNotification(`You earned ${padReward.toLocaleString()} PAD!`, "success");
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setClickedTasks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      showNotification(error.message || "Failed to complete task", "error");
     },
   });
 
@@ -140,25 +140,19 @@ export default function Tasks() {
       return data;
     },
     onSuccess: (data) => {
-      toast({
-        title: "Task created successfully",
-        description: "Your task has been published and is now active.",
-      });
+      showNotification("Task created successfully!", "success");
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
       
-      // Reset form fields but stay on add-task tab
+      setIsCreateDialogOpen(false);
       setTitle("");
       setLink("");
       setTotalClicks("500");
+      setTaskType("channel");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Task creation failed",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
+      showNotification(error.message || "Failed to create task", "error");
     },
   });
 
@@ -177,33 +171,28 @@ export default function Tasks() {
       return data;
     },
     onSuccess: () => {
-      toast({
-        title: "Success!",
-        description: "Task limit increased successfully",
-      });
+      showNotification("Clicks added successfully!", "success");
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setIsAddClicksDialogOpen(false);
       setSelectedTask(null);
       setAdditionalClicks("500");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      showNotification(error.message || "Not enough TON balance", "error");
     },
   });
 
   const handleTaskClick = async (task: Task) => {
+    if (clickedTasks.has(task.id)) {
+      clickTaskMutation.mutate(task.id);
+      return;
+    }
+
     const checkResult = await checkTaskClickedMutation.mutateAsync(task.id);
     
     if (checkResult.hasClicked) {
-      toast({
-        title: "Already clicked",
-        description: "You have already clicked this task",
-        variant: "destructive",
-      });
+      showNotification("You have already clicked this task", "error");
       return;
     }
 
@@ -225,6 +214,8 @@ export default function Tasks() {
       window.open(linkToOpen, "_blank");
     }
 
+    setClickedTasks(prev => new Set(prev).add(task.id));
+
     setTimeout(() => {
       clickTaskMutation.mutate(task.id);
     }, 3000);
@@ -234,47 +225,27 @@ export default function Tasks() {
     e.preventDefault();
 
     if (!taskType) {
-      toast({
-        title: "Error",
-        description: "Please select a task type (Channel or Bot)",
-        variant: "destructive",
-      });
+      showNotification("Please select a task type (Channel or Bot)", "error");
       return;
     }
 
     if (!title.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a task title",
-        variant: "destructive",
-      });
+      showNotification("Please enter a task title", "error");
       return;
     }
 
     if (!link.trim() || (!link.startsWith("http") && !link.startsWith("t.me"))) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid Telegram link",
-        variant: "destructive",
-      });
+      showNotification("Please enter a valid Telegram link", "error");
       return;
     }
 
     if (clicksNum < 500) {
-      toast({
-        title: "Error",
-        description: "Minimum 500 clicks required",
-        variant: "destructive",
-      });
+      showNotification("Minimum 500 clicks required", "error");
       return;
     }
 
     if (tonBalance < totalCostTON) {
-      toast({
-        title: "Insufficient TON balance",
-        description: "Please convert PAD to TON before creating a task.",
-        variant: "destructive",
-      });
+      showNotification("Insufficient TON balance", "error");
       return;
     }
 
@@ -286,20 +257,12 @@ export default function Tasks() {
 
     const clicks = parseInt(additionalClicks);
     if (clicks < 500) {
-      toast({
-        title: "Error",
-        description: "Minimum 500 additional clicks required",
-        variant: "destructive",
-      });
+      showNotification("Minimum 500 additional clicks required", "error");
       return;
     }
 
     if (tonBalance < additionalCostTON) {
-      toast({
-        title: "Insufficient TON balance",
-        description: "Please convert PAD to TON before adding more clicks.",
-        variant: "destructive",
-      });
+      showNotification("Insufficient TON balance", "error");
       return;
     }
 
@@ -642,46 +605,34 @@ export default function Tasks() {
         ) : (
           <div className="space-y-3 pb-20">
             {activePublicTasks.map((task) => {
-              const progress = (task.currentClicks / task.totalClicksRequired) * 100;
-              const remaining = task.totalClicksRequired - task.currentClicks;
               const padReward = Math.floor(rewardPerClick * 10000000);
+              const hasClicked = clickedTasks.has(task.id);
 
               return (
                 <Card key={task.id} className="minimal-card">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-[#007BFF] flex-shrink-0">
                           {task.taskType === "channel" ? (
-                            <Radio className="w-4 h-4 text-primary" />
+                            <Radio className="w-4 h-4" />
                           ) : (
-                            <BotIcon className="w-4 h-4 text-primary" />
+                            <BotIcon className="w-4 h-4" />
                           )}
-                          <span className="text-xs text-muted-foreground uppercase">
-                            {task.taskType}
-                          </span>
                         </div>
-                        <h3 className="font-semibold text-white mb-1">{task.title}</h3>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-medium text-xs truncate">{task.title}</h3>
+                          <p className="text-[#007BFF] text-xs font-bold">+{padReward.toLocaleString()} PAD</p>
+                        </div>
                       </div>
+                      <Button
+                        onClick={() => handleTaskClick(task)}
+                        disabled={clickTaskMutation.isPending}
+                        className="h-8 px-3 text-xs flex-shrink-0 min-w-[70px] btn-primary"
+                      >
+                        {clickTaskMutation.isPending ? "Processing..." : (hasClicked ? "Check" : "Start")}
+                      </Button>
                     </div>
-
-                    <div className="mb-3">
-                      <div className="w-full bg-secondary rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <Button
-                      className="w-full btn-primary"
-                      onClick={() => handleTaskClick(task)}
-                      disabled={clickTaskMutation.isPending}
-                    >
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      {clickTaskMutation.isPending ? "Processing..." : "Start"}
-                    </Button>
                   </CardContent>
                 </Card>
               );
@@ -694,9 +645,16 @@ export default function Tasks() {
           <DialogContent 
             className="sm:max-w-md max-h-[90vh] flex flex-col frosted-glass border border-white/10 rounded-2xl p-0 overflow-hidden"
             onInteractOutside={(e) => e.preventDefault()}
+            hideCloseButton={false}
           >
-            <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+            <DialogHeader className="px-6 pt-6 pb-4 shrink-0 relative">
               <DialogTitle>Add More Clicks</DialogTitle>
+              <button
+                onClick={() => setIsAddClicksDialogOpen(false)}
+                className="absolute top-6 right-6 text-muted-foreground hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </DialogHeader>
             {selectedTask && (
               <div className="space-y-4 overflow-y-auto px-6 pb-6 flex-1">
