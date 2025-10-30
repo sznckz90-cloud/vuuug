@@ -13,7 +13,9 @@ import {
   dailyTasks,
   promoCodes,
   transactions,
-  adminSettings
+  adminSettings,
+  advertiserTasks,
+  taskClicks
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
@@ -3255,6 +3257,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: "Failed to check task click status" 
+      });
+    }
+  });
+
+  // Delete advertiser task
+  app.delete('/api/advertiser-tasks/:taskId', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskId } = req.params;
+
+      console.log('🗑️ Delete task request:', { userId, taskId });
+
+      // Get task details
+      const [task] = await db
+        .select()
+        .from(advertiserTasks)
+        .where(eq(advertiserTasks.id, taskId));
+
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          message: "Task not found"
+        });
+      }
+
+      // Verify ownership
+      if (task.advertiserId !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only delete your own tasks"
+        });
+      }
+
+      // Calculate refund amount for remaining clicks
+      const remainingClicks = task.totalClicksRequired - task.currentClicks;
+      const refundAmount = (parseFloat(task.costPerClick) * remainingClicks).toFixed(8);
+
+      console.log('💰 Refund calculation:', { 
+        totalClicks: task.totalClicksRequired, 
+        currentClicks: task.currentClicks, 
+        remainingClicks,
+        costPerClick: task.costPerClick,
+        refundAmount 
+      });
+
+      // Delete task and refund user in a transaction
+      await db.transaction(async (tx) => {
+        // Delete the task
+        await tx
+          .delete(advertiserTasks)
+          .where(eq(advertiserTasks.id, taskId));
+
+        // Delete associated clicks
+        await tx
+          .delete(taskClicks)
+          .where(eq(taskClicks.taskId, taskId));
+
+        // Refund remaining balance if any
+        if (parseFloat(refundAmount) > 0) {
+          const [user] = await tx
+            .select({ tonBalance: users.tonBalance })
+            .from(users)
+            .where(eq(users.id, userId));
+
+          if (user) {
+            const newBalance = (parseFloat(user.tonBalance || '0') + parseFloat(refundAmount)).toFixed(8);
+            await tx
+              .update(users)
+              .set({ tonBalance: newBalance })
+              .where(eq(users.id, userId));
+
+            console.log('✅ Refund processed:', { oldBalance: user.tonBalance, refundAmount, newBalance });
+
+            // Log transaction
+            await storage.logTransaction({
+              userId,
+              amount: refundAmount,
+              type: "credit",
+              source: "task_deletion_refund",
+              description: `Refund for deleting task: ${task.title}`,
+              metadata: { taskId, remainingClicks }
+            });
+          }
+        }
+      });
+
+      console.log('✅ Task deleted successfully:', taskId);
+
+      res.json({ 
+        success: true, 
+        message: "Task deleted successfully",
+        refundAmount 
+      });
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to delete task" 
+      });
+    }
+  });
+
+  // Verify channel for bot admin
+  app.post('/api/advertiser-tasks/verify-channel', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { channelLink } = req.body;
+
+      console.log('🔍 Channel verification request:', { userId, channelLink });
+
+      // Validate channel link
+      if (!channelLink || !channelLink.includes('t.me/')) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid channel link"
+        });
+      }
+
+      // Extract channel username
+      const match = channelLink.match(/t\.me\/([^/?]+)/);
+      if (!match || !match[1]) {
+        return res.status(400).json({
+          success: false,
+          message: "Could not extract channel username from link"
+        });
+      }
+
+      const channelUsername = match[1];
+
+      // Check if bot token is configured
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        console.warn('⚠️ TELEGRAM_BOT_TOKEN not configured - skipping actual verification');
+        return res.json({
+          success: true,
+          message: "Channel verification successful (dev mode)",
+          verified: true
+        });
+      }
+
+      try {
+        // Try to get chat administrators
+        const telegramApiUrl = `https://api.telegram.org/bot${botToken}/getChatAdministrators`;
+        const chatId = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername}`;
+        
+        const response = await fetch(`${telegramApiUrl}?chat_id=${encodeURIComponent(chatId)}`);
+        const data = await response.json();
+
+        if (!data.ok) {
+          console.error('❌ Telegram API error:', data);
+          return res.status(400).json({
+            success: false,
+            message: "Could not access channel. Make sure the bot is added as admin."
+          });
+        }
+
+        // Check if our bot is in the admin list
+        const botUsername = 'Paid_AdzBot';
+        const isAdmin = data.result.some((admin: any) => 
+          admin.user?.username?.toLowerCase() === botUsername.toLowerCase()
+        );
+
+        if (!isAdmin) {
+          return res.status(400).json({
+            success: false,
+            message: `@${botUsername} is not an administrator in this channel. Please add the bot as admin first.`
+          });
+        }
+
+        console.log('✅ Channel verified:', channelUsername);
+
+        res.json({ 
+          success: true, 
+          message: "Channel verified successfully",
+          verified: true 
+        });
+      } catch (error) {
+        console.error('❌ Error verifying channel:', error);
+        res.status(500).json({ 
+          success: false, 
+          message: "Failed to verify channel" 
+        });
+      }
+    } catch (error) {
+      console.error("Error in channel verification:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to verify channel" 
       });
     }
   });
