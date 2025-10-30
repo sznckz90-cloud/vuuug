@@ -474,6 +474,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                   [
                     { text: '🔔 Announce', callback_data: 'admin_announce' },
                     { text: '🔄 Refresh', callback_data: 'admin_refresh' }
+                  ],
+                  [
+                    { text: '💰 Pending Withdrawals', callback_data: 'admin_pending_withdrawals' }
                   ]
                 ]
               }
@@ -481,6 +484,142 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           });
         } catch (error) {
           console.error('❌ Error refreshing admin panel:', error);
+        }
+        return true;
+      }
+      
+      // Handle pending withdrawals button - show all pending withdrawal requests
+      if (data && (data === 'admin_pending_withdrawals' || data.startsWith('admin_pending_withdrawals_page_')) && isAdmin(chatId)) {
+        try {
+          const { db } = await import('./db');
+          const { eq } = await import('drizzle-orm');
+          const { withdrawals, users } = await import('../shared/schema');
+          
+          // Extract page number from callback data (default to page 0)
+          const pageMatch = data.match(/admin_pending_withdrawals_page_(\d+)/);
+          const currentPage = pageMatch ? parseInt(pageMatch[1]) : 0;
+          const itemsPerPage = 10;
+          const offset = currentPage * itemsPerPage;
+          
+          // Fetch pending withdrawals with user information
+          const pendingWithdrawals = await db
+            .select({
+              withdrawal: withdrawals,
+              user: users
+            })
+            .from(withdrawals)
+            .leftJoin(users, eq(withdrawals.userId, users.id))
+            .where(eq(withdrawals.status, 'pending'))
+            .orderBy(withdrawals.createdAt)
+            .limit(itemsPerPage + 1) // Fetch one extra to check if there are more pages
+            .offset(offset);
+          
+          // Answer callback query
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQuery.id })
+          });
+          
+          // Check if there are no pending withdrawals
+          if (pendingWithdrawals.length === 0) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: '✅ <b>No pending withdrawal requests found.</b>',
+                parse_mode: 'HTML'
+              })
+            });
+            return true;
+          }
+          
+          // Determine if there are more pages
+          const hasNextPage = pendingWithdrawals.length > itemsPerPage;
+          const displayWithdrawals = hasNextPage ? pendingWithdrawals.slice(0, itemsPerPage) : pendingWithdrawals;
+          
+          // Send each withdrawal as a separate message with approve/reject buttons
+          for (const { withdrawal, user } of displayWithdrawals) {
+            const withdrawalDetails = withdrawal.details as any;
+            const amount = formatTON(withdrawal.amount);
+            const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
+            const username = user?.username || user?.firstName || 'Unknown';
+            const createdAt = new Date(withdrawal.createdAt!).toUTCString();
+            
+            const message = `💰 <b>Withdrawal Request</b>\n\n` +
+              `<b>User:</b> ${username}\n` +
+              `<b>Amount:</b> ${amount} TON\n` +
+              `<b>Method:</b> ${withdrawal.method}\n` +
+              `<b>Wallet:</b> ${walletAddress}\n` +
+              `<b>Created:</b> ${createdAt}\n` +
+              `<b>ID:</b> ${withdrawal.id}`;
+            
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: message,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      { text: '✅ Approve', callback_data: `withdraw_paid_${withdrawal.id}` },
+                      { text: '❌ Reject', callback_data: `withdraw_reject_${withdrawal.id}` }
+                    ]
+                  ]
+                }
+              })
+            });
+            
+            // Small delay to avoid hitting rate limits
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          // Add pagination buttons if needed
+          if (currentPage > 0 || hasNextPage) {
+            const paginationButtons = [];
+            
+            if (currentPage > 0) {
+              paginationButtons.push({ 
+                text: '⬅️ Previous', 
+                callback_data: `admin_pending_withdrawals_page_${currentPage - 1}` 
+              });
+            }
+            
+            if (hasNextPage) {
+              paginationButtons.push({ 
+                text: '➡️ Next', 
+                callback_data: `admin_pending_withdrawals_page_${currentPage + 1}` 
+              });
+            }
+            
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `📄 Page ${currentPage + 1} - Showing ${displayWithdrawals.length} requests`,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [paginationButtons]
+                }
+              })
+            });
+          }
+          
+        } catch (error) {
+          console.error('❌ Error fetching pending withdrawals:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error loading withdrawals',
+              show_alert: true
+            })
+          });
         }
         return true;
       }
@@ -966,6 +1105,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
                 [
                   { text: '🔔 Announce', callback_data: 'admin_announce' },
                   { text: '🔄 Refresh', callback_data: 'admin_refresh' }
+                ],
+                [
+                  { text: '💰 Pending Withdrawals', callback_data: 'admin_pending_withdrawals' }
                 ]
               ]
             }
