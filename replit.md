@@ -10,6 +10,23 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**October 31, 2025 - Task System Security & UX Improvements + Ad Anti-Cheat**
+
+*Task System Enhancements:*
+*   **Title Validation**: Task titles now validate against URL patterns (https://, t.me/, .com, .net, .org, .io, www.) to prevent link spam
+*   **Notification Update**: Task creation shows only "Task created successfully ✅" message
+*   **Link Auto-Fix**: Task start button automatically prepends https:// to links missing protocol
+*   **UI Cleanup**: Removed "Cost per click", "Reward per click", and "Total cost" fields from task creation form
+*   **Verify Button Enhancement**: Verify Channel button changes from default to blue when valid Telegram link is entered, and green when verified
+*   **Testing**: All changes verified by architect review
+
+*Ad Watching Anti-Cheat System:*
+*   **3-Second Minimum**: Implemented hidden timer requiring users to watch ads for at least 3 seconds
+*   **Cheat Prevention**: If ad is closed before 3 seconds, user sees "Claiming too fast!" error (red) and receives no reward
+*   **Normal Flow**: Users who watch for 3+ seconds receive reward as expected
+*   **Implementation**: Silent background timer using Date.now() to track watch duration
+*   **Status**: ✅ Complete and ready for production use
+
 **October 30, 2025 - Create Task Page Routing Fix**
 
 *Bug Fix:*
