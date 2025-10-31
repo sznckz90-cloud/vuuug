@@ -3414,7 +3414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Check if our bot is in the admin list
-        const botUsername = 'Paid_AdzBot';
+        const botUsername = 'Paid_Adzbot';
         const isAdmin = data.result.some((admin: any) => 
           admin.user?.username?.toLowerCase() === botUsername.toLowerCase()
         );
