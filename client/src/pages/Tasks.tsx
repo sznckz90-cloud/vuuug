@@ -87,16 +87,6 @@ export default function Tasks() {
       return;
     }
 
-    // Validate URL is safe (http/https or t.me links only)
-    const isValidUrl = task.link.startsWith('http://') || 
-                       task.link.startsWith('https://') || 
-                       task.link.includes('t.me/');
-    
-    if (!isValidUrl) {
-      showNotification("Invalid or unsafe task link", "error");
-      return;
-    }
-
     // If already clicked, complete the task
     if (clickedTasks.has(task.id)) {
       clickTaskMutation.mutate(task.id);
@@ -114,12 +104,23 @@ export default function Tasks() {
       console.error("Failed to check task status:", error);
     }
 
-    // Prepare the link to open
-    let linkToOpen = task.link;
+    // Prepare the link to open - automatically add https:// if missing
+    let linkToOpen = task.link.trim();
+    
+    // Add https:// prefix if the link doesn't start with http://, https://, or tg://
+    if (!linkToOpen.startsWith('http://') && !linkToOpen.startsWith('https://') && !linkToOpen.startsWith('tg://')) {
+      // If it's a t.me link without protocol, add https://
+      if (linkToOpen.startsWith('t.me/') || linkToOpen.includes('t.me/')) {
+        linkToOpen = 'https://' + linkToOpen.replace(/^\/+/, '');
+      } else {
+        // For other links, add https://
+        linkToOpen = 'https://' + linkToOpen;
+      }
+    }
     
     // Convert t.me links to tg:// protocol for better Telegram integration
-    if (task.link.includes('t.me/')) {
-      const match = task.link.match(/t\.me\/([^/?]+)/);
+    if (linkToOpen.includes('t.me/')) {
+      const match = linkToOpen.match(/t\.me\/([^/?]+)/);
       if (match && match[1]) {
         const username = match[1];
         linkToOpen = `tg://resolve?domain=${username}`;

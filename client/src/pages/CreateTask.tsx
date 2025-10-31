@@ -104,7 +104,7 @@ export default function CreateTask() {
       return data;
     },
     onSuccess: (data) => {
-      showNotification("Task created successfully!", "success");
+      showNotification("Task created successfully ✅", "success");
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
@@ -202,6 +202,13 @@ export default function CreateTask() {
 
     if (!title.trim()) {
       showNotification("Please enter a task title", "error");
+      return;
+    }
+
+    // Validate that title doesn't contain URLs or links
+    const urlPattern = /(https?:\/\/|t\.me\/|\.com|\.net|\.org|\.io|www\.)/i;
+    if (urlPattern.test(title)) {
+      showNotification("Links are not allowed in task title", "error");
       return;
     }
 
@@ -379,7 +386,13 @@ export default function CreateTask() {
                         variant="outline"
                         onClick={handleVerifyChannel}
                         disabled={isVerifying || !link.trim()}
-                        className={`flex-1 ${isVerified ? 'border-green-500 bg-green-500/10 text-green-500' : ''}`}
+                        className={`flex-1 ${
+                          isVerified 
+                            ? 'border-green-500 bg-green-500/10 text-green-500' 
+                            : link.trim() && (link.startsWith('http') || link.includes('t.me/'))
+                            ? 'border-blue-500 bg-blue-500/10 text-blue-500'
+                            : ''
+                        }`}
                       >
                         {isVerifying ? (
                           <>
@@ -425,20 +438,6 @@ export default function CreateTask() {
                   </p>
                 </div>
 
-                <div className="bg-secondary/50 rounded-lg p-3 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Cost per click:</span>
-                    <span className="text-white">0.0003 TON</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Reward per click:</span>
-                    <span className="text-white">{Math.floor(rewardPerClick * 10000000).toLocaleString()} PAD</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-semibold">
-                    <span className="text-muted-foreground">Total cost:</span>
-                    <span className="text-white">{totalCostTON.toFixed(4)} TON</span>
-                  </div>
-                </div>
 
                 <Button
                   type="submit"
