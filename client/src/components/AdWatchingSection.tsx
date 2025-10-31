@@ -20,6 +20,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
   const [lastAdWatchTime, setLastAdWatchTime] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+  const [adStartTime, setAdStartTime] = useState<number>(0);
 
   // Fetch app settings dynamically (ad limit, reward amount)
   const { data: appSettings } = useQuery({
@@ -107,14 +108,32 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     try {
       // Optimized: Credit reward instantly when ad completes
       if (typeof window.show_9368336 === 'function') {
+        // Record ad start time for anti-cheat verification
+        const startTime = Date.now();
+        setAdStartTime(startTime);
+        
         // Start ad display with immediate reward on completion
         window.show_9368336()
           .then(() => {
-            // Ad completed - credit reward immediately
+            // Check if user watched for at least 3 seconds (anti-cheat)
+            const watchDuration = Date.now() - startTime;
+            if (watchDuration < 3000) {
+              // User closed ad too fast - no reward
+              showNotification("Claiming too fast!", "error");
+              return;
+            }
+            // Ad completed and watched for 3+ seconds - credit reward
             watchAdMutation.mutate('rewarded');
           })
           .catch(() => {
-            // Ad failed or closed early - still credit reward
+            // Check if user watched for at least 3 seconds (anti-cheat)
+            const watchDuration = Date.now() - startTime;
+            if (watchDuration < 3000) {
+              // User closed ad too fast - no reward
+              showNotification("Claiming too fast!", "error");
+              return;
+            }
+            // Ad closed after 3+ seconds - still credit reward
             watchAdMutation.mutate('rewarded');
           });
       } else {
