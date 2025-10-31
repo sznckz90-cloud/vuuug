@@ -600,13 +600,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch admin settings for daily limit and reward amount
       const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
       const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
+      const seasonBroadcastSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'season_broadcast_active')).limit(1);
       
       const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 50;
       const rewardPerAd = rewardPerAdSetting[0]?.settingValue ? parseInt(rewardPerAdSetting[0].settingValue) : 1000;
+      const seasonBroadcastActive = seasonBroadcastSetting[0]?.settingValue === 'true';
       
       res.json({
         dailyAdLimit,
-        rewardPerAd
+        rewardPerAd,
+        seasonBroadcastActive
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -1872,14 +1875,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const settings = await db.select().from(adminSettings);
       
-      // Find specific settings
-      const dailyAdLimitSetting = settings.find(s => s.settingKey === 'daily_ad_limit');
-      const rewardPerAdSetting = settings.find(s => s.settingKey === 'reward_per_ad');
+      // Helper function to get setting value
+      const getSetting = (key: string, defaultValue: any) => {
+        const setting = settings.find(s => s.settingKey === key);
+        return setting?.settingValue || defaultValue;
+      };
       
-      // Return in format expected by frontend
+      // Return all settings in format expected by frontend
       res.json({
-        dailyAdLimit: dailyAdLimitSetting?.settingValue ? parseInt(dailyAdLimitSetting.settingValue) : 50,
-        rewardPerAd: rewardPerAdSetting?.settingValue ? parseInt(rewardPerAdSetting.settingValue) : 1000,
+        dailyAdLimit: parseInt(getSetting('daily_ad_limit', '50')),
+        rewardPerAd: parseInt(getSetting('reward_per_ad', '1000')),
+        affiliateCommission: parseFloat(getSetting('affiliate_commission', '10')),
+        walletChangeFee: parseFloat(getSetting('wallet_change_fee', '0.01')),
+        minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal', '0.5')),
+        taskPerClickReward: parseFloat(getSetting('task_per_click_reward', '0.0001750')),
+        taskCreationCost: parseFloat(getSetting('task_creation_cost', '0.0003')),
+        minimumConvert: parseFloat(getSetting('minimum_convert', '0.01')),
+        seasonBroadcastActive: getSetting('season_broadcast_active', 'false') === 'true',
       });
     } catch (error) {
       console.error("Error fetching admin settings:", error);
@@ -1890,36 +1902,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update admin settings
   app.put('/api/admin/settings', authenticateAdmin, async (req: any, res) => {
     try {
-      const { dailyAdLimit, rewardPerAd } = req.body;
+      const { 
+        dailyAdLimit, 
+        rewardPerAd, 
+        affiliateCommission,
+        walletChangeFee,
+        minimumWithdrawal,
+        taskPerClickReward,
+        taskCreationCost,
+        minimumConvert
+      } = req.body;
       
-      if (dailyAdLimit === undefined && rewardPerAd === undefined) {
-        return res.status(400).json({ message: "At least one setting must be provided" });
-      }
+      // Helper function to update a setting
+      const updateSetting = async (key: string, value: any) => {
+        if (value !== undefined && value !== null) {
+          await db.execute(sql`
+            INSERT INTO admin_settings (setting_key, setting_value, updated_at)
+            VALUES (${key}, ${value.toString()}, NOW())
+            ON CONFLICT (setting_key) 
+            DO UPDATE SET setting_value = ${value.toString()}, updated_at = NOW()
+          `);
+        }
+      };
       
-      // Update daily ad limit if provided
-      if (dailyAdLimit !== undefined) {
-        await db.execute(sql`
-          INSERT INTO admin_settings (setting_key, setting_value, updated_at)
-          VALUES ('daily_ad_limit', ${dailyAdLimit.toString()}, NOW())
-          ON CONFLICT (setting_key) 
-          DO UPDATE SET setting_value = ${dailyAdLimit.toString()}, updated_at = NOW()
-        `);
-      }
-      
-      // Update reward per ad if provided
-      if (rewardPerAd !== undefined) {
-        await db.execute(sql`
-          INSERT INTO admin_settings (setting_key, setting_value, updated_at)
-          VALUES ('reward_per_ad', ${rewardPerAd.toString()}, NOW())
-          ON CONFLICT (setting_key) 
-          DO UPDATE SET setting_value = ${rewardPerAd.toString()}, updated_at = NOW()
-        `);
-      }
+      // Update all provided settings
+      await updateSetting('daily_ad_limit', dailyAdLimit);
+      await updateSetting('reward_per_ad', rewardPerAd);
+      await updateSetting('affiliate_commission', affiliateCommission);
+      await updateSetting('wallet_change_fee', walletChangeFee);
+      await updateSetting('minimum_withdrawal', minimumWithdrawal);
+      await updateSetting('task_per_click_reward', taskPerClickReward);
+      await updateSetting('task_creation_cost', taskCreationCost);
+      await updateSetting('minimum_convert', minimumConvert);
       
       res.json({ success: true, message: "Settings updated successfully" });
     } catch (error) {
       console.error("Error updating admin settings:", error);
       res.status(500).json({ success: false, message: "Failed to update admin settings" });
+    }
+  });
+  
+  // Toggle season broadcast
+  app.post('/api/admin/season-broadcast', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { active } = req.body;
+      
+      if (active === undefined) {
+        return res.status(400).json({ message: "active field is required" });
+      }
+      
+      await db.execute(sql`
+        INSERT INTO admin_settings (setting_key, setting_value, updated_at)
+        VALUES ('season_broadcast_active', ${active ? 'true' : 'false'}, NOW())
+        ON CONFLICT (setting_key) 
+        DO UPDATE SET setting_value = ${active ? 'true' : 'false'}, updated_at = NOW()
+      `);
+      
+      res.json({ 
+        success: true, 
+        message: active ? "Season broadcast enabled" : "Season broadcast disabled",
+        active 
+      });
+    } catch (error) {
+      console.error("Error toggling season broadcast:", error);
+      res.status(500).json({ success: false, message: "Failed to toggle season broadcast" });
     }
   });
   
