@@ -105,6 +105,13 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       };
     }
     
+    // Check for existing session first (before requiring Telegram data)
+    if (!telegramData && req.session?.user?.user?.id) {
+      console.log('🔄 Using existing session for user:', req.session.user.user.id);
+      req.user = req.session.user;
+      return next();
+    }
+    
     // Development mode - allow test users (only in development, not production)
     if (!telegramData && (process.env.NODE_ENV === 'development' || process.env.REPL_ID)) {
       console.log('🔧 Development mode: Using test user authentication');
