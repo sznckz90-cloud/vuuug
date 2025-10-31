@@ -23,7 +23,7 @@ interface Task {
 }
 
 export default function Tasks() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authenticateWithTelegramWebApp } = useAuth();
   const queryClient = useQueryClient();
   const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
 
@@ -45,7 +45,11 @@ export default function Tasks() {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error("Failed to check task status");
+        const errorData = await response.json().catch(() => ({}));
+        const error: any = new Error(errorData.message || "Failed to check task status");
+        error.status = response.status;
+        error.errorCode = errorData.error_code;
+        throw error;
       }
       return response.json();
     },
@@ -100,8 +104,30 @@ export default function Tasks() {
         showNotification("You have already completed this task", "error");
         return;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to check task status:", error);
+      
+      // Handle session expiration (401 or 403) - try to re-authenticate
+      if (error.status === 401 || error.status === 403 || error.errorCode === 'SESSION_EXPIRED') {
+        console.log('🔄 Session expired, attempting re-authentication...');
+        try {
+          // Re-authenticate with Telegram
+          authenticateWithTelegramWebApp();
+          
+          // Wait for authentication to complete
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Retry the check after re-authentication
+          const retryResult = await checkTaskClickedMutation.mutateAsync(task.id);
+          if (retryResult.hasClicked) {
+            showNotification("You have already completed this task", "error");
+            return;
+          }
+        } catch (retryError) {
+          console.error("Failed to re-authenticate:", retryError);
+          // Continue anyway - open the link
+        }
+      }
     }
 
     // Prepare the link to open - automatically add https:// if missing
