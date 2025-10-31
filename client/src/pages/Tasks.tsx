@@ -133,29 +133,34 @@ export default function Tasks() {
       
       // Try Telegram WebApp methods first
       if (window.Telegram?.WebApp) {
-        if (linkToOpen.startsWith('tg://') && window.Telegram.WebApp.openTelegramLink) {
-          window.Telegram.WebApp.openTelegramLink(linkToOpen);
-          opened = true;
-        } else if (window.Telegram.WebApp.openLink) {
-          window.Telegram.WebApp.openLink(linkToOpen);
-          opened = true;
+        if (linkToOpen.startsWith('tg://')) {
+          // For Telegram links, use openTelegramLink if available
+          if (window.Telegram.WebApp.openTelegramLink) {
+            window.Telegram.WebApp.openTelegramLink(linkToOpen);
+            opened = true;
+          }
+        } else {
+          // For external links, use openLink
+          if (window.Telegram.WebApp.openLink) {
+            window.Telegram.WebApp.openLink(linkToOpen);
+            opened = true;
+          }
         }
       }
       
       // Fallback to window.open
       if (!opened) {
-        const newWindow = window.open(linkToOpen, "_blank", "noopener,noreferrer");
-        if (newWindow && !newWindow.closed) {
-          opened = true;
-        }
+        const newWindow = window.open(linkToOpen, "_blank");
+        // Give the popup a moment to open
+        setTimeout(() => {
+          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            showNotification("Please allow popups to complete tasks", "error");
+          }
+        }, 100);
+        opened = true;
       }
 
-      if (!opened) {
-        showNotification("Please allow popups to complete tasks", "error");
-        return;
-      }
-
-      // Mark as clicked and schedule completion check
+      // Mark as clicked
       setClickedTasks(prev => new Set(prev).add(task.id));
       
     } catch (error) {

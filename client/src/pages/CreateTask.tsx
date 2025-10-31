@@ -19,7 +19,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -58,6 +58,7 @@ export default function CreateTask() {
   const { user, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   
   const [activeTab, setActiveTab] = useState<"add-task" | "my-task">("add-task");
   const [taskType, setTaskType] = useState<"channel" | "bot" | null>(null);
@@ -71,6 +72,23 @@ export default function CreateTask() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [showVerifyInfo, setShowVerifyInfo] = useState(false);
+
+  // Prevent auto-scroll when task type changes
+  useEffect(() => {
+    if (taskType) {
+      // Prevent any scroll behavior
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      if (scrollContainer) {
+        const currentScroll = scrollContainer.scrollTop;
+        scrollContainer.scrollTop = currentScroll;
+        
+        // Force scroll position to stay at current position
+        requestAnimationFrame(() => {
+          scrollContainer.scrollTop = currentScroll;
+        });
+      }
+    }
+  }, [taskType]);
 
   const costPerClick = 0.0003;
   const rewardPerClick = 0.000175;
@@ -104,7 +122,7 @@ export default function CreateTask() {
       return data;
     },
     onSuccess: (data) => {
-      showNotification("Task created successfully ✅", "success");
+      showNotification("Task created successfully", "success");
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
@@ -273,7 +291,7 @@ export default function CreateTask() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 mt-6 pb-6">
+      <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <PlusCircle className="w-6 h-6 text-primary" />
@@ -584,10 +602,7 @@ export default function CreateTask() {
 
         {/* Add More Clicks Dialog */}
         <Dialog open={isAddClicksDialogOpen} onOpenChange={setIsAddClicksDialogOpen}>
-          <DialogContent 
-            className="sm:max-w-md max-h-[90vh] flex flex-col frosted-glass border border-white/10 rounded-2xl p-0 overflow-hidden"
-            onInteractOutside={(e) => e.preventDefault()}
-          >
+          <DialogContent className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl">
             <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
               <DialogTitle>Add More Clicks</DialogTitle>
             </DialogHeader>
@@ -616,23 +631,6 @@ export default function CreateTask() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Minimum 500 clicks
                   </p>
-                </div>
-
-                <div className="bg-secondary/50 rounded-lg p-3 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Cost per click:</span>
-                    <span className="text-white">0.0003 TON</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-semibold">
-                    <span className="text-muted-foreground">Total cost:</span>
-                    <span className="text-white">{additionalCostTON.toFixed(4)} TON</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Your TON balance:</span>
-                    <span className={`${tonBalance >= additionalCostTON ? "text-green-500" : "text-red-500"}`}>
-                      {tonBalance.toFixed(4)} TON
-                    </span>
-                  </div>
                 </div>
               </div>
             )}
