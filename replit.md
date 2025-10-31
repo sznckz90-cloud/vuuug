@@ -10,6 +10,34 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**October 30, 2025 - Create Task Page Routing Fix**
+
+*Bug Fix:*
+*   **Issue**: Task create page was not accessible - clicking "+Task" button resulted in a blank/loading screen
+*   **Root Cause**: CreateTask component was not imported and no route was defined for `/create-task` in App.tsx
+*   **Fix Applied**: 
+    - Added lazy import for CreateTask component in App.tsx
+    - Added route definition for `/create-task` path in the Router component
+*   **Status**: ✅ Task create page now loads correctly and is fully functional
+
+**October 30, 2025 - Pending Withdrawals Admin Button Added**
+
+*Telegram Bot Admin Panel Enhancement:*
+*   **New Feature**: Added "Pending Withdrawals" button to the `/szxzyz` admin panel
+*   **Button Location**: Appears below the "Announce" and "Refresh" buttons in the admin control panel
+*   **Functionality**:
+    - Fetches all pending withdrawal requests from the database
+    - Displays each withdrawal with user information, amount, method, wallet address, and creation date
+    - Shows "Approve" and "Reject" buttons for each withdrawal request
+    - Implements pagination for handling more than 10 pending requests (10 per page with Previous/Next buttons)
+    - Shows "No pending withdrawal requests found" message when there are no pending withdrawals
+*   **Admin Actions**:
+    - Click "Approve" to approve a withdrawal (user receives notification with payment confirmation)
+    - Click "Reject" to reject a withdrawal (admin is prompted to enter rejection reason, user receives notification)
+*   **Security**: Only admins (verified via TELEGRAM_ADMIN_ID) can access and use this feature
+*   **Testing**: Architect verified implementation follows existing patterns and has no security issues
+*   **Status**: ✅ Complete and ready for production use
+
 **October 30, 2025 - Task System UX Improvements & Notification Standardization**
 
 *Task System UX Enhancements:*
