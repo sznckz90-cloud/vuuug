@@ -815,6 +815,7 @@ function SettingsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
+  const [isTogglingSeason, setIsTogglingSeason] = useState(false);
   
   // Fetch current settings
   const { data: settingsData, isLoading } = useQuery({
@@ -822,14 +823,32 @@ function SettingsSection() {
     queryFn: () => apiRequest("GET", "/api/admin/settings").then(res => res.json()),
   });
   
-  const [dailyAdLimit, setDailyAdLimit] = useState('50');
-  const [rewardPerAd, setRewardPerAd] = useState('1000');
+  const [settings, setSettings] = useState({
+    dailyAdLimit: '50',
+    rewardPerAd: '1000',
+    affiliateCommission: '10',
+    walletChangeFee: '0.01',
+    minimumWithdrawal: '0.5',
+    taskPerClickReward: '0.0001750',
+    taskCreationCost: '0.0003',
+    minimumConvert: '0.01',
+    seasonBroadcastActive: false
+  });
   
   // Update form when settings data loads
   useEffect(() => {
     if (settingsData) {
-      setDailyAdLimit(settingsData.dailyAdLimit?.toString() || '50');
-      setRewardPerAd(settingsData.rewardPerAd?.toString() || '1000');
+      setSettings({
+        dailyAdLimit: settingsData.dailyAdLimit?.toString() || '50',
+        rewardPerAd: settingsData.rewardPerAd?.toString() || '1000',
+        affiliateCommission: settingsData.affiliateCommission?.toString() || '10',
+        walletChangeFee: settingsData.walletChangeFee?.toString() || '0.01',
+        minimumWithdrawal: settingsData.minimumWithdrawal?.toString() || '0.5',
+        taskPerClickReward: settingsData.taskPerClickReward?.toString() || '0.0001750',
+        taskCreationCost: settingsData.taskCreationCost?.toString() || '0.0003',
+        minimumConvert: settingsData.minimumConvert?.toString() || '0.01',
+        seasonBroadcastActive: settingsData.seasonBroadcastActive || false
+      });
     }
   }, [settingsData]);
   
