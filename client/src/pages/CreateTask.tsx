@@ -123,11 +123,8 @@ export default function CreateTask() {
 
   const increaseClicksMutation = useMutation({
     mutationFn: async ({ taskId, clicks }: { taskId: string; clicks: number }) => {
-      const response = await fetch(`/api/advertiser-tasks/${taskId}/increase-limit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ additionalClicks: clicks }),
+      const response = await apiRequest("POST", `/api/advertiser-tasks/${taskId}/increase-limit`, {
+        additionalClicks: clicks
       });
       const data = await response.json();
       if (!data.success) {
@@ -150,10 +147,7 @@ export default function CreateTask() {
 
   const deleteTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      const response = await fetch(`/api/advertiser-tasks/${taskId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const response = await apiRequest("DELETE", `/api/advertiser-tasks/${taskId}`);
       const data = await response.json();
       if (!data.success) {
         throw new Error(data.message);
@@ -180,11 +174,8 @@ export default function CreateTask() {
 
     setIsVerifying(true);
     try {
-      const response = await fetch("/api/advertiser-tasks/verify-channel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ channelLink: link }),
+      const response = await apiRequest("POST", "/api/advertiser-tasks/verify-channel", {
+        channelLink: link
       });
       const data = await response.json();
       
@@ -275,25 +266,15 @@ export default function CreateTask() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 mt-6 pb-24">
-        <div className="mb-6 flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setLocation("/tasks")}
-            className="text-muted-foreground hover:text-white"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <PlusCircle className="w-6 h-6 text-primary" />
-              Create Task
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Promote your channel or bot
-            </p>
-          </div>
+      <main className="max-w-md mx-auto px-4 mt-6 pb-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <PlusCircle className="w-6 h-6 text-primary" />
+            Create Task
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Promote your channel or bot
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
@@ -314,8 +295,8 @@ export default function CreateTask() {
             variant="outline"
             className={`h-auto py-3 transition-all font-bold text-sm ${
               activeTab === "my-task" 
-                ? "bg-gradient-to-r from-pink-500/20 to-purple-500/20 border-pink-500 text-pink-300 shadow-lg shadow-pink-500/20" 
-                : "hover:bg-pink-500/10 hover:border-pink-500/50 text-muted-foreground"
+                ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/20" 
+                : "hover:bg-blue-500/10 hover:border-blue-500/50 text-muted-foreground"
             }`}
             onClick={() => setActiveTab("my-task")}
           >
@@ -333,8 +314,8 @@ export default function CreateTask() {
                   variant="outline"
                   className={`h-auto py-2.5 flex items-center justify-center gap-2 transition-all ${
                     taskType === "channel" 
-                      ? "bg-purple-500/20 border-purple-500 text-purple-400 hover:bg-purple-500/30" 
-                      : "hover:bg-purple-500/10 hover:border-purple-500/50"
+                      ? "bg-blue-500/20 border-blue-500 text-blue-400 hover:bg-blue-500/30" 
+                      : "hover:bg-blue-500/10 hover:border-blue-500/50"
                   }`}
                   onClick={() => {
                     setTaskType("channel");
@@ -424,11 +405,6 @@ export default function CreateTask() {
                         <Info className="w-4 h-4" />
                       </Button>
                     </div>
-                    {!isVerified && (
-                      <p className="text-xs text-yellow-500">
-                        ⚠️ Channel verification required before creating task
-                      </p>
-                    )}
                   </div>
                 )}
 
@@ -455,22 +431,12 @@ export default function CreateTask() {
                     <span className="text-white">0.0003 TON</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total clicks:</span>
-                    <span className="text-white">{clicksNum.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Reward per click:</span>
                     <span className="text-white">{Math.floor(rewardPerClick * 10000000).toLocaleString()} PAD</span>
                   </div>
-                  <div className="flex justify-between text-sm font-semibold border-t border-border pt-1 mt-1">
+                  <div className="flex justify-between text-sm font-semibold">
                     <span className="text-muted-foreground">Total cost:</span>
                     <span className="text-white">{totalCostTON.toFixed(4)} TON</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Your TON balance:</span>
-                    <span className={`${tonBalance >= totalCostTON ? "text-green-500" : "text-red-500"}`}>
-                      {tonBalance.toFixed(4)} TON
-                    </span>
                   </div>
                 </div>
 
@@ -723,7 +689,7 @@ export default function CreateTask() {
               <AlertDialogTitle>Channel Verification</AlertDialogTitle>
               <AlertDialogDescription className="space-y-3 text-sm">
                 <p>
-                  Please add <a href="https://t.me/PaidAdsCommunity" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@Paid_AdzBot</a> as an administrator to your channel.
+                  Please add <a href="https://t.me/Paid_Adzbot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@Paid_Adzbot</a> as an administrator to your channel.
                 </p>
                 <p>
                   This integration allows our system to automatically validate member activity, providing real-time verification, authentic engagement, and superior campaign performance.

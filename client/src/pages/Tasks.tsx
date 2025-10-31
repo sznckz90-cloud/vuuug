@@ -81,6 +81,22 @@ export default function Tasks() {
   });
 
   const handleTaskClick = async (task: Task) => {
+    // Validate that task has a link
+    if (!task.link || task.link.trim() === '') {
+      showNotification("Task link is missing or invalid", "error");
+      return;
+    }
+
+    // Validate URL is safe (http/https or t.me links only)
+    const isValidUrl = task.link.startsWith('http://') || 
+                       task.link.startsWith('https://') || 
+                       task.link.includes('t.me/');
+    
+    if (!isValidUrl) {
+      showNotification("Invalid or unsafe task link", "error");
+      return;
+    }
+
     // If already clicked, complete the task
     if (clickedTasks.has(task.id)) {
       clickTaskMutation.mutate(task.id);
