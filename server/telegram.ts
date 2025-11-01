@@ -292,7 +292,7 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
 📈 Start earning now and watch your balance grow every day.`;
 
   // Get the app URL from environment variables
-  const appUrl = process.env.RENDER_EXTERNAL_URL || "https://lighting-sats-app.onrender.com";
+  const appUrl = process.env.RENDER_EXTERNAL_URL || "https://vuuug.onrender.com";
 
   const inlineKeyboard = {
     inline_keyboard: [
@@ -954,7 +954,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         
         // Get app URL from environment variables
         const appUrl = process.env.RENDER_EXTERNAL_URL || 
-                      (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://lighting-sats-app.onrender.com');
+                      (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://vuuug.onrender.com');
         
         // Create inline buttons for broadcast message (stacked vertically)
         const broadcastButtons = {
