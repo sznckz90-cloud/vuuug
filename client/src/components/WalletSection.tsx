@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { TonCoinIcon } from "@/components/TonCoinIcon";
@@ -17,6 +17,11 @@ interface WalletSectionProps {
 
 export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, onAdminClick, onWithdraw }: WalletSectionProps) {
   const queryClient = useQueryClient();
+
+  const { data: appSettings } = useQuery<any>({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+  });
 
   const convertMutation = useMutation({
     mutationFn: async (amount: number) => {
@@ -54,8 +59,11 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
   });
 
   const handleConvert = () => {
-    if (padBalance < 10000) {
-      showNotification("Minimum 10,000 PAD required to convert.", "error");
+    const minimumConvertTON = parseFloat(appSettings?.minimumConvert || 0.01);
+    const minimumConvertPAD = Math.round(minimumConvertTON * 10000000);
+    
+    if (padBalance < minimumConvertPAD) {
+      showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required to convert.`, "error");
       return;
     }
 
