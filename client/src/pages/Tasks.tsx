@@ -135,18 +135,21 @@ export default function Tasks() {
     
     // Add https:// prefix if the link doesn't start with http://, https://, or tg://
     if (!linkToOpen.startsWith('http://') && !linkToOpen.startsWith('https://') && !linkToOpen.startsWith('tg://')) {
-      // If it's a t.me link without protocol, add https://
-      if (linkToOpen.startsWith('t.me/') || linkToOpen.includes('t.me/')) {
-        linkToOpen = 'https://' + linkToOpen.replace(/^\/+/, '');
+      // If it's a t.me or telegram.me link without protocol, add https://
+      if (linkToOpen.match(/^(t\.me|telegram\.me)\//)) {
+        linkToOpen = 'https://' + linkToOpen;
       } else {
         // For other links, add https://
         linkToOpen = 'https://' + linkToOpen;
       }
     }
     
-    // Convert t.me links to tg:// protocol for better Telegram integration
-    if (linkToOpen.includes('t.me/')) {
-      const match = linkToOpen.match(/t\.me\/([^/?]+)/);
+    // Convert t.me/telegram.me links to tg:// protocol for better Telegram integration
+    // BUT skip invite links (/joinchat/ or /+) as they need to stay as https://
+    const isInviteLink = linkToOpen.includes('/joinchat/') || linkToOpen.includes('/+');
+    
+    if (!isInviteLink && (linkToOpen.includes('t.me/') || linkToOpen.includes('telegram.me/'))) {
+      const match = linkToOpen.match(/(?:t\.me|telegram\.me)\/([^/?]+)/);
       if (match && match[1]) {
         const username = match[1];
         linkToOpen = `tg://resolve?domain=${username}`;
@@ -154,45 +157,32 @@ export default function Tasks() {
     }
 
     // Open the link immediately
-    try {
-      let opened = false;
-      
-      // Try Telegram WebApp methods first
-      if (window.Telegram?.WebApp) {
-        if (linkToOpen.startsWith('tg://')) {
-          // For Telegram links, use openTelegramLink if available
-          if (window.Telegram.WebApp.openTelegramLink) {
-            window.Telegram.WebApp.openTelegramLink(linkToOpen);
-            opened = true;
-          }
-        } else {
-          // For external links, use openLink
-          if (window.Telegram.WebApp.openLink) {
-            window.Telegram.WebApp.openLink(linkToOpen);
-            opened = true;
-          }
+    let opened = false;
+    
+    // Try Telegram WebApp methods first
+    if (window.Telegram?.WebApp) {
+      if (linkToOpen.startsWith('tg://')) {
+        // For Telegram links, use openTelegramLink if available
+        if (window.Telegram.WebApp.openTelegramLink) {
+          window.Telegram.WebApp.openTelegramLink(linkToOpen);
+          opened = true;
+        }
+      } else {
+        // For external links, use openLink
+        if (window.Telegram.WebApp.openLink) {
+          window.Telegram.WebApp.openLink(linkToOpen);
+          opened = true;
         }
       }
-      
-      // Fallback to window.open
-      if (!opened) {
-        const newWindow = window.open(linkToOpen, "_blank");
-        // Give the popup a moment to open
-        setTimeout(() => {
-          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-            showNotification("Please allow popups to complete tasks", "error");
-          }
-        }, 100);
-        opened = true;
-      }
-
-      // Mark as clicked
-      setClickedTasks(prev => new Set(prev).add(task.id));
-      
-    } catch (error) {
-      console.error("Failed to open link:", error);
-      showNotification("Failed to open link. Please try again.", "error");
     }
+    
+    // Fallback to window.open
+    if (!opened) {
+      window.open(linkToOpen, "_blank");
+    }
+
+    // Mark as clicked so button changes to "Check"
+    setClickedTasks(prev => new Set(prev).add(task.id));
   };
 
   if (isLoading) {
