@@ -2471,6 +2471,70 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: "Task has reached its click limit" };
       }
 
+      // Verify channel membership for channel tasks
+      if (task.taskType === "channel") {
+        // Get the publisher's (clicking user's) telegram ID
+        const [publisher] = await db
+          .select({ telegramId: users.telegram_id })
+          .from(users)
+          .where(eq(users.id, publisherId));
+
+        if (!publisher || !publisher.telegramId) {
+          return { success: false, message: "User Telegram ID not found" };
+        }
+
+        // Extract channel username from task link - handle various URL formats
+        const cleanLink = task.link.split('?')[0].replace(/\/$/, '');
+        
+        // Check if this is a Telegram invite link (must be from t.me or telegram.me)
+        const isTelegramDomain = cleanLink.match(/https?:\/\/(t\.me|telegram\.me)\//);
+        const hasInvitePattern = cleanLink.includes('/joinchat/') || cleanLink.includes('/+');
+        const isInviteLink = isTelegramDomain && hasInvitePattern;
+        
+        if (!isTelegramDomain) {
+          // Not a Telegram link at all - reject
+          console.warn(`⚠️ Task ${task.id} has non-Telegram link: ${task.link}`);
+          return { success: false, message: "Only Telegram links (t.me or telegram.me) are allowed" };
+        }
+        
+        if (isInviteLink) {
+          // Telegram invite links cannot be verified via username-based membership check
+          // Skip verification for invite links with a warning
+          console.warn(`⚠️ Task ${task.id} uses Telegram invite link - membership verification skipped for invite-only channels`);
+          console.log(`ℹ️ Allowing completion for Telegram invite link: ${task.link}`);
+          // Allow the task to complete - user must have the link to attempt it
+        } else {
+          // Regular channel link - extract username and verify membership
+          // Support both t.me and telegram.me domains
+          const usernameMatch = cleanLink.match(/(?:t\.me|telegram\.me)\/([^/?]+)/);
+          
+          if (!usernameMatch || !usernameMatch[1]) {
+            console.warn(`⚠️ Could not extract channel username from link: ${task.link}`);
+            return { success: false, message: "Invalid channel link format" };
+          }
+
+          const channelUsername = usernameMatch[1];
+          const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+          if (!botToken) {
+            console.warn('⚠️ TELEGRAM_BOT_TOKEN not configured - channel verification bypassed');
+            // In development or when bot token is missing, allow the click
+          } else {
+            // Verify that the publisher (clicking user) is a member of the channel
+            const { verifyChannelMembership } = await import('./telegram');
+            const isMember = await verifyChannelMembership(
+              parseInt(publisher.telegramId),
+              channelUsername,
+              botToken
+            );
+
+            if (!isMember) {
+              return { success: false, message: "You must join the channel first" };
+            }
+          }
+        }
+      }
+
       const rewardAmount = "0.0001750"; // 1750 PAD
 
       // Record the click

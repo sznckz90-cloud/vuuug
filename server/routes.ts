@@ -3172,25 +3172,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: { taskId: task.id, taskType, totalClicksRequired }
       });
 
-      // Send payment success notification to task creator
-      sendRealtimeUpdate(userId, {
-        type: 'taskPaymentSuccess',
-        message: `Payment successful! ${totalCost} TON deducted`,
-        tonBalance: newTonBalance,
-        task: {
-          id: task.id,
-          title: task.title,
-          totalCost: task.totalCost
-        }
-      });
-
       // Broadcast task creation to all users to update feed
       broadcastUpdate({
         type: 'task:created',
         task: task
       });
-
-      console.log('📡 WebSocket notifications sent for task creation');
 
       res.json({ 
         success: true, 
