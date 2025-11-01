@@ -10,6 +10,28 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**November 1, 2025 - Admin Settings Panel Enhancement**
+
+*Admin Dashboard Settings Expansion:*
+*   **New Configuration Options**: Added 6 new settings to the admin panel for comprehensive app control
+    - Affiliate Commission Control: Adjustable commission percentage for referrals (0-100%)
+    - Wallet Change Fee: Configurable fee for wallet address changes (in TON)
+    - Minimum Withdrawal Amount: Adjustable minimum withdrawal threshold (in TON)
+    - Task Per Click Reward: Configurable reward per task click (in TON)
+    - Task Creation Cost: Adjustable cost per click for creating tasks (in TON)
+    - Minimum Convert Amount: Configurable minimum for balance conversion (in TON)
+*   **UI Organization**: Settings organized into 5 categories:
+    - Ad & Reward Settings (Daily Ad Limit, Reward Per Ad)
+    - Affiliate & Wallet Settings (Commission %, Wallet Fee)
+    - Withdrawal & Conversion Settings (Min Withdrawal, Min Convert)
+    - Task Settings (Per Click Reward, Creation Cost)
+    - Broadcast Settings (Season Broadcast Toggle)
+*   **Validation**: Comprehensive validation for all fields with specific ranges and error messages
+*   **Backend Integration**: All settings already supported by backend `/api/admin/settings` endpoints
+*   **Bug Fix**: Restored season broadcast toggle functionality that was previously missing in UI
+*   **Testing**: Architect verified implementation is complete and correct
+*   **Status**: ✅ Complete and ready for production use
+
 **October 31, 2025 - Task System Security & UX Improvements + Ad Anti-Cheat**
 
 *Task System Enhancements:*
