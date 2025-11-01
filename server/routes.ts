@@ -1910,7 +1910,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumWithdrawal,
         taskPerClickReward,
         taskCreationCost,
-        minimumConvert
+        minimumConvert,
+        seasonBroadcastActive
       } = req.body;
       
       // Helper function to update a setting
@@ -1934,6 +1935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('task_per_click_reward', taskPerClickReward);
       await updateSetting('task_creation_cost', taskCreationCost);
       await updateSetting('minimum_convert', minimumConvert);
+      await updateSetting('season_broadcast_active', seasonBroadcastActive);
       
       res.json({ success: true, message: "Settings updated successfully" });
     } catch (error) {
