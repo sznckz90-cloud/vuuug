@@ -73,6 +73,11 @@ export default function CreateTask() {
   const [isVerified, setIsVerified] = useState(false);
   const [showVerifyInfo, setShowVerifyInfo] = useState(false);
 
+  const { data: appSettings } = useQuery<any>({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+  });
+
   // Prevent auto-scroll when task type changes
   useEffect(() => {
     if (taskType) {
@@ -91,10 +96,10 @@ export default function CreateTask() {
   }, [taskType]);
 
   const costPerClick = 0.0003;
-  const rewardPerClick = 0.000175;
+  const rewardPerClick = parseFloat(appSettings?.taskPerClickReward || 175);
   const clicksNum = parseInt(totalClicks) || 0;
   const totalCostTON = costPerClick * clicksNum;
-  const totalRewardsPAD = rewardPerClick * clicksNum * 10000000;
+  const totalRewardsPAD = rewardPerClick * clicksNum;
   const tonBalance = parseFloat((user as any)?.tonBalance || "0");
   const additionalCostTON = costPerClick * (parseInt(additionalClicks) || 0);
 

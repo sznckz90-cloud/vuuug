@@ -33,6 +33,11 @@ export default function Affiliates() {
     retry: false,
   });
 
+  const { data: appSettings } = useQuery({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+  });
+
   const claimMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch('/api/referrals/claim', {
@@ -126,7 +131,7 @@ export default function Affiliates() {
             </div>
             
             <p className="text-sm text-center text-white leading-relaxed mb-4">
-              Invite friends and get <span className="font-bold">10%</span> of every ads completed by your referrals automatically added to your balance
+              Invite friends and get <span className="font-bold">{appSettings?.affiliateCommission || 10}%</span> of every ads completed by your referrals automatically added to your balance
             </p>
             
             <div className="flex items-center gap-2 mb-3">

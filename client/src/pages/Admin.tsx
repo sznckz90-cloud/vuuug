@@ -827,9 +827,9 @@ function SettingsSection() {
     dailyAdLimit: '50',
     rewardPerAd: '1000',
     affiliateCommission: '10',
-    walletChangeFee: '0.01',
+    walletChangeFee: '5000',
     minimumWithdrawal: '0.5',
-    taskPerClickReward: '0.0001750',
+    taskPerClickReward: '175',
     taskCreationCost: '0.0003',
     minimumConvert: '0.01',
     seasonBroadcastActive: false
@@ -842,9 +842,9 @@ function SettingsSection() {
         dailyAdLimit: settingsData.dailyAdLimit?.toString() || '50',
         rewardPerAd: settingsData.rewardPerAd?.toString() || '1000',
         affiliateCommission: settingsData.affiliateCommission?.toString() || '10',
-        walletChangeFee: settingsData.walletChangeFee?.toString() || '0.01',
+        walletChangeFee: settingsData.walletChangeFee?.toString() || '5000',
         minimumWithdrawal: settingsData.minimumWithdrawal?.toString() || '0.5',
-        taskPerClickReward: settingsData.taskPerClickReward?.toString() || '0.0001750',
+        taskPerClickReward: settingsData.taskPerClickReward?.toString() || '175',
         taskCreationCost: settingsData.taskCreationCost?.toString() || '0.0003',
         minimumConvert: settingsData.minimumConvert?.toString() || '0.01',
         seasonBroadcastActive: settingsData.seasonBroadcastActive || false
@@ -1078,7 +1078,7 @@ function SettingsSection() {
             
             <div className="space-y-2">
               <Label htmlFor="wallet-change-fee" className="text-sm font-semibold">
-                Wallet Change Fee (TON)
+                Wallet Change Fee (PAD)
               </Label>
               <p className="text-xs text-muted-foreground">
                 Fee for changing wallet address
@@ -1086,14 +1086,14 @@ function SettingsSection() {
               <Input
                 id="wallet-change-fee"
                 type="number"
-                step="0.001"
+                step="100"
                 value={settings.walletChangeFee}
                 onChange={(e) => updateSetting('walletChangeFee', e.target.value)}
-                placeholder="0.01"
+                placeholder="5000"
                 min="0"
               />
               <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.walletChangeFee || 0.01} TON
+                Current: {settingsData?.walletChangeFee || 5000} PAD
               </p>
             </div>
           </div>
@@ -1159,7 +1159,7 @@ function SettingsSection() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="task-per-click-reward" className="text-sm font-semibold">
-                Task Per Click Reward (TON)
+                Task Per Click Reward (PAD)
               </Label>
               <p className="text-xs text-muted-foreground">
                 Reward per click on tasks
@@ -1167,14 +1167,14 @@ function SettingsSection() {
               <Input
                 id="task-per-click-reward"
                 type="number"
-                step="0.000001"
+                step="1"
                 value={settings.taskPerClickReward}
                 onChange={(e) => updateSetting('taskPerClickReward', e.target.value)}
-                placeholder="0.0001750"
+                placeholder="175"
                 min="0"
               />
               <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.taskPerClickReward || 0.0001750} TON
+                Current: {settingsData?.taskPerClickReward || 175} PAD
               </p>
             </div>
             
