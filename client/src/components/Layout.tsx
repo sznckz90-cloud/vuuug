@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Home, CheckSquare, Users, ClipboardList } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
+import { useSeasonEnd } from "@/lib/SeasonEndContext";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { isConnected } = useWebSocket();
   const { isAdmin } = useAdmin();
+  const { showSeasonEnd } = useSeasonEnd();
 
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
@@ -31,8 +33,8 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="h-screen w-full flex flex-col bg-black overflow-hidden">
-      {/* Header - Fixed */}
-      <Header />
+      {/* Header - Fixed - Hidden when season end is shown */}
+      {!showSeasonEnd && <Header />}
       
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto scrollbar-hide" style={{ paddingBottom: '88px', paddingTop: '60px' }}>
@@ -52,38 +54,40 @@ export default function Layout({ children }: LayoutProps) {
         </AnimatePresence>
       </div>
 
-      {/* Bottom Navigation - Fixed */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A]">
-        <div className="max-w-md mx-auto px-4">
-          <div className="flex justify-around items-center py-3">
-            {navItems.map((item) => {
-              const isActive = location === item.href;
-              const Icon = item.icon;
-              
-              return (
-                <Link key={item.href} href={item.href}>
-                  <button
-                    className={`flex flex-col items-center justify-center gap-1 min-w-[60px] transition-all ${
-                      isActive 
-                        ? "text-[#007BFF]" 
-                        : "text-[#AAAAAA] hover:text-[#FFFFFF]"
-                    }`}
-                    data-testid={`link-${item.label.toLowerCase()}`}
-                  >
-                    <Icon 
-                      className={`w-6 h-6 transition-all`}
-                      strokeWidth={isActive ? 2.5 : 2}
-                    />
-                    <span className={`text-xs font-medium ${isActive ? 'font-semibold' : ''}`}>
-                      {item.label}
-                    </span>
-                  </button>
-                </Link>
-              );
-            })}
+      {/* Bottom Navigation - Fixed - Hidden when season end is shown */}
+      {!showSeasonEnd && (
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A]">
+          <div className="max-w-md mx-auto px-4">
+            <div className="flex justify-around items-center py-3">
+              {navItems.map((item) => {
+                const isActive = location === item.href;
+                const Icon = item.icon;
+                
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <button
+                      className={`flex flex-col items-center justify-center gap-1 min-w-[60px] transition-all ${
+                        isActive 
+                          ? "text-[#007BFF]" 
+                          : "text-[#AAAAAA] hover:text-[#FFFFFF]"
+                      }`}
+                      data-testid={`link-${item.label.toLowerCase()}`}
+                    >
+                      <Icon 
+                        className={`w-6 h-6 transition-all`}
+                        strokeWidth={isActive ? 2.5 : 2}
+                      />
+                      <span className={`text-xs font-medium ${isActive ? 'font-semibold' : ''}`}>
+                        {item.label}
+                      </span>
+                    </button>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      )}
     </div>
   );
 }
