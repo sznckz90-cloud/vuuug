@@ -11,6 +11,7 @@ import {
   dailyTasks,
   advertiserTasks,
   taskClicks,
+  adminSettings,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -130,6 +131,7 @@ export interface IStorage {
     totalPayouts: string;
     newUsersLast24h: number;
   }>;
+  getAppSetting(key: string, defaultValue?: any): Promise<string | null>;
   
   // Task management operations
   createTask(task: InsertAdvertiserTask): Promise<AdvertiserTask>;
@@ -1537,6 +1539,19 @@ export class DatabaseStorage implements IStorage {
       totalPayouts: totalPayoutsResult.total || '0',
       newUsersLast24h: newUsersResult.count || 0,
     };
+  }
+
+  async getAppSetting(key: string, defaultValue?: any): Promise<string | null> {
+    try {
+      const result = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, key)).limit(1);
+      if (result.length > 0 && result[0]?.settingValue) {
+        return result[0].settingValue;
+      }
+      return defaultValue !== undefined ? String(defaultValue) : null;
+    } catch (error) {
+      console.error(`Error fetching app setting '${key}':`, error);
+      return defaultValue !== undefined ? String(defaultValue) : null;
+    }
   }
 
   // Withdrawal operations (missing implementations)
