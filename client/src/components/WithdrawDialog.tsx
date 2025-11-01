@@ -34,8 +34,13 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     staleTime: 0,
   });
 
+  const { data: appSettings } = useQuery<any>({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+  });
+
   const tonBalance = parseFloat(user?.tonBalance || "0");
-  const MINIMUM_WITHDRAWAL = 0.001;
+  const MINIMUM_WITHDRAWAL = parseFloat(appSettings?.minimumWithdrawal || 0.001);
   const friendsInvited = user?.friendsInvited || 0;
   const MINIMUM_FRIENDS_REQUIRED = 3;
 
@@ -113,7 +118,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     if (tonBalance < MINIMUM_WITHDRAWAL) {
       toast({
         title: "Insufficient balance",
-        description: "You need at least 0.001 TON to withdraw.",
+        description: `You need at least ${MINIMUM_WITHDRAWAL} TON to withdraw.`,
         variant: "destructive",
       });
       return;

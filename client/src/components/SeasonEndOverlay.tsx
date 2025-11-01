@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Lock } from "lucide-react";
 
 interface SeasonEndOverlayProps {
   onClose: () => void;
+  isLocked?: boolean;
 }
 
-export default function SeasonEndOverlay({ onClose }: SeasonEndOverlayProps) {
+export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEndOverlayProps) {
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
+    if (isLocked) {
+      return;
+    }
     setIsClosing(true);
     setTimeout(() => {
       onClose();
@@ -39,16 +43,31 @@ export default function SeasonEndOverlay({ onClose }: SeasonEndOverlayProps) {
 
             <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 mb-6">
               <p className="text-white text-sm leading-relaxed">
-                Thank you for participating in Season 1! We're preparing exciting new features and rewards for Season 2. Stay tuned for announcements!
+                {isLocked ? (
+                  <>
+                    Season 1 has ended and the app is temporarily locked. Please wait for Season 2 announcement. The app will be available again once Season 2 begins.
+                  </>
+                ) : (
+                  <>
+                    Thank you for participating in Season 1! We're preparing exciting new features and rewards for Season 2. Stay tuned for announcements!
+                  </>
+                )}
               </p>
             </div>
 
-            <Button
-              onClick={handleClose}
-              className="w-full bg-white text-orange-600 hover:bg-white/90 font-bold text-lg py-6 rounded-xl shadow-lg"
-            >
-              Got It!
-            </Button>
+            {isLocked ? (
+              <div className="w-full bg-white/30 text-white font-bold text-lg py-6 rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-not-allowed">
+                <Lock className="w-5 h-5" />
+                App Locked
+              </div>
+            ) : (
+              <Button
+                onClick={handleClose}
+                className="w-full bg-white text-orange-600 hover:bg-white/90 font-bold text-lg py-6 rounded-xl shadow-lg"
+              >
+                Got It!
+              </Button>
+            )}
           </div>
         </div>
       </div>

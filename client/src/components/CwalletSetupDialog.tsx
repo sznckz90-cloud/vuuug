@@ -23,6 +23,13 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     retry: false,
   });
 
+  const { data: appSettings } = useQuery<any>({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+  });
+
+  const walletChangeFee = appSettings?.walletChangeFee || 5000;
+
   useEffect(() => {
     if (user?.cwalletId) {
       setCwalletId(user.cwalletId);
@@ -173,7 +180,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
               <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
                 <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-[#c0c0c0]">
-                  Fee: <span className="text-[#4cd3ff] font-semibold">5000 PAD</span> will be deducted from your balance
+                  Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted from your balance
                 </div>
               </div>
             </>
@@ -250,7 +257,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
                 disabled={changeWalletMutation.isPending}
                 className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
               >
-                {changeWalletMutation.isPending ? "Processing..." : "Pay 5000 PAD & Confirm"}
+                {changeWalletMutation.isPending ? "Processing..." : `Pay ${walletChangeFee} PAD & Confirm`}
               </Button>
             </>
           ) : (
