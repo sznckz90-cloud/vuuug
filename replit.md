@@ -10,6 +10,31 @@ CashWatch is a React-based web application that allows users to earn cryptocurre
 
 # Recent Changes
 
+**November 1, 2025 - Season End Screen Fixes & Bug Resolutions**
+
+*Season End Screen Improvements:*
+*   **Admin Exclusion**: Season end screen will no longer be shown to admins when `seasonBroadcastActive` is enabled
+*   **UI Cleanup**: Header (logo/profile photo) and bottom navigation are now hidden when season end screen is displayed to regular users
+*   **Context-Based Implementation**: Created `SeasonEndContext` to manage season end state throughout the app
+*   **Status**: ✅ Complete and tested
+
+*Bug Fixes:*
+*   **PAD → TON Conversion**: Fixed hardcoded minimum (10,000 PAD) to use dynamic `appSettings.minimumConvert` value from admin panel
+    - Now uses formula: `minimumConvert (TON) * 10,000,000 = minimum PAD required`
+    - Conversion respects admin-configured minimum values in real-time
+*   **Task Start Button**: Verified working correctly - opens channel/bot links using proper Telegram WebApp methods
+    - Supports `tg://` protocol for Telegram channels
+    - Handles external links with proper fallbacks
+    - Auto-prefixes https:// when missing
+*   **Withdrawal Button**: Verified working correctly - submits withdrawal requests with all validations
+    - Checks minimum withdrawal amount from admin settings
+    - Validates friend invite requirements
+    - Prevents duplicate pending withdrawals
+*   **Affiliate Percentage**: Verified displaying correctly from `appSettings.affiliateCommission`
+    - Dynamically fetches from admin settings
+    - Updates instantly when admin changes the value
+*   **Status**: ✅ All 4 reported issues resolved and verified
+
 **November 1, 2025 - Admin Settings Panel Enhancement**
 
 *Admin Dashboard Settings Expansion:*
