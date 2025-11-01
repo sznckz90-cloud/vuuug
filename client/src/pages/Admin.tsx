@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -815,7 +816,6 @@ function SettingsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
-  const [isTogglingSeason, setIsTogglingSeason] = useState(false);
   
   // Fetch current settings
   const { data: settingsData, isLoading } = useQuery({
@@ -852,13 +852,24 @@ function SettingsSection() {
     }
   }, [settingsData]);
   
+  const updateSetting = (key: string, value: string) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+  
   const handleSaveSettings = async () => {
-    const adLimit = parseInt(dailyAdLimit);
-    const reward = parseInt(rewardPerAd);
+    // Validation
+    const adLimit = parseInt(settings.dailyAdLimit);
+    const reward = parseInt(settings.rewardPerAd);
+    const affiliateCommission = parseFloat(settings.affiliateCommission);
+    const walletChangeFee = parseFloat(settings.walletChangeFee);
+    const minimumWithdrawal = parseFloat(settings.minimumWithdrawal);
+    const taskPerClickReward = parseFloat(settings.taskPerClickReward);
+    const taskCreationCost = parseFloat(settings.taskCreationCost);
+    const minimumConvert = parseFloat(settings.minimumConvert);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
-        title: "⚠️ Validation Error",
+        title: "Validation Error",
         description: "Daily ad limit must be a positive number",
         variant: "destructive",
       });
@@ -867,8 +878,62 @@ function SettingsSection() {
     
     if (isNaN(reward) || reward <= 0) {
       toast({
-        title: "⚠️ Validation Error",
+        title: "Validation Error",
         description: "Reward per ad must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(affiliateCommission) || affiliateCommission < 0 || affiliateCommission > 100) {
+      toast({
+        title: "Validation Error",
+        description: "Affiliate commission must be between 0 and 100",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(walletChangeFee) || walletChangeFee < 0) {
+      toast({
+        title: "Validation Error",
+        description: "Wallet change fee must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(minimumWithdrawal) || minimumWithdrawal <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Minimum withdrawal must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(taskPerClickReward) || taskPerClickReward <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Task per click reward must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(taskCreationCost) || taskCreationCost <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Task creation cost must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isNaN(minimumConvert) || minimumConvert <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Minimum convert amount must be a positive number",
         variant: "destructive",
       });
       return;
@@ -878,14 +943,21 @@ function SettingsSection() {
     try {
       const response = await apiRequest('PUT', '/api/admin/settings', {
         dailyAdLimit: adLimit,
-        rewardPerAd: reward
+        rewardPerAd: reward,
+        affiliateCommission: affiliateCommission,
+        walletChangeFee: walletChangeFee,
+        minimumWithdrawal: minimumWithdrawal,
+        taskPerClickReward: taskPerClickReward,
+        taskCreationCost: taskCreationCost,
+        minimumConvert: minimumConvert,
+        seasonBroadcastActive: settings.seasonBroadcastActive
       });
       
       const result = await response.json();
       
       if (result.success) {
         toast({
-          title: "✅ Settings Updated",
+          title: "Settings Updated",
           description: "App settings have been updated successfully",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
@@ -894,7 +966,7 @@ function SettingsSection() {
       }
     } catch (error: any) {
       toast({
-        title: "❌ Error",
+        title: "Error",
         description: error.message || "Failed to update settings",
         variant: "destructive",
       });
@@ -922,55 +994,233 @@ function SettingsSection() {
           App Settings
         </CardTitle>
         <p className="text-sm text-muted-foreground mt-2">
-          Configure app-wide settings for ad limits and reward amounts
+          Configure app-wide settings including ad limits, rewards, fees, and task parameters
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Daily Ad Limit Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="daily-ad-limit" className="text-base font-semibold">
-              <i className="fas fa-calendar-day mr-2 text-orange-600"></i>
-              Daily Ad Limit
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Maximum number of ads a user can watch per day
-            </p>
-            <Input
-              id="daily-ad-limit"
-              type="number"
-              value={dailyAdLimit}
-              onChange={(e) => setDailyAdLimit(e.target.value)}
-              placeholder="50"
-              min="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.dailyAdLimit || 50} ads per day
-            </p>
+        {/* Ad & Reward Settings */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
+            <i className="fas fa-video mr-2 text-blue-600"></i>
+            Ad & Reward Settings
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="daily-ad-limit" className="text-sm font-semibold">
+                Daily Ad Limit
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Maximum ads per user per day
+              </p>
+              <Input
+                id="daily-ad-limit"
+                type="number"
+                value={settings.dailyAdLimit}
+                onChange={(e) => updateSetting('dailyAdLimit', e.target.value)}
+                placeholder="50"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.dailyAdLimit || 50} ads
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="reward-per-ad" className="text-sm font-semibold">
+                Reward Per Ad (PAD)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                PAD tokens per ad watched
+              </p>
+              <Input
+                id="reward-per-ad"
+                type="number"
+                value={settings.rewardPerAd}
+                onChange={(e) => updateSetting('rewardPerAd', e.target.value)}
+                placeholder="1000"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.rewardPerAd || 1000} PAD
+              </p>
+            </div>
           </div>
-          
-          {/* Reward Per Ad Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="reward-per-ad" className="text-base font-semibold">
-              <i className="fas fa-gem mr-2 text-purple-600"></i>
-              Reward Per Ad (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Amount of PAD tokens awarded for watching one ad
-            </p>
-            <Input
-              id="reward-per-ad"
-              type="number"
-              value={rewardPerAd}
-              onChange={(e) => setRewardPerAd(e.target.value)}
-              placeholder="1000"
-              min="1"
-              className="text-lg font-semibold"
+        </div>
+
+        {/* Affiliate & Wallet Settings */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
+            <i className="fas fa-users mr-2 text-green-600"></i>
+            Affiliate & Wallet Settings
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="affiliate-commission" className="text-sm font-semibold">
+                Affiliate Commission (%)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Commission percentage for referrals
+              </p>
+              <Input
+                id="affiliate-commission"
+                type="number"
+                step="0.1"
+                value={settings.affiliateCommission}
+                onChange={(e) => updateSetting('affiliateCommission', e.target.value)}
+                placeholder="10"
+                min="0"
+                max="100"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.affiliateCommission || 10}%
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="wallet-change-fee" className="text-sm font-semibold">
+                Wallet Change Fee (TON)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Fee for changing wallet address
+              </p>
+              <Input
+                id="wallet-change-fee"
+                type="number"
+                step="0.001"
+                value={settings.walletChangeFee}
+                onChange={(e) => updateSetting('walletChangeFee', e.target.value)}
+                placeholder="0.01"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.walletChangeFee || 0.01} TON
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Withdrawal & Conversion Settings */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
+            <i className="fas fa-wallet mr-2 text-purple-600"></i>
+            Withdrawal & Conversion Settings
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="minimum-withdrawal" className="text-sm font-semibold">
+                Minimum Withdrawal (TON)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Minimum amount for withdrawal
+              </p>
+              <Input
+                id="minimum-withdrawal"
+                type="number"
+                step="0.01"
+                value={settings.minimumWithdrawal}
+                onChange={(e) => updateSetting('minimumWithdrawal', e.target.value)}
+                placeholder="0.5"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.minimumWithdrawal || 0.5} TON
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="minimum-convert" className="text-sm font-semibold">
+                Minimum Convert Amount (TON)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Minimum for balance conversion
+              </p>
+              <Input
+                id="minimum-convert"
+                type="number"
+                step="0.001"
+                value={settings.minimumConvert}
+                onChange={(e) => updateSetting('minimumConvert', e.target.value)}
+                placeholder="0.01"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.minimumConvert || 0.01} TON
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Task Settings */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
+            <i className="fas fa-tasks mr-2 text-orange-600"></i>
+            Task Settings
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-per-click-reward" className="text-sm font-semibold">
+                Task Per Click Reward (TON)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Reward per click on tasks
+              </p>
+              <Input
+                id="task-per-click-reward"
+                type="number"
+                step="0.000001"
+                value={settings.taskPerClickReward}
+                onChange={(e) => updateSetting('taskPerClickReward', e.target.value)}
+                placeholder="0.0001750"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.taskPerClickReward || 0.0001750} TON
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="task-creation-cost" className="text-sm font-semibold">
+                Task Creation Cost (TON)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Cost per click for task creation
+              </p>
+              <Input
+                id="task-creation-cost"
+                type="number"
+                step="0.00001"
+                value={settings.taskCreationCost}
+                onChange={(e) => updateSetting('taskCreationCost', e.target.value)}
+                placeholder="0.0003"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.taskCreationCost || 0.0003} TON
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Broadcast Settings */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
+            <i className="fas fa-bullhorn mr-2 text-red-600"></i>
+            Broadcast Settings
+          </h3>
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-1">
+              <Label htmlFor="season-broadcast" className="text-sm font-semibold">
+                Season Broadcast Active
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Enable or disable seasonal broadcast messages
+              </p>
+            </div>
+            <Switch
+              id="season-broadcast"
+              checked={settings.seasonBroadcastActive}
+              onCheckedChange={(checked) => setSettings(prev => ({ ...prev, seasonBroadcastActive: checked }))}
             />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.rewardPerAd || 1000} PAD per ad
-            </p>
           </div>
         </div>
         
@@ -979,18 +1229,18 @@ function SettingsSection() {
           <Button
             onClick={handleSaveSettings}
             disabled={isSaving}
-            className="w-full md:w-auto"
+            className="w-full"
             size="lg"
           >
             {isSaving ? (
               <>
                 <i className="fas fa-spinner fa-spin mr-2"></i>
-                Saving...
+                Saving Settings...
               </>
             ) : (
               <>
                 <i className="fas fa-save mr-2"></i>
-                Save Settings
+                Save All Settings
               </>
             )}
           </Button>
@@ -1003,9 +1253,10 @@ function SettingsSection() {
             <div className="text-sm text-blue-900 dark:text-blue-100">
               <p className="font-semibold mb-1">Settings Information</p>
               <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>Changes take effect immediately for all users</li>
+                <li>All changes take effect immediately for all users</li>
                 <li>Daily ad limit resets at midnight (UTC)</li>
-                <li>Reward amounts are distributed when ads are watched</li>
+                <li>TON values are displayed in decimal format</li>
+                <li>Commission percentages must be between 0-100</li>
               </ul>
             </div>
           </div>
