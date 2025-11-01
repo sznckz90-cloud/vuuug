@@ -7,6 +7,8 @@ import { useEffect, lazy, Suspense, useState } from "react";
 import { setupDeviceTracking } from "@/lib/deviceId";
 import BanScreen from "@/components/BanScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
+import { SeasonEndContext } from "@/lib/SeasonEndContext";
+import { useAdmin } from "@/hooks/useAdmin";
 
 const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
@@ -40,11 +42,53 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const [showSeasonEnd, setShowSeasonEnd] = useState(false);
+  const [seasonLockActive, setSeasonLockActive] = useState(false);
+  const { isAdmin } = useAdmin();
+
+  useEffect(() => {
+    const checkSeasonStatus = () => {
+      fetch("/api/app-settings")
+        .then(res => res.json())
+        .then(settings => {
+          if (settings.seasonBroadcastActive) {
+            setSeasonLockActive(true);
+            setShowSeasonEnd(true);
+          } else {
+            setSeasonLockActive(false);
+            localStorage.removeItem("season_end_seen");
+          }
+        })
+        .catch(() => {});
+    };
+
+    checkSeasonStatus();
+    const interval = setInterval(checkSeasonStatus, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCloseSeasonEnd = () => {
+    if (!seasonLockActive) {
+      localStorage.setItem("season_end_seen", "true");
+      setShowSeasonEnd(false);
+    }
+  };
+
+  const shouldShowSeasonEnd = showSeasonEnd && !isAdmin;
+
+  return (
+    <SeasonEndContext.Provider value={{ showSeasonEnd: shouldShowSeasonEnd }}>
+      <AppNotification />
+      {shouldShowSeasonEnd && <SeasonEndOverlay onClose={handleCloseSeasonEnd} isLocked={seasonLockActive} />}
+      <Router />
+    </SeasonEndContext.Provider>
+  );
+}
+
 function App() {
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState<string>();
-  const [showSeasonEnd, setShowSeasonEnd] = useState(false);
-  const [seasonLockActive, setSeasonLockActive] = useState(false);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -90,33 +134,7 @@ function App() {
         })
         .catch(() => {});
     }
-
-    const checkSeasonStatus = () => {
-      fetch("/api/app-settings")
-        .then(res => res.json())
-        .then(settings => {
-          if (settings.seasonBroadcastActive) {
-            setSeasonLockActive(true);
-            setShowSeasonEnd(true);
-          } else {
-            setSeasonLockActive(false);
-            localStorage.removeItem("season_end_seen");
-          }
-        })
-        .catch(() => {});
-    };
-
-    checkSeasonStatus();
-    const interval = setInterval(checkSeasonStatus, 10000);
-    return () => clearInterval(interval);
   }, []);
-
-  const handleCloseSeasonEnd = () => {
-    if (!seasonLockActive) {
-      localStorage.setItem("season_end_seen", "true");
-      setShowSeasonEnd(false);
-    }
-  };
 
   if (isBanned) {
     return <BanScreen reason={banReason} />;
@@ -125,9 +143,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppNotification />
-        {showSeasonEnd && <SeasonEndOverlay onClose={handleCloseSeasonEnd} isLocked={seasonLockActive} />}
-        <Router />
+        <AppContent />
       </TooltipProvider>
     </QueryClientProvider>
   );
