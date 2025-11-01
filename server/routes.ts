@@ -2763,7 +2763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Change wallet endpoint - requires 5000 PAD fee
+  // Change wallet endpoint - requires dynamic PAD fee from admin settings
   app.post('/api/wallet/change', async (req: any, res) => {
     try {
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
@@ -2796,6 +2796,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Get wallet change fee from admin settings (stored in PAD)
+      const walletChangeFee = await storage.getAppSetting('walletChangeFee', 5000);
+      const feeInPad = parseInt(walletChangeFee);
+      const feeInTon = feeInPad / 10000000;
+      
+      console.log(`💰 Wallet change fee: ${feeInPad} PAD (${feeInTon} TON)`);
+      
       // Use database transaction to ensure atomicity
       const result = await db.transaction(async (tx) => {
         // Get current user with balance
@@ -2803,7 +2810,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .select({
             id: users.id,
             balance: users.balance,
-            cwalletId: users.cwalletId
+            cwalletId: users.cwalletId,
+            telegramId: users.telegram_id
           })
           .from(users)
           .where(eq(users.id, userId));
@@ -2836,16 +2844,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('This wallet ID is already linked to another account');
         }
         
-        // Calculate fee: 5000 PAD = 0.0005 TON (conversion rate: 10,000,000 PAD = 1 TON)
-        const FEE_IN_TON = 0.0005;
         const currentBalance = parseFloat(user.balance || '0');
+        const currentBalancePad = Math.floor(currentBalance * 10000000);
         
-        if (currentBalance < FEE_IN_TON) {
-          throw new Error(`Insufficient balance. You need ${5000} PAD to change wallet. Current balance: ${Math.floor(currentBalance * 10000000)} PAD`);
+        if (currentBalancePad < feeInPad) {
+          throw new Error(`Insufficient balance. You need ${feeInPad} PAD to change wallet. Current balance: ${currentBalancePad} PAD`);
         }
         
         // Deduct fee from balance
-        const newBalance = currentBalance - FEE_IN_TON;
+        const newBalance = currentBalance - feeInTon;
         
         // Update wallet and balance atomically
         await tx
@@ -2861,21 +2868,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Record transaction
         await tx.insert(transactions).values({
           userId: userId,
-          amount: FEE_IN_TON.toFixed(8),
+          amount: feeInTon.toFixed(8),
           type: 'deduction',
           source: 'wallet_change_fee',
-          description: 'Fee for changing wallet ID',
-          metadata: { oldWallet: user.cwalletId, newWallet: newWalletId.trim() }
+          description: `Fee for changing wallet ID (${feeInPad} PAD)`,
+          metadata: { oldWallet: user.cwalletId, newWallet: newWalletId.trim(), feePad: feeInPad }
         });
         
         return {
           newBalance: newBalance.toFixed(8),
           newWallet: newWalletId.trim(),
-          feeCharged: FEE_IN_TON.toFixed(8)
+          feeCharged: feeInTon.toFixed(8),
+          feePad: feeInPad,
+          telegramId: user.telegramId
         };
       });
       
       console.log('✅ Wallet changed successfully with fee deduction');
+      
+      // Send notification via WebSocket
+      if (result.telegramId && wss) {
+        wss.clients.forEach((client: WebSocket) => {
+          if ((client as any).userId === userId && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'wallet_changed',
+              message: `Wallet updated successfully! ${result.feePad} PAD fee deducted.`,
+              data: {
+                newWalletId: result.newWallet,
+                newBalance: result.newBalance,
+                feeCharged: result.feePad
+              }
+            }));
+          }
+        });
+      }
       
       res.json({
         success: true,
@@ -2883,7 +2909,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: {
           newWalletId: result.newWallet,
           newBalance: result.newBalance,
-          feeCharged: result.feeCharged
+          feeCharged: result.feeCharged,
+          feePad: result.feePad
         }
       });
       
@@ -2923,13 +2950,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Conversion rate: 10,000,000 PAD = 1 TON
       const CONVERSION_RATE = 10000000;
-      // Minimum conversion: 10,000 PAD (0.001 TON)
-      const minimumPad = 10000;
+      
+      // Get minimum convert amount from admin settings (stored in PAD)
+      const minimumConvertSetting = await storage.getAppSetting('minimumConvert', 10000);
+      const minimumPad = parseInt(minimumConvertSetting);
       
       if (convertAmount < minimumPad) {
         return res.status(400).json({
           success: false,
-          message: `Minimum 10,000 PAD required to convert.`
+          message: `Minimum ${minimumPad} PAD required to convert.`
         });
       }
       
@@ -3667,10 +3696,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const currentTonBalance = parseFloat(user.tonBalance || '0');
         
-        // Minimum withdrawal: 0.001 TON (updated from 0.01)
-        const MINIMUM_WITHDRAWAL = 0.001;
-        if (currentTonBalance < MINIMUM_WITHDRAWAL) {
-          throw new Error('You need at least 0.001 TON');
+        // Get minimum withdrawal from admin settings
+        const minimumWithdrawal = await storage.getAppSetting('minimumWithdrawal', 0.001);
+        const minWithdrawalTon = parseFloat(minimumWithdrawal);
+        
+        if (currentTonBalance < minWithdrawalTon) {
+          throw new Error(`You need at least ${minWithdrawalTon} TON to withdraw.`);
         }
 
         // ✅ CHANGED: Do NOT deduct balance immediately - wait for admin approval
