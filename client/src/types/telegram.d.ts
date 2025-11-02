@@ -1,7 +1,7 @@
 declare global {
   interface Window {
     Telegram?: {
-      WebApp?: {
+      WebApp: {
         initData: string;
         initDataUnsafe: {
           query_id?: string;
@@ -20,8 +20,8 @@ declare global {
         ready: () => void;
         expand: () => void;
         close: () => void;
-        openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
-        openTelegramLink?: (url: string) => void;
+        openLink: (url: string, options?: { try_instant_view?: boolean }) => void;
+        openTelegramLink: (url: string) => void;
       };
     };
   }
