@@ -1907,14 +1907,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return setting?.settingValue || defaultValue;
       };
       
+      // Get TON values from database
+      const taskPerClickRewardTON = parseFloat(getSetting('task_per_click_reward', '0.0001750'));
+      const walletChangeFeeTON = parseFloat(getSetting('wallet_change_fee', '0.0005'));
+      
+      // Convert TON to PAD for display (multiply by 10,000,000)
+      const taskPerClickRewardPAD = Math.floor(taskPerClickRewardTON * 10000000);
+      const walletChangeFeePAD = Math.floor(walletChangeFeeTON * 10000000);
+      
       // Return all settings in format expected by frontend
       res.json({
         dailyAdLimit: parseInt(getSetting('daily_ad_limit', '50')),
         rewardPerAd: parseInt(getSetting('reward_per_ad', '1000')),
         affiliateCommission: parseFloat(getSetting('affiliate_commission', '10')),
-        walletChangeFee: parseFloat(getSetting('wallet_change_fee', '0.01')),
+        walletChangeFee: walletChangeFeePAD, // Return as PAD
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal', '0.5')),
-        taskPerClickReward: parseFloat(getSetting('task_per_click_reward', '0.0001750')),
+        taskPerClickReward: taskPerClickRewardPAD, // Return as PAD
         taskCreationCost: parseFloat(getSetting('task_creation_cost', '0.0003')),
         minimumConvert: parseFloat(getSetting('minimum_convert', '0.01')),
         seasonBroadcastActive: getSetting('season_broadcast_active', 'false') === 'true',
@@ -1952,13 +1960,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
+      // Convert PAD values to TON before saving (divide by 10,000,000)
+      // Use explicit null/undefined checks to allow legitimate zero values
+      const taskPerClickRewardTON = (taskPerClickReward !== null && taskPerClickReward !== undefined) 
+        ? (taskPerClickReward / 10000000).toFixed(8) 
+        : null;
+      const walletChangeFeeTON = (walletChangeFee !== null && walletChangeFee !== undefined)
+        ? (walletChangeFee / 10000000).toFixed(8) 
+        : null;
+      
       // Update all provided settings
       await updateSetting('daily_ad_limit', dailyAdLimit);
       await updateSetting('reward_per_ad', rewardPerAd);
       await updateSetting('affiliate_commission', affiliateCommission);
-      await updateSetting('wallet_change_fee', walletChangeFee);
+      await updateSetting('wallet_change_fee', walletChangeFeeTON); // Save as TON
       await updateSetting('minimum_withdrawal', minimumWithdrawal);
-      await updateSetting('task_per_click_reward', taskPerClickReward);
+      await updateSetting('task_per_click_reward', taskPerClickRewardTON); // Save as TON
       await updateSetting('task_creation_cost', taskCreationCost);
       await updateSetting('minimum_convert', minimumConvert);
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
