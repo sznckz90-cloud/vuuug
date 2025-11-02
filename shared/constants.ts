@@ -36,3 +36,21 @@ export function padToUSD(padAmount: number | string): number {
   const numValue = typeof padAmount === 'string' ? parseFloat(padAmount) : padAmount;
   return numValue / PAD_TO_USD;
 }
+
+/**
+ * Format large numbers into compact format (1k, 1.2M, 1B)
+ * @param num - Number to format
+ * @returns Formatted string (e.g., "1.2M", "154k", "24B")
+ */
+export function formatCompactNumber(num: number): string {
+  if (num >= 1_000_000_000) {
+    return (num / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
+  }
+  if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  }
+  if (num >= 1_000) {
+    return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+  }
+  return num.toString();
+}
