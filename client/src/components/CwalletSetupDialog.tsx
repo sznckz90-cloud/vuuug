@@ -84,13 +84,13 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
 
   const handleSave = () => {
     if (!cwalletId.trim()) {
-      showNotification("Please enter your Cwallet ID", "error");
+      showNotification("Please enter your TON wallet address", "error");
       return;
     }
     
-    // Validate numeric only
-    if (!/^\d+$/.test(cwalletId.trim())) {
-      showNotification("Wallet ID must contain only numbers", "error");
+    // Validate TON wallet address (must start with UQ or EQ)
+    if (!/^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(cwalletId.trim())) {
+      showNotification("Please enter a valid TON wallet address", "error");
       return;
     }
     
@@ -99,13 +99,13 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
 
   const handleChangeWallet = () => {
     if (!newWalletId.trim()) {
-      showNotification("Please enter a new Cwallet ID", "error");
+      showNotification("Please enter a new TON wallet address", "error");
       return;
     }
     
-    // Validate numeric only
-    if (!/^\d+$/.test(newWalletId.trim())) {
-      showNotification("Wallet ID must contain only numbers", "error");
+    // Validate TON wallet address (must start with UQ or EQ)
+    if (!/^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(newWalletId.trim())) {
+      showNotification("Please enter a valid TON wallet address", "error");
       return;
     }
     
@@ -122,12 +122,12 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
       <DialogContent 
         className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl"
         onInteractOutside={(e) => e.preventDefault()}
-        hideCloseButton={!isWalletLocked}
+        hideCloseButton={true}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-[#4cd3ff] text-lg">
             <Wallet className="w-5 h-5" />
-            {isWalletLocked && !isChangingWallet ? "Cwallet ID Set" : isChangingWallet ? "Change Wallet" : "Set Cwallet ID"}
+            {isWalletLocked && !isChangingWallet ? "TON Wallet Set" : isChangingWallet ? "Change Wallet" : "Set TON Wallet"}
           </DialogTitle>
         </DialogHeader>
 
@@ -141,7 +141,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
               <div className="space-y-2">
                 <Input
                   type="text"
-                  placeholder="Enter your CWallet ID"
+                  placeholder="TON wallet address"
                   value={cwalletId}
                   disabled={true}
                   className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -160,10 +160,10 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs text-[#c0c0c0]">New Wallet ID (numbers only)</label>
+                <label className="text-xs text-[#c0c0c0]">New TON Wallet Address</label>
                 <Input
                   type="text"
-                  placeholder="Enter new wallet ID"
+                  placeholder="Enter TON wallet address (UQ... or EQ...)"
                   value={newWalletId}
                   onChange={(e) => setNewWalletId(e.target.value)}
                   className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
@@ -184,7 +184,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
               <div className="space-y-2">
                 <Input
                   type="text"
-                  placeholder="Enter your CWallet ID (numbers only)"
+                  placeholder="Enter TON wallet address (UQ... or EQ...)"
                   value={cwalletId}
                   onChange={(e) => setCwalletId(e.target.value)}
                   className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
@@ -201,14 +201,14 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
             <div className="flex items-start gap-2 p-3 bg-[#0d0d0d] rounded-lg border border-white/5">
               <HelpCircle className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
               <div className="text-xs text-[#c0c0c0]">
-                Don't have a Cwallet ID?{' '}
+                Don't have a TON wallet?{' '}
                 <a 
-                  href="https://cwallet.com/referralweb/XnKL50Ip" 
+                  href="https://ton.org/wallets" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-[#4cd3ff] hover:text-[#6ddeff] underline transition-colors"
                 >
-                  Create an account here Cwallet
+                  Get a TON wallet here
                 </a>
               </div>
             </div>
