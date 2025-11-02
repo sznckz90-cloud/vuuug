@@ -12,7 +12,13 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes (November 2, 2025)
 
-## Bug Fixes - Error Handling & Notifications (Latest)
+## Bug Fixes - Task Deletion & Withdrawal Notifications (Latest)
+
+*   **Task Deletion Foreign Key Fixed**: Added CASCADE constraint to `task_clicks.task_id` foreign key. Tasks can now be deleted safely, automatically removing all associated click records without foreign key errors.
+*   **Admin Settings Migration Fixed**: Updated migration logic to safely remove duplicate `setting_key` entries before adding unique constraint. Migration now works on both fresh and existing databases without data truncation.
+*   **Withdrawal Notification Fixed**: Changed WithdrawDialog error notifications from shadcn/ui toast (hidden behind dialog) to `showNotification` with z-index 99,999. Users now see clear minimum withdrawal messages: "❌ Minimum withdrawal: 1,000,000 PAD (0.1 TON)"
+
+## Earlier Bug Fixes - Error Handling & Notifications
 
 *   **Error Notification Display Fixed**: Updated API error handling to display clean, user-friendly error messages instead of raw JSON strings. The `throwIfResNotOk` function now parses JSON error responses and extracts the `message` field, ensuring users see messages like "Insufficient balance. You need 5000 PAD" instead of `"{\"success\":false,\"message\":\"...\"}"`.
 *   **Currency Precision Fix**: Changed all TON↔PAD conversions from `Math.floor()` to `Math.round()` to prevent sub-PAD precision loss (e.g., 5,500 PAD no longer truncates to 5,499 PAD).
