@@ -12,8 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { ArrowDown, PlusCircle } from "lucide-react";
-import { tonToPAD } from "@shared/constants";
+import { ArrowDown, PlusCircle, Trophy } from "lucide-react";
+import { tonToPAD, formatCompactNumber } from "@shared/constants";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
 interface User {
@@ -44,6 +44,16 @@ export default function Home() {
     // CRITICAL FIX: Always refetch stats from database
     refetchOnMount: true,
     staleTime: 0,
+  });
+  
+  const { data: topUser } = useQuery<{
+    username: string;
+    profileImage: string;
+    totalEarnings: string;
+  }>({
+    queryKey: ["/api/leaderboard/top"],
+    retry: false,
+    refetchOnMount: true,
   });
 
   if (isLoading) {
@@ -81,25 +91,39 @@ export default function Home() {
           onWithdraw={() => setWithdrawDialogOpen(true)}
         />
 
-        {/* Income Statistics */}
-        <Card className="mb-3 minimal-card">
+        {/* Leaderboard Preview */}
+        <Card 
+          className="mb-3 minimal-card cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => setLocation("/leaderboard")}
+        >
           <CardContent className="pt-3 pb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <DiamondIcon size={18} withGlow />
-              <h3 className="text-sm font-semibold text-white">Income statistics</h3>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-[18px] h-[18px] text-primary" />
+                <h3 className="text-sm font-semibold text-white">Leaderboard</h3>
+              </div>
+              <div className="text-[10px] text-muted-foreground">Tap to view →</div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <div className="text-[10px] text-muted-foreground mb-1">Today</div>
-                <div className="text-foreground font-semibold text-sm">{todayEarnings.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-muted-foreground mb-1">All time</div>
-                <div className="text-foreground font-semibold text-sm">{allTimeEarnings.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-muted-foreground mb-1">On referrals</div>
-                <div className="text-foreground font-semibold text-sm">{referralEarnings.toLocaleString()}</div>
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">🏆</div>
+              {topUser?.profileImage ? (
+                <img 
+                  src={topUser.profileImage} 
+                  alt={topUser.username}
+                  className="w-8 h-8 rounded-full"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                  {topUser?.username?.[0] || '?'}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-white font-medium text-sm truncate">
+                  {topUser?.username || 'No data'}
+                </div>
+                <div className="text-primary text-xs font-bold">
+                  {topUser ? formatCompactNumber(tonToPAD(topUser.totalEarnings)) : '0'} PAD
+                </div>
               </div>
             </div>
           </CardContent>

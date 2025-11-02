@@ -86,8 +86,13 @@ export default function Tasks() {
         return newSet;
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, taskId) => {
       showNotification(error.message || "Failed to complete task", "error");
+      setClickedTasks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
     },
   });
 
