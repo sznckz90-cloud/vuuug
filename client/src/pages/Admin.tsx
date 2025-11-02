@@ -957,10 +957,12 @@ function SettingsSection() {
       
       if (result.success) {
         toast({
-          title: "Settings Updated",
-          description: "App settings have been updated successfully",
+          title: "✅ Settings Updated Successfully",
+          description: "App settings have been updated and are now active",
         });
+        // Invalidate both admin and app settings to refresh everywhere
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/app-settings"] });
       } else {
         throw new Error(result.message || 'Failed to update settings');
       }
