@@ -27,8 +27,15 @@ export default function Tasks() {
   const queryClient = useQueryClient();
   const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
 
-  const costPerClick = 0.0003;
-  const rewardPerClick = 0.000175;
+  const { data: appSettings } = useQuery({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+    refetchOnMount: true,
+  });
+
+  const costPerClick = appSettings?.taskCostPerClick || 0.0003;
+  const rewardPerClick = appSettings?.taskRewardPerClick || 0.000175;
+  const rewardPAD = appSettings?.taskRewardPAD || 1750;
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<{
     success: boolean;
@@ -191,11 +198,7 @@ export default function Tasks() {
     );
   }
 
-  const publicTasks = tasksData?.tasks || [];
-  const currentUserId = (user as any)?.id;
-  const activePublicTasks = publicTasks.filter(t => 
-    t.status === "active" && t.advertiserId !== currentUserId
-  );
+  const activePublicTasks = tasksData?.tasks || [];
 
   return (
     <Layout>
@@ -228,7 +231,7 @@ export default function Tasks() {
         ) : (
           <div className="space-y-3">
             {activePublicTasks.map((task) => {
-              const padReward = Math.floor(rewardPerClick * 10000000);
+              const padReward = rewardPAD;
               const hasClicked = clickedTasks.has(task.id);
 
               return (

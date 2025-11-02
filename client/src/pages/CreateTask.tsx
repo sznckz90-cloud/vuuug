@@ -95,11 +95,12 @@ export default function CreateTask() {
     }
   }, [taskType]);
 
-  const costPerClick = 0.0003;
-  const rewardPerClick = parseFloat(appSettings?.taskPerClickReward || 175);
+  const costPerClick = appSettings?.taskCostPerClick || 0.0003;
+  const rewardPerClick = appSettings?.taskRewardPerClick || 0.0001750;
+  const rewardPerClickPAD = appSettings?.taskRewardPAD || 1750;
   const clicksNum = parseInt(totalClicks) || 0;
   const totalCostTON = costPerClick * clicksNum;
-  const totalRewardsPAD = rewardPerClick * clicksNum;
+  const totalRewardsPAD = rewardPerClickPAD * clicksNum;
   const tonBalance = parseFloat((user as any)?.tonBalance || "0");
   const additionalCostTON = costPerClick * (parseInt(additionalClicks) || 0);
 
