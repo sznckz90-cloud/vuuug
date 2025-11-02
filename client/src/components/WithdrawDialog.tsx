@@ -88,40 +88,24 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
       onOpenChange(false);
     },
     onError: (error: any) => {
-      toast({
-        title: "❌ Withdrawal failed",
-        description: error.message || "Failed to submit withdrawal request",
-        variant: "destructive",
-      });
+      showNotification(`❌ ${error.message || "Failed to submit withdrawal request"}`, "error");
     },
   });
 
   const handleWithdraw = () => {
     if (friendsInvited < MINIMUM_FRIENDS_REQUIRED) {
-      toast({
-        title: "❌ Withdrawal locked",
-        description: "You need to invite at least 3 friends to unlock withdrawals.",
-        variant: "destructive",
-      });
+      showNotification("❌ You need to invite at least 3 friends to unlock withdrawals.", "error");
       return;
     }
 
     if (hasPendingWithdrawal) {
-      toast({
-        title: "Pending withdrawal exists",
-        description: "Cannot create new request until current one is processed",
-        variant: "destructive",
-      });
+      showNotification("❌ Cannot create new request until current one is processed.", "error");
       return;
     }
 
     if (tonBalance < MINIMUM_WITHDRAWAL) {
-      const minimumWithdrawalPAD = Math.floor(MINIMUM_WITHDRAWAL * 10000000);
-      toast({
-        title: "Insufficient balance",
-        description: `Minimum withdrawal amount is ${minimumWithdrawalPAD.toLocaleString()} PAD (${MINIMUM_WITHDRAWAL} TON).`,
-        variant: "destructive",
-      });
+      const minimumWithdrawalPAD = Math.round(MINIMUM_WITHDRAWAL * 10000000);
+      showNotification(`❌ Minimum withdrawal: ${minimumWithdrawalPAD.toLocaleString()} PAD (${MINIMUM_WITHDRAWAL} TON)`, "error");
       return;
     }
 
