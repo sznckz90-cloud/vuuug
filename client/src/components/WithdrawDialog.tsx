@@ -41,6 +41,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
   const tonBalance = parseFloat(user?.tonBalance || "0");
   const MINIMUM_WITHDRAWAL = parseFloat(appSettings?.minimumWithdrawal || 0.001);
+  const withdrawalCurrency = appSettings?.withdrawalCurrency || 'TON';
   const friendsInvited = user?.friendsInvited || 0;
   const MINIMUM_FRIENDS_REQUIRED = 3;
 
@@ -104,8 +105,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     }
 
     if (tonBalance < MINIMUM_WITHDRAWAL) {
-      const minimumWithdrawalPAD = Math.round(MINIMUM_WITHDRAWAL * 10000000);
-      showNotification(`❌ Minimum withdrawal: ${minimumWithdrawalPAD.toLocaleString()} PAD (${MINIMUM_WITHDRAWAL} TON)`, "error");
+      showNotification(`❌ Minimum withdrawal: ${MINIMUM_WITHDRAWAL} ${withdrawalCurrency}`, "error");
       return;
     }
 
