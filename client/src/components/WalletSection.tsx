@@ -59,8 +59,7 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
   });
 
   const handleConvert = () => {
-    const minimumConvertTON = parseFloat(appSettings?.minimumConvert || 0.01);
-    const minimumConvertPAD = Math.round(minimumConvertTON * 10000000);
+    const minimumConvertPAD = appSettings?.minimumConvertPAD || 100000;
     
     if (padBalance < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required to convert.`, "error");
