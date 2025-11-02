@@ -136,6 +136,7 @@ export interface IStorage {
   // Task management operations
   createTask(task: InsertAdvertiserTask): Promise<AdvertiserTask>;
   getActiveTasks(): Promise<AdvertiserTask[]>;
+  getActiveTasksForUser(userId: string): Promise<AdvertiserTask[]>;
   getTaskById(taskId: string): Promise<AdvertiserTask | undefined>;
   getMyTasks(userId: string): Promise<AdvertiserTask[]>;
   increaseTaskLimit(taskId: string, additionalClicks: number, additionalCost: string): Promise<AdvertiserTask>;
@@ -2431,6 +2432,25 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(advertiserTasks.createdAt));
   }
 
+  async getActiveTasksForUser(userId: string): Promise<AdvertiserTask[]> {
+    const allActiveTasks = await db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.status, "active"))
+      .orderBy(desc(advertiserTasks.createdAt));
+
+    const completedTaskIds = await db
+      .select({ taskId: taskClicks.taskId })
+      .from(taskClicks)
+      .where(eq(taskClicks.publisherId, userId));
+
+    const completedIds = new Set(completedTaskIds.map(t => t.taskId));
+
+    return allActiveTasks.filter(task => 
+      task.advertiserId !== userId && !completedIds.has(task.id)
+    );
+  }
+
   async getTaskById(taskId: string): Promise<AdvertiserTask | undefined> {
     const [task] = await db
       .select()
@@ -2550,7 +2570,9 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      const rewardAmount = "0.0001750"; // 1750 PAD
+      // Fetch dynamic task reward from admin settings
+      const taskRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'task_per_click_reward')).limit(1);
+      const rewardAmount = taskRewardSetting[0]?.settingValue || "0.0001750";
 
       // Record the click
       await db.insert(taskClicks).values({

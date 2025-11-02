@@ -594,22 +594,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get current app settings (public endpoint for frontend to fetch ad limits)
+  // Get current app settings (public endpoint for frontend to fetch ad limits and all dynamic settings)
   app.get('/api/app-settings', async (req: any, res) => {
     try {
-      // Fetch admin settings for daily limit and reward amount
-      const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
-      const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
-      const seasonBroadcastSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'season_broadcast_active')).limit(1);
+      // Fetch all admin settings at once
+      const allSettings = await db.select().from(adminSettings);
       
-      const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 50;
-      const rewardPerAd = rewardPerAdSetting[0]?.settingValue ? parseInt(rewardPerAdSetting[0].settingValue) : 1000;
-      const seasonBroadcastActive = seasonBroadcastSetting[0]?.settingValue === 'true';
+      // Helper function to get setting value with default
+      const getSetting = (key: string, defaultValue: string): string => {
+        const setting = allSettings.find(s => s.settingKey === key);
+        return setting?.settingValue || defaultValue;
+      };
+      
+      // Parse all settings with defaults
+      const dailyAdLimit = parseInt(getSetting('daily_ad_limit', '50'));
+      const rewardPerAd = parseInt(getSetting('reward_per_ad', '1000'));
+      const seasonBroadcastActive = getSetting('season_broadcast_active', 'false') === 'true';
+      const affiliateCommission = parseFloat(getSetting('affiliate_commission', '10'));
+      const walletChangeFee = parseFloat(getSetting('wallet_change_fee', '0.01'));
+      const minimumWithdrawal = parseFloat(getSetting('minimum_withdrawal', '0.5'));
+      const taskCostPerClick = parseFloat(getSetting('task_creation_cost', '0.0003'));
+      const taskRewardPerClick = parseFloat(getSetting('task_per_click_reward', '0.0001750'));
+      const minimumConvert = parseFloat(getSetting('minimum_convert', '0.01'));
+      
+      // Convert TON values to PAD where needed (multiply by 10,000,000)
+      const rewardPerAdPAD = rewardPerAd;
+      const taskRewardPAD = Math.floor(taskRewardPerClick * 10000000);
+      const minimumConvertPAD = Math.floor(minimumConvert * 10000000);
       
       res.json({
         dailyAdLimit,
         rewardPerAd,
-        seasonBroadcastActive
+        rewardPerAdPAD,
+        seasonBroadcastActive,
+        affiliateCommission,
+        affiliateCommissionPercent: affiliateCommission,
+        walletChangeFee,
+        minimumWithdrawal,
+        taskCostPerClick,
+        taskRewardPerClick,
+        taskRewardPAD,
+        minimumConvert,
+        minimumConvertPAD
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -3056,10 +3082,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Advertiser Task System API routes
   
-  // Get all active advertiser tasks (public task feed)
+  // Get all active advertiser tasks (public task feed) - excludes tasks already completed by user
   app.get('/api/advertiser-tasks', authenticateTelegram, async (req: any, res) => {
     try {
-      const tasks = await storage.getActiveTasks();
+      const userId = req.user.user.id;
+      const tasks = await storage.getActiveTasksForUser(userId);
       res.json({ success: true, tasks });
     } catch (error) {
       console.error("Error fetching advertiser tasks:", error);
@@ -3111,7 +3138,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const costPerClick = "0.0003"; // 0.0003 TON per click (500 clicks = 0.15 TON)
+      // Fetch dynamic task cost per click from admin settings
+      const taskCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'task_creation_cost')).limit(1);
+      const costPerClick = taskCostSetting[0]?.settingValue || "0.0003";
       const totalCost = (parseFloat(costPerClick) * totalClicksRequired).toFixed(8);
 
       // Get user's TON balance
@@ -3245,7 +3274,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const costPerClick = "0.0003"; // 0.0003 TON per click
+      // Fetch dynamic task cost per click from admin settings
+      const taskCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'task_creation_cost')).limit(1);
+      const costPerClick = taskCostSetting[0]?.settingValue || "0.0003";
       const additionalCost = (parseFloat(costPerClick) * additionalClicks).toFixed(8);
 
       // Get user's TON balance
