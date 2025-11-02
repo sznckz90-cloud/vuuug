@@ -232,7 +232,7 @@ export const advertiserTasks = pgTable("advertiser_tasks", {
 // Task clicks tracking table - to prevent duplicate clicks
 export const taskClicks = pgTable("task_clicks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  taskId: varchar("task_id").references(() => advertiserTasks.id).notNull(),
+  taskId: varchar("task_id").references(() => advertiserTasks.id, { onDelete: 'cascade' }).notNull(),
   publisherId: varchar("publisher_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).default("0.0001750").notNull(), // 1750 PAD = 0.000175 TON
   clickedAt: timestamp("clicked_at").defaultNow(),
