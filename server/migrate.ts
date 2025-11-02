@@ -388,7 +388,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
       VALUES 
         ('daily_ad_limit', '50', 'Maximum number of ads a user can watch per day'),
         ('ad_reward_pad', '1000', 'PAD reward amount per ad watched'),
-        ('ad_reward_ton', '0.00010000', 'TON reward amount per ad watched')
+        ('ad_reward_ton', '0.00010000', 'TON reward amount per ad watched'),
+        ('withdrawal_currency', 'TON', 'Currency used for withdrawal displays (TON or PAD)')
       ON CONFLICT (setting_key) DO NOTHING
     `);
     

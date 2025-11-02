@@ -616,6 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taskCostPerClick = parseFloat(getSetting('task_creation_cost', '0.0003'));
       const taskRewardPerClick = parseFloat(getSetting('task_per_click_reward', '0.0001750'));
       const minimumConvert = parseFloat(getSetting('minimum_convert', '0.01'));
+      const withdrawalCurrency = getSetting('withdrawal_currency', 'TON');
       
       // Convert TON values to PAD where needed (multiply by 10,000,000)
       const rewardPerAdPAD = rewardPerAd;
@@ -636,7 +637,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taskRewardPerClick,
         taskRewardPAD,
         minimumConvert,
-        minimumConvertPAD
+        minimumConvertPAD,
+        withdrawalCurrency
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
