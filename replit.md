@@ -12,12 +12,14 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes (November 2, 2025)
 
-## Bug Fixes - Admin & Task System (Latest)
+## Bug Fixes - Error Handling & Notifications (Latest)
 
-*   **Task Reward Calculation Fixed**: Corrected TON↔PAD conversion in admin settings API. Task per-click rewards now properly convert between PAD (user-facing) and TON (database storage) using 10,000,000 multiplier. Admins can now set rewards in PAD format (e.g., 1000 PAD) without causing 10,000x reward multiplication bug.
-*   **Withdrawal Button UX Improved**: Withdrawal button no longer disabled when balance is below minimum. Instead, users can click to see informative notification displaying minimum withdrawal amount in both PAD and TON formats.
-*   **Admin Settings Notifications**: Added success notifications with visual feedback (✅) when admin updates settings. Both /api/admin/settings and /api/app-settings caches are invalidated to ensure immediate propagation of new values across the application.
-*   **Zero Value Handling**: Fixed admin settings to properly save zero values (0 PAD) for rewards/fees using explicit null/undefined checks instead of truthy checks.
+*   **Error Notification Display Fixed**: Updated API error handling to display clean, user-friendly error messages instead of raw JSON strings. The `throwIfResNotOk` function now parses JSON error responses and extracts the `message` field, ensuring users see messages like "Insufficient balance. You need 5000 PAD" instead of `"{\"success\":false,\"message\":\"...\"}"`.
+*   **Currency Precision Fix**: Changed all TON↔PAD conversions from `Math.floor()` to `Math.round()` to prevent sub-PAD precision loss (e.g., 5,500 PAD no longer truncates to 5,499 PAD).
+*   **Task Reward Calculation Fixed**: Corrected TON↔PAD conversion in admin settings API. Task per-click rewards now properly convert between PAD (user-facing) and TON (database storage) using 10,000,000 multiplier.
+*   **Withdrawal Button UX Improved**: Withdrawal button no longer disabled when balance is below minimum. Users can click to see informative notification displaying minimum withdrawal amount in both PAD and TON formats.
+*   **Admin Settings Notifications**: Added success notifications with visual feedback (✅) when admin updates settings. Both /api/admin/settings and /api/app-settings caches are invalidated to ensure immediate propagation of new values.
+*   **Notification Z-Index**: Increased notification z-index from 9,999 to 99,999 to ensure notifications appear above all UI layers including modals and dialogs.
 
 ## Earlier Changes
 
