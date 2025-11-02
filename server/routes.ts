@@ -2665,16 +2665,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!cwalletId || !cwalletId.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Please enter a valid Cwallet ID'
+          message: 'Please enter a valid TON wallet address'
         });
       }
       
-      // Validate that wallet ID contains only numbers
-      if (!/^\d+$/.test(cwalletId.trim())) {
-        console.log('🚫 Invalid wallet format - numbers only');
+      // Validate TON wallet address (must start with UQ or EQ)
+      if (!/^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(cwalletId.trim())) {
+        console.log('🚫 Invalid TON wallet address format');
         return res.status(400).json({
           success: false,
-          message: 'Wallet ID must contain only numbers'
+          message: 'Please enter a valid TON wallet address'
         });
       }
       
@@ -2705,10 +2705,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
         
         if (walletInUse) {
-          console.log('🚫 Wallet ID already linked to another account');
+          console.log('🚫 TON wallet address already linked to another account');
           return res.status(400).json({
             success: false,
-            message: 'This wallet ID is already linked to another account.'
+            message: 'This TON wallet address is already linked to another account.'
           });
         }
       }
@@ -2722,18 +2722,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(users.id, userId));
       
-      console.log('✅ Cwallet ID saved successfully');
+      console.log('✅ TON wallet address saved successfully');
       
       res.json({
         success: true,
-        message: 'Cwallet ID saved successfully.'
+        message: 'TON wallet address saved successfully.'
       });
       
     } catch (error) {
-      console.error('❌ Error saving Cwallet ID:', error);
+      console.error('❌ Error saving TON wallet address:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Failed to save Cwallet ID' 
+        message: 'Failed to save TON wallet address' 
       });
     }
   });
@@ -2757,16 +2757,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!walletId || !walletId.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Missing Cwallet ID'
+          message: 'Missing TON wallet address'
         });
       }
       
-      // Validate that wallet ID contains only numbers
-      if (!/^\d+$/.test(walletId.trim())) {
-        console.log('🚫 Invalid wallet format - numbers only');
+      // Validate TON wallet address (must start with UQ or EQ)
+      if (!/^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(walletId.trim())) {
+        console.log('🚫 Invalid TON wallet address format');
         return res.status(400).json({
           success: false,
-          message: 'Wallet ID must contain only numbers'
+          message: 'Please enter a valid TON wallet address'
         });
       }
       
@@ -2797,10 +2797,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
         
         if (walletInUse) {
-          console.log('🚫 Wallet ID already linked to another account');
+          console.log('🚫 TON wallet address already linked to another account');
           return res.status(400).json({
             success: false,
-            message: 'This wallet ID is already linked to another account.'
+            message: 'This TON wallet address is already linked to another account.'
           });
         }
       }
@@ -2850,16 +2850,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!newWalletId || !newWalletId.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Please enter a valid wallet ID'
+          message: 'Please enter a valid TON wallet address'
         });
       }
       
-      // Validate that wallet ID contains only numbers
-      if (!/^\d+$/.test(newWalletId.trim())) {
-        console.log('🚫 Invalid wallet format - numbers only');
+      // Validate TON wallet address (must start with UQ or EQ)
+      if (!/^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(newWalletId.trim())) {
+        console.log('🚫 Invalid TON wallet address format');
         return res.status(400).json({
           success: false,
-          message: 'Wallet ID must contain only numbers'
+          message: 'Please enter a valid TON wallet address'
         });
       }
       
@@ -2908,7 +2908,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
         
         if (walletInUse) {
-          throw new Error('This wallet ID is already linked to another account');
+          throw new Error('This TON wallet address is already linked to another account');
         }
         
         const currentBalance = parseFloat(user.balance || '0');
@@ -3733,9 +3733,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('You need to invite at least 3 friends to unlock withdrawals.');
         }
 
-        // Check if user has a saved wallet ID
+        // Check if user has a saved TON wallet address
         if (!user.cwalletId) {
-          throw new Error('No wallet ID found. Please set up your Cwallet ID first.');
+          throw new Error('No TON wallet address found. Please set up your TON wallet address first.');
         }
 
         // ✅ NEW: Check wallet ID uniqueness - prevent same wallet from being used by multiple users
@@ -3749,7 +3749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
 
         if (existingWallet) {
-          throw new Error('This wallet ID is already in use by another user. Please use a unique wallet ID.');
+          throw new Error('This TON wallet address is already in use by another user. Please use a unique TON wallet address.');
         }
 
         const currentTonBalance = parseFloat(user.tonBalance || '0');
@@ -3866,9 +3866,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Return 400 for validation errors, 500 for others
       if (errorMessage === 'Insufficient TON balance' || 
           errorMessage === 'User not found' ||
-          errorMessage === 'No wallet ID found. Please set up your Cwallet ID first.' ||
+          errorMessage === 'No TON wallet address found. Please set up your TON wallet address first.' ||
           errorMessage === 'You need to invite at least 3 friends to unlock withdrawals.' ||
-          errorMessage === 'This wallet ID is already in use by another user. Please use a unique wallet ID.' ||
+          errorMessage === 'This TON wallet address is already in use by another user. Please use a unique TON wallet address.' ||
           errorMessage === 'Cannot create new request until current one is processed') {
         return res.status(400).json({ 
           success: false, 
