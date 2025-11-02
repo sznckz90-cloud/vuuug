@@ -1,195 +1,22 @@
 # Overview
 
-CashWatch is a React-based web application that allows users to earn cryptocurrency by watching advertisements. It offers a gamified experience with features like daily streaks, a referral system, and cryptocurrency withdrawal capabilities. The platform aims to provide an engaging and user-friendly way for users to earn cryptocurrency, leveraging a modern full-stack architecture.
+CashWatch is a React-based web application that enables users to earn cryptocurrency by engaging with advertisements. It offers a gamified experience, including daily streaks, a referral program, and cryptocurrency withdrawal functionalities. The platform aims to provide an engaging and user-friendly method for cryptocurrency earning, built on a modern full-stack architecture.
 
-**Admin Features:**
-*   Promo Code Creation
-*   User Tracking
-*   Withdrawal Management
-*   Analytics Dashboard
+**Key Features:**
+*   Ad-watching for cryptocurrency rewards
+*   Gamified earning (Spin & Win, Daily Streaks)
+*   Multi-level referral system
+*   Cryptocurrency withdrawal management
+*   Admin panel for promo codes, user tracking, withdrawal management, and analytics
+*   **Dynamic Settings**: All app parameters (task costs, rewards, fees, limits) are configurable through admin dashboard and stored in database
 
-# Recent Changes
+# Recent Changes (November 2, 2025)
 
-**November 1, 2025 - Season End Screen Fixes & Bug Resolutions**
-
-*Season End Screen Improvements:*
-*   **Admin Exclusion**: Season end screen will no longer be shown to admins when `seasonBroadcastActive` is enabled
-*   **UI Cleanup**: Header (logo/profile photo) and bottom navigation are now hidden when season end screen is displayed to regular users
-*   **Context-Based Implementation**: Created `SeasonEndContext` to manage season end state throughout the app
-*   **Status**: ✅ Complete and tested
-
-*Bug Fixes:*
-*   **PAD → TON Conversion**: Fixed hardcoded minimum (10,000 PAD) to use dynamic `appSettings.minimumConvert` value from admin panel
-    - Now uses formula: `minimumConvert (TON) * 10,000,000 = minimum PAD required`
-    - Conversion respects admin-configured minimum values in real-time
-*   **Task Start Button**: Verified working correctly - opens channel/bot links using proper Telegram WebApp methods
-    - Supports `tg://` protocol for Telegram channels
-    - Handles external links with proper fallbacks
-    - Auto-prefixes https:// when missing
-*   **Withdrawal Button**: Verified working correctly - submits withdrawal requests with all validations
-    - Checks minimum withdrawal amount from admin settings
-    - Validates friend invite requirements
-    - Prevents duplicate pending withdrawals
-*   **Affiliate Percentage**: Verified displaying correctly from `appSettings.affiliateCommission`
-    - Dynamically fetches from admin settings
-    - Updates instantly when admin changes the value
-*   **Status**: ✅ All 4 reported issues resolved and verified
-
-**November 1, 2025 - Admin Settings Panel Enhancement**
-
-*Admin Dashboard Settings Expansion:*
-*   **New Configuration Options**: Added 6 new settings to the admin panel for comprehensive app control
-    - Affiliate Commission Control: Adjustable commission percentage for referrals (0-100%)
-    - Wallet Change Fee: Configurable fee for wallet address changes (in TON)
-    - Minimum Withdrawal Amount: Adjustable minimum withdrawal threshold (in TON)
-    - Task Per Click Reward: Configurable reward per task click (in TON)
-    - Task Creation Cost: Adjustable cost per click for creating tasks (in TON)
-    - Minimum Convert Amount: Configurable minimum for balance conversion (in TON)
-*   **UI Organization**: Settings organized into 5 categories:
-    - Ad & Reward Settings (Daily Ad Limit, Reward Per Ad)
-    - Affiliate & Wallet Settings (Commission %, Wallet Fee)
-    - Withdrawal & Conversion Settings (Min Withdrawal, Min Convert)
-    - Task Settings (Per Click Reward, Creation Cost)
-    - Broadcast Settings (Season Broadcast Toggle)
-*   **Validation**: Comprehensive validation for all fields with specific ranges and error messages
-*   **Backend Integration**: All settings already supported by backend `/api/admin/settings` endpoints
-*   **Bug Fix**: Restored season broadcast toggle functionality that was previously missing in UI
-*   **Testing**: Architect verified implementation is complete and correct
-*   **Status**: ✅ Complete and ready for production use
-
-**October 31, 2025 - Task System Security & UX Improvements + Ad Anti-Cheat**
-
-*Task System Enhancements:*
-*   **Title Validation**: Task titles now validate against URL patterns (https://, t.me/, .com, .net, .org, .io, www.) to prevent link spam
-*   **Notification Update**: Task creation shows only "Task created successfully ✅" message
-*   **Link Auto-Fix**: Task start button automatically prepends https:// to links missing protocol
-*   **UI Cleanup**: Removed "Cost per click", "Reward per click", and "Total cost" fields from task creation form
-*   **Verify Button Enhancement**: Verify Channel button changes from default to blue when valid Telegram link is entered, and green when verified
-*   **Testing**: All changes verified by architect review
-
-*Ad Watching Anti-Cheat System:*
-*   **3-Second Minimum**: Implemented hidden timer requiring users to watch ads for at least 3 seconds
-*   **Cheat Prevention**: If ad is closed before 3 seconds, user sees "Claiming too fast!" error (red) and receives no reward
-*   **Normal Flow**: Users who watch for 3+ seconds receive reward as expected
-*   **Implementation**: Silent background timer using Date.now() to track watch duration
-*   **Status**: ✅ Complete and ready for production use
-
-**October 30, 2025 - Create Task Page Routing Fix**
-
-*Bug Fix:*
-*   **Issue**: Task create page was not accessible - clicking "+Task" button resulted in a blank/loading screen
-*   **Root Cause**: CreateTask component was not imported and no route was defined for `/create-task` in App.tsx
-*   **Fix Applied**: 
-    - Added lazy import for CreateTask component in App.tsx
-    - Added route definition for `/create-task` path in the Router component
-*   **Status**: ✅ Task create page now loads correctly and is fully functional
-
-**October 30, 2025 - Pending Withdrawals Admin Button Added**
-
-*Telegram Bot Admin Panel Enhancement:*
-*   **New Feature**: Added "Pending Withdrawals" button to the `/szxzyz` admin panel
-*   **Button Location**: Appears below the "Announce" and "Refresh" buttons in the admin control panel
-*   **Functionality**:
-    - Fetches all pending withdrawal requests from the database
-    - Displays each withdrawal with user information, amount, method, wallet address, and creation date
-    - Shows "Approve" and "Reject" buttons for each withdrawal request
-    - Implements pagination for handling more than 10 pending requests (10 per page with Previous/Next buttons)
-    - Shows "No pending withdrawal requests found" message when there are no pending withdrawals
-*   **Admin Actions**:
-    - Click "Approve" to approve a withdrawal (user receives notification with payment confirmation)
-    - Click "Reject" to reject a withdrawal (admin is prompted to enter rejection reason, user receives notification)
-*   **Security**: Only admins (verified via TELEGRAM_ADMIN_ID) can access and use this feature
-*   **Testing**: Architect verified implementation follows existing patterns and has no security issues
-*   **Status**: ✅ Complete and ready for production use
-
-**October 30, 2025 - Task System UX Improvements & Notification Standardization**
-
-*Task System UX Enhancements:*
-*   **Task Creation Flow**: 
-    - Modal now closes automatically after successful task creation
-    - Replaced toast notifications with AppNotification for consistent UX
-    - Feed automatically refreshes to show newly created tasks
-*   **Task Card Layout**: 
-    - Redesigned task cards to be compact and minimal
-    - Display format: Icon + Title + Reward + [Start]/[Check] button
-    - Removed progress bars and unnecessary text like click counters
-    - Card padding reduced from p-4 to p-3 for tighter layout
-*   **Add More Clicks System**: 
-    - Added visible close (×) button in top-right corner of modal
-    - Modal closes automatically after successful click addition
-    - Updated all notifications to use AppNotification with message "Clicks added successfully!"
-    - TON balance verification already implemented, now shows proper error: "Insufficient TON balance"
-*   **Start/Check Button Behavior**: 
-    - Button changes from "Start" to "Check" after user clicks task link
-    - Properly handles Telegram channels with `tg://resolve?domain=` format
-    - Telegram bots open directly in Telegram app
-    - External websites open in new browser tab
-    - After successful completion, task is removed from feed
-*   **Notification System**: 
-    - All notifications (success, error, validation) now use AppNotification component
-    - Replaced all toast() calls with showNotification() for consistency
-    - Smooth animations on all user-facing messages
-    - Validation errors for task creation and click additions now use AppNotification
-*   **Testing**: All changes verified by architect, ready for production deployment
-*   **Status**: ✅ Complete UX overhaul verified, ready for production
-
-**October 29, 2025 - Task Creation UI Updates & Database Fix**
-
-*Task Creation System Improvements:*
-*   **Database Fix**: Created missing `advertiser_tasks` and `task_clicks` tables in the database
-*   **UI Updates**: 
-    - Moved "+Task" button to top header (right side, next to "Set Wallet" button)
-    - Removed "Cost Summary" section from task creation form
-    - Updated submit button to show cost: "Pay X TON & Publish"
-    - Removed emojis from notification messages
-*   **Backend**: TON balance deduction logic already implemented in `/api/advertiser-tasks/create` endpoint (lines 3051-3056 in server/routes.ts)
-*   **Migration**: Updated `server/migrate.ts` to automatically create task tables on future deployments
-*   **Status**: ✅ Task creation system is now fully functional
-
-**October 28, 2025 - Broadcast Functionality Enhancement**
-
-*Telegram Bot Broadcast Improvements:*
-*   **Issue**: Admin broadcast messages used plain text links instead of interactive buttons
-*   **Fix Applied**: 
-    - Replaced plain text footer links with Telegram inline buttons in `server/telegram.ts`
-    - "🚀 Open App" button (web_app type) opens the application directly
-    - "🤝 Join Community" button (URL type) links to Telegram channel
-    - Improved rate limiting with batched sending (25 messages/batch, 1 second pause between batches)
-    - Maintains ~25 messages/second to stay within Telegram's 30 msg/s rate limit
-*   **How It Works**:
-    - Admin uses `/szxzyz` command to open admin panel
-    - Clicks "🔔 Announce" button to start broadcast
-    - Types broadcast message (with "❌ Cancel Broadcast" option available)
-    - Message is sent to all users with inline buttons
-    - Deduplication ensures one message per unique telegram_id
-    - Admin receives detailed summary: success count, failed count, skipped count
-*   **Testing**: Requires TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_ID environment variables
-*   **Status**: ✅ Verified by architect, ready for production use
-
-**October 25, 2025 - Replit Environment Setup & Multi-Account Prevention Fix**
-
-*Replit Environment Setup:*
-*   **GitHub Import Setup**: Successfully configured project for Replit environment
-*   **Database**: Provisioned PostgreSQL database and ran migrations successfully
-*   **SQL Fix**: Replaced SQL template literals with parameterized queries in `upsertTelegramUser` function
-    - Changed from `db.execute(sql`...`)` to `pool.query(query, values)` with `$1, $2, ...` syntax
-    - Prevents SQL syntax errors and improves security
-*   **Development Workflow**: Configured workflow on port 5000 with `allowedHosts: true` for Replit proxy compatibility
-*   **Deployment**: Set up autoscale deployment configuration for production
-
-*Multi-Account Prevention Fix:*
-*   **Issue**: Users could create multiple accounts from the same device despite one-account-per-device policy
-*   **Root Cause**: `useAuth.ts` authentication function was not sending device headers (`x-device-id`, `x-device-fingerprint`)
-*   **Fix Applied**: 
-    - Updated `authenticateWithTelegram` in `useAuth.ts` to include device tracking headers
-    - Device ID and fingerprint now sent with all Telegram authentication requests
-    - Added error handling for banned accounts
-*   **How It Works**:
-    - Each device generates a unique ID stored in localStorage
-    - Backend checks if device ID already has an associated account
-    - If duplicate detected: new account is banned, primary account receives warning
-*   **Testing**: Device validation only works in production with real Telegram users (development mode bypasses device checks)
-*   **Status**: ✅ Fix verified by architect, ready for production testing
+*   **Removed All Hardcoded Values**: Replaced all hardcoded constants with dynamic values fetched from admin settings API
+*   **Expanded /api/app-settings Endpoint**: Now returns all admin settings (taskCostPerClick, taskRewardPAD, walletChangeFee, affiliateCommissionPercent, minimumWithdrawal, minimumConvertPAD)
+*   **Task System Updates**: Backend filters out completed tasks before sending to frontend; task rewards use direct PAD values from database
+*   **Converter UI Fix**: Minimum converter amount now displays in PAD format for clarity
+*   **Real-time Updates**: All settings refresh automatically on page load from database without requiring redeployment
 
 # User Preferences
 
@@ -197,38 +24,43 @@ Preferred communication style: Simple, everyday language.
 
 # System Architecture
 
-## Frontend Architecture
+## Frontend
 *   **Frameworks**: React with TypeScript, Vite.
 *   **Routing**: Wouter.
 *   **State Management**: TanStack Query.
 *   **UI/UX**: shadcn/ui, Radix UI, Tailwind CSS, custom CSS for theming (light/dark mode), Framer Motion for animations. Features a diamond-themed UI with a cyan and silver palette, frosted glass cards, glow effects, and sparkle animations.
 *   **Forms**: React Hook Form with Zod validation.
 *   **Navigation**: Curved bottom navigation with Lucide React icons.
+*   **Anti-Cheat**: Implemented a 3-second minimum ad watch time to prevent fast claiming.
 
-## Backend Architecture
+## Backend
 *   **Runtime**: Node.js with Express.js.
 *   **Database ORM**: Drizzle ORM with PostgreSQL.
 *   **API**: RESTful API with JSON responses.
 *   **Session Management**: Express sessions with PostgreSQL store.
+*   **Telegram Bot**: Integration for admin controls, broadcasts, and user notifications.
+*   **Security**: Parameterized queries for database interactions, device tracking for multi-account prevention.
 
 ## Authentication & Authorization
 *   **Provider**: Replit OAuth (OpenID Connect).
 *   **Session Strategy**: Server-side sessions with secure HTTP-only cookies.
 *   **Authorization**: Middleware-based route protection.
-*   **User Management**: Automatic user creation/updates on authentication.
+*   **User Management**: Automatic user creation/updates on authentication, device ID-based multi-account prevention.
 
 ## Data Storage
-*   **Primary Database**: PostgreSQL via Neon serverless.
+*   **Primary Database**: PostgreSQL.
 *   **Schema Management**: Drizzle migrations.
-*   **Key Entities**: Users (balance, streaks, referrals), Earnings, Withdrawals, Referral relationships, Sessions.
+*   **Key Entities**: Users (balance, streaks, referrals), Earnings, Withdrawals, Referral relationships, Sessions, Advertiser Tasks, Task Clicks.
 
-## Business Logic Features
-*   **Ad Watching System**: Users earn 30 PAD (0.0003 TON) per ad with a cooldown.
-*   **Spin & Win System**: Gamified reward system with daily resets at 00:00 UTC, offering various cryptocurrency rewards.
-*   **Daily Streak Rewards**: Users earn daily PAD, with a bonus on the 5th consecutive day, requiring ad watch and Telegram channel membership. Resets daily at 00:00 UTC.
-*   **Referral Program**: Multi-level commission system for referred users' ad earnings.
-*   **Withdrawal System**: Supports multiple payment methods, requiring a minimum number of invited friends and admin approval.
-*   **Currency Conversion**: All internal values are in TON, displayed as PAD (1 TON = 100,000 PAD).
+## Business Logic
+*   **Ad Watching System**: Users earn 30 PAD (0.0003 TON) per ad with cooldowns and a 3-second minimum watch time.
+*   **Spin & Win System**: Daily gamified rewards.
+*   **Daily Streak Rewards**: Earn PAD daily with bonuses for consecutive days, requiring ad watch and Telegram channel membership.
+*   **Referral Program**: Multi-level commission on referred users' ad earnings.
+*   **Withdrawal System**: Multiple payment methods, minimum friend invite requirement, admin approval.
+*   **Currency Conversion**: Internal values in TON, displayed as PAD (1 TON = 100,000 PAD).
+*   **Admin Controls**: Comprehensive settings for affiliate commission, wallet change fees, minimum withdrawal, task rewards, task creation cost, and balance conversion. Broadcast functionality with inline Telegram buttons.
+*   **Task System**: Users can create tasks (e.g., join Telegram channels) for others to complete, with title validation and auto-link correction.
 
 # External Dependencies
 
@@ -243,6 +75,7 @@ Preferred communication style: Simple, everyday language.
 *   **State Management**: TanStack Query.
 *   **Form Management**: React Hook Form, Zod.
 *   **Date Handling**: `date-fns`.
+*   **Animations**: Framer Motion.
 
 ## Ad Integration
 *   **Ad Provider**: External advertisement service integrated via the global window object.
