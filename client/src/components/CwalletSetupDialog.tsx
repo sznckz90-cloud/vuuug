@@ -49,10 +49,6 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
       const response = await apiRequest('POST', '/api/wallet/cwallet', {
         cwalletId: cwalletId.trim()
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to save Cwallet ID");
-      }
       return response.json();
     },
     onSuccess: () => {
@@ -71,10 +67,6 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
       const response = await apiRequest('POST', '/api/wallet/change', {
         newWalletId: newWalletId.trim()
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to change wallet");
-      }
       return response.json();
     },
     onSuccess: (data) => {

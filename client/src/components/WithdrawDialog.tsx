@@ -185,7 +185,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
           </Button>
           <Button
             onClick={handleWithdraw}
-            disabled={withdrawMutation.isPending || hasPendingWithdrawal || friendsInvited < MINIMUM_FRIENDS_REQUIRED}
+            disabled={withdrawMutation.isPending || hasPendingWithdrawal}
             className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {withdrawMutation.isPending ? (
