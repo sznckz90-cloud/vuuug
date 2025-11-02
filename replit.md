@@ -12,7 +12,19 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes (November 2, 2025)
 
-## New Features & Bug Fixes - Leaderboard & Task System (Latest)
+## TON Wallet Integration (Latest - November 2, 2025)
+
+### Wallet Validation Update
+*   **TON Wallet Address Support**: Wallet system now exclusively accepts TON wallet addresses (UQ or EQ prefix, 48 characters total)
+    - Frontend validation enforces regex pattern: `/^(UQ|EQ)[A-Za-z0-9_-]{46}$/`
+    - Backend validation matches frontend across all 3 endpoints (`/api/wallet/cwallet`, `/api/set-wallet`, `/api/wallet/change`)
+    - All user-facing text updated from "Cwallet ID" to "TON wallet address"
+    - Close button removed from wallet setup dialog for cleaner UX
+    - Clear validation error messages: "Please enter a valid TON wallet address"
+    - Help text updated with link to official TON wallet resources
+*   **Comprehensive Error Messaging**: All withdrawal and wallet-related error messages now use consistent "TON wallet address" terminology
+
+## New Features & Bug Fixes - Leaderboard & Task System
 
 ### Leaderboard Feature
 *   **Monthly Leaderboard Page**: New dedicated page (`/leaderboard`) showing top performers with tab switcher
