@@ -16,6 +16,7 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Tasks = lazy(() => import("@/pages/Tasks"));
 const CreateTask = lazy(() => import("@/pages/CreateTask"));
+const Leaderboard = lazy(() => import("@/pages/Leaderboard"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -34,6 +35,7 @@ function Router() {
         <Route path="/tasks" component={Tasks} />
         <Route path="/create-task" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
+        <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
