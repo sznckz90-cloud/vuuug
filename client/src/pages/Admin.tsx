@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/utils";
 import { PAD_TO_TON } from "@shared/constants";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Crown } from "lucide-react";
+import { showNotification } from "@/components/AppNotification";
 
 interface AdminStats {
   totalUsers: number;
@@ -960,6 +961,7 @@ function SettingsSection() {
           title: "✅ Settings Updated Successfully",
           description: "App settings have been updated and are now active",
         });
+        showNotification("Settings updated successfully", "success");
         // Invalidate both admin and app settings to refresh everywhere
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
         queryClient.invalidateQueries({ queryKey: ["/api/app-settings"] });
