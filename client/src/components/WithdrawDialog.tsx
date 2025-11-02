@@ -116,9 +116,10 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     }
 
     if (tonBalance < MINIMUM_WITHDRAWAL) {
+      const minimumWithdrawalPAD = Math.floor(MINIMUM_WITHDRAWAL * 10000000);
       toast({
         title: "Insufficient balance",
-        description: `You need at least ${MINIMUM_WITHDRAWAL} TON to withdraw.`,
+        description: `Minimum withdrawal amount is ${minimumWithdrawalPAD.toLocaleString()} PAD (${MINIMUM_WITHDRAWAL} TON).`,
         variant: "destructive",
       });
       return;
@@ -184,7 +185,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
           </Button>
           <Button
             onClick={handleWithdraw}
-            disabled={withdrawMutation.isPending || hasPendingWithdrawal || tonBalance < MINIMUM_WITHDRAWAL || friendsInvited < MINIMUM_FRIENDS_REQUIRED}
+            disabled={withdrawMutation.isPending || hasPendingWithdrawal || friendsInvited < MINIMUM_FRIENDS_REQUIRED}
             className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {withdrawMutation.isPending ? (
