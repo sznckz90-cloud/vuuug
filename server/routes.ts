@@ -3416,15 +3416,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Delete task and refund user in a transaction
       await db.transaction(async (tx) => {
+        // Delete associated clicks first to avoid foreign key constraint issues
+        await tx
+          .delete(taskClicks)
+          .where(eq(taskClicks.taskId, taskId));
+
         // Delete the task
         await tx
           .delete(advertiserTasks)
           .where(eq(advertiserTasks.id, taskId));
-
-        // Delete associated clicks
-        await tx
-          .delete(taskClicks)
-          .where(eq(taskClicks.taskId, taskId));
 
         // Refund remaining balance if any
         if (parseFloat(refundAmount) > 0) {

@@ -345,7 +345,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS admin_settings (
         id SERIAL PRIMARY KEY,
-        setting_key VARCHAR UNIQUE NOT NULL,
+        setting_key VARCHAR NOT NULL,
         setting_value TEXT NOT NULL,
         description TEXT,
         updated_by VARCHAR,
@@ -353,6 +353,34 @@ export async function ensureDatabaseSchema(): Promise<void> {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Safely add unique constraint on setting_key after removing duplicates
+    try {
+      // Remove duplicate entries, keeping the one with the highest ID (most recent)
+      await db.execute(sql`
+        DELETE FROM admin_settings a
+        USING admin_settings b
+        WHERE a.id < b.id
+        AND a.setting_key = b.setting_key
+      `);
+      
+      // Add unique constraint if it doesn't exist
+      await db.execute(sql`
+        DO $$ 
+        BEGIN 
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint 
+            WHERE conname = 'admin_settings_setting_key_unique'
+          ) THEN
+            ALTER TABLE admin_settings ADD CONSTRAINT admin_settings_setting_key_unique UNIQUE (setting_key);
+          END IF;
+        END $$
+      `);
+      
+      console.log('✅ [MIGRATION] admin_settings unique constraint ensured');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] admin_settings unique constraint already exists or cannot be added');
+    }
     
     // Initialize default admin settings if they don't exist
     await db.execute(sql`
