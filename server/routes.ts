@@ -890,6 +890,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch user stats" });
     }
   });
+  
+  // Leaderboard endpoints
+  app.get('/api/leaderboard/top', async (req: any, res) => {
+    try {
+      const topUser = await storage.getTopUserByEarnings();
+      res.json(topUser || { username: 'No data', profileImage: '', totalEarnings: '0' });
+    } catch (error) {
+      console.error("Error fetching top user:", error);
+      res.status(500).json({ message: "Failed to fetch top user" });
+    }
+  });
+  
+  app.get('/api/leaderboard/monthly', async (req: any, res) => {
+    try {
+      const leaderboard = await storage.getMonthlyLeaderboard();
+      res.json(leaderboard);
+    } catch (error) {
+      console.error("Error fetching monthly leaderboard:", error);
+      res.status(500).json({ message: "Failed to fetch monthly leaderboard" });
+    }
+  });
 
   // Referral stats endpoint - auth removed to prevent popup spam on affiliates page
   app.get('/api/referrals/stats', async (req: any, res) => {

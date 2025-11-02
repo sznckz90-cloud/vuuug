@@ -142,6 +142,13 @@ export interface IStorage {
   increaseTaskLimit(taskId: string, additionalClicks: number, additionalCost: string): Promise<AdvertiserTask>;
   recordTaskClick(taskId: string, publisherId: string): Promise<{ success: boolean; message: string; reward?: string }>;
   hasUserClickedTask(taskId: string, publisherId: string): Promise<boolean>;
+  
+  // Leaderboard operations
+  getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null>;
+  getMonthlyLeaderboard(): Promise<{
+    topEarners: Array<{ rank: number; username: string; profileImage: string; totalEarnings: string; userId: string }>;
+    topReferrers: Array<{ rank: number; username: string; profileImage: string; totalReferrals: number; userId: string }>;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2641,6 +2648,103 @@ export class DatabaseStorage implements IStorage {
       ));
     
     return !!click;
+  }
+  
+  async getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null> {
+    try {
+      const [topUser] = await db
+        .select({
+          username: users.username,
+          profileImage: users.profileImageUrl,
+          totalEarnings: users.totalEarned
+        })
+        .from(users)
+        .where(sql`${users.totalEarned} > 0`)
+        .orderBy(desc(users.totalEarned))
+        .limit(1);
+      
+      if (!topUser) return null;
+      
+      return {
+        username: topUser.username || 'Anonymous',
+        profileImage: topUser.profileImage || '',
+        totalEarnings: topUser.totalEarnings || '0'
+      };
+    } catch (error) {
+      console.error('Error fetching top user by earnings:', error);
+      return null;
+    }
+  }
+  
+  async getMonthlyLeaderboard(): Promise<{
+    topEarners: Array<{ rank: number; username: string; profileImage: string; totalEarnings: string; userId: string }>;
+    topReferrers: Array<{ rank: number; username: string; profileImage: string; totalReferrals: number; userId: string }>;
+  }> {
+    try {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      const topEarnersData = await db
+        .select({
+          userId: earnings.userId,
+          totalEarnings: sql<string>`SUM(${earnings.amount})`,
+        })
+        .from(earnings)
+        .where(and(
+          gte(earnings.createdAt, monthStart),
+          sql`${earnings.source} <> 'withdrawal'`
+        ))
+        .groupBy(earnings.userId)
+        .orderBy(desc(sql`SUM(${earnings.amount})`))
+        .limit(50);
+      
+      const topEarners = await Promise.all(
+        topEarnersData.map(async (earner, index) => {
+          const user = await this.getUser(earner.userId);
+          return {
+            rank: index + 1,
+            username: user?.username || 'Anonymous',
+            profileImage: user?.profileImageUrl || '',
+            totalEarnings: earner.totalEarnings,
+            userId: earner.userId
+          };
+        })
+      );
+      
+      const topReferrersData = await db
+        .select({
+          referrerId: referrals.referrerId,
+          totalReferrals: sql<number>`COUNT(*)`,
+        })
+        .from(referrals)
+        .groupBy(referrals.referrerId)
+        .orderBy(desc(sql`COUNT(*)`))
+        .limit(50);
+      
+      const topReferrers = await Promise.all(
+        topReferrersData.map(async (referrer, index) => {
+          const user = await this.getUser(referrer.referrerId);
+          return {
+            rank: index + 1,
+            username: user?.username || 'Anonymous',
+            profileImage: user?.profileImageUrl || '',
+            totalReferrals: Number(referrer.totalReferrals),
+            userId: referrer.referrerId
+          };
+        })
+      );
+      
+      return {
+        topEarners,
+        topReferrers
+      };
+    } catch (error) {
+      console.error('Error fetching monthly leaderboard:', error);
+      return {
+        topEarners: [],
+        topReferrers: []
+      };
+    }
   }
 }
 

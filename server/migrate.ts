@@ -419,7 +419,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS task_clicks (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-        task_id VARCHAR NOT NULL REFERENCES advertiser_tasks(id),
+        task_id VARCHAR NOT NULL REFERENCES advertiser_tasks(id) ON DELETE CASCADE,
         publisher_id VARCHAR NOT NULL REFERENCES users(id),
         reward_amount DECIMAL(12, 8) DEFAULT 0.0001750 NOT NULL,
         clicked_at TIMESTAMP DEFAULT NOW(),
