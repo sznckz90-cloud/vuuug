@@ -611,7 +611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rewardPerAd = parseInt(getSetting('reward_per_ad', '1000'));
       const seasonBroadcastActive = getSetting('season_broadcast_active', 'false') === 'true';
       const affiliateCommission = parseFloat(getSetting('affiliate_commission', '10'));
-      const walletChangeFee = parseFloat(getSetting('wallet_change_fee', '0.01'));
+      const walletChangeFeeTON = parseFloat(getSetting('wallet_change_fee', '0.0005'));
       const minimumWithdrawal = parseFloat(getSetting('minimum_withdrawal', '0.5'));
       const taskCostPerClick = parseFloat(getSetting('task_creation_cost', '0.0003'));
       const taskRewardPerClick = parseFloat(getSetting('task_per_click_reward', '0.0001750'));
@@ -619,8 +619,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Convert TON values to PAD where needed (multiply by 10,000,000)
       const rewardPerAdPAD = rewardPerAd;
-      const taskRewardPAD = Math.floor(taskRewardPerClick * 10000000);
-      const minimumConvertPAD = Math.floor(minimumConvert * 10000000);
+      const taskRewardPAD = Math.round(taskRewardPerClick * 10000000);
+      const minimumConvertPAD = Math.round(minimumConvert * 10000000);
+      const walletChangeFeePAD = Math.round(walletChangeFeeTON * 10000000);
       
       res.json({
         dailyAdLimit,
@@ -629,7 +630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         seasonBroadcastActive,
         affiliateCommission,
         affiliateCommissionPercent: affiliateCommission,
-        walletChangeFee,
+        walletChangeFee: walletChangeFeePAD,
         minimumWithdrawal,
         taskCostPerClick,
         taskRewardPerClick,
@@ -1912,8 +1913,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const walletChangeFeeTON = parseFloat(getSetting('wallet_change_fee', '0.0005'));
       
       // Convert TON to PAD for display (multiply by 10,000,000)
-      const taskPerClickRewardPAD = Math.floor(taskPerClickRewardTON * 10000000);
-      const walletChangeFeePAD = Math.floor(walletChangeFeeTON * 10000000);
+      const taskPerClickRewardPAD = Math.round(taskPerClickRewardTON * 10000000);
+      const walletChangeFeePAD = Math.round(walletChangeFeeTON * 10000000);
       
       // Return all settings in format expected by frontend
       res.json({
