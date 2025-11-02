@@ -133,8 +133,8 @@ export default function Tasks() {
     // Prepare the link to open - automatically add https:// if missing
     let linkToOpen = task.link.trim();
     
-    // Add https:// prefix if the link doesn't start with http://, https://, or tg://
-    if (!linkToOpen.startsWith('http://') && !linkToOpen.startsWith('https://') && !linkToOpen.startsWith('tg://')) {
+    // Add https:// prefix if the link doesn't start with http://, https://
+    if (!linkToOpen.startsWith('http://') && !linkToOpen.startsWith('https://')) {
       // If it's a t.me or telegram.me link without protocol, add https://
       if (linkToOpen.match(/^(t\.me|telegram\.me)\//)) {
         linkToOpen = 'https://' + linkToOpen;
@@ -143,32 +143,23 @@ export default function Tasks() {
         linkToOpen = 'https://' + linkToOpen;
       }
     }
-    
-    // Convert t.me/telegram.me links to tg:// protocol for better Telegram integration
-    // BUT skip invite links (/joinchat/ or /+) as they need to stay as https://
-    const isInviteLink = linkToOpen.includes('/joinchat/') || linkToOpen.includes('/+');
-    
-    if (!isInviteLink && (linkToOpen.includes('t.me/') || linkToOpen.includes('telegram.me/'))) {
-      const match = linkToOpen.match(/(?:t\.me|telegram\.me)\/([^/?]+)/);
-      if (match && match[1]) {
-        const username = match[1];
-        linkToOpen = `tg://resolve?domain=${username}`;
-      }
-    }
 
-    // Open the link immediately
+    // Open the link using Telegram WebApp API
     let opened = false;
     
-    // Try Telegram WebApp methods first
+    // Check if we're inside Telegram WebApp
     if (window.Telegram?.WebApp) {
-      if (linkToOpen.startsWith('tg://')) {
-        // For Telegram links, use openTelegramLink if available
+      // Check if this is a Telegram link (t.me or telegram.me)
+      const isTelegramLink = linkToOpen.includes('t.me/') || linkToOpen.includes('telegram.me/');
+      
+      if (isTelegramLink) {
+        // For Telegram links, use openTelegramLink with https://t.me/ URL
         if (window.Telegram.WebApp.openTelegramLink) {
           window.Telegram.WebApp.openTelegramLink(linkToOpen);
           opened = true;
         }
       } else {
-        // For external links, use openLink
+        // For external non-Telegram links, use openLink
         if (window.Telegram.WebApp.openLink) {
           window.Telegram.WebApp.openLink(linkToOpen);
           opened = true;
@@ -176,7 +167,7 @@ export default function Tasks() {
       }
     }
     
-    // Fallback to window.open
+    // Fallback to window.open if Telegram WebApp API is not available
     if (!opened) {
       window.open(linkToOpen, "_blank");
     }
