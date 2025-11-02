@@ -12,7 +12,24 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes (November 2, 2025)
 
-## Bug Fixes - Task Deletion & Withdrawal Notifications (Latest)
+## New Features & Bug Fixes - Leaderboard & Task System (Latest)
+
+### Leaderboard Feature
+*   **Monthly Leaderboard Page**: New dedicated page (`/leaderboard`) showing top performers with tab switcher
+    - **PAD Earners Tab**: Top 50 users ranked by monthly PAD earnings with compact number formatting (1k, 1.2M, 1B)
+    - **Top Referrers Tab**: Top 50 users ranked by total referrals count
+    - Swappable tabs similar to admin dashboard for easy navigation
+    - Profile photos, usernames, and rankings (🥇🥈🥉) displayed for each user
+*   **Home Page Leaderboard Preview**: Replaced "Income Statistics" section with clickable Leaderboard preview card showing #1 earner
+*   **Backend API Endpoints**: Added `/api/leaderboard/top` and `/api/leaderboard/monthly` for real-time leaderboard data
+*   **Number Formatting Helper**: Added `formatCompactNumber()` utility to display large numbers in readable format (1,000 → 1k, 1,200,000 → 1.2M, etc.)
+
+### Task System Fix
+*   **Start/Check Button Reset**: Fixed task button to show "Start" again when join verification fails, preventing users from getting stuck
+    - When user clicks "Check" but hasn't joined the channel/bot, button now resets to "Start" allowing retry
+    - Error handler in `clickTaskMutation.onError` removes task from clicked state on failure
+
+## Bug Fixes - Task Deletion & Withdrawal Notifications
 
 *   **Task Deletion Foreign Key Fixed**: Added CASCADE constraint to `task_clicks.task_id` foreign key. Tasks can now be deleted safely, automatically removing all associated click records without foreign key errors.
 *   **Admin Settings Migration Fixed**: Updated migration logic to safely remove duplicate `setting_key` entries before adding unique constraint. Migration now works on both fresh and existing databases without data truncation.
