@@ -89,23 +89,23 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
       onOpenChange(false);
     },
     onError: (error: any) => {
-      showNotification(`❌ ${error.message || "Failed to submit withdrawal request"}`, "error");
+      showNotification(` ${error.message || "Failed to submit withdrawal request"}`, "error");
     },
   });
 
   const handleWithdraw = () => {
     if (friendsInvited < MINIMUM_FRIENDS_REQUIRED) {
-      showNotification("❌ You need to invite at least 3 friends to unlock withdrawals.", "error");
+      showNotification(" You need to invite at least 3 friends to unlock withdrawals.", "error");
       return;
     }
 
     if (hasPendingWithdrawal) {
-      showNotification("❌ Cannot create new request until current one is processed.", "error");
+      showNotification(" Cannot create new request until current one is processed.", "error");
       return;
     }
 
     if (tonBalance < MINIMUM_WITHDRAWAL) {
-      showNotification(`❌ Minimum withdrawal: ${MINIMUM_WITHDRAWAL} ${withdrawalCurrency}`, "error");
+      showNotification(` Minimum withdrawal: ${MINIMUM_WITHDRAWAL} ${withdrawalCurrency}`, "error");
       return;
     }
 
