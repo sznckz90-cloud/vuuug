@@ -4,15 +4,13 @@ import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
 import PromoCodeDialog from "@/components/PromoCodeDialog";
 import PromoCodeInput from "@/components/PromoCodeInput";
-import WithdrawDialog from "@/components/WithdrawDialog";
 import WalletSection from "@/components/WalletSection";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { ArrowDown, PlusCircle, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { tonToPAD, formatCompactNumber } from "@shared/constants";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
@@ -32,7 +30,6 @@ export default function Home() {
   const { isAdmin } = useAdmin();
   const [, setLocation] = useLocation();
   const [promoDialogOpen, setPromoDialogOpen] = React.useState(false);
-  const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<{
     todayEarnings?: string;
@@ -80,6 +77,9 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 mt-6">
+        {/* Daily Streak Section */}
+        <StreakCard user={user as User} />
+
         {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
@@ -87,8 +87,15 @@ export default function Home() {
           uid={formattedUserId}
           isAdmin={isAdmin}
           onAdminClick={() => setLocation("/admin")}
-          onWithdraw={() => setWithdrawDialogOpen(true)}
+          onWithdraw={() => {}}
         />
+
+        {/* Promo Code Section - Inline */}
+        <Card className="mb-3 minimal-card">
+          <CardContent className="pt-3 pb-3">
+            <PromoCodeInput />
+          </CardContent>
+        </Card>
 
         {/* Leaderboard Preview */}
         <Card 
@@ -132,35 +139,10 @@ export default function Home() {
         {/* Viewing Ads Section */}
         <AdWatchingSection user={user as User} />
 
-        {/* Daily Streak Section */}
-        <StreakCard user={user as User} />
-
-        {/* Promo Code Section - Inline */}
-        <Card className="mb-3 minimal-card">
-          <CardContent className="pt-3 pb-3">
-            <PromoCodeInput />
-          </CardContent>
-        </Card>
-
-        {/* Main Action Button - Withdraw */}
-        <Button
-          className="h-12 btn-primary w-full"
-          onClick={() => setWithdrawDialogOpen(true)}
-        >
-          <ArrowDown className="w-5 h-5 mr-2" />
-          Withdraw
-        </Button>
-
         {/* Promo Code Dialog */}
         <PromoCodeDialog 
           open={promoDialogOpen}
           onOpenChange={setPromoDialogOpen}
-        />
-
-        {/* Withdraw Dialog */}
-        <WithdrawDialog 
-          open={withdrawDialogOpen}
-          onOpenChange={setWithdrawDialogOpen}
         />
       </main>
     </Layout>
