@@ -105,7 +105,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     }
 
     if (tonBalance < MINIMUM_WITHDRAWAL) {
-      showNotification(` Minimum withdrawal: ${MINIMUM_WITHDRAWAL} ${withdrawalCurrency}`, "error");
+      showNotification(` Minimum withdrawal ${MINIMUM_WITHDRAWAL} ${withdrawalCurrency}`, "error");
       return;
     }
 
