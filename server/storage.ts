@@ -145,9 +145,11 @@ export interface IStorage {
   
   // Leaderboard operations
   getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null>;
-  getMonthlyLeaderboard(): Promise<{
+  getMonthlyLeaderboard(userId?: string): Promise<{
     topEarners: Array<{ rank: number; username: string; profileImage: string; totalEarnings: string; userId: string }>;
     topReferrers: Array<{ rank: number; username: string; profileImage: string; totalReferrals: number; userId: string }>;
+    userEarnerRank?: { rank: number; totalEarnings: string } | null;
+    userReferrerRank?: { rank: number; totalReferrals: number } | null;
   }>;
 }
 
@@ -2676,14 +2678,17 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
-  async getMonthlyLeaderboard(): Promise<{
+  async getMonthlyLeaderboard(userId?: string): Promise<{
     topEarners: Array<{ rank: number; username: string; profileImage: string; totalEarnings: string; userId: string }>;
     topReferrers: Array<{ rank: number; username: string; profileImage: string; totalReferrals: number; userId: string }>;
+    userEarnerRank?: { rank: number; totalEarnings: string } | null;
+    userReferrerRank?: { rank: number; totalReferrals: number } | null;
   }> {
     try {
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       
+      // Get top 10 earners
       const topEarnersData = await db
         .select({
           userId: earnings.userId,
@@ -2696,7 +2701,7 @@ export class DatabaseStorage implements IStorage {
         ))
         .groupBy(earnings.userId)
         .orderBy(desc(sql`SUM(${earnings.amount})`))
-        .limit(50);
+        .limit(10);
       
       const topEarners = await Promise.all(
         topEarnersData.map(async (earner, index) => {
@@ -2711,6 +2716,7 @@ export class DatabaseStorage implements IStorage {
         })
       );
       
+      // Get top 50 referrers
       const topReferrersData = await db
         .select({
           referrerId: referrals.referrerId,
@@ -2734,15 +2740,65 @@ export class DatabaseStorage implements IStorage {
         })
       );
       
+      let userEarnerRank = null;
+      let userReferrerRank = null;
+      
+      // Calculate user's rank if userId is provided
+      if (userId) {
+        // Get all earners with their ranks
+        const allEarnersData = await db
+          .select({
+            userId: earnings.userId,
+            totalEarnings: sql<string>`SUM(${earnings.amount})`,
+          })
+          .from(earnings)
+          .where(and(
+            gte(earnings.createdAt, monthStart),
+            sql`${earnings.source} <> 'withdrawal'`
+          ))
+          .groupBy(earnings.userId)
+          .orderBy(desc(sql`SUM(${earnings.amount})`));
+        
+        const userEarnerIndex = allEarnersData.findIndex(e => e.userId === userId);
+        if (userEarnerIndex !== -1) {
+          userEarnerRank = {
+            rank: userEarnerIndex + 1,
+            totalEarnings: allEarnersData[userEarnerIndex].totalEarnings
+          };
+        }
+        
+        // Get all referrers with their ranks
+        const allReferrersData = await db
+          .select({
+            referrerId: referrals.referrerId,
+            totalReferrals: sql<number>`COUNT(*)`,
+          })
+          .from(referrals)
+          .groupBy(referrals.referrerId)
+          .orderBy(desc(sql`COUNT(*)`));
+        
+        const userReferrerIndex = allReferrersData.findIndex(r => r.referrerId === userId);
+        if (userReferrerIndex !== -1) {
+          userReferrerRank = {
+            rank: userReferrerIndex + 1,
+            totalReferrals: Number(allReferrersData[userReferrerIndex].totalReferrals)
+          };
+        }
+      }
+      
       return {
         topEarners,
-        topReferrers
+        topReferrers,
+        userEarnerRank,
+        userReferrerRank
       };
     } catch (error) {
       console.error('Error fetching monthly leaderboard:', error);
       return {
         topEarners: [],
-        topReferrers: []
+        topReferrers: [],
+        userEarnerRank: null,
+        userReferrerRank: null
       };
     }
   }

@@ -904,7 +904,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get('/api/leaderboard/monthly', async (req: any, res) => {
     try {
-      const leaderboard = await storage.getMonthlyLeaderboard();
+      // Get userId from session if available (optional - for rank calculation)
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      const leaderboard = await storage.getMonthlyLeaderboard(userId);
       res.json(leaderboard);
     } catch (error) {
       console.error("Error fetching monthly leaderboard:", error);
