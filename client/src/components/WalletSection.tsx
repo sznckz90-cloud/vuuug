@@ -62,7 +62,7 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
     const minimumConvertPAD = appSettings?.minimumConvertPAD || 100000;
     
     if (padBalance < minimumConvertPAD) {
-      showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required to convert.`, "error");
+      showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
       return;
     }
 
