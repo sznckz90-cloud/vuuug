@@ -104,26 +104,27 @@ export default function Home() {
               </div>
               <div className="text-[10px] text-muted-foreground">Tap to view →</div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">🏆</div>
-              {topUser?.profileImage ? (
-                <img 
-                  src={topUser.profileImage} 
-                  alt={topUser.username}
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                  {topUser?.username?.[0] || '?'}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {topUser?.profileImage ? (
+                  <img 
+                    src={topUser.profileImage} 
+                    alt={topUser.username}
+                    className="w-10 h-10 rounded-full flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {topUser?.username?.[0] || '?'}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-white font-medium text-sm truncate">
+                    {topUser?.username || 'No data'}
+                  </div>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-white font-medium text-sm truncate">
-                  {topUser?.username || 'No data'}
-                </div>
-                <div className="text-primary text-xs font-bold">
-                  {topUser ? formatCompactNumber(tonToPAD(topUser.totalEarnings)) : '0'} PAD
-                </div>
+              </div>
+              <div className="text-primary text-sm font-bold flex-shrink-0">
+                {topUser ? formatCompactNumber(tonToPAD(topUser.totalEarnings)) : '0'} PAD
               </div>
             </div>
           </CardContent>
