@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,7 +16,6 @@ import { formatCurrency } from "@/lib/utils";
 import { PAD_TO_TON } from "@shared/constants";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Crown } from "lucide-react";
-import { showNotification } from "@/components/AppNotification";
 
 interface AdminStats {
   totalUsers: number;
@@ -471,11 +469,21 @@ function PromoCreatorSection() {
   const [formData, setFormData] = useState({
     code: '',
     rewardAmount: '',
+    rewardType: 'PAD' as 'PAD' | 'PDZ',
     usageLimit: '',
     perUserLimit: '1',
     expiresAt: ''
   });
   const [isCreating, setIsCreating] = useState(false);
+
+  const handleGenerateCode = () => {
+    const randomCode = 'PROMO' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    setFormData({ ...formData, code: randomCode });
+    toast({
+      title: "✨ Code Generated!",
+      description: `Generated code: ${randomCode}`,
+    });
+  };
 
   const { data: promoCodesData } = useQuery({
     queryKey: ["/api/admin/promo-codes"],
@@ -493,8 +501,8 @@ function PromoCreatorSection() {
       return;
     }
 
-    const padAmount = parseFloat(formData.rewardAmount);
-    if (isNaN(padAmount) || padAmount <= 0) {
+    const rewardAmount = parseFloat(formData.rewardAmount);
+    if (isNaN(rewardAmount) || rewardAmount <= 0) {
       toast({
         title: "⚠️ Validation Error",
         description: "Reward amount must be a positive number",
@@ -503,14 +511,15 @@ function PromoCreatorSection() {
       return;
     }
 
-    // Convert PAD to TON before sending (1 PAD = 0.0000001 TON, using PAD_TO_TON constant)
-    const tonAmount = padAmount / PAD_TO_TON;
+    // For PAD rewards, convert to TON; for PDZ, send as-is
+    const finalAmount = formData.rewardType === 'PAD' ? rewardAmount / PAD_TO_TON : rewardAmount;
 
     setIsCreating(true);
     try {
       const response = await apiRequest('POST', '/api/promo-codes/create', {
         code: formData.code.trim().toUpperCase(),
-        rewardAmount: tonAmount, // Send TON value
+        rewardAmount: finalAmount,
+        rewardType: formData.rewardType,
         usageLimit: formData.usageLimit ? parseInt(formData.usageLimit) : null,
         perUserLimit: parseInt(formData.perUserLimit),
         expiresAt: formData.expiresAt || null
@@ -521,11 +530,12 @@ function PromoCreatorSection() {
       if (result.success) {
         toast({
           title: "✅ Success!",
-          description: `Promo code created: ${padAmount} PAD reward`,
+          description: `Promo code created: ${rewardAmount} ${formData.rewardType} reward`,
         });
         setFormData({
           code: '',
           rewardAmount: '',
+          rewardType: 'PAD',
           usageLimit: '',
           perUserLimit: '1',
           expiresAt: ''
@@ -581,27 +591,59 @@ function PromoCreatorSection() {
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="promo-code">Promo Code *</Label>
-            <Input
-              id="promo-code"
-              placeholder="e.g., WELCOME100"
-              value={formData.code}
-              onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-              maxLength={20}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="promo-code"
+                placeholder="e.g., WELCOME100"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                maxLength={20}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleGenerateCode}
+                className="shrink-0"
+              >
+                <i className="fas fa-random mr-2"></i>Generate
+              </Button>
+            </div>
           </div>
           <div>
-            <Label htmlFor="reward-amount">Reward Amount (PAD) *</Label>
+            <Label htmlFor="reward-type">Reward Type *</Label>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <Button
+                type="button"
+                variant={formData.rewardType === 'PAD' ? 'default' : 'outline'}
+                onClick={() => setFormData({ ...formData, rewardType: 'PAD' })}
+                className="w-full"
+              >
+                PAD
+              </Button>
+              <Button
+                type="button"
+                variant={formData.rewardType === 'PDZ' ? 'default' : 'outline'}
+                onClick={() => setFormData({ ...formData, rewardType: 'PDZ' })}
+                className="w-full"
+              >
+                PDZ
+              </Button>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="reward-amount">Reward Amount ({formData.rewardType}) *</Label>
             <Input
               id="reward-amount"
               type="number"
-              placeholder="Enter exact PAD amount"
+              placeholder={`Enter exact ${formData.rewardType} amount`}
               value={formData.rewardAmount}
               onChange={(e) => setFormData({ ...formData, rewardAmount: e.target.value })}
               min="0"
               step="1"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Value will be exactly {formData.rewardAmount || '0'} PAD per user
+              Value will be exactly {formData.rewardAmount || '0'} {formData.rewardType} per user
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -672,20 +714,48 @@ function PromoCreatorSection() {
                           <i className="fas fa-copy text-xs"></i>
                         </Button>
                       </div>
-                      <Badge className={status.color}>{status.label}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {promo.rewardType || 'PAD'}
+                        </Badge>
+                        <Badge className={status.color}>{status.label}</Badge>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                       <div>
                         <span className="text-muted-foreground">Reward:</span>
-                        <span className="font-semibold ml-1">{Math.round(parseFloat(promo.rewardAmount) * 100000)} PAD</span>
+                        <span className="font-semibold ml-1">
+                          {promo.rewardType === 'PDZ' 
+                            ? `${parseFloat(promo.rewardAmount).toFixed(2)} PDZ`
+                            : `${Math.round(parseFloat(promo.rewardAmount) * 100000)} PAD`
+                          }
+                        </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Claimed:</span>
                         <span className="font-semibold ml-1">{promo.usageCount || 0} / {promo.usageLimit || '∞'}</span>
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Remaining:</span>
+                        <span className="font-semibold ml-1">
+                          {promo.remainingCount}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Distributed:</span>
+                        <span className="font-semibold ml-1">
+                          {promo.rewardType === 'PDZ'
+                            ? `${parseFloat(promo.totalDistributed).toFixed(2)} PDZ`
+                            : `${Math.round(parseFloat(promo.totalDistributed) * 100000)} PAD`
+                          }
+                        </span>
+                      </div>
+                    </div>
                     {promo.expiresAt && (
-                      <div className="text-xs text-muted-foreground mt-1">
+                      <div className="text-xs text-muted-foreground mt-2">
+                        <i className="fas fa-clock mr-1"></i>
                         Expires: {new Date(promo.expiresAt).toLocaleDateString()}
                       </div>
                     )}
@@ -817,6 +887,7 @@ function SettingsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
+  const [isTogglingSeason, setIsTogglingSeason] = useState(false);
   
   // Fetch current settings
   const { data: settingsData, isLoading } = useQuery({
@@ -828,9 +899,9 @@ function SettingsSection() {
     dailyAdLimit: '50',
     rewardPerAd: '1000',
     affiliateCommission: '10',
-    walletChangeFee: '5000',
+    walletChangeFee: '0.01',
     minimumWithdrawal: '0.5',
-    taskPerClickReward: '175',
+    taskPerClickReward: '0.0001750',
     taskCreationCost: '0.0003',
     minimumConvert: '0.01',
     seasonBroadcastActive: false
@@ -843,9 +914,9 @@ function SettingsSection() {
         dailyAdLimit: settingsData.dailyAdLimit?.toString() || '50',
         rewardPerAd: settingsData.rewardPerAd?.toString() || '1000',
         affiliateCommission: settingsData.affiliateCommission?.toString() || '10',
-        walletChangeFee: settingsData.walletChangeFee?.toString() || '5000',
+        walletChangeFee: settingsData.walletChangeFee?.toString() || '0.01',
         minimumWithdrawal: settingsData.minimumWithdrawal?.toString() || '0.5',
-        taskPerClickReward: settingsData.taskPerClickReward?.toString() || '175',
+        taskPerClickReward: settingsData.taskPerClickReward?.toString() || '0.0001750',
         taskCreationCost: settingsData.taskCreationCost?.toString() || '0.0003',
         minimumConvert: settingsData.minimumConvert?.toString() || '0.01',
         seasonBroadcastActive: settingsData.seasonBroadcastActive || false
@@ -853,24 +924,13 @@ function SettingsSection() {
     }
   }, [settingsData]);
   
-  const updateSetting = (key: string, value: string) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
-  
   const handleSaveSettings = async () => {
-    // Validation
-    const adLimit = parseInt(settings.dailyAdLimit);
-    const reward = parseInt(settings.rewardPerAd);
-    const affiliateCommission = parseFloat(settings.affiliateCommission);
-    const walletChangeFee = parseFloat(settings.walletChangeFee);
-    const minimumWithdrawal = parseFloat(settings.minimumWithdrawal);
-    const taskPerClickReward = parseFloat(settings.taskPerClickReward);
-    const taskCreationCost = parseFloat(settings.taskCreationCost);
-    const minimumConvert = parseFloat(settings.minimumConvert);
+    const adLimit = parseInt(dailyAdLimit);
+    const reward = parseInt(rewardPerAd);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
-        title: "Validation Error",
+        title: "⚠️ Validation Error",
         description: "Daily ad limit must be a positive number",
         variant: "destructive",
       });
@@ -879,62 +939,8 @@ function SettingsSection() {
     
     if (isNaN(reward) || reward <= 0) {
       toast({
-        title: "Validation Error",
+        title: "⚠️ Validation Error",
         description: "Reward per ad must be a positive number",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isNaN(affiliateCommission) || affiliateCommission < 0 || affiliateCommission > 100) {
-      toast({
-        title: "Validation Error",
-        description: "Affiliate commission must be between 0 and 100",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isNaN(walletChangeFee) || walletChangeFee < 0) {
-      toast({
-        title: "Validation Error",
-        description: "Wallet change fee must be a positive number",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isNaN(minimumWithdrawal) || minimumWithdrawal <= 0) {
-      toast({
-        title: "Validation Error",
-        description: "Minimum withdrawal must be a positive number",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isNaN(taskPerClickReward) || taskPerClickReward <= 0) {
-      toast({
-        title: "Validation Error",
-        description: "Task per click reward must be a positive number",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isNaN(taskCreationCost) || taskCreationCost <= 0) {
-      toast({
-        title: "Validation Error",
-        description: "Task creation cost must be a positive number",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isNaN(minimumConvert) || minimumConvert <= 0) {
-      toast({
-        title: "Validation Error",
-        description: "Minimum convert amount must be a positive number",
         variant: "destructive",
       });
       return;
@@ -944,33 +950,23 @@ function SettingsSection() {
     try {
       const response = await apiRequest('PUT', '/api/admin/settings', {
         dailyAdLimit: adLimit,
-        rewardPerAd: reward,
-        affiliateCommission: affiliateCommission,
-        walletChangeFee: walletChangeFee,
-        minimumWithdrawal: minimumWithdrawal,
-        taskPerClickReward: taskPerClickReward,
-        taskCreationCost: taskCreationCost,
-        minimumConvert: minimumConvert,
-        seasonBroadcastActive: settings.seasonBroadcastActive
+        rewardPerAd: reward
       });
       
       const result = await response.json();
       
       if (result.success) {
         toast({
-          title: "✅ Settings Updated Successfully",
-          description: "App settings have been updated and are now active",
+          title: "✅ Settings Updated",
+          description: "App settings have been updated successfully",
         });
-        showNotification("Settings updated successfully", "success");
-        // Invalidate both admin and app settings to refresh everywhere
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/app-settings"] });
       } else {
         throw new Error(result.message || 'Failed to update settings');
       }
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: error.message || "Failed to update settings",
         variant: "destructive",
       });
@@ -998,233 +994,55 @@ function SettingsSection() {
           App Settings
         </CardTitle>
         <p className="text-sm text-muted-foreground mt-2">
-          Configure app-wide settings including ad limits, rewards, fees, and task parameters
+          Configure app-wide settings for ad limits and reward amounts
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Ad & Reward Settings */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
-            <i className="fas fa-video mr-2 text-blue-600"></i>
-            Ad & Reward Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="daily-ad-limit" className="text-sm font-semibold">
-                Daily Ad Limit
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Maximum ads per user per day
-              </p>
-              <Input
-                id="daily-ad-limit"
-                type="number"
-                value={settings.dailyAdLimit}
-                onChange={(e) => updateSetting('dailyAdLimit', e.target.value)}
-                placeholder="50"
-                min="1"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.dailyAdLimit || 50} ads
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="reward-per-ad" className="text-sm font-semibold">
-                Reward Per Ad (PAD)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                PAD tokens per ad watched
-              </p>
-              <Input
-                id="reward-per-ad"
-                type="number"
-                value={settings.rewardPerAd}
-                onChange={(e) => updateSetting('rewardPerAd', e.target.value)}
-                placeholder="1000"
-                min="1"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.rewardPerAd || 1000} PAD
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Affiliate & Wallet Settings */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
-            <i className="fas fa-users mr-2 text-green-600"></i>
-            Affiliate & Wallet Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="affiliate-commission" className="text-sm font-semibold">
-                Affiliate Commission (%)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Commission percentage for referrals
-              </p>
-              <Input
-                id="affiliate-commission"
-                type="number"
-                step="0.1"
-                value={settings.affiliateCommission}
-                onChange={(e) => updateSetting('affiliateCommission', e.target.value)}
-                placeholder="10"
-                min="0"
-                max="100"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.affiliateCommission || 10}%
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="wallet-change-fee" className="text-sm font-semibold">
-                Wallet Change Fee (PAD)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Fee for changing wallet address
-              </p>
-              <Input
-                id="wallet-change-fee"
-                type="number"
-                step="100"
-                value={settings.walletChangeFee}
-                onChange={(e) => updateSetting('walletChangeFee', e.target.value)}
-                placeholder="5000"
-                min="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.walletChangeFee || 5000} PAD
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Withdrawal & Conversion Settings */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
-            <i className="fas fa-wallet mr-2 text-purple-600"></i>
-            Withdrawal & Conversion Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="minimum-withdrawal" className="text-sm font-semibold">
-                Minimum Withdrawal (TON)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Minimum amount for withdrawal
-              </p>
-              <Input
-                id="minimum-withdrawal"
-                type="number"
-                step="0.01"
-                value={settings.minimumWithdrawal}
-                onChange={(e) => updateSetting('minimumWithdrawal', e.target.value)}
-                placeholder="0.5"
-                min="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.minimumWithdrawal || 0.5} TON
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="minimum-convert" className="text-sm font-semibold">
-                Minimum Convert Amount (TON)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Minimum for balance conversion
-              </p>
-              <Input
-                id="minimum-convert"
-                type="number"
-                step="0.001"
-                value={settings.minimumConvert}
-                onChange={(e) => updateSetting('minimumConvert', e.target.value)}
-                placeholder="0.01"
-                min="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.minimumConvert || 0.01} TON
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Task Settings */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
-            <i className="fas fa-tasks mr-2 text-orange-600"></i>
-            Task Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="task-per-click-reward" className="text-sm font-semibold">
-                Task Per Click Reward (PAD)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Reward per click on tasks
-              </p>
-              <Input
-                id="task-per-click-reward"
-                type="number"
-                step="1"
-                value={settings.taskPerClickReward}
-                onChange={(e) => updateSetting('taskPerClickReward', e.target.value)}
-                placeholder="175"
-                min="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.taskPerClickReward || 175} PAD
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="task-creation-cost" className="text-sm font-semibold">
-                Task Creation Cost (TON)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Cost per click for task creation
-              </p>
-              <Input
-                id="task-creation-cost"
-                type="number"
-                step="0.00001"
-                value={settings.taskCreationCost}
-                onChange={(e) => updateSetting('taskCreationCost', e.target.value)}
-                placeholder="0.0003"
-                min="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.taskCreationCost || 0.0003} TON
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Broadcast Settings */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center">
-            <i className="fas fa-bullhorn mr-2 text-red-600"></i>
-            Broadcast Settings
-          </h3>
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="space-y-1">
-              <Label htmlFor="season-broadcast" className="text-sm font-semibold">
-                Season Broadcast Active
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Enable or disable seasonal broadcast messages
-              </p>
-            </div>
-            <Switch
-              id="season-broadcast"
-              checked={settings.seasonBroadcastActive}
-              onCheckedChange={(checked) => setSettings(prev => ({ ...prev, seasonBroadcastActive: checked }))}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Daily Ad Limit Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="daily-ad-limit" className="text-base font-semibold">
+              <i className="fas fa-calendar-day mr-2 text-orange-600"></i>
+              Daily Ad Limit
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Maximum number of ads a user can watch per day
+            </p>
+            <Input
+              id="daily-ad-limit"
+              type="number"
+              value={dailyAdLimit}
+              onChange={(e) => setDailyAdLimit(e.target.value)}
+              placeholder="50"
+              min="1"
+              className="text-lg font-semibold"
             />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.dailyAdLimit || 50} ads per day
+            </p>
+          </div>
+          
+          {/* Reward Per Ad Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="reward-per-ad" className="text-base font-semibold">
+              <i className="fas fa-gem mr-2 text-purple-600"></i>
+              Reward Per Ad (PAD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Amount of PAD tokens awarded for watching one ad
+            </p>
+            <Input
+              id="reward-per-ad"
+              type="number"
+              value={rewardPerAd}
+              onChange={(e) => setRewardPerAd(e.target.value)}
+              placeholder="1000"
+              min="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.rewardPerAd || 1000} PAD per ad
+            </p>
           </div>
         </div>
         
@@ -1233,18 +1051,18 @@ function SettingsSection() {
           <Button
             onClick={handleSaveSettings}
             disabled={isSaving}
-            className="w-full"
+            className="w-full md:w-auto"
             size="lg"
           >
             {isSaving ? (
               <>
                 <i className="fas fa-spinner fa-spin mr-2"></i>
-                Saving Settings...
+                Saving...
               </>
             ) : (
               <>
                 <i className="fas fa-save mr-2"></i>
-                Save All Settings
+                Save Settings
               </>
             )}
           </Button>
@@ -1257,10 +1075,9 @@ function SettingsSection() {
             <div className="text-sm text-blue-900 dark:text-blue-100">
               <p className="font-semibold mb-1">Settings Information</p>
               <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>All changes take effect immediately for all users</li>
+                <li>Changes take effect immediately for all users</li>
                 <li>Daily ad limit resets at midnight (UTC)</li>
-                <li>TON values are displayed in decimal format</li>
-                <li>Commission percentages must be between 0-100</li>
+                <li>Reward amounts are distributed when ads are watched</li>
               </ul>
             </div>
           </div>

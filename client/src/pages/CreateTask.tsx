@@ -116,8 +116,10 @@ export default function CreateTask() {
   
   // Determine payment method based on user type
   const paymentCurrency = isAdmin ? "TON" : "PDZ";
+  // PDZ uses same cost as TON (1 PDZ = 1 TON for task creation pricing)
+  const totalCost = totalCostTON;
   const availableBalance = isAdmin ? tonBalance : pdzBalance;
-  const hasSufficientBalance = availableBalance >= totalCostTON;
+  const hasSufficientBalance = availableBalance >= totalCost;
 
   const { data: myTasksData, isLoading: myTasksLoading, refetch: refetchMyTasks } = useQuery<{
     success: boolean;
@@ -283,8 +285,12 @@ export default function CreateTask() {
       return;
     }
 
-    if (tonBalance < additionalCostTON) {
-      showNotification("Insufficient TON balance", "error");
+    const additionalCost = additionalCostTON;
+    const balance = isAdmin ? tonBalance : pdzBalance;
+    const currency = isAdmin ? "TON" : "PDZ";
+
+    if (balance < additionalCost) {
+      showNotification(`Insufficient ${currency} balance`, "error");
       return;
     }
 
@@ -481,9 +487,9 @@ export default function CreateTask() {
                 <Button
                   type="submit"
                   className="w-full btn-primary"
-                  disabled={createTaskMutation.isPending || tonBalance < totalCostTON || (taskType === "channel" && !isVerified)}
+                  disabled={createTaskMutation.isPending || !hasSufficientBalance || (taskType === "channel" && !isVerified)}
                 >
-                  {createTaskMutation.isPending ? "Publishing..." : `Pay ${totalCostTON.toFixed(4)} TON & Publish`}
+                  {createTaskMutation.isPending ? "Publishing..." : `Pay ${totalCost.toFixed(4)} ${paymentCurrency} & Publish`}
                 </Button>
               </form>
             )}
