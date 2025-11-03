@@ -32,7 +32,7 @@ export default function StreakCard({ user }: StreakCardProps) {
       
       if (parseFloat(data.rewardEarned) > 0) {
         const earnedPAD = tonToPAD(data.rewardEarned);
-        showNotification(`✅ You earned ${earnedPAD} PAD from today's streak!`, "success");
+        showNotification(` You earned ${earnedPAD} PAD from today's streak!`, "success");
       }
     },
     onError: (error: any) => {
