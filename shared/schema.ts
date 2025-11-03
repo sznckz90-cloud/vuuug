@@ -39,6 +39,7 @@ export const users = pgTable("users", {
   personalCode: text("personal_code"),
   balance: decimal("balance", { precision: 12, scale: 8 }).default("0"),
   tonBalance: decimal("ton_balance", { precision: 12, scale: 8 }).default("0"),
+  pdzBalance: decimal("pdz_balance", { precision: 12, scale: 8 }).default("0"),
   withdrawBalance: decimal("withdraw_balance", { precision: 12, scale: 8 }),
   totalEarnings: decimal("total_earnings", { precision: 12, scale: 8 }),
   totalEarned: decimal("total_earned", { precision: 12, scale: 8 }).default("0"),
@@ -143,6 +144,7 @@ export const promoCodes = pgTable("promo_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   code: varchar("code").notNull().unique(),
   rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  rewardType: varchar("reward_type").default('PAD').notNull(), // 'PAD' or 'PDZ'
   rewardCurrency: varchar("reward_currency").default('USDT'),
   usageLimit: integer("usage_limit"),
   usageCount: integer("usage_count").default(0),
