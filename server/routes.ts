@@ -3186,9 +3186,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const costPerClick = taskCostSetting[0]?.settingValue || "0.0003";
       const totalCost = (parseFloat(costPerClick) * totalClicksRequired).toFixed(8);
 
-      // Get user's TON balance
+      // Get user data to check if admin
       const [user] = await db
-        .select({ tonBalance: users.tonBalance })
+        .select({ 
+          tonBalance: users.tonBalance, 
+          pdzBalance: users.pdzBalance, 
+          telegram_id: users.telegram_id 
+        })
         .from(users)
         .where(eq(users.id, userId));
 
@@ -3199,27 +3203,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const currentTonBalance = parseFloat(user.tonBalance || '0');
+      const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
       const requiredAmount = parseFloat(totalCost);
 
-      console.log('💰 Payment check:', { currentTonBalance, requiredAmount, sufficient: currentTonBalance >= requiredAmount });
+      // Admin users: use TON balance (existing behavior)
+      // Regular users: use PDZ tokens
+      if (isAdmin) {
+        console.log('🔑 Admin task creation - using TON balance');
+        const currentTonBalance = parseFloat(user.tonBalance || '0');
 
-      // Check if user has sufficient TON balance
-      if (currentTonBalance < requiredAmount) {
-        return res.status(400).json({
-          success: false,
-          message: "Insufficient TON balance. Please convert PAD to TON before creating a task."
+        console.log('💰 Payment check (TON):', { currentTonBalance, requiredAmount, sufficient: currentTonBalance >= requiredAmount });
+
+        // Check if user has sufficient TON balance
+        if (currentTonBalance < requiredAmount) {
+          return res.status(400).json({
+            success: false,
+            message: "Insufficient TON balance. Please convert PAD to TON before creating a task."
+          });
+        }
+
+        // Deduct TON balance
+        const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
+        await db
+          .update(users)
+          .set({ tonBalance: newTonBalance })
+          .where(eq(users.id, userId));
+
+        console.log('✅ Payment deducted (TON):', { oldBalance: currentTonBalance, newBalance: newTonBalance, deducted: totalCost });
+
+        // Log transaction
+        await storage.logTransaction({
+          userId,
+          amount: totalCost,
+          type: "deduction",
+          source: "task_creation",
+          description: `Created ${taskType} task: ${title}`,
+          metadata: { taskId: null, taskType, totalClicksRequired, paymentMethod: 'TON' }
         });
+      } else {
+        console.log('👤 Regular user task creation - using PDZ balance');
+        const currentPDZBalance = parseFloat(user.pdzBalance || '0');
+
+        console.log('💰 Payment check (PDZ):', { currentPDZBalance, requiredAmount, sufficient: currentPDZBalance >= requiredAmount });
+
+        // Check if user has sufficient PDZ balance
+        if (currentPDZBalance < requiredAmount) {
+          return res.status(400).json({
+            success: false,
+            message: "Insufficient PDZ. You need PDZ tokens to create tasks."
+          });
+        }
+
+        // Deduct PDZ balance
+        const deductResult = await storage.deductPDZBalance(
+          userId, 
+          totalCost, 
+          'task_creation', 
+          `Created ${taskType} task: ${title}`
+        );
+
+        if (!deductResult.success) {
+          return res.status(400).json({
+            success: false,
+            message: deductResult.message
+          });
+        }
+
+        console.log('✅ Payment deducted (PDZ):', { oldBalance: currentPDZBalance, deducted: totalCost });
       }
-
-      // Deduct TON balance
-      const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
-      await db
-        .update(users)
-        .set({ tonBalance: newTonBalance })
-        .where(eq(users.id, userId));
-
-      console.log('✅ Payment deducted:', { oldBalance: currentTonBalance, newBalance: newTonBalance, deducted: totalCost });
 
       // Create the task
       const task = await storage.createTask({
@@ -3233,16 +3284,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       console.log('✅ Task saved to database:', task);
-
-      // Log transaction
-      await storage.logTransaction({
-        userId,
-        amount: totalCost,
-        type: "deduction",
-        source: "task_creation",
-        description: `Created ${taskType} task: ${title}`,
-        metadata: { taskId: task.id, taskType, totalClicksRequired }
-      });
 
       // Broadcast task creation to all users to update feed
       broadcastUpdate({
@@ -4621,14 +4662,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Promo code is required' });
       }
       
+      // Get promo code details first to check reward type
+      const promoCode = await storage.getPromoCode(code.trim().toUpperCase());
+      
+      if (!promoCode) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Invalid promo code' 
+        });
+      }
+      
+      // Use promo code (validates limits and expiry)
       const result = await storage.usePromoCode(code.trim().toUpperCase(), userId);
       
       if (result.success) {
-        res.json({ 
-          success: true, 
-          message: `${result.reward} TON added to your balance!`,
-          reward: result.reward
-        });
+        // Add reward based on type
+        const rewardType = promoCode.rewardType || 'PAD';
+        const rewardAmount = result.reward;
+        
+        if (rewardType === 'PDZ') {
+          // Add PDZ balance
+          await storage.addPDZBalance(userId, rewardAmount, 'promo_code', `Redeemed promo code: ${code}`);
+          
+          res.json({ 
+            success: true, 
+            message: `${rewardAmount} PDZ added to your balance!`,
+            reward: rewardAmount,
+            rewardType: 'PDZ'
+          });
+        } else {
+          // Add PAD balance (existing behavior - adds to balance field which is in TON)
+          res.json({ 
+            success: true, 
+            message: `${rewardAmount} TON added to your balance!`,
+            reward: rewardAmount,
+            rewardType: 'PAD'
+          });
+        }
       } else {
         res.status(400).json({ 
           success: false, 
@@ -4653,16 +4723,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Unauthorized: Admin access required' });
       }
       
-      const { code, rewardAmount, usageLimit, perUserLimit, expiresAt } = req.body;
+      const { code, rewardAmount, rewardType, usageLimit, perUserLimit, expiresAt } = req.body;
       
-      if (!code || !rewardAmount) {
-        return res.status(400).json({ message: 'Code and reward amount are required' });
+      if (!rewardAmount) {
+        return res.status(400).json({ message: 'Reward amount is required' });
+      }
+      
+      // Auto-generate code if not provided or if "GENERATE" is passed
+      let finalCode = code?.trim();
+      if (!finalCode || finalCode === 'GENERATE') {
+        // Generate random 8-character code
+        finalCode = 'PROMO' + Math.random().toString(36).substring(2, 10).toUpperCase();
+        console.log('🎲 Auto-generated promo code:', finalCode);
+      }
+      
+      // Validate reward type
+      const finalRewardType = rewardType || 'PAD';
+      if (finalRewardType !== 'PAD' && finalRewardType !== 'PDZ') {
+        return res.status(400).json({ message: 'Reward type must be either PAD or PDZ' });
       }
       
       const promoCode = await storage.createPromoCode({
-        code: code.toUpperCase(),
+        code: finalCode.toUpperCase(),
         rewardAmount: rewardAmount.toString(),
-        rewardCurrency: 'TON',
+        rewardType: finalRewardType,
+        rewardCurrency: finalRewardType === 'PDZ' ? 'PDZ' : 'TON',
         usageLimit: usageLimit || null,
         perUserLimit: perUserLimit || 1,
         isActive: true,
@@ -4671,7 +4756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ 
         success: true, 
-        message: 'Promo code created successfully',
+        message: `Promo code created successfully (${finalRewardType})`,
         promoCode 
       });
     } catch (error) {
@@ -4691,9 +4776,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const usageLimit = promo.usageLimit || 0;
         const remainingCount = usageLimit > 0 ? Math.max(0, usageLimit - usageCount) : Infinity;
         const totalDistributed = parseFloat(promo.rewardAmount) * usageCount;
+        const rewardType = promo.rewardType || 'PAD';
         
         return {
           ...promo,
+          rewardType,
           usageCount,
           remainingCount: remainingCount === Infinity ? 'Unlimited' : remainingCount,
           totalDistributed: totalDistributed.toFixed(8)

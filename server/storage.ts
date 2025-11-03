@@ -2126,6 +2126,92 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // ===== PDZ BALANCE MANAGEMENT =====
+  
+  async getPDZBalance(userId: string): Promise<string> {
+    try {
+      const [user] = await db.select({ pdzBalance: users.pdzBalance }).from(users).where(eq(users.id, userId));
+      return user?.pdzBalance || '0';
+    } catch (error) {
+      console.error('Error getting PDZ balance:', error);
+      return '0';
+    }
+  }
+
+  async addPDZBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      await db.update(users)
+        .set({
+          pdzBalance: sql`${users.pdzBalance} + ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      // Record transaction for PDZ addition
+      await this.logTransaction({
+        userId,
+        amount,
+        type: 'addition',
+        source,
+        description: description || `PDZ balance added from ${source}`,
+        metadata: { 
+          pdzAmount: amount,
+          source
+        }
+      });
+
+      return { success: true, message: 'PDZ balance added successfully' };
+    } catch (error) {
+      console.error('Error adding PDZ balance:', error);
+      return { success: false, message: 'Error adding PDZ balance' };
+    }
+  }
+
+  async deductPDZBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if user is admin - admins have unlimited PDZ balance
+      const user = await this.getUser(userId);
+      const isAdmin = user?.telegram_id === process.env.TELEGRAM_ADMIN_ID;
+      
+      if (isAdmin) {
+        console.log('🔑 Admin has unlimited PDZ balance - allowing deduction');
+        return { success: true, message: 'PDZ deducted successfully (admin unlimited)' };
+      }
+
+      const currentPDZBalance = parseFloat(user?.pdzBalance || '0');
+      const deductAmount = parseFloat(amount);
+
+      if (currentPDZBalance < deductAmount) {
+        return { success: false, message: 'Insufficient PDZ' };
+      }
+
+      await db.update(users)
+        .set({
+          pdzBalance: sql`${users.pdzBalance} - ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      // Record transaction for PDZ deduction
+      await this.logTransaction({
+        userId,
+        amount: `-${amount}`,
+        type: 'deduction',
+        source,
+        description: description || `PDZ balance deducted for ${source}`,
+        metadata: { 
+          pdzAmount: amount,
+          source
+        }
+      });
+
+      return { success: true, message: 'PDZ deducted successfully' };
+    } catch (error) {
+      console.error('Error deducting PDZ balance:', error);
+      return { success: false, message: 'Error deducting PDZ balance' };
+    }
+  }
+
   // Legacy promotion claims methods removed - using dailyTasks instead
 
   // ===== NEW SIMPLE TASK SYSTEM =====

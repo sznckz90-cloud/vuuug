@@ -98,6 +98,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS task_channel_completed_today BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS task_community_completed_today BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS task_checkin_completed_today BOOLEAN DEFAULT false`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pdz_balance DECIMAL(12, 8) DEFAULT '0'`);
       console.log('✅ [MIGRATION] Missing user task and wallet columns added');
     } catch (error) {
       // Columns might already exist - this is fine
@@ -299,6 +300,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
         code VARCHAR UNIQUE NOT NULL,
         reward_amount DECIMAL(12, 2) NOT NULL,
+        reward_type VARCHAR DEFAULT 'PAD' NOT NULL,
         reward_currency VARCHAR DEFAULT 'USDT',
         usage_limit INTEGER,
         usage_count INTEGER DEFAULT 0,
@@ -309,6 +311,14 @@ export async function ensureDatabaseSchema(): Promise<void> {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Add reward_type column to existing promo_codes table if missing
+    try {
+      await db.execute(sql`ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS reward_type VARCHAR DEFAULT 'PAD' NOT NULL`);
+      console.log('✅ [MIGRATION] Reward type column added to promo_codes table');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] Reward type column already exists in promo_codes table');
+    }
     
     // Promo code usage tracking table
     await db.execute(sql`
