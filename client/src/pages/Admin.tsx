@@ -925,8 +925,8 @@ function SettingsSection() {
   }, [settingsData]);
   
   const handleSaveSettings = async () => {
-    const adLimit = parseInt(dailyAdLimit);
-    const reward = parseInt(rewardPerAd);
+    const adLimit = parseInt(settings.dailyAdLimit);
+    const reward = parseInt(settings.rewardPerAd);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
@@ -1011,8 +1011,8 @@ function SettingsSection() {
             <Input
               id="daily-ad-limit"
               type="number"
-              value={dailyAdLimit}
-              onChange={(e) => setDailyAdLimit(e.target.value)}
+              value={settings.dailyAdLimit}
+              onChange={(e) => setSettings({ ...settings, dailyAdLimit: e.target.value })}
               placeholder="50"
               min="1"
               className="text-lg font-semibold"
@@ -1034,8 +1034,8 @@ function SettingsSection() {
             <Input
               id="reward-per-ad"
               type="number"
-              value={rewardPerAd}
-              onChange={(e) => setRewardPerAd(e.target.value)}
+              value={settings.rewardPerAd}
+              onChange={(e) => setSettings({ ...settings, rewardPerAd: e.target.value })}
               placeholder="1000"
               min="1"
               className="text-lg font-semibold"

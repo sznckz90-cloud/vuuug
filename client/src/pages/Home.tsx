@@ -31,7 +31,6 @@ export default function Home() {
   const { user, isLoading } = useAuth();
   const { isAdmin } = useAdmin();
   const [, setLocation] = useLocation();
-  const [streakDialogOpen, setStreakDialogOpen] = React.useState(false);
   const [promoDialogOpen, setPromoDialogOpen] = React.useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
 
@@ -133,6 +132,9 @@ export default function Home() {
         {/* Viewing Ads Section */}
         <AdWatchingSection user={user as User} />
 
+        {/* Daily Streak Section */}
+        <StreakCard user={user as User} />
+
         {/* Promo Code Section - Inline */}
         <Card className="mb-3 minimal-card">
           <CardContent className="pt-3 pb-3">
@@ -140,31 +142,14 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Main Action Buttons - Centered */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            className="h-12 btn-primary"
-            onClick={() => setStreakDialogOpen(true)}
-          >
-            <DiamondIcon className="w-5 h-5 mr-2" />
-            Daily Streak
-          </Button>
-          
-          <Button
-            className="h-12 btn-primary"
-            onClick={() => setWithdrawDialogOpen(true)}
-          >
-            <ArrowDown className="w-5 h-5 mr-2" />
-            Withdraw
-          </Button>
-        </div>
-
-        {/* Streak Dialog */}
-        <StreakCard 
-          user={user as User} 
-          open={streakDialogOpen}
-          onOpenChange={setStreakDialogOpen}
-        />
+        {/* Main Action Button - Withdraw */}
+        <Button
+          className="h-12 btn-primary w-full"
+          onClick={() => setWithdrawDialogOpen(true)}
+        >
+          <ArrowDown className="w-5 h-5 mr-2" />
+          Withdraw
+        </Button>
 
         {/* Promo Code Dialog */}
         <PromoCodeDialog 
