@@ -80,9 +80,9 @@ export default function HamburgerMenu() {
           <Button
             variant="ghost"
             size="icon"
-            className="w-[50px] h-[50px] text-[#4cd3ff] hover:text-[#6ddeff] hover:bg-[#4cd3ff]/10 p-0"
+            className="w-[50px] h-[50px] text-[#4cd3ff] hover:text-[#6ddeff] hover:bg-[#4cd3ff]/10 p-0 transition-all duration-300 hover:shadow-[0_0_15px_rgba(76,211,255,0.6)]"
           >
-            <Menu className="w-[45px] h-[45px]" strokeWidth={4} />
+            <Menu className="w-[45px] h-[45px] drop-shadow-[0_0_8px_rgba(76,211,255,0.8)]" strokeWidth={4.5} />
           </Button>
         </SheetTrigger>
         <SheetContent 
@@ -129,17 +129,6 @@ export default function HamburgerMenu() {
               <span className="text-sm">Wallet Set-up</span>
             </Button>
 
-            <Link href="/wallet-activity">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Receipt className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">View Wallet Activity</span>
-              </Button>
-            </Link>
-
             <Link href="/affiliates">
               <Button
                 variant="ghost"
@@ -159,17 +148,6 @@ export default function HamburgerMenu() {
               >
                 <Trophy className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Leaderboard</span>
-              </Button>
-            </Link>
-
-            <Link href="/create-task?tab=my-task">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <ClipboardList className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">Active Tasks</span>
               </Button>
             </Link>
 
@@ -206,24 +184,6 @@ export default function HamburgerMenu() {
             >
               <Bell className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Announcements/Updates</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={() => handleExternalLink('https://t.me/szxzyz')}
-            >
-              <Code2 className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Developer</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={() => handleExternalLink('https://t.me/+EcYwkUBmI5JiMzE1')}
-            >
-              <HelpCircle className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Help & Support</span>
             </Button>
 
             {isAdmin && (
