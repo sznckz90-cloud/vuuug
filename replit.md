@@ -10,9 +10,37 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 *   Admin panel for promo codes, user tracking, withdrawal management, and analytics
 *   **Dynamic Settings**: All app parameters (task costs, rewards, fees, limits) are configurable through admin dashboard and stored in database
 
-# Recent Changes (November 2, 2025)
+# Recent Changes (November 3, 2025)
 
-## TON Wallet Integration (Latest - November 2, 2025)
+## Leaderboard UI/UX Improvements (Latest - November 3, 2025)
+
+### Home Page Leaderboard Preview
+*   **Removed emoji decoration**: Removed 🏆 emoji from user display for cleaner look
+*   **Profile photo emphasis**: User's Telegram profile photo now prominently displayed (40px circle)
+*   **Horizontal layout**: Username and PAD amount arranged horizontally (PAD on the right side)
+*   **Trophy icon**: Using proper SVG Trophy icon for the heading instead of emoji
+*   **Balanced spacing**: Clean, minimal design with spacing consistent with other cards
+
+### Leaderboard Page Updates
+*   **Top 10 PAD Earners**: Changed from top 50 to top 10 users ranked by monthly PAD earnings
+*   **Top 50 Referrers**: Maintained top 50 users ranked by total referrals count
+*   **Updated display layout**: 
+    - Profile photo + username + rank on the left
+    - PAD amount/referral count on the right side for better readability
+    - Real Telegram avatars displayed (not default placeholders)
+*   **"Your Rank" Section**: 
+    - Added below both leaderboards showing user's current position
+    - Displays user's rank with total PAD earned or total referrals
+    - Example: "You are currently #14 in PAD Earners"
+    - Only shown if user is not in Top 10 (PAD Earners) or Top 50 (Top Referrers)
+    - Uses special border styling (border-primary/30) to highlight user's position
+
+### Backend Improvements
+*   **User rank calculation**: `getMonthlyLeaderboard()` now accepts optional userId parameter
+*   **Rank data included**: API returns `userEarnerRank` and `userReferrerRank` with rank and stats
+*   **Optimized queries**: Separate queries for top lists and user rank calculation
+
+## TON Wallet Integration (November 2, 2025)
 
 ### Wallet Validation Update
 *   **TON Wallet Address Support**: Wallet system now exclusively accepts TON wallet addresses (UQ or EQ prefix, 48 characters total)
