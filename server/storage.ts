@@ -673,8 +673,11 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Unlimited streak with flat 500 PAD (0.00005 TON) reward
-    rewardEarned = "0.00005000";
+    // Random reward between 200-1000 PAD
+    // 1 TON = 10,000,000 PAD, so we convert PAD to TON
+    const randomPAD = Math.floor(Math.random() * (1000 - 200 + 1)) + 200;
+    const rewardInTON = randomPAD / 10000000;
+    rewardEarned = rewardInTON.toFixed(8);
 
     await db
       .update(users)
