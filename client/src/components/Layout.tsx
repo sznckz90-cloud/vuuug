@@ -36,8 +36,8 @@ export default function Layout({ children }: LayoutProps) {
       {/* Header - Fixed - Hidden when season end is shown */}
       {!showSeasonEnd && <Header />}
       
-      {/* Fixed Content Area - No Scroll */}
-      <div className="flex-1 overflow-hidden" style={{ paddingBottom: '76px', paddingTop: '60px' }}>
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '76px', paddingTop: '60px' }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location}
@@ -48,6 +48,7 @@ export default function Layout({ children }: LayoutProps) {
               duration: 0.2,
               ease: [0.645, 0.045, 0.355, 1]
             }}
+            className="min-h-full"
           >
             {children}
           </motion.div>
