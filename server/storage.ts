@@ -1227,18 +1227,13 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(promoCodes.id, promoCode.id));
 
-    // Add reward to user balance
-    await this.addEarning({
-      userId,
-      amount: promoCode.rewardAmount,
-      source: 'promo_code',
-      description: `Promo code reward: ${code}`,
-    });
+    // Don't add earning here - let the route handler decide based on rewardType
+    // Return reward amount for the route handler to process
 
     return {
       success: true,
       message: `Promo code redeemed! You earned ${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
-      reward: `${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
+      reward: promoCode.rewardAmount,
     };
   }
 

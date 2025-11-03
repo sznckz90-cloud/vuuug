@@ -4691,7 +4691,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             rewardType: 'PDZ'
           });
         } else {
-          // Add PAD balance (existing behavior - adds to balance field which is in TON)
+          // Add PAD balance (adds to balance field which is in TON)
+          await storage.addEarning({
+            userId,
+            amount: rewardAmount,
+            source: 'promo_code',
+            description: `Promo code reward: ${code}`,
+          });
+          
           res.json({ 
             success: true, 
             message: `${rewardAmount} TON added to your balance!`,
