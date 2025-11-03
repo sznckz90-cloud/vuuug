@@ -927,6 +927,12 @@ function SettingsSection() {
   const handleSaveSettings = async () => {
     const adLimit = parseInt(settings.dailyAdLimit);
     const reward = parseInt(settings.rewardPerAd);
+    const affiliate = parseFloat(settings.affiliateCommission);
+    const walletFee = parseFloat(settings.walletChangeFee);
+    const minWithdrawal = parseFloat(settings.minimumWithdrawal);
+    const taskReward = parseFloat(settings.taskPerClickReward);
+    const taskCost = parseFloat(settings.taskCreationCost);
+    const minConvert = parseFloat(settings.minimumConvert);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
@@ -950,7 +956,14 @@ function SettingsSection() {
     try {
       const response = await apiRequest('PUT', '/api/admin/settings', {
         dailyAdLimit: adLimit,
-        rewardPerAd: reward
+        rewardPerAd: reward,
+        affiliateCommission: affiliate,
+        walletChangeFee: walletFee,
+        minimumWithdrawal: minWithdrawal,
+        taskPerClickReward: taskReward,
+        taskCreationCost: taskCost,
+        minimumConvert: minConvert,
+        seasonBroadcastActive: settings.seasonBroadcastActive
       });
       
       const result = await response.json();
@@ -961,6 +974,7 @@ function SettingsSection() {
           description: "App settings have been updated successfully",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/app-settings"] });
       } else {
         throw new Error(result.message || 'Failed to update settings');
       }
@@ -1043,6 +1057,180 @@ function SettingsSection() {
             <p className="text-xs text-muted-foreground">
               Current: {settingsData?.rewardPerAd || 1000} PAD per ad
             </p>
+          </div>
+
+          {/* Affiliate Commission Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="affiliate-commission" className="text-base font-semibold">
+              <i className="fas fa-users mr-2 text-green-600"></i>
+              Affiliate Commission (%)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Percentage of earnings given to referrers
+            </p>
+            <Input
+              id="affiliate-commission"
+              type="number"
+              value={settings.affiliateCommission}
+              onChange={(e) => setSettings({ ...settings, affiliateCommission: e.target.value })}
+              placeholder="10"
+              min="0"
+              max="100"
+              step="0.1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.affiliateCommission || 10}%
+            </p>
+          </div>
+
+          {/* Wallet Change Fee Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="wallet-change-fee" className="text-base font-semibold">
+              <i className="fas fa-exchange-alt mr-2 text-yellow-600"></i>
+              Wallet Change Fee (PAD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Fee charged when users change wallet address
+            </p>
+            <Input
+              id="wallet-change-fee"
+              type="number"
+              value={settings.walletChangeFee}
+              onChange={(e) => setSettings({ ...settings, walletChangeFee: e.target.value })}
+              placeholder="5000"
+              min="0"
+              step="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.walletChangeFee || 5000} PAD
+            </p>
+          </div>
+
+          {/* Minimum Withdrawal Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="minimum-withdrawal" className="text-base font-semibold">
+              <i className="fas fa-money-bill-wave mr-2 text-blue-600"></i>
+              Minimum Withdrawal (TON)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Minimum amount required to withdraw
+            </p>
+            <Input
+              id="minimum-withdrawal"
+              type="number"
+              value={settings.minimumWithdrawal}
+              onChange={(e) => setSettings({ ...settings, minimumWithdrawal: e.target.value })}
+              placeholder="0.5"
+              min="0"
+              step="0.01"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.minimumWithdrawal || 0.5} TON
+            </p>
+          </div>
+
+          {/* Task Per Click Reward Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="task-per-click-reward" className="text-base font-semibold">
+              <i className="fas fa-mouse-pointer mr-2 text-purple-600"></i>
+              Task Per Click Reward (PAD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Reward per task completion
+            </p>
+            <Input
+              id="task-per-click-reward"
+              type="number"
+              value={settings.taskPerClickReward}
+              onChange={(e) => setSettings({ ...settings, taskPerClickReward: e.target.value })}
+              placeholder="1750"
+              min="0"
+              step="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.taskPerClickReward || 1750} PAD
+            </p>
+          </div>
+
+          {/* Task Creation Cost Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="task-creation-cost" className="text-base font-semibold">
+              <i className="fas fa-plus-circle mr-2 text-red-600"></i>
+              Task Creation Cost (TON)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Cost to create a new task
+            </p>
+            <Input
+              id="task-creation-cost"
+              type="number"
+              value={settings.taskCreationCost}
+              onChange={(e) => setSettings({ ...settings, taskCreationCost: e.target.value })}
+              placeholder="0.0003"
+              min="0"
+              step="0.0001"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.taskCreationCost || 0.0003} TON
+            </p>
+          </div>
+
+          {/* Minimum Convert Amount Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="minimum-convert" className="text-base font-semibold">
+              <i className="fas fa-repeat mr-2 text-indigo-600"></i>
+              Minimum Convert Amount (TON)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Minimum amount to convert PAD to TON
+            </p>
+            <Input
+              id="minimum-convert"
+              type="number"
+              value={settings.minimumConvert}
+              onChange={(e) => setSettings({ ...settings, minimumConvert: e.target.value })}
+              placeholder="0.01"
+              min="0"
+              step="0.001"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.minimumConvert || 0.01} TON
+            </p>
+          </div>
+        </div>
+
+        {/* Season Broadcast Toggle */}
+        <div className="space-y-2 pt-4 border-t">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <i className="fas fa-broadcast-tower mr-2 text-cyan-600"></i>
+            Season Broadcast
+          </Label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Enable or disable season broadcast messages
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSettings({ ...settings, seasonBroadcastActive: !settings.seasonBroadcastActive })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.seasonBroadcastActive ? 'bg-green-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.seasonBroadcastActive ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-sm font-medium">
+              {settings.seasonBroadcastActive ? 'Active' : 'Inactive'}
+            </span>
           </div>
         </div>
         
