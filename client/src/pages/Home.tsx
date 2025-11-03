@@ -144,10 +144,10 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3">
           <Button
             className="h-12 btn-primary"
-            onClick={() => setLocation("/create-task")}
+            onClick={() => setStreakDialogOpen(true)}
           >
-            <PlusCircle className="w-5 h-5 mr-2" />
-            +Task
+            <DiamondIcon className="w-5 h-5 mr-2" />
+            Daily Streak
           </Button>
           
           <Button
