@@ -1,5 +1,6 @@
 import HamburgerMenu from "@/components/HamburgerMenu";
 import { useQuery } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 
 export default function Header() {
   const { data: user } = useQuery<any>({
@@ -9,15 +10,28 @@ export default function Header() {
 
   const pdzBalance = parseFloat(user?.pdzBalance || "0");
 
+  const handleTopUp = () => {
+    window.open("https://t.me/szxzyz?text=Sir%2C%20I%20want%20to%20top%20up%20PDZ%20to%20create%20paid%20tasks", "_blank");
+  };
+
   return (
     <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background to-background/95 backdrop-blur-sm border-b border-white/5">
       <div className="max-w-md mx-auto pl-1 pr-4 py-3 flex items-center justify-between">
         {/* Left: Hamburger Menu */}
         <HamburgerMenu />
         
-        {/* Right: PDZ Balance */}
-        <div className="text-xs text-primary font-semibold">
-          {pdzBalance.toFixed(2)} PDZ
+        {/* Right: PDZ Balance with Top Up */}
+        <div className="flex items-center gap-2 bg-gray-700/50 px-3 py-2 rounded-lg">
+          <button
+            onClick={handleTopUp}
+            className="flex items-center gap-1 text-[#4cd3ff] hover:text-[#6ddeff] transition-colors text-xs font-medium"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Top up
+          </button>
+          <div className="text-xs text-white font-semibold">
+            PDZ {pdzBalance.toFixed(3)}
+          </div>
         </div>
       </div>
     </div>

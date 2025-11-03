@@ -22,15 +22,18 @@ import {
   HelpCircle,
   Settings,
   Award,
-  PlusCircle
+  PlusCircle,
+  ArrowDown
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 import CwalletSetupDialog from "@/components/CwalletSetupDialog";
+import WithdrawDialog from "@/components/WithdrawDialog";
 
 export default function HamburgerMenu() {
   const { isAdmin } = useAdmin();
   const [menuOpen, setMenuOpen] = useState(false);
   const [walletDialogOpen, setWalletDialogOpen] = useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
@@ -52,6 +55,11 @@ export default function HamburgerMenu() {
   const handleWalletClick = () => {
     setMenuOpen(false);
     setWalletDialogOpen(true);
+  };
+
+  const handleWithdrawClick = () => {
+    setMenuOpen(false);
+    setWithdrawDialogOpen(true);
   };
 
   const handleExternalLink = (url: string) => {
@@ -80,9 +88,9 @@ export default function HamburgerMenu() {
           <Button
             variant="ghost"
             size="icon"
-            className="w-[50px] h-[50px] text-[#4cd3ff] hover:text-[#6ddeff] hover:bg-[#4cd3ff]/10 p-0 transition-all duration-300 hover:shadow-[0_0_15px_rgba(76,211,255,0.6)]"
+            className="w-[50px] h-[50px] bg-gray-700/50 text-white hover:bg-gray-700/70 active:bg-gray-600/80 p-0 transition-all duration-200 rounded-lg"
           >
-            <Menu className="w-[45px] h-[45px] drop-shadow-[0_0_8px_rgba(76,211,255,0.8)]" strokeWidth={4.5} />
+            <Menu className="w-6 h-6" strokeWidth={2.5} />
           </Button>
         </SheetTrigger>
         <SheetContent 
@@ -127,6 +135,15 @@ export default function HamburgerMenu() {
             >
               <Wallet className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Wallet Set-up</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
+              onClick={handleWithdrawClick}
+            >
+              <ArrowDown className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+              <span className="text-sm">Withdraw</span>
             </Button>
 
             <Link href="/affiliates">
@@ -208,6 +225,11 @@ export default function HamburgerMenu() {
       <CwalletSetupDialog 
         open={walletDialogOpen}
         onOpenChange={setWalletDialogOpen}
+      />
+
+      <WithdrawDialog 
+        open={withdrawDialogOpen}
+        onOpenChange={setWithdrawDialogOpen}
       />
     </>
   );
