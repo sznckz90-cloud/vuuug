@@ -12,7 +12,38 @@ CashWatch is a React-based web application that enables users to earn cryptocurr
 
 # Recent Changes (November 3, 2025)
 
-## Leaderboard UI/UX Improvements (Latest - November 3, 2025)
+## Hamburger Menu Redesign & Wallet Activity Page (Latest - November 3, 2025)
+
+### Hamburger Menu Updates
+*   **Profile Section**: Enhanced top section with circular profile photo, name, username, UID, and dynamic rank badge (Top 1% with award icon)
+*   **Neon Border**: Applied glowing cyan border effect to profile photo for premium feel
+*   **Menu Items**: Added all navigation links with Lucide icons:
+    - Wallet Set-up (opens wallet setup dialog)
+    - View Wallet Activity (redirects to /wallet-activity page)
+    - Affiliate Center (redirects to /affiliates page)
+    - Leaderboard (redirects to /leaderboard page)
+    - Active Tasks (redirects to /tasks page)
+*   **Community & Info Section**: External Telegram links with Lucide icons:
+    - Community Chat (https://t.me/+EcYwkUBmI5JiMzE1)
+    - Announcements/Updates (https://t.me/PaidAdsNews)
+    - Developer (https://t.me/szxzyz)
+    - Help & Support (https://t.me/+EcYwkUBmI5JiMzE1)
+*   **Settings**: Admin dashboard link visible only for admin users
+*   **Bottom Tagline**: "Earn • Grow • Dominate — PAD Season 2🔥"
+*   **UI Enhancements**: Blur glass effect (backdrop-blur-xl), improved spacing, proper icon usage (no emojis in menu items)
+
+### Wallet Activity Page
+*   **New Route**: Added `/wallet-activity` route to display transaction history
+*   **Features**:
+    - Clean card-based UI showing withdrawal requests
+    - Status indicators with color coding (pending: yellow, approved/success: green, rejected: red)
+    - Wallet address display with smart truncation
+    - Formatted date/time display
+    - PAD and TON amount formatting
+    - Empty state with helpful message when no transactions exist
+*   **API Integration**: Uses `/api/withdrawals` endpoint with proper response parsing
+
+## Leaderboard UI/UX Improvements (November 3, 2025)
 
 ### Home Page Leaderboard Preview
 *   **Removed emoji decoration**: Removed 🏆 emoji from user display for cleaner look
