@@ -60,7 +60,14 @@ export default function CreateTask() {
   const [, setLocation] = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   
-  const [activeTab, setActiveTab] = useState<"add-task" | "my-task">("add-task");
+  const [activeTab, setActiveTab] = useState<"add-task" | "my-task">(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      return tabParam === "my-task" ? "my-task" : "add-task";
+    }
+    return "add-task";
+  });
   const [taskType, setTaskType] = useState<"channel" | "bot" | null>(null);
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
