@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ interface Task {
 
 export default function CreateTask() {
   const { user, isLoading } = useAuth();
+  const { isAdmin } = useAdmin();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const mainRef = useRef<HTMLElement>(null);
@@ -109,7 +111,13 @@ export default function CreateTask() {
   const totalCostTON = costPerClick * clicksNum;
   const totalRewardsPAD = rewardPerClickPAD * clicksNum;
   const tonBalance = parseFloat((user as any)?.tonBalance || "0");
+  const pdzBalance = parseFloat((user as any)?.pdzBalance || "0");
   const additionalCostTON = costPerClick * (parseInt(additionalClicks) || 0);
+  
+  // Determine payment method based on user type
+  const paymentCurrency = isAdmin ? "TON" : "PDZ";
+  const availableBalance = isAdmin ? tonBalance : pdzBalance;
+  const hasSufficientBalance = availableBalance >= totalCostTON;
 
   const { data: myTasksData, isLoading: myTasksLoading, refetch: refetchMyTasks } = useQuery<{
     success: boolean;
@@ -253,8 +261,8 @@ export default function CreateTask() {
       return;
     }
 
-    if (tonBalance < totalCostTON) {
-      showNotification("Insufficient TON balance", "error");
+    if (!hasSufficientBalance) {
+      showNotification(`Insufficient ${paymentCurrency} balance`, "error");
       return;
     }
 
