@@ -21,7 +21,8 @@ import {
   Code2,
   HelpCircle,
   Settings,
-  Award
+  Award,
+  PlusCircle
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 import CwalletSetupDialog from "@/components/CwalletSetupDialog";
@@ -33,6 +34,13 @@ export default function HamburgerMenu() {
 
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
+    retry: false,
+  });
+
+  const { data: leaderboardData } = useQuery<{
+    userEarnerRank?: { rank: number; totalEarnings: string } | null;
+  }>({
+    queryKey: ['/api/leaderboard/monthly'],
     retry: false,
   });
 
@@ -51,10 +59,16 @@ export default function HamburgerMenu() {
   };
 
   const getRankBadge = () => {
+    const rank = leaderboardData?.userEarnerRank?.rank;
+    
+    if (!rank) {
+      return null;
+    }
+
     return (
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/30">
-        <Award className="w-3.5 h-3.5 text-yellow-500" />
-        <span className="text-[10px] font-bold text-yellow-500">Top 1%</span>
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
+        <Award className="w-3.5 h-3.5 text-[#4cd3ff]" />
+        <span className="text-[10px] font-bold text-[#4cd3ff]">#{rank}</span>
       </div>
     );
   };
@@ -72,32 +86,28 @@ export default function HamburgerMenu() {
           </Button>
         </SheetTrigger>
         <SheetContent 
-          side="right" 
-          className="w-[280px] bg-black/40 backdrop-blur-xl border-l border-white/10 [&>button]:hidden overflow-y-auto"
+          side="left" 
+          className="w-[280px] bg-black/40 backdrop-blur-xl border-r border-white/10 [&>button]:hidden overflow-y-auto"
         >
           <SheetHeader className="mb-6">
             <div className="flex flex-col items-center gap-3 pt-4">
               {photoUrl ? (
-                <div className="relative">
+                <div className="flex flex-col items-center gap-2">
                   <img 
                     src={photoUrl} 
                     alt="Profile" 
                     className="w-20 h-20 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]"
                   />
-                  <div className="absolute -bottom-1 -right-1">
-                    {getRankBadge()}
-                  </div>
+                  {getRankBadge()}
                 </div>
               ) : (
-                <div className="relative">
+                <div className="flex flex-col items-center gap-2">
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]">
                     <span className="text-black font-bold text-3xl">
                       {firstName.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <div className="absolute -bottom-1 -right-1">
-                    {getRankBadge()}
-                  </div>
+                  {getRankBadge()}
                 </div>
               )}
               
@@ -115,7 +125,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={handleWalletClick}
             >
-              <Wallet className="w-5 h-5 mr-3" />
+              <Wallet className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Wallet Set-up</span>
             </Button>
 
@@ -125,7 +135,7 @@ export default function HamburgerMenu() {
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <Receipt className="w-5 h-5 mr-3" />
+                <Receipt className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">View Wallet Activity</span>
               </Button>
             </Link>
@@ -136,7 +146,7 @@ export default function HamburgerMenu() {
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <TrendingUp className="w-5 h-5 mr-3" />
+                <TrendingUp className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Affiliate Center</span>
               </Button>
             </Link>
@@ -147,19 +157,30 @@ export default function HamburgerMenu() {
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <Trophy className="w-5 h-5 mr-3" />
+                <Trophy className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Leaderboard</span>
               </Button>
             </Link>
 
-            <Link href="/tasks">
+            <Link href="/create-task?tab=my-task">
               <Button
                 variant="ghost"
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <ClipboardList className="w-5 h-5 mr-3" />
+                <ClipboardList className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Active Tasks</span>
+              </Button>
+            </Link>
+
+            <Link href="/create-task">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
+                onClick={() => setMenuOpen(false)}
+              >
+                <PlusCircle className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                <span className="text-sm">Create Task</span>
               </Button>
             </Link>
 
@@ -174,7 +195,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={() => handleExternalLink('https://t.me/+EcYwkUBmI5JiMzE1')}
             >
-              <MessageCircle className="w-5 h-5 mr-3" />
+              <MessageCircle className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Community Chat</span>
             </Button>
 
@@ -183,7 +204,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={() => handleExternalLink('https://t.me/PaidAdsNews')}
             >
-              <Bell className="w-5 h-5 mr-3" />
+              <Bell className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Announcements/Updates</span>
             </Button>
 
@@ -192,7 +213,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={() => handleExternalLink('https://t.me/szxzyz')}
             >
-              <Code2 className="w-5 h-5 mr-3" />
+              <Code2 className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Developer</span>
             </Button>
 
@@ -201,7 +222,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={() => handleExternalLink('https://t.me/+EcYwkUBmI5JiMzE1')}
             >
-              <HelpCircle className="w-5 h-5 mr-3" />
+              <HelpCircle className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Help & Support</span>
             </Button>
 
@@ -214,18 +235,12 @@ export default function HamburgerMenu() {
                     className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                     onClick={() => setMenuOpen(false)}
                   >
-                    <Settings className="w-5 h-5 mr-3" />
+                    <Settings className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                     <span className="text-sm">Settings</span>
                   </Button>
                 </Link>
               </>
             )}
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-white/10">
-            <p className="text-center text-xs text-gray-400 font-medium">
-              Earn • Grow • Dominate — PAD Season 2🔥
-            </p>
           </div>
         </SheetContent>
       </Sheet>
