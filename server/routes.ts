@@ -851,7 +851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parseFloat(result.rewardEarned) === 0) {
         return res.status(400).json({ 
           success: false,
-          message: 'You have already claimed your daily reward. Come back after 12:00 PM UTC!'
+          message: 'You have already claimed today\'s streak!'
         });
       }
       
@@ -3363,9 +3363,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const costPerClick = taskCostSetting[0]?.settingValue || "0.0003";
       const additionalCost = (parseFloat(costPerClick) * additionalClicks).toFixed(8);
 
-      // Get user's TON balance
+      // Get user data to check if admin
       const [user] = await db
-        .select({ tonBalance: users.tonBalance })
+        .select({ 
+          tonBalance: users.tonBalance, 
+          pdzBalance: users.pdzBalance, 
+          telegram_id: users.telegram_id 
+        })
         .from(users)
         .where(eq(users.id, userId));
 
@@ -3376,23 +3380,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const currentTonBalance = parseFloat(user.tonBalance || '0');
+      const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
       const requiredAmount = parseFloat(additionalCost);
 
-      // Check if user has sufficient TON balance
-      if (currentTonBalance < requiredAmount) {
-        return res.status(400).json({
-          success: false,
-          message: "Insufficient TON balance. Please convert PAD to TON before adding more clicks."
-        });
-      }
+      // Admin users: use TON balance
+      // Regular users: use PDZ tokens
+      if (isAdmin) {
+        console.log('🔑 Admin adding clicks - using TON balance');
+        const currentTonBalance = parseFloat(user.tonBalance || '0');
 
-      // Deduct TON balance
-      const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
-      await db
-        .update(users)
-        .set({ tonBalance: newTonBalance })
-        .where(eq(users.id, userId));
+        // Check if user has sufficient TON balance
+        if (currentTonBalance < requiredAmount) {
+          return res.status(400).json({
+            success: false,
+            message: "Insufficient TON balance. Please convert PAD to TON before adding more clicks."
+          });
+        }
+
+        // Deduct TON balance
+        const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
+        await db
+          .update(users)
+          .set({ tonBalance: newTonBalance })
+          .where(eq(users.id, userId));
+
+        console.log('✅ Payment deducted (TON):', { oldBalance: currentTonBalance, newBalance: newTonBalance, deducted: additionalCost });
+      } else {
+        console.log('👤 Regular user adding clicks - using PDZ balance');
+        const currentPDZBalance = parseFloat(user.pdzBalance || '0');
+
+        // Check if user has sufficient PDZ balance
+        if (currentPDZBalance < requiredAmount) {
+          return res.status(400).json({
+            success: false,
+            message: "Insufficient PDZ. You need PDZ tokens to add more clicks."
+          });
+        }
+
+        // Deduct PDZ balance
+        const deductResult = await storage.deductPDZBalance(
+          userId, 
+          additionalCost, 
+          'task_limit_increase', 
+          `Increased limit for task: ${task.title}`
+        );
+
+        if (!deductResult.success) {
+          return res.status(400).json({
+            success: false,
+            message: deductResult.message
+          });
+        }
+
+        console.log('✅ Payment deducted (PDZ):', { oldBalance: currentPDZBalance, deducted: additionalCost });
+      }
 
       // Increase task limit
       const updatedTask = await storage.increaseTaskLimit(taskId, additionalClicks, additionalCost);
