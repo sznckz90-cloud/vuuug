@@ -49,7 +49,11 @@ export default function TaskSection() {
         credentials: 'include',
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to claim streak');
+      if (!res.ok) {
+        const errorObj = new Error(data.message || 'Failed to claim streak');
+        (errorObj as any).isAlreadyClaimed = data.message === "You have already claimed today's streak!";
+        throw errorObj;
+      }
       return data;
     },
     onSuccess: async (data) => {
@@ -63,15 +67,17 @@ export default function TaskSection() {
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
         const rewardPAD = tonToPAD(rewardAmount);
-        if (data.isBonusDay) {
-          showNotification(`5-day streak bonus! +${rewardPAD} PAD`, 'success');
-        } else {
-          showNotification(`Daily streak claimed! +${rewardPAD} PAD`, 'success');
-        }
+        const message = data.isBonusDay 
+          ? `🔥 5-day streak bonus! You've claimed today's streak reward! +${rewardPAD} PAD`
+          : `✅ You've claimed today's streak reward! +${rewardPAD} PAD`;
+        showNotification(message, 'success');
+      } else {
+        showNotification("✅ You've claimed today's streak reward!", 'success');
       }
     },
     onError: (error: any) => {
-      showNotification(error.message || 'Failed to claim streak', 'error');
+      const notificationType = error.isAlreadyClaimed ? "info" : "error";
+      showNotification(error.message || 'Failed to claim streak', notificationType);
     },
   });
 

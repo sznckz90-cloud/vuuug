@@ -21,7 +21,9 @@ export default function StreakCard({ user }: StreakCardProps) {
       const response = await apiRequest("POST", "/api/streak/claim");
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to claim streak');
+        const errorObj = new Error(error.message || 'Failed to claim streak');
+        (errorObj as any).isAlreadyClaimed = error.message === "You have already claimed today's streak!";
+        throw errorObj;
       }
       return response.json();
     },
@@ -30,13 +32,20 @@ export default function StreakCard({ user }: StreakCardProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       
-      if (parseFloat(data.rewardEarned) > 0) {
+      const rewardAmount = parseFloat(data.rewardEarned || '0');
+      if (rewardAmount > 0) {
         const earnedPAD = tonToPAD(data.rewardEarned);
-        showNotification(` You earned ${earnedPAD} PAD from today's streak!`, "success");
+        const message = data.isBonusDay 
+          ? `🔥 5-day streak bonus! You've claimed today's streak reward! +${earnedPAD} PAD`
+          : `✅ You've claimed today's streak reward! +${earnedPAD} PAD`;
+        showNotification(message, "success");
+      } else {
+        showNotification("✅ You've claimed today's streak reward!", "success");
       }
     },
     onError: (error: any) => {
-      showNotification(error.message || "Failed to claim streak", "error");
+      const notificationType = error.isAlreadyClaimed ? "info" : "error";
+      showNotification(error.message || "Failed to claim streak", notificationType);
     },
   });
 
