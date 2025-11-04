@@ -198,7 +198,7 @@ export default function HamburgerMenu() {
             <Button
               variant="ghost"
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={() => handleExternalLink('https://t.me/+EcYwkUBmI5JiMzE1')}
+              onClick={() => handleExternalLink('https://t.me/PaidAdsCommunity')}
             >
               <MessagesSquare className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Community Chat</span>
