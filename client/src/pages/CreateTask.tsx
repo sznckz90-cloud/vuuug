@@ -144,11 +144,17 @@ export default function CreateTask() {
       }
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       showNotification("Task created successfully", "success");
+      
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
+      
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] }),
+        queryClient.refetchQueries({ queryKey: ["/api/auth/user"] })
+      ]);
       
       setTitle("");
       setLink("");
@@ -182,7 +188,7 @@ export default function CreateTask() {
       setAdditionalClicks("500");
     },
     onError: (error: Error) => {
-      showNotification(error.message || "Insufficient TON balance", "error");
+      showNotification(error.message || "Failed to add clicks", "error");
     },
   });
 

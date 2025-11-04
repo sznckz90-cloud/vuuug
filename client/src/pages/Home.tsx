@@ -97,6 +97,9 @@ export default function Home() {
           </CardContent>
         </Card>
 
+        {/* Viewing Ads Section */}
+        <AdWatchingSection user={user as User} />
+
         {/* Leaderboard Preview */}
         <Card 
           className="mb-3 minimal-card cursor-pointer hover:border-primary/50 transition-colors"
@@ -135,9 +138,6 @@ export default function Home() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Viewing Ads Section */}
-        <AdWatchingSection user={user as User} />
 
         {/* Promo Code Dialog */}
         <PromoCodeDialog 
