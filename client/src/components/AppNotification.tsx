@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatCurrency } from "@/lib/utils";
 
 export type NotificationType = "success" | "error" | "info";
@@ -99,12 +100,13 @@ export default function AppNotification() {
     }
   };
 
-  return (
+  const notificationElement = (
     <div 
       className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] px-4 py-3 rounded-xl shadow-2xl text-white font-medium text-sm flex items-center gap-2 animate-slideDown max-w-[90vw]"
       style={{
         backgroundColor: '#1534A1',
-        animation: isVisible ? "slideDown 0.3s ease-out" : "slideUp 0.3s ease-out"
+        animation: isVisible ? "slideDown 0.3s ease-out" : "slideUp 0.3s ease-out",
+        pointerEvents: 'auto'
       }}
     >
       <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 flex-shrink-0">
@@ -113,6 +115,8 @@ export default function AppNotification() {
       <span className="whitespace-nowrap">{message}</span>
     </div>
   );
+
+  return createPortal(notificationElement, document.body);
 }
 
 export function showNotification(message: string, type: NotificationType = "success", amount?: number, duration?: number) {

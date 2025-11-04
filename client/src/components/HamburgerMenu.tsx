@@ -11,19 +11,20 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { 
   Menu, 
-  Wallet, 
+  Sparkles, 
   Receipt, 
-  TrendingUp, 
-  Trophy, 
+  Users, 
+  Crown, 
   ClipboardList,
-  MessageCircle,
-  Bell,
+  MessagesSquare,
+  Megaphone,
   Code2,
   HelpCircle,
-  Settings,
+  Sliders,
   Award,
-  PlusCircle,
-  ArrowDown
+  Zap,
+  Download,
+  Banknote
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 import CwalletSetupDialog from "@/components/CwalletSetupDialog";
@@ -133,7 +134,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={handleWalletClick}
             >
-              <Wallet className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+              <Sparkles className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Wallet Set-up</span>
             </Button>
 
@@ -142,7 +143,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={handleWithdrawClick}
             >
-              <ArrowDown className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+              <Download className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Withdraw</span>
             </Button>
 
@@ -152,7 +153,7 @@ export default function HamburgerMenu() {
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <TrendingUp className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                <Users className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Affiliate Center</span>
               </Button>
             </Link>
@@ -163,7 +164,7 @@ export default function HamburgerMenu() {
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <Trophy className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                <Crown className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Leaderboard</span>
               </Button>
             </Link>
@@ -174,10 +175,19 @@ export default function HamburgerMenu() {
                 className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                 onClick={() => setMenuOpen(false)}
               >
-                <PlusCircle className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                <Zap className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Create Task</span>
               </Button>
             </Link>
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
+              onClick={() => handleExternalLink('https://t.me/szxzyz?text=Sir%2C%20I%20want%20to%20top%20up%20PDZ%20to%20create%20paid%20tasks')}
+            >
+              <Banknote className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+              <span className="text-sm">Buy PDZ</span>
+            </Button>
 
             <Separator className="my-2 bg-white/10" />
             
@@ -190,7 +200,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={() => handleExternalLink('https://t.me/+EcYwkUBmI5JiMzE1')}
             >
-              <MessageCircle className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+              <MessagesSquare className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Community Chat</span>
             </Button>
 
@@ -199,7 +209,7 @@ export default function HamburgerMenu() {
               className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
               onClick={() => handleExternalLink('https://t.me/PaidAdsNews')}
             >
-              <Bell className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+              <Megaphone className="w-5 h-5 mr-3 text-[#4cd3ff]" />
               <span className="text-sm">Announcements/Updates</span>
             </Button>
 
@@ -212,7 +222,7 @@ export default function HamburgerMenu() {
                     className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
                     onClick={() => setMenuOpen(false)}
                   >
-                    <Settings className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                    <Sliders className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                     <span className="text-sm">Settings</span>
                   </Button>
                 </Link>
