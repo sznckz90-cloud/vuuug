@@ -3536,18 +3536,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Refund remaining balance if any
         if (parseFloat(refundAmount) > 0) {
           const [user] = await tx
-            .select({ tonBalance: users.tonBalance })
+            .select({ 
+              tonBalance: users.tonBalance, 
+              pdzBalance: users.pdzBalance,
+              telegram_id: users.telegram_id 
+            })
             .from(users)
             .where(eq(users.id, userId));
 
           if (user) {
-            const newBalance = (parseFloat(user.tonBalance || '0') + parseFloat(refundAmount)).toFixed(8);
-            await tx
-              .update(users)
-              .set({ tonBalance: newBalance })
-              .where(eq(users.id, userId));
+            const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
 
-            console.log('✅ Refund processed:', { oldBalance: user.tonBalance, refundAmount, newBalance });
+            if (isAdmin) {
+              // Admin: Refund to TON balance
+              const newBalance = (parseFloat(user.tonBalance || '0') + parseFloat(refundAmount)).toFixed(8);
+              await tx
+                .update(users)
+                .set({ tonBalance: newBalance })
+                .where(eq(users.id, userId));
+
+              console.log('✅ Admin refund processed (TON):', { oldBalance: user.tonBalance, refundAmount, newBalance });
+            } else {
+              // Non-admin: Refund to PDZ balance
+              const newPDZBalance = (parseFloat(user.pdzBalance || '0') + parseFloat(refundAmount)).toFixed(8);
+              await tx
+                .update(users)
+                .set({ pdzBalance: newPDZBalance })
+                .where(eq(users.id, userId));
+
+              console.log('✅ User refund processed (PDZ):', { oldBalance: user.pdzBalance, refundAmount, newBalance: newPDZBalance });
+            }
 
             // Log transaction
             await storage.logTransaction({
@@ -3555,8 +3573,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               amount: refundAmount,
               type: "credit",
               source: "task_deletion_refund",
-              description: `Refund for deleting task: ${task.title}`,
-              metadata: { taskId, remainingClicks }
+              description: `Refund for deleting task: ${task.title} (${isAdmin ? 'TON' : 'PDZ'})`,
+              metadata: { taskId, remainingClicks, currency: isAdmin ? 'TON' : 'PDZ' }
             });
           }
         }
