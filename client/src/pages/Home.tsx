@@ -76,7 +76,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4">
+      <main className="max-w-md mx-auto px-4 pt-3">
         {/* Daily Streak Section */}
         <StreakCard user={user as User} />
 
