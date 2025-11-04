@@ -67,9 +67,9 @@ export default function Leaderboard() {
 
   return (
     <Layout>
-      <div className="h-full flex flex-col max-w-md mx-auto mt-3">
+      <div className="h-full flex flex-col max-w-md mx-auto">
         {/* Sticky Header Section - Always visible below navigation */}
-        <div className="sticky top-3 z-20 bg-black border-b border-[#1A1A1A] px-4 pb-2">
+        <div className="sticky top-0 z-20 bg-black border-b border-[#1A1A1A] px-4 pt-3 pb-2">
           <div className="mb-2">
             <h1 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
               <Trophy className="w-5 h-5 text-primary" />
@@ -108,7 +108,7 @@ export default function Leaderboard() {
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-48">
+        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2">
 
         {/* PAD Earners Ranking */}
         {activeTab === 'earners' && (
@@ -229,12 +229,12 @@ export default function Leaderboard() {
         )}
         </div>
 
-        {/* Fixed "Your Rank" Section at Bottom */}
-        <div className="border-t border-[#1A1A1A] bg-black px-4 py-2">
+        {/* Sticky "Your Rank" Section at Bottom */}
+        <div className="sticky bottom-0 z-20 border-t border-[#1A1A1A] bg-black/95 backdrop-blur-sm px-4 py-2.5">
           {activeTab === 'earners' ? (
             <Card className="minimal-card border-primary/30">
               <CardContent className="p-2.5">
-                <div className="text-xs text-muted-foreground mb-1.5">Your Rank</div>
+                <div className="text-xs text-primary font-semibold mb-1.5">Your Rank</div>
                 {leaderboardData?.userEarnerRank ? (
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -276,7 +276,7 @@ export default function Leaderboard() {
           ) : (
             <Card className="minimal-card border-primary/30">
               <CardContent className="p-2.5">
-                <div className="text-xs text-muted-foreground mb-1.5">Your Rank</div>
+                <div className="text-xs text-primary font-semibold mb-1.5">Your Rank</div>
                 {leaderboardData?.userReferrerRank ? (
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">

@@ -76,7 +76,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 mt-3">
+      <main className="max-w-md mx-auto px-4">
         {/* Daily Streak Section */}
         <StreakCard user={user as User} />
 
@@ -102,7 +102,7 @@ export default function Home() {
 
         {/* Leaderboard Preview */}
         <Card 
-          className="mb-3 minimal-card cursor-pointer hover:border-primary/50 transition-colors"
+          className="minimal-card cursor-pointer hover:border-primary/50 transition-colors"
           onClick={() => setLocation("/leaderboard")}
         >
           <CardContent className="pt-3 pb-3">

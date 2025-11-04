@@ -122,7 +122,7 @@ export default function Affiliates() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 mt-3">
+      <main className="max-w-md mx-auto px-4">
         <Card className="mb-4 minimal-card">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-center gap-3 mb-4">
@@ -184,7 +184,7 @@ export default function Affiliates() {
           </Card>
         </div>
 
-        <Card className="minimal-card">
+        <Card className="minimal-card mb-2">
           <CardContent className="pt-3 pb-3">
             <Button
               className={`w-full h-12 text-base ${
