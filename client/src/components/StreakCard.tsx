@@ -40,11 +40,11 @@ export default function StreakCard({ user }: StreakCardProps) {
       if (rewardAmount > 0) {
         const earnedPAD = tonToPAD(data.rewardEarned);
         const message = data.isBonusDay 
-          ? `🔥 5-day streak bonus! You've claimed today's streak reward! +${earnedPAD} PAD`
-          : `✅ You've claimed today's streak reward! +${earnedPAD} PAD`;
+          ? ` 5-day streak bonus! You've claimed today's streak reward! +${earnedPAD} PAD`
+          : ` You've claimed today's streak reward! +${earnedPAD} PAD`;
         showNotification(message, "success");
       } else {
-        showNotification("✅ You've claimed today's streak reward!", "success");
+        showNotification(" You've claimed today's streak reward!", "success");
       }
     },
     onError: (error: any) => {
