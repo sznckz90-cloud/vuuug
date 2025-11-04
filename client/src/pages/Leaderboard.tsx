@@ -108,7 +108,7 @@ export default function Leaderboard() {
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2">
+        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-1">
 
         {/* PAD Earners Ranking */}
         {activeTab === 'earners' && (
@@ -129,24 +129,33 @@ export default function Leaderboard() {
               </Card>
             ) : (
               <>
+                {/* Header Row */}
+                <div className="flex items-center justify-between px-4 py-2 mb-2 text-xs font-semibold text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6">Rank</span>
+                    <span className="ml-8">Name</span>
+                  </div>
+                  <span>Balance</span>
+                </div>
+
                 <div className="space-y-2">
                   {topEarners.map((earner) => (
                     <Card key={earner.userId} className="minimal-card">
                       <CardContent className="p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="text-lg font-bold text-primary min-w-[40px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className="text-base font-bold text-primary w-6 flex-shrink-0">
                               {getRankEmoji(earner.rank)}
                             </div>
                             {earner.profileImage ? (
                               <img 
                                 src={earner.profileImage} 
                                 alt={earner.username}
-                                className="w-10 h-10 rounded-full flex-shrink-0"
+                                className="w-9 h-9 rounded-full flex-shrink-0"
                               />
                             ) : (
-                              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
-                                {earner.username?.[0] || '?'}
+                              <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                {earner.username?.[0]?.toUpperCase() || '?'}
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -155,8 +164,7 @@ export default function Leaderboard() {
                               </div>
                             </div>
                           </div>
-                          <div className="text-primary text-sm font-bold flex-shrink-0 flex items-center gap-1">
-                            <Gem className="w-4 h-4" />
+                          <div className="text-primary text-sm font-bold flex-shrink-0">
                             {formatCompactNumber(tonToPAD(earner.totalEarnings))} PAD
                           </div>
                         </div>
@@ -188,24 +196,33 @@ export default function Leaderboard() {
               </Card>
             ) : (
               <>
+                {/* Header Row */}
+                <div className="flex items-center justify-between px-4 py-2 mb-2 text-xs font-semibold text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6">Rank</span>
+                    <span className="ml-8">Name</span>
+                  </div>
+                  <span>Referrals</span>
+                </div>
+
                 <div className="space-y-2 pb-4">
                   {topReferrers.map((referrer) => (
                     <Card key={referrer.userId} className="minimal-card">
                       <CardContent className="p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="text-lg font-bold text-primary min-w-[40px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className="text-base font-bold text-primary w-6 flex-shrink-0">
                               {getRankEmoji(referrer.rank)}
                             </div>
                             {referrer.profileImage ? (
                               <img 
                                 src={referrer.profileImage} 
                                 alt={referrer.username}
-                                className="w-10 h-10 rounded-full flex-shrink-0"
+                                className="w-9 h-9 rounded-full flex-shrink-0"
                               />
                             ) : (
-                              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
-                                {referrer.username?.[0] || '?'}
+                              <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                {referrer.username?.[0]?.toUpperCase() || '?'}
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -214,8 +231,7 @@ export default function Leaderboard() {
                               </div>
                             </div>
                           </div>
-                          <div className="text-primary text-sm font-bold flex-shrink-0 flex items-center gap-1">
-                            <UserPlus className="w-4 h-4" />
+                          <div className="text-primary text-sm font-bold flex-shrink-0">
                             {referrer.totalReferrals} referrals
                           </div>
                         </div>
@@ -230,44 +246,40 @@ export default function Leaderboard() {
         </div>
 
         {/* Sticky "Your Rank" Section at Bottom */}
-        <div className="sticky bottom-0 z-20 border-t border-[#1A1A1A] bg-black/95 backdrop-blur-sm px-4 py-2.5">
+        <div className="sticky bottom-0 z-20 border-t border-[#1A1A1A] bg-black/95 backdrop-blur-sm px-4 py-1.5">
           {activeTab === 'earners' ? (
             <Card className="minimal-card border-primary/30">
-              <CardContent className="p-2.5">
-                <div className="text-xs text-primary font-semibold mb-1.5">Your Rank</div>
+              <CardContent className="p-2">
+                <div className="text-xs text-primary font-semibold mb-1">Your Rank</div>
                 {leaderboardData?.userEarnerRank ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="text-lg font-bold text-primary min-w-[40px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="text-base font-bold text-primary w-6 flex-shrink-0">
                         #{leaderboardData.userEarnerRank.rank}
                       </div>
                       {(user as User)?.profileImageUrl ? (
                         <img 
                           src={(user as User).profileImageUrl!} 
                           alt={(user as User).username || 'You'}
-                          className="w-10 h-10 rounded-full flex-shrink-0"
+                          className="w-8 h-8 rounded-full flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
-                          {(user as User)?.username?.[0] || 'Y'}
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          {(user as User)?.username?.[0]?.toUpperCase() || 'Y'}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-white font-medium text-sm truncate">
+                        <div className="text-white font-medium text-xs truncate">
                           {(user as User)?.username || 'You'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          You are currently #{leaderboardData.userEarnerRank.rank} in PAD Earners
                         </div>
                       </div>
                     </div>
-                    <div className="text-primary text-sm font-bold flex-shrink-0 flex items-center gap-1">
-                      <Gem className="w-4 h-4" />
+                    <div className="text-primary text-xs font-bold flex-shrink-0">
                       {formatCompactNumber(tonToPAD(leaderboardData.userEarnerRank.totalEarnings))} PAD
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-muted-foreground text-sm py-2">
+                  <div className="text-center text-muted-foreground text-xs py-1">
                     Start earning PAD to appear on the leaderboard
                   </div>
                 )}
@@ -275,41 +287,37 @@ export default function Leaderboard() {
             </Card>
           ) : (
             <Card className="minimal-card border-primary/30">
-              <CardContent className="p-2.5">
-                <div className="text-xs text-primary font-semibold mb-1.5">Your Rank</div>
+              <CardContent className="p-2">
+                <div className="text-xs text-primary font-semibold mb-1">Your Rank</div>
                 {leaderboardData?.userReferrerRank ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="text-lg font-bold text-primary min-w-[40px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="text-base font-bold text-primary w-6 flex-shrink-0">
                         #{leaderboardData.userReferrerRank.rank}
                       </div>
                       {(user as User)?.profileImageUrl ? (
                         <img 
                           src={(user as User).profileImageUrl!} 
                           alt={(user as User).username || 'You'}
-                          className="w-10 h-10 rounded-full flex-shrink-0"
+                          className="w-8 h-8 rounded-full flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
-                          {(user as User)?.username?.[0] || 'Y'}
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          {(user as User)?.username?.[0]?.toUpperCase() || 'Y'}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-white font-medium text-sm truncate">
+                        <div className="text-white font-medium text-xs truncate">
                           {(user as User)?.username || 'You'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          You are currently #{leaderboardData.userReferrerRank.rank} in Top Referrers
                         </div>
                       </div>
                     </div>
-                    <div className="text-primary text-sm font-bold flex-shrink-0 flex items-center gap-1">
-                      <UserPlus className="w-4 h-4" />
+                    <div className="text-primary text-xs font-bold flex-shrink-0">
                       {leaderboardData.userReferrerRank.totalReferrals} referrals
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-muted-foreground text-sm py-2">
+                  <div className="text-center text-muted-foreground text-xs py-1">
                     Start inviting friends to appear on the leaderboard
                   </div>
                 )}

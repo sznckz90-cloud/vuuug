@@ -671,7 +671,7 @@ export default function CreateTask() {
               <Button
                 className="w-full btn-primary"
                 onClick={handleIncreaseClicks}
-                disabled={increaseClicksMutation.isPending || tonBalance < additionalCostTON}
+                disabled={increaseClicksMutation.isPending || (isAdmin ? tonBalance < additionalCostTON : pdzBalance < additionalCostTON)}
               >
                 {increaseClicksMutation.isPending ? "Processing..." : `Pay & Add`}
               </Button>
