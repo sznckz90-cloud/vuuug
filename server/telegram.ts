@@ -285,11 +285,11 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
   const message = `👋 Welcome to Paid Adz!
 
-🚀 You've entered the world of Paid Adz, where every click earns you $PAD Tokens — your key to real $TON rewards.
+🚀 You've entered the world of Paid Adz, where every ad you watch earns you PAD Tokens — your gateway to real TON rewards.
 
-⚡ Just earn $PAD and convert it instantly to $TON anytime you want!
+⚡ Earn PAD, convert it instantly to TON anytime, or create your own paid tasks to promote anything you want!
 
-📈 Start earning now and watch your balance grow every day.`;
+📈 Start earning and growing your balance every day — your journey begins now.`;
 
   // Get the app URL from environment variables
   const appUrl = process.env.RENDER_EXTERNAL_URL || "https://vuuug.onrender.com";
@@ -419,14 +419,22 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         try {
           const { db } = await import('./db');
           const { sql } = await import('drizzle-orm');
-          const { users, earnings, withdrawals } = await import('../shared/schema');
+          const { users, earnings, withdrawals, advertiserTasks } = await import('../shared/schema');
           
           const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
           const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
           const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
           const todayAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatchedToday}), 0)` }).from(users);
+          const yesterdayAdsQuery = await db.execute(sql`SELECT COALESCE(SUM(ads_watched_today), 0) as total FROM users WHERE last_ad_date::date = CURRENT_DATE - INTERVAL '1 day'`);
           const totalPADSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
-          const tonWithdrawnSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+          const todayPADQuery = await db.execute(sql`SELECT COALESCE(SUM(total_earned), '0') as total FROM users WHERE DATE(updated_at) = CURRENT_DATE`);
+          const yesterdayPADQuery = await db.execute(sql`SELECT COALESCE(SUM(total_earned), '0') as total FROM users WHERE DATE(updated_at) = CURRENT_DATE - INTERVAL '1 day'`);
+          const totalPayoutsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+          const todayPayoutsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved') AND DATE(${withdrawals.updatedAt}) = CURRENT_DATE`);
+          const yesterdayPayoutsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved') AND DATE(${withdrawals.updatedAt}) = CURRENT_DATE - INTERVAL '1 day'`);
+          const totalTasksCount = await db.select({ count: sql<number>`count(*)` }).from(advertiserTasks);
+          const todayTasksCount = await db.select({ count: sql<number>`count(*)` }).from(advertiserTasks).where(sql`DATE(${advertiserTasks.createdAt}) = CURRENT_DATE`);
+          const yesterdayTasksCount = await db.select({ count: sql<number>`count(*)` }).from(advertiserTasks).where(sql`DATE(${advertiserTasks.createdAt}) = CURRENT_DATE - INTERVAL '1 day'`);
           const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'pending'`);
           const approvedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
           const rejectedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'rejected'`);
@@ -435,24 +443,44 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const activeUsers = dailyActiveCount[0]?.count || 0;
           const totalAds = totalAdsSum[0]?.total || 0;
           const todayAds = todayAdsSum[0]?.total || 0;
+          const yesterdayAds = (yesterdayAdsQuery.rows[0] as any)?.total || 0;
           const totalPAD = Math.round(parseFloat(totalPADSum[0]?.total || '0') * 100000);
-          const tonWithdrawn = formatTON(tonWithdrawnSum[0]?.total || '0');
+          const todayPAD = Math.round(parseFloat((todayPADQuery.rows[0] as any)?.total || '0') * 100000);
+          const yesterdayPAD = Math.round(parseFloat((yesterdayPADQuery.rows[0] as any)?.total || '0') * 100000);
+          const totalPayouts = formatTON(totalPayoutsSum[0]?.total || '0');
+          const todayPayouts = formatTON(todayPayoutsSum[0]?.total || '0');
+          const yesterdayPayouts = formatTON(yesterdayPayoutsSum[0]?.total || '0');
+          const totalTasks = totalTasksCount[0]?.count || 0;
+          const todayTasks = todayTasksCount[0]?.count || 0;
+          const yesterdayTasks = yesterdayTasksCount[0]?.count || 0;
           const pendingRequests = pendingWithdrawalsCount[0]?.count || 0;
           const approvedRequests = approvedWithdrawalsCount[0]?.count || 0;
           const rejectedRequests = rejectedWithdrawalsCount[0]?.count || 0;
           
-          const adminPanelMessage = `📊 <b>Admin Control Panel</b>\n\n` +
-            `<b>𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
+          const adminPanelMessage = `⚙️ <b>Admin Control Panel</b>\n\n` +
+            `<b>📊 𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
             `Total Users: ${totalUsers}\n` +
-            `Active Users: ${activeUsers}\n` +
+            `Active Users: ${activeUsers}\n\n` +
+            `<b>🎬 AD ANALYSIS</b>\n` +
             `Total Ads: ${totalAds}\n` +
             `Today Ads: ${todayAds}\n` +
+            `Yesterday Ads: ${yesterdayAds}\n\n` +
+            `<b>📈 PLATFORM EARNING</b>\n` +
             `Total PAD: ${totalPAD}\n` +
-            `TON Withdrawn: ${tonWithdrawn}\n\n` +
-            `<b>𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
-            `Pending: ${pendingRequests}\n` +
+            `Today PAD: ${todayPAD}\n` +
+            `Yesterday PAD: ${yesterdayPAD}\n\n` +
+            `<b>💸 WITHDRAWN</b>\n` +
+            `Total Payouts: ${totalPayouts} TON\n` +
+            `Today Payouts: ${todayPayouts} TON\n` +
+            `Yesterday Payouts: ${yesterdayPayouts} TON\n\n` +
+            `<b>📑 TASK CREATED</b>\n` +
+            `Total tasks: ${totalTasks}\n` +
+            `Today tasks: ${todayTasks}\n` +
+            `Yesterday tasks: ${yesterdayTasks}\n\n` +
+            `<b>🏦 𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
             `Approved: ${approvedRequests}\n` +
-            `Rejected: ${rejectedRequests}`;
+            `Rejected: ${rejectedRequests}\n` +
+            `Pending: ${pendingRequests}`;
           
           // Answer callback query and edit message
           await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
@@ -471,13 +499,10 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               parse_mode: 'HTML',
               reply_markup: {
                 inline_keyboard: [
-                  [
-                    { text: '🔔 Announce', callback_data: 'admin_announce' },
-                    { text: '🔄 Refresh', callback_data: 'admin_refresh' }
-                  ],
-                  [
-                    { text: '💰 Pending Withdrawals', callback_data: 'admin_pending_withdrawals' }
-                  ]
+                  [{ text: '💰 Pending Withdrawals', callback_data: 'admin_pending_withdrawals' }],
+                  [{ text: '🔔 Announcement', callback_data: 'admin_announce' }],
+                  [{ text: '📊 Advertise', callback_data: 'admin_advertise' }],
+                  [{ text: '🔄 Refresh', callback_data: 'admin_refresh' }]
                 ]
               }
             })
@@ -485,6 +510,26 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         } catch (error) {
           console.error('❌ Error refreshing admin panel:', error);
         }
+        return true;
+      }
+      
+      // Handle admin advertise button - sends plain promotional messages without inline buttons
+      if (data === 'admin_advertise' && isAdmin(chatId)) {
+        // Set pending advertise state (using pendingBroadcasts Map with advertise prefix)
+        pendingBroadcasts.set(`advertise_${chatId}`, { timestamp: Date.now() });
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callback_query_id: callbackQuery.id })
+        });
+        
+        await sendUserTelegramNotification(chatId, 
+          '📊 <b>Advertise Mode</b>\n\n' +
+          'Send your promotional message now. It will be sent to all users as a plain message without buttons.\n\n' +
+          'To cancel, send /cancel'
+        );
+        
         return true;
       }
       
@@ -717,19 +762,35 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
               const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
               
               // Send user notification
-              const userMessage = `🔔 Payout was made in the amount of ${formattedAmount} TON to Cwallet: ${walletAddress}`;
+              const userMessage = `🔔 Payout was made in the amount of ${formattedAmount} TON to TON Wallet address:\n\n${walletAddress}`;
               
               await sendUserTelegramNotification(user.telegram_id, userMessage);
             }
             
-            // Update admin message and disable buttons
+            // Update admin message with formatted success details
+            const withdrawalDetails = result.withdrawal.details as any;
+            const amount = result.withdrawal.amount;
+            const formattedAmount = formatTON(amount);
+            const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
+            const userName = user?.firstName || user?.username || 'Unknown';
+            const userId = user?.id || 'N/A';
+            const currentDate = new Date().toString();
+            
+            const adminSuccessMessage = `✅ <b>Payout approved successfully</b>\n\n` +
+              `👤 User: ${userName}\n` +
+              `🆔 User ID: ${userId}\n` +
+              `💸 Amount: ${formattedAmount} TON\n` +
+              `💳 Address: ${walletAddress}\n` +
+              `📅 Date: ${currentDate}\n` +
+              `🤖 Bot: @Paid_Adzbot`;
+            
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
                 message_id: callbackQuery.message.message_id,
-                text: `✅ <b>APPROVED</b>\n\n${callbackQuery.message.text}\n\n<b>Status:</b> Payout approved successfully\n<b>Time:</b> ${new Date().toUTCString()}`,
+                text: adminSuccessMessage,
                 parse_mode: 'HTML'
               })
             });
@@ -1045,6 +1106,98 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       return true;
     }
     
+    // Check if admin has a pending advertise message waiting
+    if (isAdmin(chatId) && pendingBroadcasts.delete(`advertise_${chatId}`)) {
+      const advertiseMessage = text;
+      
+      console.log(`📊 [ADVERTISE START] Admin ${chatId} initiating advertise: "${advertiseMessage.substring(0, 50)}..."`);
+      
+      try {
+        // Get all users with Telegram IDs
+        const { db } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const { users } = await import('../shared/schema');
+        
+        const allUsers = await db.select({ 
+          telegramId: users.telegram_id 
+        }).from(users).where(sql`${users.telegram_id} IS NOT NULL`);
+        
+        // Use Set for deduplication - ensure one message per unique user ID
+        const uniqueUserIds = new Set<string>();
+        const dedupedUsers = allUsers.filter(user => {
+          if (user.telegramId && !uniqueUserIds.has(user.telegramId)) {
+            uniqueUserIds.add(user.telegramId);
+            return true;
+          }
+          return false;
+        });
+        
+        let successCount = 0;
+        let failCount = 0;
+        let skippedCount = 0;
+        
+        // Send plain message (no inline buttons) to all users
+        const BATCH_SIZE = 20;
+        const BATCH_DELAY_MS = 1000;
+        
+        for (let i = 0; i < dedupedUsers.length; i++) {
+          const user = dedupedUsers[i];
+          
+          // Skip admin user
+          if (user.telegramId === chatId) {
+            skippedCount++;
+            continue;
+          }
+          
+          try {
+            // Send plain message without any buttons (skip if no telegram_id)
+            if (!user.telegramId) {
+              failCount++;
+              continue;
+            }
+            
+            const sent = await sendUserTelegramNotification(user.telegramId, advertiseMessage);
+            
+            if (sent) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+            
+            // Apply batch delay every BATCH_SIZE messages
+            if ((i + 1) % BATCH_SIZE === 0 && i < dedupedUsers.length - 1) {
+              console.log(`📦 Advertise batch ${Math.floor((i + 1) / BATCH_SIZE)} sent, pausing for rate limit...`);
+              await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+            } else {
+              // Small delay between individual messages within a batch
+              await new Promise(resolve => setTimeout(resolve, 40));
+            }
+          } catch (error) {
+            console.error(`Failed to send advertise to ${user.telegramId}:`, error);
+            failCount++;
+          }
+        }
+        
+        // Send detailed summary to admin
+        console.log(`📊 [ADVERTISE COMPLETE] Success: ${successCount}, Failed: ${failCount}, Skipped: ${skippedCount}`);
+        await sendUserTelegramNotification(chatId, 
+          `✅ <b>Advertise message sent successfully to ${successCount} users.</b>\n\n` +
+          `📊 <b>Statistics:</b>\n` +
+          `✅ Successfully sent: ${successCount}\n` +
+          `❌ Failed/Inactive: ${failCount}\n` +
+          `⚙️ Skipped: ${skippedCount} (admin)\n` +
+          `📈 Total unique users: ${dedupedUsers.length}`
+        );
+      } catch (error) {
+        console.error('❌ [ADVERTISE ERROR]:', error);
+        await sendUserTelegramNotification(chatId, 
+          '❌ Error sending advertise message. Please try again.'
+        );
+      }
+      
+      return true;
+    }
+    
     // Handle /szxzyz command - Admin Control Panel
     if (text === '/szxzyz') {
       if (!isAdmin(chatId)) {
@@ -1057,14 +1210,22 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       try {
         const { db } = await import('./db');
         const { sql } = await import('drizzle-orm');
-        const { users, earnings, withdrawals } = await import('../shared/schema');
+        const { users, earnings, withdrawals, advertiserTasks } = await import('../shared/schema');
         
         const totalUsersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
         const dailyActiveCount = await db.select({ count: sql<number>`count(distinct ${earnings.userId})` }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
         const totalAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatched}), 0)` }).from(users);
         const todayAdsSum = await db.select({ total: sql<number>`COALESCE(SUM(${users.adsWatchedToday}), 0)` }).from(users);
+        const yesterdayAdsQuery = await db.execute(sql`SELECT COALESCE(SUM(ads_watched_today), 0) as total FROM users WHERE last_ad_date::date = CURRENT_DATE - INTERVAL '1 day'`);
         const totalPADSum = await db.select({ total: sql<string>`COALESCE(SUM(${users.totalEarned}), '0')` }).from(users);
-        const tonWithdrawnSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+        const todayPADQuery = await db.execute(sql`SELECT COALESCE(SUM(total_earned), '0') as total FROM users WHERE DATE(updated_at) = CURRENT_DATE`);
+        const yesterdayPADQuery = await db.execute(sql`SELECT COALESCE(SUM(total_earned), '0') as total FROM users WHERE DATE(updated_at) = CURRENT_DATE - INTERVAL '1 day'`);
+        const totalPayoutsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+        const todayPayoutsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved') AND DATE(${withdrawals.updatedAt}) = CURRENT_DATE`);
+        const yesterdayPayoutsSum = await db.select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), '0')` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved') AND DATE(${withdrawals.updatedAt}) = CURRENT_DATE - INTERVAL '1 day'`);
+        const totalTasksCount = await db.select({ count: sql<number>`count(*)` }).from(advertiserTasks);
+        const todayTasksCount = await db.select({ count: sql<number>`count(*)` }).from(advertiserTasks).where(sql`DATE(${advertiserTasks.createdAt}) = CURRENT_DATE`);
+        const yesterdayTasksCount = await db.select({ count: sql<number>`count(*)` }).from(advertiserTasks).where(sql`DATE(${advertiserTasks.createdAt}) = CURRENT_DATE - INTERVAL '1 day'`);
         const pendingWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'pending'`);
         const approvedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
         const rejectedWithdrawalsCount = await db.select({ count: sql<number>`count(*)` }).from(withdrawals).where(sql`${withdrawals.status} = 'rejected'`);
@@ -1073,26 +1234,46 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         const activeUsers = dailyActiveCount[0]?.count || 0;
         const totalAds = totalAdsSum[0]?.total || 0;
         const todayAds = todayAdsSum[0]?.total || 0;
+        const yesterdayAds = (yesterdayAdsQuery.rows[0] as any)?.total || 0;
         const totalPAD = Math.round(parseFloat(totalPADSum[0]?.total || '0') * 100000);
-        const tonWithdrawn = formatTON(tonWithdrawnSum[0]?.total || '0');
+        const todayPAD = Math.round(parseFloat((todayPADQuery.rows[0] as any)?.total || '0') * 100000);
+        const yesterdayPAD = Math.round(parseFloat((yesterdayPADQuery.rows[0] as any)?.total || '0') * 100000);
+        const totalPayouts = formatTON(totalPayoutsSum[0]?.total || '0');
+        const todayPayouts = formatTON(todayPayoutsSum[0]?.total || '0');
+        const yesterdayPayouts = formatTON(yesterdayPayoutsSum[0]?.total || '0');
+        const totalTasks = totalTasksCount[0]?.count || 0;
+        const todayTasks = todayTasksCount[0]?.count || 0;
+        const yesterdayTasks = yesterdayTasksCount[0]?.count || 0;
         const pendingRequests = pendingWithdrawalsCount[0]?.count || 0;
         const approvedRequests = approvedWithdrawalsCount[0]?.count || 0;
         const rejectedRequests = rejectedWithdrawalsCount[0]?.count || 0;
         
-        const adminPanelMessage = `📊 <b>Admin Control Panel</b>\n\n` +
-          `<b>𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
+        const adminPanelMessage = `⚙️ <b>Admin Control Panel</b>\n\n` +
+          `<b>📊 𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
           `Total Users: ${totalUsers}\n` +
-          `Active Users: ${activeUsers}\n` +
+          `Active Users: ${activeUsers}\n\n` +
+          `<b>🎬 AD ANALYSIS</b>\n` +
           `Total Ads: ${totalAds}\n` +
           `Today Ads: ${todayAds}\n` +
+          `Yesterday Ads: ${yesterdayAds}\n\n` +
+          `<b>📈 PLATFORM EARNING</b>\n` +
           `Total PAD: ${totalPAD}\n` +
-          `TON Withdrawn: ${tonWithdrawn}\n\n` +
-          `<b>𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
-          `Pending: ${pendingRequests}\n` +
+          `Today PAD: ${todayPAD}\n` +
+          `Yesterday PAD: ${yesterdayPAD}\n\n` +
+          `<b>💸 WITHDRAWN</b>\n` +
+          `Total Payouts: ${totalPayouts} TON\n` +
+          `Today Payouts: ${todayPayouts} TON\n` +
+          `Yesterday Payouts: ${yesterdayPayouts} TON\n\n` +
+          `<b>📑 TASK CREATED</b>\n` +
+          `Total tasks: ${totalTasks}\n` +
+          `Today tasks: ${todayTasks}\n` +
+          `Yesterday tasks: ${yesterdayTasks}\n\n` +
+          `<b>🏦 𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
           `Approved: ${approvedRequests}\n` +
-          `Rejected: ${rejectedRequests}`;
+          `Rejected: ${rejectedRequests}\n` +
+          `Pending: ${pendingRequests}`;
         
-        // Send message with inline buttons
+        // Send message with inline buttons (vertically arranged)
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1102,13 +1283,10 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
-                [
-                  { text: '🔔 Announce', callback_data: 'admin_announce' },
-                  { text: '🔄 Refresh', callback_data: 'admin_refresh' }
-                ],
-                [
-                  { text: '💰 Pending Withdrawals', callback_data: 'admin_pending_withdrawals' }
-                ]
+                [{ text: '💰 Pending Withdrawals', callback_data: 'admin_pending_withdrawals' }],
+                [{ text: '🔔 Announcement', callback_data: 'admin_announce' }],
+                [{ text: '📊 Advertise', callback_data: 'admin_advertise' }],
+                [{ text: '🔄 Refresh', callback_data: 'admin_refresh' }]
               ]
             }
           })
