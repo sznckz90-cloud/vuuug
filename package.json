@@ -96,7 +96,7 @@
     "zod": "^3.24.2",
     "zod-validation-error": "^3.4.0",
     "@tonconnect/ui-react": "^2.0.0",
-    "@tonconnect/sdk": "^2.2.1"
+    "@tonconnect/sdk": "^3.0.2"
   },
   "devDependencies": {
     "@replit/vite-plugin-cartographer": "^0.3.0",
