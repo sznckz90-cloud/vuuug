@@ -9,6 +9,7 @@ import BanScreen from "@/components/BanScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
+import { TonConnectUIProvider } from "@tonconnect/ui-react";
 
 const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
@@ -145,11 +146,13 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppContent />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <TonConnectUIProvider manifestUrl="https://vuuug.onrender.com/tonconnect-manifest.json">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AppContent />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </TonConnectUIProvider>
   );
 }
 
