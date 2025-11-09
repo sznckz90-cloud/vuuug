@@ -624,6 +624,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const minimumConvertPAD = Math.round(minimumConvert * 10000000);
       const walletChangeFeePAD = Math.round(walletChangeFeeTON * 10000000);
       
+      const tonAdminWallet = getSetting('ton_admin_wallet', 'UQAiuvbhsGT8EEHl2koLD6vex4mWVFFun3fLfunLJ2y_Xj0-');
+      const tonBaseRate = parseFloat(getSetting('ton_base_rate', '0.025'));
+      const tonPaymentEnabled = getSetting('ton_payment_enabled', 'true') === 'true';
+      
       res.json({
         dailyAdLimit,
         rewardPerAd,
@@ -638,7 +642,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taskRewardPAD,
         minimumConvert,
         minimumConvertPAD,
-        withdrawalCurrency
+        withdrawalCurrency,
+        tonAdminWallet,
+        tonBaseRate,
+        tonPaymentEnabled
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -1952,6 +1959,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taskCreationCost: parseFloat(getSetting('task_creation_cost', '0.0003')),
         minimumConvert: parseFloat(getSetting('minimum_convert', '0.01')),
         seasonBroadcastActive: getSetting('season_broadcast_active', 'false') === 'true',
+        tonAdminWallet: getSetting('ton_admin_wallet', 'UQAiuvbhsGT8EEHl2koLD6vex4mWVFFun3fLfunLJ2y_Xj0-'),
+        tonBaseRate: parseFloat(getSetting('ton_base_rate', '0.025')),
+        tonPaymentEnabled: getSetting('ton_payment_enabled', 'true') === 'true',
       });
     } catch (error) {
       console.error("Error fetching admin settings:", error);
@@ -1971,7 +1981,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taskPerClickReward,
         taskCreationCost,
         minimumConvert,
-        seasonBroadcastActive
+        seasonBroadcastActive,
+        tonAdminWallet,
+        tonBaseRate,
+        tonPaymentEnabled
       } = req.body;
       
       // Helper function to update a setting
@@ -2005,6 +2018,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('task_creation_cost', taskCreationCost);
       await updateSetting('minimum_convert', minimumConvert);
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
+      await updateSetting('ton_admin_wallet', tonAdminWallet);
+      await updateSetting('ton_base_rate', tonBaseRate);
+      await updateSetting('ton_payment_enabled', tonPaymentEnabled);
       
       res.json({ success: true, message: "Settings updated successfully" });
     } catch (error) {
@@ -3301,6 +3317,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: "Failed to create task" 
+      });
+    }
+  });
+
+  // TON Payment Verification - Verify TON blockchain payment and auto-publish task
+  app.post('/api/verifyPayment', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { boc, userWallet, clicks, taskData, amount } = req.body;
+
+      console.log('🔍 TON Payment verification request:', { userId, userWallet, clicks, amount, taskData });
+
+      // Validation
+      if (!userWallet || !clicks || !taskData || !taskData.title || !taskData.link || !amount) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required payment verification data"
+        });
+      }
+
+      // Get admin TON wallet address from settings
+      const adminWalletSetting = await db.select()
+        .from(adminSettings)
+        .where(eq(adminSettings.settingKey, 'ton_admin_wallet'))
+        .limit(1);
+      
+      const tonBaseRateSetting = await db.select()
+        .from(adminSettings)
+        .where(eq(adminSettings.settingKey, 'ton_base_rate'))
+        .limit(1);
+
+      const adminWallet = adminWalletSetting[0]?.settingValue || "UQAiuvbhsGT8EEHl2koLD6vex4mWVFFun3fLfunLJ2y_Xj0-";
+      const baseRate = parseFloat(tonBaseRateSetting[0]?.settingValue || "0.025");
+
+      // Calculate expected amount (clicks / 100 * base_rate)
+      const expectedAmount = (clicks / 100) * baseRate;
+      const providedAmount = parseFloat(amount);
+
+      console.log('💰 Payment verification:', { 
+        clicks, 
+        baseRate, 
+        expectedAmount, 
+        providedAmount,
+        adminWallet,
+        userWallet 
+      });
+
+      // Verify amount matches (within 5% tolerance for fees)
+      if (providedAmount < expectedAmount * 0.95) {
+        return res.json({
+          success: false,
+          message: `Payment amount too low. Expected ${expectedAmount.toFixed(6)} TON, but got ${providedAmount.toFixed(6)} TON`
+        });
+      }
+
+      // Verify payment on TON blockchain via TonCenter API
+      try {
+        const response = await fetch(`https://toncenter.com/api/v2/getTransactions?address=${userWallet}&limit=5`);
+        
+        if (!response.ok) {
+          console.error('❌ TonCenter API error:', response.status);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to verify payment on TON blockchain. Please try again in a few moments."
+          });
+        }
+
+        const data = await response.json();
+        console.log('📊 TonCenter API response received');
+
+        if (!data.ok || !data.result) {
+          return res.status(500).json({
+            success: false,
+            message: "Unable to verify payment. Please wait a moment and contact support if the issue persists."
+          });
+        }
+
+        // Find matching transaction (look for outgoing transactions to admin wallet)
+        const recentTx = data.result.find((tx: any) => {
+          if (!tx.out_msgs || tx.out_msgs.length === 0) return false;
+          
+          const outMsg = tx.out_msgs[0];
+          const destination = outMsg.destination;
+          const value = outMsg.value ? (parseInt(outMsg.value) / 1e9) : 0;
+          
+          // Check timestamp (within last 5 minutes)
+          const txTime = tx.utime || 0;
+          const now = Math.floor(Date.now() / 1000);
+          const isRecent = (now - txTime) < 300;
+
+          const matches = destination === adminWallet && value >= (expectedAmount * 0.95) && isRecent;
+          
+          console.log('🔍 Checking transaction:', { 
+            destination, 
+            value, 
+            adminWallet, 
+            expectedAmount,
+            txTime,
+            isRecent,
+            matches
+          });
+
+          return matches;
+        });
+
+        if (!recentTx) {
+          console.log('❌ No valid recent transaction found');
+          return res.json({ 
+            success: false, 
+            message: "Payment transaction not found on blockchain. Please wait a moment for the transaction to confirm, then try again." 
+          });
+        }
+
+        console.log('✅ Valid TON payment confirmed on blockchain');
+
+        // Payment confirmed - create the task
+        const taskCostSetting = await db.select()
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'task_creation_cost'))
+          .limit(1);
+        
+        const costPerClick = taskCostSetting[0]?.settingValue || "0.0003";
+        const totalCost = (parseFloat(costPerClick) * clicks).toFixed(8);
+
+        // Create task
+        const task = await storage.createTask({
+          advertiserId: userId,
+          taskType: taskData.taskType || "channel",
+          title: taskData.title,
+          link: taskData.link,
+          totalClicksRequired: clicks,
+          costPerClick,
+          totalCost,
+        });
+
+        console.log('✅ Task created via TON payment:', task);
+
+        // Log transaction
+        await storage.logTransaction({
+          userId,
+          amount: expectedAmount.toFixed(8),
+          type: "addition",
+          source: "ton_payment",
+          description: `TON payment for task: ${taskData.title}`,
+          metadata: { 
+            taskId: task.id, 
+            boc,
+            userWallet,
+            adminWallet,
+            amount: expectedAmount
+          }
+        });
+
+        // Broadcast task creation
+        broadcastUpdate({
+          type: 'task:created',
+          task: task
+        });
+
+        res.json({ 
+          success: true, 
+          message: `✅ Task "${taskData.title}" is now live with ${clicks.toLocaleString()} impressions!`,
+          task 
+        });
+
+      } catch (blockchainError) {
+        console.error('❌ Blockchain verification error:', blockchainError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to verify payment on blockchain. Please wait a moment and try again."
+        });
+      }
+
+    } catch (error) {
+      console.error("Error verifying TON payment:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to verify payment. Please contact support if this persists." 
       });
     }
   });
