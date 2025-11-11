@@ -1,7 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import Layout from "@/components/Layout";
-import { TonPaymentSection } from "@/components/TonPaymentSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +17,7 @@ import {
   ArrowLeft, 
   Trash2,
   Info,
-  CheckCircle2,
-  Wallet
+  CheckCircle2
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect, useRef } from "react";
@@ -83,7 +81,6 @@ export default function CreateTask() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [showVerifyInfo, setShowVerifyInfo] = useState(false);
-  const [paymentMode, setPaymentMode] = useState<"PDZ" | "TON">("PDZ");
 
   const { data: appSettings } = useQuery<any>({
     queryKey: ['/api/app-settings'],
@@ -117,17 +114,12 @@ export default function CreateTask() {
   const pdzBalance = parseFloat((user as any)?.pdzBalance || "0");
   const additionalCostTON = costPerClick * (parseInt(additionalClicks) || 0);
   
-  // TON Payment calculation (based on base rate: 100 clicks = 0.025 TON)
-  const tonBaseRate = appSettings?.tonBaseRate || 0.025;
-  const tonPaymentEnabled = appSettings?.tonPaymentEnabled !== false;
-  const tonAdminWallet = appSettings?.tonAdminWallet || "UQAiuvbhsGT8EEHl2koLD6vex4mWVFFun3fLfunLJ2y_Xj0-";
-  const tonPaymentAmount = (clicksNum / 100) * tonBaseRate;
-  
-  // Determine payment method based on mode
-  const paymentCurrency = paymentMode === "TON" ? "TON" : (isAdmin ? "TON" : "PDZ");
-  const totalCost = paymentMode === "TON" ? tonPaymentAmount : totalCostTON;
+  // Determine payment method based on user type
+  const paymentCurrency = isAdmin ? "TON" : "PDZ";
+  // PDZ uses same cost as TON (1 PDZ = 1 TON for task creation pricing)
+  const totalCost = totalCostTON;
   const availableBalance = isAdmin ? tonBalance : pdzBalance;
-  const hasSufficientBalance = paymentMode === "TON" ? true : (availableBalance >= totalCost);
+  const hasSufficientBalance = availableBalance >= totalCost;
 
   const { data: myTasksData, isLoading: myTasksLoading, refetch: refetchMyTasks } = useQuery<{
     success: boolean;
@@ -497,78 +489,14 @@ export default function CreateTask() {
                   </p>
                 </div>
 
-                {tonPaymentEnabled && !isAdmin && (
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Payment Method</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={`h-auto py-3 transition-all ${
-                          paymentMode === "PDZ"
-                            ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500 text-purple-300"
-                            : "hover:bg-purple-500/10 hover:border-purple-500/50"
-                        }`}
-                        onClick={() => setPaymentMode("PDZ")}
-                      >
-                        <span className="font-semibold">PDZ Tokens</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={`h-auto py-3 transition-all ${
-                          paymentMode === "TON"
-                            ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500 text-cyan-300"
-                            : "hover:bg-cyan-500/10 hover:border-cyan-500/50"
-                        }`}
-                        onClick={() => setPaymentMode("TON")}
-                      >
-                        <Wallet className="w-4 h-4 mr-2" />
-                        <span className="font-semibold">TON Payment</span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
 
-                {paymentMode === "TON" && tonPaymentEnabled ? (
-                  <TonPaymentSection
-                    clicks={clicksNum}
-                    baseRate={tonBaseRate}
-                    adminWallet={tonAdminWallet}
-                    taskData={{
-                      taskType: taskType || "channel",
-                      title,
-                      link,
-                    }}
-                    onPaymentSuccess={async () => {
-                      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
-                      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
-                      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-                      
-                      await Promise.all([
-                        queryClient.refetchQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] }),
-                        queryClient.refetchQueries({ queryKey: ["/api/auth/user"] })
-                      ]);
-                      
-                      setTitle("");
-                      setLink("");
-                      setTotalClicks("500");
-                      setTaskType("channel");
-                      setIsVerified(false);
-                      setPaymentMode("PDZ");
-                      setActiveTab("my-task");
-                    }}
-                    disabled={!taskType || clicksNum < 500 || (taskType === "channel" && !isVerified)}
-                  />
-                ) : (
-                  <Button
-                    type="submit"
-                    className="w-full btn-primary"
-                    disabled={createTaskMutation.isPending || !hasSufficientBalance || (taskType === "channel" && !isVerified)}
-                  >
-                    {createTaskMutation.isPending ? "Publishing..." : `Pay ${totalCost.toFixed(4)} ${paymentCurrency} & Publish`}
-                  </Button>
-                )}
+                <Button
+                  type="submit"
+                  className="w-full btn-primary"
+                  disabled={createTaskMutation.isPending || !hasSufficientBalance || (taskType === "channel" && !isVerified)}
+                >
+                  {createTaskMutation.isPending ? "Publishing..." : `Pay ${totalCost.toFixed(4)} ${paymentCurrency} & Publish`}
+                </Button>
               </form>
             )}
           </div>
