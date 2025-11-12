@@ -11,6 +11,7 @@ import type { User } from "@shared/schema";
 interface LeaderboardUser {
   rank: number;
   username: string;
+  firstName: string;
   profileImage: string;
   userId: string;
 }
@@ -150,17 +151,17 @@ export default function Leaderboard() {
                             {earner.profileImage ? (
                               <img 
                                 src={earner.profileImage} 
-                                alt={earner.username}
+                                alt={earner.firstName || 'User'}
                                 className="w-9 h-9 rounded-full flex-shrink-0"
                               />
                             ) : (
                               <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                {earner.username?.[0]?.toUpperCase() || '?'}
+                                {(earner.firstName || '?').charAt(0).toUpperCase()}
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="text-white font-medium text-sm truncate">
-                                {earner.username || 'Anonymous'}
+                                {earner.firstName || 'Anonymous'}
                               </div>
                             </div>
                           </div>
@@ -217,17 +218,17 @@ export default function Leaderboard() {
                             {referrer.profileImage ? (
                               <img 
                                 src={referrer.profileImage} 
-                                alt={referrer.username}
+                                alt={referrer.firstName || 'User'}
                                 className="w-9 h-9 rounded-full flex-shrink-0"
                               />
                             ) : (
                               <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                {referrer.username?.[0]?.toUpperCase() || '?'}
+                                {(referrer.firstName || '?').charAt(0).toUpperCase()}
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="text-white font-medium text-sm truncate">
-                                {referrer.username || 'Anonymous'}
+                                {referrer.firstName || 'Anonymous'}
                               </div>
                             </div>
                           </div>
