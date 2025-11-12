@@ -8,7 +8,7 @@ import { Play, Clock } from "lucide-react";
 
 declare global {
   interface Window {
-    show_9368336: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
   }
 }
 
@@ -86,9 +86,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       interval = setInterval(() => {
         if (Date.now() - lastAdWatchTime < 30000) return;
         
-        if (typeof window.show_9368336 === 'function') {
+        if (typeof window.show_10013974 === 'function') {
           try {
-            window.show_9368336();
+            window.show_10013974();
           } catch {}
         }
       }, 30000);
@@ -107,13 +107,13 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     
     try {
       // Optimized: Credit reward instantly when ad completes
-      if (typeof window.show_9368336 === 'function') {
+      if (typeof window.show_10013974 === 'function') {
         // Record ad start time for anti-cheat verification
         const startTime = Date.now();
         setAdStartTime(startTime);
         
         // Start ad display with immediate reward on completion
-        window.show_9368336()
+        window.show_10013974()
           .then(() => {
             // Check if user watched for at least 3 seconds (anti-cheat)
             const watchDuration = Date.now() - startTime;
