@@ -180,29 +180,11 @@ export default function HamburgerMenu() {
               </Button>
             </Link>
 
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={() => handleExternalLink('https://t.me/szxzyz?text=Sir%2C%20I%20want%20to%20top%20up%20PDZ%20to%20create%20paid%20tasks')}
-            >
-              <Banknote className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Buy PDZ</span>
-            </Button>
-
             <Separator className="my-2 bg-white/10" />
             
             <div className="px-3 py-1">
               <p className="text-xs font-semibold text-[#4cd3ff] mb-2">Community & Info</p>
             </div>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={() => handleExternalLink('https://t.me/PaidAdsCommunity')}
-            >
-              <MessagesSquare className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Community Chat</span>
-            </Button>
 
             <Button
               variant="ghost"
