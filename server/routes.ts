@@ -444,6 +444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
         username: telegramUser.username,
+        profileImageUrl: (telegramUser as any).photo_url || '',
         personalCode: telegramUser.username || telegramUser.id.toString(),
         withdrawBalance: '0',
         totalEarnings: '0',

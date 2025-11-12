@@ -146,8 +146,8 @@ export interface IStorage {
   // Leaderboard operations
   getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null>;
   getMonthlyLeaderboard(userId?: string): Promise<{
-    topEarners: Array<{ rank: number; username: string; profileImage: string; totalEarnings: string; userId: string }>;
-    topReferrers: Array<{ rank: number; username: string; profileImage: string; totalReferrals: number; userId: string }>;
+    topEarners: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalEarnings: string; userId: string }>;
+    topReferrers: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalReferrals: number; userId: string }>;
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
     userReferrerRank?: { rank: number; totalReferrals: number } | null;
   }>;
@@ -2763,8 +2763,8 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getMonthlyLeaderboard(userId?: string): Promise<{
-    topEarners: Array<{ rank: number; username: string; profileImage: string; totalEarnings: string; userId: string }>;
-    topReferrers: Array<{ rank: number; username: string; profileImage: string; totalReferrals: number; userId: string }>;
+    topEarners: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalEarnings: string; userId: string }>;
+    topReferrers: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalReferrals: number; userId: string }>;
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
     userReferrerRank?: { rank: number; totalReferrals: number } | null;
   }> {
@@ -2792,7 +2792,8 @@ export class DatabaseStorage implements IStorage {
           const user = await this.getUser(earner.userId);
           return {
             rank: index + 1,
-            username: user?.username || 'Anonymous',
+            username: user?.username || '',
+            firstName: user?.firstName || '',
             profileImage: user?.profileImageUrl || '',
             totalEarnings: earner.totalEarnings,
             userId: earner.userId
@@ -2816,7 +2817,8 @@ export class DatabaseStorage implements IStorage {
           const user = await this.getUser(referrer.referrerId);
           return {
             rank: index + 1,
-            username: user?.username || 'Anonymous',
+            username: user?.username || '',
+            firstName: user?.firstName || '',
             profileImage: user?.profileImageUrl || '',
             totalReferrals: Number(referrer.totalReferrals),
             userId: referrer.referrerId
