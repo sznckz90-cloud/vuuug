@@ -3124,6 +3124,239 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PAD to USD conversion endpoint
+  app.post('/api/convert-to-usd', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log("⚠️ USD conversion requested without session - skipping");
+        return res.json({ success: true, skipAuth: true });
+      }
+
+      const { padAmount } = req.body;
+      
+      console.log('💵 PAD to USD conversion request:', { userId, padAmount });
+      
+      const convertAmount = parseFloat(padAmount);
+      if (!padAmount || isNaN(convertAmount) || convertAmount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid PAD amount'
+        });
+      }
+      
+      // Conversion rate: 10,000 PAD = 1 USD
+      const PAD_TO_USD_RATE = 10000;
+      const usdAmount = convertAmount / PAD_TO_USD_RATE;
+      
+      // Use transaction to ensure atomicity
+      const result = await db.transaction(async (tx) => {
+        // Lock user row and get current balances
+        const [user] = await tx
+          .select({ 
+            balance: users.balance,
+            usdBalance: users.usdBalance
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) {
+          throw new Error('User not found');
+        }
+        
+        // balance field stores TON (1 TON = 10,000,000 PAD)
+        const currentBalanceTON = parseFloat(user.balance || '0');
+        const currentPadBalance = currentBalanceTON * 10000000;
+        const currentUsdBalance = parseFloat(user.usdBalance || '0');
+        
+        if (currentPadBalance < convertAmount) {
+          throw new Error('Insufficient PAD balance');
+        }
+        
+        // Deduct PAD (as TON) and add USD
+        const tonToDeduct = convertAmount / 10000000;
+        const newBalanceTON = currentBalanceTON - tonToDeduct;
+        const newUsdBalance = currentUsdBalance + usdAmount;
+        
+        await tx
+          .update(users)
+          .set({
+            balance: newBalanceTON.toFixed(8),
+            usdBalance: newUsdBalance.toFixed(8),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`✅ PAD to USD conversion successful: ${convertAmount} PAD → $${usdAmount.toFixed(2)} USD`);
+        
+        return {
+          padAmount: convertAmount,
+          usdAmount,
+          newPadBalance: newBalanceTON * 10000000,
+          newUsdBalance
+        };
+      });
+      
+      // Send real-time update
+      sendRealtimeUpdate(userId, {
+        type: 'balance_update',
+        balance: (result.newPadBalance / 10000000).toFixed(8),
+        usdBalance: result.newUsdBalance.toFixed(8)
+      });
+      
+      res.json({
+        success: true,
+        message: 'Conversion successful!',
+        ...result
+      });
+      
+    } catch (error) {
+      console.error('❌ Error converting PAD to USD:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to convert';
+      
+      res.status(errorMessage === 'Insufficient PAD balance' ? 400 : 500).json({ 
+        success: false, 
+        message: errorMessage
+      });
+    }
+  });
+
+  // Setup USDT wallet (Optimism network only)
+  app.post('/api/wallet/usdt', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Please log in to set up wallet'
+        });
+      }
+      
+      const { usdtAddress } = req.body;
+      
+      if (!usdtAddress || !usdtAddress.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter your USDT wallet address'
+        });
+      }
+      
+      // Validate Optimism USDT address (0x... format, 42 characters)
+      if (!/^0x[a-fA-F0-9]{40}$/.test(usdtAddress.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid Optimism USDT address'
+        });
+      }
+      
+      // Check if address is already in use
+      const [existingWallet] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(
+          eq(users.usdtWalletAddress, usdtAddress.trim()),
+          sql`${users.id} != ${userId}`
+        ))
+        .limit(1);
+      
+      if (existingWallet) {
+        return res.status(400).json({
+          success: false,
+          message: 'This USDT address is already linked to another account'
+        });
+      }
+      
+      // Update user's USDT wallet address
+      await db
+        .update(users)
+        .set({
+          usdtWalletAddress: usdtAddress.trim(),
+          walletUpdatedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      console.log(`✅ USDT wallet set for user ${userId}`);
+      
+      res.json({
+        success: true,
+        message: 'USDT wallet saved successfully'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error setting USDT wallet:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to save USDT wallet'
+      });
+    }
+  });
+
+  // Setup Telegram Stars username
+  app.post('/api/wallet/telegram-stars', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Please log in to set up username'
+        });
+      }
+      
+      let { telegramUsername } = req.body;
+      
+      if (!telegramUsername || !telegramUsername.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter your Telegram username'
+        });
+      }
+      
+      // Auto-add @ if not present
+      telegramUsername = telegramUsername.trim();
+      if (!telegramUsername.startsWith('@')) {
+        telegramUsername = '@' + telegramUsername;
+      }
+      
+      // Validate username format: @username (letters, numbers, underscores only, no spaces or special chars)
+      if (!/^@[a-zA-Z0-9_]{1,32}$/.test(telegramUsername)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid username format. Use only letters, numbers, and underscores (e.g., @szxzyz)'
+        });
+      }
+      
+      // Update user's Telegram Stars username
+      await db
+        .update(users)
+        .set({
+          telegramStarsUsername: telegramUsername,
+          walletUpdatedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      console.log(`✅ Telegram Stars username set for user ${userId}: ${telegramUsername}`);
+      
+      res.json({
+        success: true,
+        message: 'Telegram username saved successfully',
+        username: telegramUsername
+      });
+      
+    } catch (error) {
+      console.error('❌ Error setting Telegram Stars username:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to save username'
+      });
+    }
+  });
+
   // Advertiser Task System API routes
   
   // Get all active advertiser tasks (public task feed) - excludes tasks already completed by user
@@ -3775,11 +4008,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and get PAD balance, wallet ID, friendsInvited, telegram_id, and device info (SELECT FOR UPDATE)
+        // Lock user row and get balances, wallet addresses, and device info
         const [user] = await tx
           .select({ 
             balance: users.balance,
+            usdBalance: users.usdBalance,
             cwalletId: users.cwalletId,
+            usdtWalletAddress: users.usdtWalletAddress,
+            telegramStarsUsername: users.telegramStarsUsername,
             friendsInvited: users.friendsInvited,
             telegram_id: users.telegram_id,
             username: users.username,
@@ -3838,42 +4074,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ✅ NEW: Check if user has invited at least 3 friends
+        // ✅ Check if user has invited at least 3 friends
         const friendsInvited = user.friendsInvited || 0;
         if (friendsInvited < 3) {
           throw new Error('You need to invite at least 3 friends to unlock withdrawals.');
         }
 
-        // Check if user has a saved wallet address
-        if (!user.cwalletId) {
-          throw new Error('No wallet address found. Please set up your wallet address first.');
+        // Check if user has appropriate wallet address based on method
+        let walletAddress: string;
+        if (method === 'TON') {
+          if (!user.cwalletId) {
+            throw new Error('No TON wallet address found. Please set up your TON wallet first.');
+          }
+          walletAddress = user.cwalletId;
+        } else if (method === 'USDT') {
+          if (!user.usdtWalletAddress) {
+            throw new Error('No USDT wallet address found. Please set up your USDT (Optimism) wallet first.');
+          }
+          walletAddress = user.usdtWalletAddress;
+        } else if (method === 'STARS') {
+          if (!user.telegramStarsUsername) {
+            throw new Error('No Telegram username found. Please set up your Telegram username first.');
+          }
+          walletAddress = user.telegramStarsUsername;
+        } else {
+          throw new Error('Invalid withdrawal method');
         }
 
-        // Check wallet ID uniqueness - prevent same wallet from being used by multiple users
-        const [existingWallet] = await tx
-          .select({ userId: users.id })
-          .from(users)
-          .where(and(
-            eq(users.cwalletId, user.cwalletId),
-            sql`${users.id} != ${userId}`
-          ))
-          .limit(1);
-
-        if (existingWallet) {
-          throw new Error('This wallet address is already in use by another user. Please use a unique wallet address.');
-        }
-
-        const currentPadBalance = parseFloat(user.balance || '0');
-        const currentUsdBalance = currentPadBalance / 10000;
+        const currentUsdBalance = parseFloat(user.usdBalance || '0');
         
         // Calculate withdrawal amount and fee based on method
         let withdrawalAmount: number;
         let fee: number;
-        let amountToDeduct: number;
+        let usdToDeduct: number;
         let withdrawalDetails: any = {
-          paymentDetails: user.cwalletId,
-          cwalletId: user.cwalletId,
-          walletAddress: user.cwalletId,
+          paymentDetails: walletAddress,
+          walletAddress: walletAddress,
           method: method
         };
 
@@ -3901,28 +4137,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           withdrawalAmount = selectedPkg.usdCost;
           fee = selectedPkg.usdCost * 0.05;
-          amountToDeduct = totalCost * 10000;
+          usdToDeduct = totalCost;
           withdrawalDetails.starPackage = starPackage;
           withdrawalDetails.stars = starPackage;
+          withdrawalDetails.telegramUsername = walletAddress;
         } else {
+          // TON or USDT - withdraw full balance
           if (currentUsdBalance <= 0) {
             throw new Error('Insufficient balance for withdrawal');
           }
           
           fee = currentUsdBalance * 0.05;
           withdrawalAmount = currentUsdBalance - fee;
-          amountToDeduct = currentPadBalance;
+          usdToDeduct = currentUsdBalance;
+          
+          if (method === 'TON') {
+            withdrawalDetails.tonWalletAddress = walletAddress;
+          } else if (method === 'USDT') {
+            withdrawalDetails.usdtWalletAddress = walletAddress;
+          }
         }
 
-        // Deduct balance immediately to prevent double withdrawals
+        // Deduct USD balance immediately to prevent double withdrawals
         await tx
           .update(users)
           .set({ 
-            balance: sql`${users.balance} - ${amountToDeduct.toFixed(8)}`
+            usdBalance: sql`${users.usdBalance} - ${usdToDeduct.toFixed(8)}`
           })
           .where(eq(users.id, userId));
 
-        console.log(`📝 Creating withdrawal request for ${withdrawalAmount.toFixed(2)} USD via ${method} (PAD balance deducted: ${amountToDeduct})`);
+        console.log(`📝 Creating withdrawal request for ${withdrawalAmount.toFixed(2)} USD via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
 
         // Create withdrawal request
         const withdrawalData: any = {
