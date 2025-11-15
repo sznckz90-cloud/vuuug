@@ -8,14 +8,13 @@ import { TonCoinIcon } from "@/components/TonCoinIcon";
 
 interface WalletSectionProps {
   padBalance: number;
-  tonBalance: number;
   uid: string;
   isAdmin?: boolean;
   onAdminClick?: () => void;
   onWithdraw: () => void;
 }
 
-export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, onAdminClick, onWithdraw }: WalletSectionProps) {
+export default function WalletSection({ padBalance, uid, isAdmin, onAdminClick, onWithdraw }: WalletSectionProps) {
   const queryClient = useQueryClient();
 
   const { data: appSettings } = useQuery<any>({
@@ -84,10 +83,10 @@ export default function WalletSection({ padBalance, tonBalance, uid, isAdmin, on
             </div>
             <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
               <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
-                <TonCoinIcon size={12} />
-                TON Balance
+                <span className="text-green-400">$</span>
+                USD Balance
               </div>
-              <div className="text-white font-bold text-lg">{tonBalance.toFixed(4)}</div>
+              <div className="text-white font-bold text-lg">${(padBalance / 10000).toFixed(2)}</div>
             </div>
           </div>
 
