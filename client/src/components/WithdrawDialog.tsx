@@ -13,6 +13,7 @@ import { PAYMENT_SYSTEMS, STAR_PACKAGES, PAD_TO_USD_RATE } from '@/constants/pay
 interface User {
   id: string;
   balance: string;
+  usdBalance?: string;
   friendsInvited?: number;
 }
 
@@ -41,8 +42,8 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     retry: false,
   });
 
-  const padBalance = parseFloat(user?.balance || "0");
-  const usdBalance = padBalance / PAD_TO_USD_RATE;
+  const padBalance = parseFloat(user?.balance || "0") * 10000000;
+  const usdBalance = parseFloat(user?.usdBalance || "0");
   const friendsInvited = user?.friendsInvited || 0;
   const MINIMUM_FRIENDS_REQUIRED = 3;
 
@@ -176,10 +177,10 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
         <div className="space-y-4 py-4">
           <div className="p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
-            <div className="text-xs text-muted-foreground mb-1">Available Balance</div>
+            <div className="text-xs text-muted-foreground mb-1">Available USD Balance</div>
             <div className="text-2xl font-bold text-[#4cd3ff]">${usdBalance.toFixed(2)} USD</div>
             <div className="text-xs text-[#c0c0c0] mt-1">
-              {padBalance.toLocaleString()} PAD
+              Convert PAD to USD to withdraw
             </div>
           </div>
 
@@ -237,24 +238,18 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
             {selectedMethod === 'STARS' && (
               <div className="space-y-2">
                 <Label className="text-sm text-white">Select Star Package</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={selectedStarPackage || ''}
+                  onChange={(e) => setSelectedStarPackage(Number(e.target.value))}
+                  className="w-full p-3 rounded-lg border border-[#4cd3ff]/30 bg-[#1a1a1a] text-white focus:outline-none focus:border-[#4cd3ff] transition-all"
+                >
+                  <option value="" disabled>Choose stars amount...</option>
                   {STAR_PACKAGES.map((pkg) => (
-                    <button
-                      key={pkg.stars}
-                      onClick={() => setSelectedStarPackage(pkg.stars)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        selectedStarPackage === pkg.stars
-                          ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
-                          : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
-                      }`}
-                    >
-                      <div className="text-2xl mb-1">⭐</div>
-                      <div className="text-white font-bold">{pkg.stars} Stars</div>
-                      <div className="text-xs text-[#aaa]">${pkg.usdCost.toFixed(2)}</div>
-                      <div className="text-xs text-[#4cd3ff] mt-1">+ 5% fee</div>
-                    </button>
+                    <option key={pkg.stars} value={pkg.stars}>
+                      ⭐{pkg.stars} - ${pkg.usdCost.toFixed(2)} (+ 5% fee = ${(pkg.usdCost * 1.05).toFixed(2)})
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
             )}
 
