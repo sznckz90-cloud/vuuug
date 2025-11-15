@@ -3743,10 +3743,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, skipAuth: true });
       }
       
-      // NEW: Automatically withdraw ALL TON balance (ignore amount parameter)
-      const { walletAddress, comment } = req.body;
+      const { method, starPackage, amount: requestedAmount } = req.body;
 
-      console.log('📝 Withdrawal request received (withdrawing all TON balance):', { userId, walletAddress, comment });
+      console.log('📝 Withdrawal request received:', { userId, method, starPackage });
+
+      // Validate withdrawal method
+      const validMethods = ['TON', 'USDT', 'STARS'];
+      if (!method || !validMethods.includes(method)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid withdrawal method'
+        });
+      }
 
       // Check for pending withdrawals
       const pendingWithdrawals = await db
@@ -3767,10 +3775,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use transaction to ensure atomicity and prevent race conditions
       const newWithdrawal = await db.transaction(async (tx) => {
-        // Lock user row and get TON balance, wallet ID, friendsInvited, telegram_id, and device info (SELECT FOR UPDATE)
+        // Lock user row and get PAD balance, wallet ID, friendsInvited, telegram_id, and device info (SELECT FOR UPDATE)
         const [user] = await tx
           .select({ 
-            tonBalance: users.tonBalance,
+            balance: users.balance,
             cwalletId: users.cwalletId,
             friendsInvited: users.friendsInvited,
             telegram_id: users.telegram_id,
@@ -3836,12 +3844,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('You need to invite at least 3 friends to unlock withdrawals.');
         }
 
-        // Check if user has a saved TON wallet address
+        // Check if user has a saved wallet address
         if (!user.cwalletId) {
-          throw new Error('No TON wallet address found. Please set up your TON wallet address first.');
+          throw new Error('No wallet address found. Please set up your wallet address first.');
         }
 
-        // ✅ NEW: Check wallet ID uniqueness - prevent same wallet from being used by multiple users
+        // Check wallet ID uniqueness - prevent same wallet from being used by multiple users
         const [existingWallet] = await tx
           .select({ userId: users.id })
           .from(users)
@@ -3852,65 +3860,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
 
         if (existingWallet) {
-          throw new Error('This TON wallet address is already in use by another user. Please use a unique TON wallet address.');
+          throw new Error('This wallet address is already in use by another user. Please use a unique wallet address.');
         }
 
-        const currentTonBalance = parseFloat(user.tonBalance || '0');
+        const currentPadBalance = parseFloat(user.balance || '0');
+        const currentUsdBalance = currentPadBalance / 10000;
         
-        // Get minimum withdrawal from admin settings
-        const minimumWithdrawal = await storage.getAppSetting('minimumWithdrawal', 0.001);
-        const minWithdrawalTon = parseFloat(minimumWithdrawal);
-        
-        if (currentTonBalance < minWithdrawalTon) {
-          throw new Error(`You need at least ${minWithdrawalTon} TON to withdraw.`);
+        // Calculate withdrawal amount and fee based on method
+        let withdrawalAmount: number;
+        let fee: number;
+        let amountToDeduct: number;
+        let withdrawalDetails: any = {
+          paymentDetails: user.cwalletId,
+          cwalletId: user.cwalletId,
+          walletAddress: user.cwalletId,
+          method: method
+        };
+
+        if (method === 'STARS') {
+          if (!starPackage) {
+            throw new Error('Star package selection is required for Telegram Stars withdrawal');
+          }
+          
+          const starPackages = [
+            { stars: 15, usdCost: 0.30 },
+            { stars: 25, usdCost: 0.50 },
+            { stars: 50, usdCost: 1.00 },
+            { stars: 100, usdCost: 2.00 }
+          ];
+          
+          const selectedPkg = starPackages.find(p => p.stars === starPackage);
+          if (!selectedPkg) {
+            throw new Error('Invalid star package selected');
+          }
+          
+          const totalCost = selectedPkg.usdCost * 1.05;
+          if (currentUsdBalance < totalCost) {
+            throw new Error(`Insufficient balance. You need $${totalCost.toFixed(2)} (including 5% fee)`);
+          }
+          
+          withdrawalAmount = selectedPkg.usdCost;
+          fee = selectedPkg.usdCost * 0.05;
+          amountToDeduct = totalCost * 10000;
+          withdrawalDetails.starPackage = starPackage;
+          withdrawalDetails.stars = starPackage;
+        } else {
+          if (currentUsdBalance <= 0) {
+            throw new Error('Insufficient balance for withdrawal');
+          }
+          
+          fee = currentUsdBalance * 0.05;
+          withdrawalAmount = currentUsdBalance - fee;
+          amountToDeduct = currentPadBalance;
         }
 
-        // ✅ CHANGED: Do NOT deduct balance immediately - wait for admin approval
-        // Balance will be deducted when admin approves the withdrawal
+        // Deduct balance immediately to prevent double withdrawals
+        await tx
+          .update(users)
+          .set({ 
+            balance: sql`${users.balance} - ${amountToDeduct.toFixed(8)}`
+          })
+          .where(eq(users.id, userId));
 
-        console.log(`📝 Creating withdrawal request for ${currentTonBalance} TON (balance NOT deducted yet)`);
+        console.log(`📝 Creating withdrawal request for ${withdrawalAmount.toFixed(2)} USD via ${method} (PAD balance deducted: ${amountToDeduct})`);
 
-        // Create withdrawal request with deducted flag set to FALSE
-        // ✅ FIX: Automatically attach saved wallet ID from database using correct field name
+        // Create withdrawal request
         const withdrawalData: any = {
           userId,
-          amount: currentTonBalance.toFixed(8),
-          method: 'cwallet',
+          amount: withdrawalAmount.toFixed(8),
+          method: method,
           status: 'pending',
-          deducted: false, // ✅ CHANGED: Balance will be deducted on admin approval
+          deducted: true,
           refunded: false,
-          details: {
-            paymentDetails: user.cwalletId, // ✅ Use paymentDetails field for admin dashboard
-            cwalletId: user.cwalletId, // Keep for backward compatibility
-            walletAddress: user.cwalletId // For backward compatibility
-          }
+          details: withdrawalDetails
         };
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
         return { 
           withdrawal, 
-          withdrawnAmount: currentTonBalance, 
+          withdrawnAmount: withdrawalAmount,
+          withdrawnUSD: withdrawalAmount,
+          fee: fee,
+          method: method,
+          starPackage: method === 'STARS' ? starPackage : undefined,
           userTelegramId: user.telegram_id,
           username: user.username 
         };
       });
 
-      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, amount: ${newWithdrawal.withdrawnAmount} TON`);
+      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, amount: $${newWithdrawal.withdrawnUSD.toFixed(2)} via ${newWithdrawal.method}`);
 
-      // ✅ Send withdrawal_requested notification via WebSocket
+      // Send withdrawal_requested notification via WebSocket
       sendRealtimeUpdate(userId, {
         type: 'withdrawal_requested',
-        amount: newWithdrawal.withdrawnAmount.toFixed(8),
+        amount: newWithdrawal.withdrawnUSD.toFixed(2),
+        method: newWithdrawal.method,
         message: 'You have sent a withdrawal request.'
       });
 
-      // ✅ NEW: Send withdrawal notification to admin via Telegram bot with inline buttons
+      // Send withdrawal notification to admin via Telegram bot with inline buttons
       const adminMessage = `
 💸 <b>New Withdrawal Request</b>
 
 • <b>User:</b> @${newWithdrawal.username || 'Unknown'} (${userId.substring(0, 8)})
-• <b>Amount:</b> ${newWithdrawal.withdrawnAmount.toFixed(4)} TON
+• <b>Method:</b> ${newWithdrawal.method}${newWithdrawal.method === 'STARS' ? ` (${newWithdrawal.starPackage} ⭐)` : ''}
+• <b>Amount:</b> $${newWithdrawal.withdrawnUSD.toFixed(2)} USD
+• <b>Fee:</b> $${newWithdrawal.fee.toFixed(2)} (5%)
 • <b>Wallet:</b> ${newWithdrawal.withdrawal.details?.paymentDetails || 'N/A'}
 • <b>Time:</b> ${new Date().toUTCString()}
       `.trim();
