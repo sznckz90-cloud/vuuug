@@ -38,6 +38,7 @@ export const users = pgTable("users", {
   profileImageUrl: text("profile_image_url"),
   personalCode: text("personal_code"),
   balance: decimal("balance", { precision: 12, scale: 8 }).default("0"),
+  usdBalance: decimal("usd_balance", { precision: 12, scale: 8 }).default("0"),
   tonBalance: decimal("ton_balance", { precision: 12, scale: 8 }).default("0"),
   pdzBalance: decimal("pdz_balance", { precision: 12, scale: 8 }).default("0"),
   withdrawBalance: decimal("withdraw_balance", { precision: 12, scale: 8 }),
@@ -80,6 +81,8 @@ export const users = pgTable("users", {
   // Wallet details
   tonWalletAddress: text("ton_wallet_address"),
   tonWalletComment: text("ton_wallet_comment"),
+  usdtWalletAddress: text("usdt_wallet_address"),
+  telegramStarsUsername: text("telegram_stars_username"),
   telegramUsername: text("telegram_username_wallet"),
   cwalletId: text("cwallet_id"),
   walletUpdatedAt: timestamp("wallet_updated_at"),
