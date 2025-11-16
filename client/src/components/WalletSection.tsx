@@ -59,7 +59,7 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
   });
 
   const handleConvert = () => {
-    const minimumConvertPAD = appSettings?.minimumConvertPAD || 100000;
+    const minimumConvertPAD = appSettings?.minimumConvertPAD || 10000;
     
     if (padBalance < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
@@ -80,7 +80,7 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
                 <DiamondIcon size={12} withGlow />
                 PAD Balance
               </div>
-              <div className="text-white font-bold text-lg">{padBalance.toLocaleString()}</div>
+              <div className="text-white font-bold text-lg">{Math.floor(padBalance).toLocaleString()}</div>
             </div>
             <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
               <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
