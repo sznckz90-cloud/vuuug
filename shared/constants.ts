@@ -1,6 +1,6 @@
 export const APP_VERSION = "1.0.0";
 export const PAD_TO_TON = 10000000; // ✅ 10,000,000 PAD = 1 TON
-export const PAD_TO_USD = 100000; // Legacy: kept for compatibility
+export const PAD_TO_USD = 10000; // 10,000 PAD = $1 USD
 export const APP_COLORS = {
   primary: "#4aa8ff", // light blue
   background: "#000000", // pure black
@@ -28,9 +28,9 @@ export function padToTON(padAmount: number | string): number {
 }
 
 /**
- * Legacy function - Convert PAD to USD (kept for compatibility)
+ * Convert PAD to USD
  * @param padAmount - Amount in PAD
- * @returns Amount in USD (PAD / 100,000)
+ * @returns Amount in USD (PAD / 10,000)
  */
 export function padToUSD(padAmount: number | string): number {
   const numValue = typeof padAmount === 'string' ? parseFloat(padAmount) : padAmount;

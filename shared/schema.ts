@@ -37,10 +37,10 @@ export const users = pgTable("users", {
   lastName: text("last_name"),
   profileImageUrl: text("profile_image_url"),
   personalCode: text("personal_code"),
-  balance: decimal("balance", { precision: 12, scale: 8 }).default("0"),
-  usdBalance: decimal("usd_balance", { precision: 12, scale: 8 }).default("0"),
-  tonBalance: decimal("ton_balance", { precision: 12, scale: 8 }).default("0"),
-  pdzBalance: decimal("pdz_balance", { precision: 12, scale: 8 }).default("0"),
+  balance: decimal("balance", { precision: 20, scale: 0 }).default("0"), // PAD stored as BIGINT (integer with large precision)
+  usdBalance: decimal("usd_balance", { precision: 30, scale: 10 }).default("0"), // USD with high precision to prevent overflow
+  tonBalance: decimal("ton_balance", { precision: 30, scale: 10 }).default("0"),
+  pdzBalance: decimal("pdz_balance", { precision: 30, scale: 10 }).default("0"),
   withdrawBalance: decimal("withdraw_balance", { precision: 12, scale: 8 }),
   totalEarnings: decimal("total_earnings", { precision: 12, scale: 8 }),
   totalEarned: decimal("total_earned", { precision: 12, scale: 8 }).default("0"),
