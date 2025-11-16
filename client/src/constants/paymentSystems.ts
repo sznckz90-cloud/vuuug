@@ -22,7 +22,7 @@ export const STAR_PACKAGES: StarPackage[] = [
 
 export const PAYMENT_SYSTEMS: PaymentSystem[] = [
   { id: 'TON', name: 'TON', icon: 'Gem', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
-  { id: 'USDT', name: 'USD', icon: 'DollarSign', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
+  { id: 'USD', name: 'USD', icon: 'DollarSign', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
   { id: 'STARS', name: 'Telegram Stars', icon: 'Star', minWithdrawal: 0, fee: 5, feeType: 'percentage', requiresStarPackage: true }
 ];
 
