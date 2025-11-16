@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, Gem, DollarSign, Star } from 'lucide-react';
 import { PAYMENT_SYSTEMS, STAR_PACKAGES, PAD_TO_USD_RATE } from '@/constants/paymentSystems';
 
 interface User {
@@ -21,6 +21,15 @@ interface WithdrawDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const getIcon = (iconName: string) => {
+  const icons: Record<string, any> = {
+    'Gem': Gem,
+    'DollarSign': DollarSign,
+    'Star': Star
+  };
+  return icons[iconName] || DollarSign;
+};
 
 export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogProps) {
   const queryClient = useQueryClient();
@@ -158,6 +167,11 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     return usdBalance * 0.95;
   };
 
+  const calculateTONAmount = () => {
+    const usdAmount = usdBalance * 0.95;
+    return usdAmount * 0.5;
+  };
+
   return (
     <Dialog 
       open={open} 
@@ -227,7 +241,10 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
                     {selectedMethod === system.id && <Check className="w-3 h-3 text-black" />}
                   </div>
                   <div className="flex-1 flex items-center gap-2">
-                    <span className="text-lg">{system.emoji}</span>
+                    {(() => {
+                      const IconComponent = getIcon(system.icon);
+                      return <IconComponent className="w-5 h-5 text-[#4cd3ff]" />;
+                    })()}
                     <span className="text-white">{system.name}</span>
                     <span className="text-xs text-[#aaa] ml-auto">({system.fee}% fee)</span>
                   </div>
@@ -246,7 +263,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
                   <option value="" disabled>Choose stars amount...</option>
                   {STAR_PACKAGES.map((pkg) => (
                     <option key={pkg.stars} value={pkg.stars}>
-                      ⭐{pkg.stars} - ${pkg.usdCost.toFixed(2)} (+ 5% fee = ${(pkg.usdCost * 1.05).toFixed(2)})
+                      {pkg.stars} Stars - ${pkg.usdCost.toFixed(2)} (+ 5% fee = ${(pkg.usdCost * 1.05).toFixed(2)})
                     </option>
                   ))}
                 </select>
@@ -256,8 +273,20 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
             {selectedMethod !== 'STARS' && (
               <div className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
                 <div className="text-xs text-[#aaa]">You will receive</div>
-                <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
-                <div className="text-xs text-[#aaa] mt-1">Full balance withdrawal (5% fee deducted)</div>
+                {selectedMethod === 'TON' ? (
+                  <>
+                    <div className="text-lg font-bold text-white">{calculateTONAmount().toFixed(4)} TON</div>
+                    <div className="text-xs text-[#aaa] mt-1">
+                      ≈ ${calculateWithdrawalAmount().toFixed(2)} USD @ 1 USD = 0.5 TON
+                    </div>
+                    <div className="text-xs text-[#aaa]">Full balance withdrawal (5% fee deducted)</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
+                    <div className="text-xs text-[#aaa] mt-1">Full balance withdrawal (5% fee deducted)</div>
+                  </>
+                )}
               </div>
             )}
           </div>
