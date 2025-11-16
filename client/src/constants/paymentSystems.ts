@@ -26,4 +26,4 @@ export const PAYMENT_SYSTEMS: PaymentSystem[] = [
   { id: 'STARS', name: 'Telegram Stars', icon: 'Star', minWithdrawal: 0, fee: 5, feeType: 'percentage', requiresStarPackage: true }
 ];
 
-export const PAD_TO_USD_RATE = 10000;
+export const PAD_TO_USD_RATE = 10000; // 10,000 PAD = $1
