@@ -4107,6 +4107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let withdrawalAmount: number;
         let fee: number;
         let usdToDeduct: number;
+        let netUsdAmount: number;
         let withdrawalDetails: any = {
           paymentDetails: walletAddress,
           walletAddress: walletAddress,
@@ -4138,6 +4139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           withdrawalAmount = selectedPkg.usdCost;
           fee = selectedPkg.usdCost * 0.05;
           usdToDeduct = totalCost;
+          netUsdAmount = selectedPkg.usdCost;
           withdrawalDetails.starPackage = starPackage;
           withdrawalDetails.stars = starPackage;
           withdrawalDetails.telegramUsername = walletAddress;
@@ -4148,13 +4150,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           fee = currentUsdBalance * 0.05;
-          withdrawalAmount = currentUsdBalance - fee;
+          netUsdAmount = currentUsdBalance - fee;
           usdToDeduct = currentUsdBalance;
           
           if (method === 'TON') {
+            // Convert USD to TON: 1 USD = 0.5 TON
+            // withdrawalAmount for TON should be in TON, not USD
+            const tonAmount = netUsdAmount * 0.5;
+            withdrawalAmount = tonAmount;
             withdrawalDetails.tonWalletAddress = walletAddress;
+            withdrawalDetails.tonAmount = tonAmount.toFixed(8);
+            withdrawalDetails.usdAmount = netUsdAmount.toFixed(2);
+            withdrawalDetails.conversionRate = '1 USD = 0.5 TON';
           } else if (method === 'USDT') {
+            withdrawalAmount = netUsdAmount;
             withdrawalDetails.usdtWalletAddress = walletAddress;
+            withdrawalDetails.usdAmount = netUsdAmount.toFixed(2);
           }
         }
 
@@ -4166,7 +4177,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .where(eq(users.id, userId));
 
-        console.log(`📝 Creating withdrawal request for ${withdrawalAmount.toFixed(2)} USD via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
+        const logAmount = method === 'TON' 
+          ? `${withdrawalAmount.toFixed(4)} TON (from $${netUsdAmount.toFixed(2)} USD)` 
+          : `$${withdrawalAmount.toFixed(2)} USD`;
+        console.log(`📝 Creating withdrawal request for ${logAmount} via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
 
         // Create withdrawal request
         const withdrawalData: any = {
@@ -4181,10 +4195,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
+        // For return value, withdrawnUSD should always be the USD amount spent
+        const withdrawnUsdAmount = method === 'TON' ? netUsdAmount : withdrawalAmount;
+        
         return { 
           withdrawal, 
           withdrawnAmount: withdrawalAmount,
-          withdrawnUSD: withdrawalAmount,
+          withdrawnUSD: withdrawnUsdAmount,
           fee: fee,
           method: method,
           starPackage: method === 'STARS' ? starPackage : undefined,
@@ -4204,12 +4221,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Send withdrawal notification to admin via Telegram bot with inline buttons
+      const tonAmountDisplay = newWithdrawal.method === 'TON' && newWithdrawal.withdrawal.details?.tonAmount 
+        ? `\n• <b>TON Amount:</b> ${parseFloat(newWithdrawal.withdrawal.details.tonAmount).toFixed(4)} TON (@ 1 USD = 0.5 TON)` 
+        : '';
+      
       const adminMessage = `
 💸 <b>New Withdrawal Request</b>
 
 • <b>User:</b> @${newWithdrawal.username || 'Unknown'} (${userId.substring(0, 8)})
 • <b>Method:</b> ${newWithdrawal.method}${newWithdrawal.method === 'STARS' ? ` (${newWithdrawal.starPackage} ⭐)` : ''}
-• <b>Amount:</b> $${newWithdrawal.withdrawnUSD.toFixed(2)} USD
+• <b>Amount:</b> $${newWithdrawal.withdrawnUSD.toFixed(2)} USD${tonAmountDisplay}
 • <b>Fee:</b> $${newWithdrawal.fee.toFixed(2)} (5%)
 • <b>Wallet:</b> ${newWithdrawal.withdrawal.details?.paymentDetails || 'N/A'}
 • <b>Time:</b> ${new Date().toUTCString()}
