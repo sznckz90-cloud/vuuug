@@ -18,6 +18,7 @@ interface User {
   id?: string;
   telegramId?: string;
   balance?: string;
+  usdBalance?: string;
   lastStreakDate?: string;
   username?: string;
   firstName?: string;
@@ -65,6 +66,7 @@ export default function Home() {
   }
 
   const balancePAD = tonToPAD((user as User)?.balance || "0");
+  const balanceUSD = parseFloat((user as User)?.usdBalance || "0");
   const todayEarnings = tonToPAD(stats?.todayEarnings || "0");
   const allTimeEarnings = tonToPAD((user as User)?.totalEarned || "0");
   const referralEarnings = tonToPAD(stats?.referralEarnings || "0");
@@ -81,6 +83,7 @@ export default function Home() {
         {/* Wallet Section - Compact */}
         <WalletSection
           padBalance={balancePAD}
+          usdBalance={balanceUSD}
           uid={formattedUserId}
           isAdmin={isAdmin}
           onAdminClick={() => setLocation("/admin")}
