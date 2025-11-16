@@ -3146,9 +3146,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Conversion rate: 10,000 PAD = 1 USD
-      const PAD_TO_USD_RATE = 10000;
+      // Get conversion rate from admin settings (default: 10,000 PAD = $1)
+      const conversionRateSetting = await storage.getAppSetting('pad_to_usd_rate', '10000');
+      const PAD_TO_USD_RATE = parseFloat(conversionRateSetting);
       const usdAmount = convertAmount / PAD_TO_USD_RATE;
+      
+      console.log(`📊 Using conversion rate: ${PAD_TO_USD_RATE} PAD = $1 USD`);
       
       // Use transaction to ensure atomicity
       const result = await db.transaction(async (tx) => {
@@ -3166,44 +3169,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
         
-        // balance field stores TON (1 TON = 10,000,000 PAD)
-        const currentBalanceTON = parseFloat(user.balance || '0');
-        const currentPadBalance = currentBalanceTON * 10000000;
+        // balance field now stores PAD as BIGINT (integer)
+        const currentPadBalance = parseFloat(user.balance || '0');
         const currentUsdBalance = parseFloat(user.usdBalance || '0');
         
         if (currentPadBalance < convertAmount) {
           throw new Error('Insufficient PAD balance');
         }
         
-        // Deduct PAD (as TON) and add USD
-        const tonToDeduct = convertAmount / 10000000;
-        const newBalanceTON = currentBalanceTON - tonToDeduct;
+        // Deduct PAD and add USD
+        const newPadBalance = currentPadBalance - convertAmount;
         const newUsdBalance = currentUsdBalance + usdAmount;
         
         await tx
           .update(users)
           .set({
-            balance: newBalanceTON.toFixed(8),
-            usdBalance: newUsdBalance.toFixed(8),
+            balance: String(Math.round(newPadBalance)),
+            usdBalance: newUsdBalance.toFixed(10),
             updatedAt: new Date()
           })
           .where(eq(users.id, userId));
         
         console.log(`✅ PAD to USD conversion successful: ${convertAmount} PAD → $${usdAmount.toFixed(2)} USD`);
+        console.log(`📊 New balances - PAD: ${newPadBalance}, USD: $${newUsdBalance.toFixed(2)}`);
         
         return {
           padAmount: convertAmount,
           usdAmount,
-          newPadBalance: newBalanceTON * 10000000,
-          newUsdBalance
+          newPadBalance: newPadBalance,
+          newUsdBalance: newUsdBalance
         };
       });
       
       // Send real-time update
       sendRealtimeUpdate(userId, {
         type: 'balance_update',
-        balance: (result.newPadBalance / 10000000).toFixed(8),
-        usdBalance: result.newUsdBalance.toFixed(8)
+        balance: String(result.newPadBalance),
+        usdBalance: result.newUsdBalance.toFixed(10)
       });
       
       res.json({
@@ -4087,9 +4089,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error('No TON wallet address found. Please set up your TON wallet first.');
           }
           walletAddress = user.cwalletId;
-        } else if (method === 'USDT') {
+        } else if (method === 'USD' || method === 'USDT') {
           if (!user.usdtWalletAddress) {
-            throw new Error('No USDT wallet address found. Please set up your USDT (Optimism) wallet first.');
+            throw new Error('No USD wallet address found. Please set up your USD wallet first.');
           }
           walletAddress = user.usdtWalletAddress;
         } else if (method === 'STARS') {
@@ -4103,11 +4105,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const currentUsdBalance = parseFloat(user.usdBalance || '0');
         
-        // Calculate withdrawal amount and fee based on method
-        let withdrawalAmount: number;
+        // Calculate withdrawal amount and fee (ALL IN USD ONLY)
+        let withdrawalAmount: number; // Always in USD
         let fee: number;
         let usdToDeduct: number;
-        let netUsdAmount: number;
         let withdrawalDetails: any = {
           paymentDetails: walletAddress,
           walletAddress: walletAddress,
@@ -4136,36 +4137,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error(`Insufficient balance. You need $${totalCost.toFixed(2)} (including 5% fee)`);
           }
           
-          withdrawalAmount = selectedPkg.usdCost;
+          withdrawalAmount = selectedPkg.usdCost; // USD amount
           fee = selectedPkg.usdCost * 0.05;
           usdToDeduct = totalCost;
-          netUsdAmount = selectedPkg.usdCost;
           withdrawalDetails.starPackage = starPackage;
           withdrawalDetails.stars = starPackage;
           withdrawalDetails.telegramUsername = walletAddress;
         } else {
-          // TON or USDT - withdraw full balance
+          // TON or USD - withdraw full balance (ALL IN USD)
           if (currentUsdBalance <= 0) {
             throw new Error('Insufficient balance for withdrawal');
           }
           
           fee = currentUsdBalance * 0.05;
-          netUsdAmount = currentUsdBalance - fee;
+          withdrawalAmount = currentUsdBalance - fee; // USD amount after fee
           usdToDeduct = currentUsdBalance;
           
+          // Store wallet address based on method
           if (method === 'TON') {
-            // Convert USD to TON: 1 USD = 0.5 TON
-            // withdrawalAmount for TON should be in TON, not USD
-            const tonAmount = netUsdAmount * 0.5;
-            withdrawalAmount = tonAmount;
             withdrawalDetails.tonWalletAddress = walletAddress;
-            withdrawalDetails.tonAmount = tonAmount.toFixed(8);
-            withdrawalDetails.usdAmount = netUsdAmount.toFixed(2);
-            withdrawalDetails.conversionRate = '1 USD = 0.5 TON';
-          } else if (method === 'USDT') {
-            withdrawalAmount = netUsdAmount;
+          } else if (method === 'USD' || method === 'USDT') {
             withdrawalDetails.usdtWalletAddress = walletAddress;
-            withdrawalDetails.usdAmount = netUsdAmount.toFixed(2);
           }
         }
 
@@ -4173,19 +4165,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await tx
           .update(users)
           .set({ 
-            usdBalance: sql`${users.usdBalance} - ${usdToDeduct.toFixed(8)}`
+            usdBalance: sql`${users.usdBalance} - ${usdToDeduct.toFixed(10)}`
           })
           .where(eq(users.id, userId));
 
-        const logAmount = method === 'TON' 
-          ? `${withdrawalAmount.toFixed(4)} TON (from $${netUsdAmount.toFixed(2)} USD)` 
-          : `$${withdrawalAmount.toFixed(2)} USD`;
-        console.log(`📝 Creating withdrawal request for ${logAmount} via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
+        console.log(`📝 Creating withdrawal request for $${withdrawalAmount.toFixed(2)} USD via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
 
-        // Create withdrawal request
+        // Create withdrawal request - amount is ALWAYS in USD
         const withdrawalData: any = {
           userId,
-          amount: withdrawalAmount.toFixed(8),
+          amount: withdrawalAmount.toFixed(10), // USD amount
           method: method,
           status: 'pending',
           deducted: true,
@@ -4195,13 +4184,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
-        // For return value, withdrawnUSD should always be the USD amount spent
-        const withdrawnUsdAmount = method === 'TON' ? netUsdAmount : withdrawalAmount;
-        
         return { 
           withdrawal, 
-          withdrawnAmount: withdrawalAmount,
-          withdrawnUSD: withdrawnUsdAmount,
+          withdrawnAmount: withdrawalAmount, // USD amount
           fee: fee,
           method: method,
           starPackage: method === 'STARS' ? starPackage : undefined,
@@ -4210,30 +4195,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
 
-      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, amount: $${newWithdrawal.withdrawnUSD.toFixed(2)} via ${newWithdrawal.method}`);
+      console.log(`✅ Withdrawal request created: ${newWithdrawal.withdrawal.id} for user ${userId}, amount: $${newWithdrawal.withdrawnAmount.toFixed(2)} via ${newWithdrawal.method}`);
 
       // Send withdrawal_requested notification via WebSocket
       sendRealtimeUpdate(userId, {
         type: 'withdrawal_requested',
-        amount: newWithdrawal.withdrawnUSD.toFixed(2),
+        amount: newWithdrawal.withdrawnAmount.toFixed(2),
         method: newWithdrawal.method,
         message: 'You have sent a withdrawal request.'
       });
 
       // Send withdrawal notification to admin via Telegram bot with inline buttons
-      const tonAmountDisplay = newWithdrawal.method === 'TON' && newWithdrawal.withdrawal.details?.tonAmount 
-        ? `\n• <b>TON Amount:</b> ${parseFloat(newWithdrawal.withdrawal.details.tonAmount).toFixed(4)} TON (@ 1 USD = 0.5 TON)` 
-        : '';
+      const methodDisplay = newWithdrawal.method === 'STARS' 
+        ? `${newWithdrawal.method} (${newWithdrawal.starPackage} ⭐)` 
+        : newWithdrawal.method;
       
       const adminMessage = `
 💸 <b>New Withdrawal Request</b>
 
-• <b>User:</b> @${newWithdrawal.username || 'Unknown'} (${userId.substring(0, 8)})
-• <b>Method:</b> ${newWithdrawal.method}${newWithdrawal.method === 'STARS' ? ` (${newWithdrawal.starPackage} ⭐)` : ''}
-• <b>Amount:</b> $${newWithdrawal.withdrawnUSD.toFixed(2)} USD${tonAmountDisplay}
-• <b>Fee:</b> $${newWithdrawal.fee.toFixed(2)} (5%)
-• <b>Wallet:</b> ${newWithdrawal.withdrawal.details?.paymentDetails || 'N/A'}
+• <b>User:</b> @${newWithdrawal.username || 'Unknown'}
+• <b>Request ID:</b> ${newWithdrawal.withdrawal.id}
+• <b>Amount:</b> $${newWithdrawal.withdrawnAmount.toFixed(2)} USD
+• <b>Method:</b> ${methodDisplay}
+• <b>Wallet/ID:</b> ${newWithdrawal.withdrawal.details?.paymentDetails || 'N/A'}
 • <b>Time:</b> ${new Date().toUTCString()}
+
+Note: Admin must manually pay user in real ${newWithdrawal.method}
       `.trim();
 
       // Create inline keyboard with Approve and Reject buttons
