@@ -8,13 +8,14 @@ import { TonCoinIcon } from "@/components/TonCoinIcon";
 
 interface WalletSectionProps {
   padBalance: number;
+  usdBalance: number;
   uid: string;
   isAdmin?: boolean;
   onAdminClick?: () => void;
   onWithdraw: () => void;
 }
 
-export default function WalletSection({ padBalance, uid, isAdmin, onAdminClick, onWithdraw }: WalletSectionProps) {
+export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, onAdminClick, onWithdraw }: WalletSectionProps) {
   const queryClient = useQueryClient();
 
   const { data: appSettings } = useQuery<any>({
@@ -24,7 +25,7 @@ export default function WalletSection({ padBalance, uid, isAdmin, onAdminClick, 
 
   const convertMutation = useMutation({
     mutationFn: async (amount: number) => {
-      const res = await fetch("/api/wallet/convert", {
+      const res = await fetch("/api/convert-to-usd", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -86,7 +87,7 @@ export default function WalletSection({ padBalance, uid, isAdmin, onAdminClick, 
                 <span className="text-green-400">$</span>
                 USD Balance
               </div>
-              <div className="text-white font-bold text-lg">${(padBalance / 10000).toFixed(2)}</div>
+              <div className="text-white font-bold text-lg">${usdBalance.toFixed(2)}</div>
             </div>
           </div>
 

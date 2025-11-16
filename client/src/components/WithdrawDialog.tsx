@@ -93,9 +93,6 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
         const totalCost = starPkg.usdCost * 1.05;
         withdrawalData.starPackage = selectedStarPackage;
         withdrawalData.amount = totalCost;
-      } else {
-        const fee = usdBalance * 0.05;
-        withdrawalData.amount = usdBalance - fee;
       }
 
       const response = await apiRequest('POST', '/api/withdrawals', withdrawalData);
@@ -165,11 +162,6 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
       return starPkg.usdCost * 1.05;
     }
     return usdBalance * 0.95;
-  };
-
-  const calculateTONAmount = () => {
-    const usdAmount = usdBalance * 0.95;
-    return usdAmount * 0.5;
   };
 
   return (
@@ -254,39 +246,40 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
 
             {selectedMethod === 'STARS' && (
               <div className="space-y-2">
-                <Label className="text-sm text-white">Select Star Package</Label>
-                <select
-                  value={selectedStarPackage || ''}
-                  onChange={(e) => setSelectedStarPackage(Number(e.target.value))}
-                  className="w-full p-3 rounded-lg border border-[#4cd3ff]/30 bg-[#1a1a1a] text-white focus:outline-none focus:border-[#4cd3ff] transition-all"
-                >
-                  <option value="" disabled>Choose stars amount...</option>
+                <Label className="text-sm text-white">Select Stars</Label>
+                <div className="flex gap-2">
                   {STAR_PACKAGES.map((pkg) => (
-                    <option key={pkg.stars} value={pkg.stars}>
-                      {pkg.stars} Stars - ${pkg.usdCost.toFixed(2)} (+ 5% fee = ${(pkg.usdCost * 1.05).toFixed(2)})
-                    </option>
+                    <button
+                      key={pkg.stars}
+                      onClick={() => setSelectedStarPackage(pkg.stars)}
+                      className={`flex-1 p-2 rounded border text-sm ${
+                        selectedStarPackage === pkg.stars
+                          ? 'border-[#4cd3ff] bg-[#4cd3ff]/20 text-white'
+                          : 'border-[#3a3a3a] text-[#aaa] hover:border-[#4cd3ff]/50'
+                      }`}
+                    >
+                      {pkg.stars}⭐
+                    </button>
                   ))}
-                </select>
+                </div>
+                {selectedStarPackage && (
+                  <div className="text-xs text-[#aaa] text-center">
+                    Cost: ${(STAR_PACKAGES.find(p => p.stars === selectedStarPackage)!.usdCost * 1.05).toFixed(2)}
+                  </div>
+                )}
               </div>
             )}
 
             {selectedMethod !== 'STARS' && (
               <div className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
                 <div className="text-xs text-[#aaa]">You will receive</div>
-                {selectedMethod === 'TON' ? (
-                  <>
-                    <div className="text-lg font-bold text-white">{calculateTONAmount().toFixed(4)} TON</div>
-                    <div className="text-xs text-[#aaa] mt-1">
-                      ≈ ${calculateWithdrawalAmount().toFixed(2)} USD @ 1 USD = 0.5 TON
-                    </div>
-                    <div className="text-xs text-[#aaa]">Full balance withdrawal (5% fee deducted)</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
-                    <div className="text-xs text-[#aaa] mt-1">Full balance withdrawal (5% fee deducted)</div>
-                  </>
-                )}
+                <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
+                <div className="text-xs text-[#aaa] mt-1">
+                  Full balance withdrawal (5% fee deducted)
+                </div>
+                <div className="text-xs text-yellow-400/80 mt-1">
+                  Withdrawal method: {selectedMethod}
+                </div>
               </div>
             )}
           </div>
