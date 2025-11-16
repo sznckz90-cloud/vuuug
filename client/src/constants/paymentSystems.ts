@@ -1,7 +1,7 @@
 export interface PaymentSystem {
   id: string;
   name: string;
-  emoji: string;
+  icon: string;
   minWithdrawal: number;
   fee: number;
   feeType: 'fixed' | 'percentage';
@@ -21,9 +21,9 @@ export const STAR_PACKAGES: StarPackage[] = [
 ];
 
 export const PAYMENT_SYSTEMS: PaymentSystem[] = [
-  { id: 'TON', name: 'TON', emoji: '💎', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
-  { id: 'USDT', name: 'USDT', emoji: '💵', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
-  { id: 'STARS', name: 'Telegram Stars', emoji: '⭐', minWithdrawal: 0, fee: 5, feeType: 'percentage', requiresStarPackage: true }
+  { id: 'TON', name: 'TON', icon: 'Gem', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
+  { id: 'USDT', name: 'USD', icon: 'DollarSign', minWithdrawal: 0, fee: 5, feeType: 'percentage' },
+  { id: 'STARS', name: 'Telegram Stars', icon: 'Star', minWithdrawal: 0, fee: 5, feeType: 'percentage', requiresStarPackage: true }
 ];
 
 export const PAD_TO_USD_RATE = 10000;
