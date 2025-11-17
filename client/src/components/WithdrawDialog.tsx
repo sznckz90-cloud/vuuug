@@ -161,7 +161,8 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
       if (!starPkg) return 0;
       return starPkg.usdCost * 1.05;
     }
-    return usdBalance * 0.95;
+    const feePercent = selectedPaymentSystem?.fee || 5;
+    return usdBalance * (1 - feePercent / 100);
   };
 
   return (
@@ -275,7 +276,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
                 <div className="text-xs text-[#aaa]">You will receive</div>
                 <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
                 <div className="text-xs text-[#aaa] mt-1">
-                  Full balance withdrawal (5% fee deducted)
+                  Full balance withdrawal ({selectedPaymentSystem?.fee}% fee deducted)
                 </div>
                 <div className="text-xs text-yellow-400/80 mt-1">
                   Withdrawal method: {selectedMethod}

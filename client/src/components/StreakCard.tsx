@@ -38,12 +38,9 @@ export default function StreakCard({ user }: StreakCardProps) {
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
         const earnedPAD = Math.round(rewardAmount);
-        const message = data.isBonusDay 
-          ? ` 5-day streak bonus! You've claimed today's streak reward! +${earnedPAD.toLocaleString()} PAD`
-          : ` You've claimed today's streak reward! +${earnedPAD.toLocaleString()} PAD`;
-        showNotification(message, "success");
+        showNotification(` You've claimed +${earnedPAD} PAD from Faucetpay!`, "success");
       } else {
-        showNotification(" You've claimed today's streak reward!", "success");
+        showNotification(" You've claimed your Faucetpay reward!", "success");
       }
     },
     onError: (error: any) => {
@@ -67,71 +64,43 @@ export default function StreakCard({ user }: StreakCardProps) {
         const claimedTimestamp = localStorage.getItem(`streak_claimed_${user.id}`);
         if (claimedTimestamp) {
           const claimedDate = new Date(claimedTimestamp);
+          const nextClaimTime = new Date(claimedDate.getTime() + 5 * 60 * 1000); // Add 5 minutes
           
-          // Calculate the next noon boundary AFTER the claim time
-          const nextNoonAfterClaim = new Date(Date.UTC(
-            claimedDate.getUTCFullYear(),
-            claimedDate.getUTCMonth(),
-            claimedDate.getUTCDate(),
-            12, 0, 0, 0
-          ));
-          
-          // If claim was before noon on that day, next reset is same day at noon
-          // Otherwise, next reset is tomorrow at noon
-          if (claimedDate.getUTCHours() < 12) {
-            // Claimed before noon - next reset is today at noon
-            // Already set correctly
-          } else {
-            // Claimed after noon - next reset is tomorrow at noon
-            nextNoonAfterClaim.setUTCDate(nextNoonAfterClaim.getUTCDate() + 1);
-          }
-          
-          // If we haven't reached the next reset yet, keep claimed status
-          if (now.getTime() < nextNoonAfterClaim.getTime()) {
+          // If we haven't reached the next claim time yet, keep claimed status
+          if (now.getTime() < nextClaimTime.getTime()) {
             setHasClaimed(true);
+            const diff = nextClaimTime.getTime() - now.getTime();
+            const minutes = Math.floor(diff / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            setTimeUntilNextClaim(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+            return;
           } else {
-            // Past the next reset, allow claiming again
+            // Past the next claim time, allow claiming again
             setHasClaimed(false);
             localStorage.removeItem(`streak_claimed_${user.id}`);
           }
         }
       }
       
-      // Check if user has claimed today (after UTC 12:00 PM)
+      // Check if user has claimed recently (within last 5 minutes)
       if (user?.lastStreakDate) {
         const lastClaim = new Date(user.lastStreakDate);
+        const minutesSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60);
         
-        // Get today's UTC 12:00 PM
-        const todayNoon = new Date(Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate(),
-          12, 0, 0, 0
-        ));
-        
-        // If last claim was after today's noon, calculate time until tomorrow's noon
-        if (lastClaim.getTime() >= todayNoon.getTime()) {
+        // If last claim was less than 5 minutes ago, show countdown
+        if (minutesSinceLastClaim < 5) {
           setHasClaimed(true);
-          const nextNoon = new Date(Date.UTC(
-            now.getUTCFullYear(),
-            now.getUTCMonth(),
-            now.getUTCDate() + 1,
-            12, 0, 0, 0
-          ));
-          const diff = nextNoon.getTime() - now.getTime();
-
-          const hours = Math.floor(diff / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const nextClaimTime = new Date(lastClaim.getTime() + 5 * 60 * 1000);
+          const diff = nextClaimTime.getTime() - now.getTime();
+          const minutes = Math.floor(diff / (1000 * 60));
           const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-          setTimeUntilNextClaim(
-            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-          );
+          setTimeUntilNextClaim(`${minutes}:${seconds.toString().padStart(2, '0')}`);
           return;
         }
       }
       
-      // If not claimed today or never claimed, show available
+      // If not claimed recently or never claimed, show available
+      setHasClaimed(false);
       setTimeUntilNextClaim("Available now");
     };
 
@@ -167,11 +136,11 @@ export default function StreakCard({ user }: StreakCardProps) {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-white flex items-center gap-1">
-                Daily Streak
-                <span className="text-xs text-[#4cd3ff] font-bold">Day {currentStreak}</span>
+                Faucetpay
+                <span className="text-xs text-[#4cd3ff] font-bold">+1 PAD</span>
               </h3>
               <p className="text-xs text-muted-foreground">
-                {hasClaimed ? "Claimed today!" : canClaim ? "Claim your reward!" : "Next claim in"}
+                {hasClaimed ? "Claimed!" : canClaim ? "Claim your reward!" : "Next claim in"}
               </p>
             </div>
           </div>

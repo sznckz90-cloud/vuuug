@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Wallet, HelpCircle, Info, Lock, Check } from "lucide-react";
+import { Wallet, HelpCircle, Info, Lock, Check, Gem, DollarSign, Star } from "lucide-react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
@@ -23,11 +23,15 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
   const [newTonWalletId, setNewTonWalletId] = useState('');
   const [isChangingTonWallet, setIsChangingTonWallet] = useState(false);
   
-  // USDT wallet state
+  // USDT wallet states
   const [usdtWalletAddress, setUsdtWalletAddress] = useState('');
+  const [newUsdtWalletAddress, setNewUsdtWalletAddress] = useState('');
+  const [isChangingUsdtWallet, setIsChangingUsdtWallet] = useState(false);
   
-  // Telegram Stars state
+  // Telegram Stars states
   const [telegramUsername, setTelegramUsername] = useState('');
+  const [newTelegramUsername, setNewTelegramUsername] = useState('');
+  const [isChangingStarsUsername, setIsChangingStarsUsername] = useState(false);
 
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
@@ -58,6 +62,10 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     if (!open) {
       setIsChangingTonWallet(false);
       setNewTonWalletId('');
+      setIsChangingUsdtWallet(false);
+      setNewUsdtWalletAddress('');
+      setIsChangingStarsUsername(false);
+      setNewTelegramUsername('');
     }
   }, [open]);
 
@@ -100,7 +108,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     },
   });
 
-  // USDT wallet mutation
+  // USDT wallet mutations
   const saveUsdtWalletMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/wallet/usdt', {
@@ -119,7 +127,27 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     },
   });
 
-  // Telegram Stars mutation
+  const changeUsdtWalletMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/wallet/usdt', {
+        usdtAddress: newUsdtWalletAddress.trim()
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      showNotification("USDT wallet updated successfully", "success");
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      setIsChangingUsdtWallet(false);
+      setNewUsdtWalletAddress('');
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, "error");
+    },
+  });
+
+  // Telegram Stars mutations
   const saveTelegramStarsMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/wallet/telegram-stars', {
@@ -131,6 +159,26 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
       showNotification("Telegram username saved successfully.", "success");
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, "error");
+    },
+  });
+
+  const changeTelegramStarsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/wallet/telegram-stars', {
+        telegramUsername: newTelegramUsername.trim()
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      showNotification("Telegram username updated successfully", "success");
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      setIsChangingStarsUsername(false);
+      setNewTelegramUsername('');
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -183,6 +231,21 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     saveUsdtWalletMutation.mutate();
   };
 
+  const handleChangeUsdtWallet = () => {
+    if (!newUsdtWalletAddress.trim()) {
+      showNotification("Please enter a new USDT wallet address", "error");
+      return;
+    }
+    
+    // Validate Optimism USDT address
+    if (!/^0x[a-fA-F0-9]{40}$/.test(newUsdtWalletAddress.trim())) {
+      showNotification("Please enter a valid Optimism USDT address (0x...)", "error");
+      return;
+    }
+    
+    changeUsdtWalletMutation.mutate();
+  };
+
   const handleSaveTelegramStars = () => {
     if (!telegramUsername.trim()) {
       showNotification("Please enter your Telegram username", "error");
@@ -190,6 +253,15 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
     }
     
     saveTelegramStarsMutation.mutate();
+  };
+
+  const handleChangeTelegramStars = () => {
+    if (!newTelegramUsername.trim()) {
+      showNotification("Please enter a new Telegram username", "error");
+      return;
+    }
+    
+    changeTelegramStarsMutation.mutate();
   };
 
   const isTonWalletSet = !!user?.cwalletId;
@@ -214,18 +286,65 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Wallet Type Selector */}
+          {/* Wallet Type Selector - List View */}
           <div className="space-y-2">
             <label className="text-xs text-[#c0c0c0]">Select Wallet Type</label>
-            <select
-              value={selectedWalletType}
-              onChange={(e) => setSelectedWalletType(e.target.value as WalletType)}
-              className="w-full p-3 rounded-lg border border-[#4cd3ff]/30 bg-[#1a1a1a] text-white focus:outline-none focus:border-[#4cd3ff] transition-all"
-            >
-              <option value="TON">💎 TON Wallet</option>
-              <option value="USDT">💵 USDT (Optimism)</option>
-              <option value="STARS">⭐ Telegram Stars</option>
-            </select>
+            <div className="space-y-2">
+              <button
+                onClick={() => setSelectedWalletType('TON')}
+                className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
+                  selectedWalletType === 'TON'
+                    ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
+                    : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedWalletType === 'TON' ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
+                }`}>
+                  {selectedWalletType === 'TON' && <Check className="w-3 h-3 text-black" />}
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <Gem className="w-5 h-5 text-[#4cd3ff]" />
+                  <span className="text-white">TON Wallet</span>
+                </div>
+              </button>
+              <button
+                onClick={() => setSelectedWalletType('USDT')}
+                className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
+                  selectedWalletType === 'USDT'
+                    ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
+                    : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedWalletType === 'USDT' ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
+                }`}>
+                  {selectedWalletType === 'USDT' && <Check className="w-3 h-3 text-black" />}
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-[#4cd3ff]" />
+                  <span className="text-white">USDT (Optimism)</span>
+                </div>
+              </button>
+              <button
+                onClick={() => setSelectedWalletType('STARS')}
+                className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
+                  selectedWalletType === 'STARS'
+                    ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
+                    : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedWalletType === 'STARS' ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
+                }`}>
+                  {selectedWalletType === 'STARS' && <Check className="w-3 h-3 text-black" />}
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <Star className="w-5 h-5 text-[#4cd3ff]" />
+                  <span className="text-white">Telegram Stars</span>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* TON Wallet Section */}
@@ -314,7 +433,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
           {/* USDT Wallet Section */}
           {selectedWalletType === 'USDT' && (
             <>
-              {isUsdtWalletSet ? (
+              {isUsdtWalletSet && !isChangingUsdtWallet ? (
                 <>
                   <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
                     <Check className="w-4 h-4 text-green-500" />
@@ -327,6 +446,34 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
                       disabled={true}
                       className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
+                  </div>
+                </>
+              ) : isChangingUsdtWallet ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#c0c0c0]">Current Wallet</label>
+                    <Input
+                      type="text"
+                      value={usdtWalletAddress}
+                      disabled={true}
+                      className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#c0c0c0]">New USDT Wallet Address</label>
+                    <Input
+                      type="text"
+                      placeholder="Enter USDT wallet address (0x...)"
+                      value={newUsdtWalletAddress}
+                      onChange={(e) => setNewUsdtWalletAddress(e.target.value)}
+                      className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
+                    />
+                  </div>
+                  <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
+                    <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-[#c0c0c0]">
+                      Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted
+                    </div>
                   </div>
                 </>
               ) : (
@@ -369,7 +516,7 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
           {/* Telegram Stars Section */}
           {selectedWalletType === 'STARS' && (
             <>
-              {isTelegramStarsSet ? (
+              {isTelegramStarsSet && !isChangingStarsUsername ? (
                 <>
                   <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
                     <Check className="w-4 h-4 text-green-500" />
@@ -382,6 +529,34 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
                       disabled={true}
                       className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
+                  </div>
+                </>
+              ) : isChangingStarsUsername ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#c0c0c0]">Current Username</label>
+                    <Input
+                      type="text"
+                      value={telegramUsername}
+                      disabled={true}
+                      className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#c0c0c0]">New Telegram Username</label>
+                    <Input
+                      type="text"
+                      placeholder="Your Telegram username (e.g., szxzyz)"
+                      value={newTelegramUsername}
+                      onChange={(e) => setNewTelegramUsername(e.target.value)}
+                      className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
+                    />
+                  </div>
+                  <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
+                    <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-[#c0c0c0]">
+                      Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted
+                    </div>
                   </div>
                 </>
               ) : (
@@ -463,6 +638,42 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
                 {saveTonWalletMutation.isPending ? "Saving..." : "Save TON Wallet"}
               </Button>
             </>
+          ) : selectedWalletType === 'USDT' && isUsdtWalletSet && !isChangingUsdtWallet ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsChangingUsdtWallet(true)}
+                className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
+              >
+                Change Wallet
+              </Button>
+              <Button
+                onClick={() => onOpenChange(false)}
+                className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+              >
+                Close
+              </Button>
+            </>
+          ) : selectedWalletType === 'USDT' && isChangingUsdtWallet ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsChangingUsdtWallet(false);
+                  setNewUsdtWalletAddress('');
+                }}
+                className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleChangeUsdtWallet}
+                disabled={changeUsdtWalletMutation.isPending}
+                className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+              >
+                {changeUsdtWalletMutation.isPending ? "Processing..." : "Update USDT Wallet"}
+              </Button>
+            </>
           ) : selectedWalletType === 'USDT' && !isUsdtWalletSet ? (
             <>
               <Button
@@ -480,13 +691,42 @@ export default function CwalletSetupDialog({ open, onOpenChange }: CwalletSetupD
                 {saveUsdtWalletMutation.isPending ? "Saving..." : "Save USDT Wallet"}
               </Button>
             </>
-          ) : selectedWalletType === 'USDT' && isUsdtWalletSet ? (
-            <Button
-              onClick={() => onOpenChange(false)}
-              className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-            >
-              Close
-            </Button>
+          ) : selectedWalletType === 'STARS' && isTelegramStarsSet && !isChangingStarsUsername ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsChangingStarsUsername(true)}
+                className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
+              >
+                Change Username
+              </Button>
+              <Button
+                onClick={() => onOpenChange(false)}
+                className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+              >
+                Close
+              </Button>
+            </>
+          ) : selectedWalletType === 'STARS' && isChangingStarsUsername ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsChangingStarsUsername(false);
+                  setNewTelegramUsername('');
+                }}
+                className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleChangeTelegramStars}
+                disabled={changeTelegramStarsMutation.isPending}
+                className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+              >
+                {changeTelegramStarsMutation.isPending ? "Processing..." : "Update Username"}
+              </Button>
+            </>
           ) : selectedWalletType === 'STARS' && !isTelegramStarsSet ? (
             <>
               <Button
