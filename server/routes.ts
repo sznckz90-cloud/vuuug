@@ -607,38 +607,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return setting?.settingValue || defaultValue;
       };
       
-      // Parse all settings with defaults
+      // Parse all settings with NEW defaults
       const dailyAdLimit = parseInt(getSetting('daily_ad_limit', '50'));
-      const rewardPerAd = parseInt(getSetting('reward_per_ad', '1000'));
+      const rewardPerAd = parseInt(getSetting('reward_per_ad', '2')); // Default 2 PAD per ad
       const seasonBroadcastActive = getSetting('season_broadcast_active', 'false') === 'true';
       const affiliateCommission = parseFloat(getSetting('affiliate_commission', '10'));
-      const walletChangeFeeTON = parseFloat(getSetting('wallet_change_fee', '0.0005'));
-      const minimumWithdrawal = parseFloat(getSetting('minimum_withdrawal', '0.5'));
-      const taskCostPerClick = parseFloat(getSetting('task_creation_cost', '0.0003'));
-      const taskRewardPerClick = parseFloat(getSetting('task_per_click_reward', '0.0001750'));
-      const minimumConvert = parseFloat(getSetting('minimum_convert', '0.01'));
+      const walletChangeFeePAD = parseInt(getSetting('wallet_change_fee', '100')); // Default 100 PAD
+      const minimumWithdrawalUSD = parseFloat(getSetting('minimum_withdrawal_usd', '1.00')); // Minimum USD withdrawal
+      const minimumWithdrawalTON = parseFloat(getSetting('minimum_withdrawal_ton', '0.5')); // Minimum TON withdrawal
+      
+      // Separate channel and bot task costs (in USD for admin, PDZ for users)
+      const channelTaskCostUSD = parseFloat(getSetting('channel_task_cost', '0.003')); // Default $0.003 per click
+      const botTaskCostUSD = parseFloat(getSetting('bot_task_cost', '0.003')); // Default $0.003 per click
+      
+      // Separate channel and bot task rewards (in PAD)
+      const channelTaskRewardPAD = parseInt(getSetting('channel_task_reward', '30')); // Default 30 PAD per click
+      const botTaskRewardPAD = parseInt(getSetting('bot_task_reward', '20')); // Default 20 PAD per click
+      
+      // Minimum convert amount in PAD (100 PAD = $0.01)
+      const minimumConvertPAD = parseInt(getSetting('minimum_convert_pad', '100')); // Default 100 PAD
+      const minimumConvertUSD = minimumConvertPAD / 10000; // Convert to USD (10,000 PAD = $1)
+      
       const withdrawalCurrency = getSetting('withdrawal_currency', 'TON');
       
-      // Convert TON values to PAD where needed (multiply by 10,000,000)
-      const rewardPerAdPAD = rewardPerAd;
-      const taskRewardPAD = Math.round(taskRewardPerClick * 10000000);
-      const minimumConvertPAD = Math.round(minimumConvert * 10000000);
-      const walletChangeFeePAD = Math.round(walletChangeFeeTON * 10000000);
+      // Legacy compatibility - keep old values for backwards compatibility
+      const taskCostPerClick = channelTaskCostUSD; // Use channel cost as default
+      const taskRewardPerClick = channelTaskRewardPAD / 10000000; // Legacy TON format for compatibility
+      const minimumWithdrawal = minimumWithdrawalTON; // Legacy field
       
       res.json({
         dailyAdLimit,
         rewardPerAd,
-        rewardPerAdPAD,
+        rewardPerAdPAD: rewardPerAd,
         seasonBroadcastActive,
         affiliateCommission,
         affiliateCommissionPercent: affiliateCommission,
         walletChangeFee: walletChangeFeePAD,
+        walletChangeFeePAD,
         minimumWithdrawal,
+        minimumWithdrawalUSD,
+        minimumWithdrawalTON,
+        channelTaskCostUSD,
+        botTaskCostUSD,
+        channelTaskRewardPAD,
+        botTaskRewardPAD,
         taskCostPerClick,
         taskRewardPerClick,
-        taskRewardPAD,
-        minimumConvert,
+        taskRewardPAD: channelTaskRewardPAD, // Use channel reward as default
+        minimumConvert: minimumConvertUSD,
         minimumConvertPAD,
+        minimumConvertUSD,
         withdrawalCurrency
       });
     } catch (error) {
@@ -1933,25 +1951,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return setting?.settingValue || defaultValue;
       };
       
-      // Get TON values from database
-      const taskPerClickRewardTON = parseFloat(getSetting('task_per_click_reward', '0.0001750'));
-      const walletChangeFeeTON = parseFloat(getSetting('wallet_change_fee', '0.0005'));
-      
-      // Convert TON to PAD for display (multiply by 10,000,000)
-      const taskPerClickRewardPAD = Math.round(taskPerClickRewardTON * 10000000);
-      const walletChangeFeePAD = Math.round(walletChangeFeeTON * 10000000);
-      
-      // Return all settings in format expected by frontend
+      // Return all settings in format expected by frontend with NEW defaults
       res.json({
         dailyAdLimit: parseInt(getSetting('daily_ad_limit', '50')),
-        rewardPerAd: parseInt(getSetting('reward_per_ad', '1000')),
+        rewardPerAd: parseInt(getSetting('reward_per_ad', '2')), // Default 2 PAD
         affiliateCommission: parseFloat(getSetting('affiliate_commission', '10')),
-        walletChangeFee: walletChangeFeePAD, // Return as PAD
-        minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal', '0.5')),
-        taskPerClickReward: taskPerClickRewardPAD, // Return as PAD
-        taskCreationCost: parseFloat(getSetting('task_creation_cost', '0.0003')),
-        minimumConvert: parseFloat(getSetting('minimum_convert', '0.01')),
+        walletChangeFee: parseInt(getSetting('wallet_change_fee', '100')), // Return as PAD, default 100
+        minimumWithdrawalUSD: parseFloat(getSetting('minimum_withdrawal_usd', '1.00')), // NEW: Min USD withdrawal
+        minimumWithdrawalTON: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')), // NEW: Min TON withdrawal
+        channelTaskCost: parseFloat(getSetting('channel_task_cost_usd', '0.003')), // NEW: Channel cost in USD (admin only)
+        botTaskCost: parseFloat(getSetting('bot_task_cost_usd', '0.003')), // NEW: Bot cost in USD (admin only)
+        channelTaskReward: parseInt(getSetting('channel_task_reward', '30')), // NEW: Channel reward in PAD
+        botTaskReward: parseInt(getSetting('bot_task_reward', '20')), // NEW: Bot reward in PAD
+        minimumConvertPAD: parseInt(getSetting('minimum_convert_pad', '100')), // NEW: Min convert in PAD (100 PAD = $0.01)
+        minimumConvertUSD: parseInt(getSetting('minimum_convert_pad', '100')) / 10000, // Convert to USD
         seasonBroadcastActive: getSetting('season_broadcast_active', 'false') === 'true',
+        // Legacy fields for backwards compatibility
+        minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
+        taskPerClickReward: parseInt(getSetting('channel_task_reward', '30')),
+        taskCreationCost: parseFloat(getSetting('channel_task_cost_usd', '0.003')),
+        minimumConvert: parseInt(getSetting('minimum_convert_pad', '100')) / 10000,
       });
     } catch (error) {
       console.error("Error fetching admin settings:", error);
@@ -1967,10 +1986,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rewardPerAd, 
         affiliateCommission,
         walletChangeFee,
-        minimumWithdrawal,
-        taskPerClickReward,
-        taskCreationCost,
-        minimumConvert,
+        minimumWithdrawalUSD,
+        minimumWithdrawalTON,
+        channelTaskCost,
+        botTaskCost,
+        channelTaskReward,
+        botTaskReward,
+        minimumConvertPAD,
         seasonBroadcastActive
       } = req.body;
       
@@ -1986,24 +2008,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
-      // Convert PAD values to TON before saving (divide by 10,000,000)
-      // Use explicit null/undefined checks to allow legitimate zero values
-      const taskPerClickRewardTON = (taskPerClickReward !== null && taskPerClickReward !== undefined) 
-        ? (taskPerClickReward / 10000000).toFixed(8) 
-        : null;
-      const walletChangeFeeTON = (walletChangeFee !== null && walletChangeFee !== undefined)
-        ? (walletChangeFee / 10000000).toFixed(8) 
-        : null;
-      
-      // Update all provided settings
+      // Update all provided settings (all values are already in correct format - PAD or USD)
       await updateSetting('daily_ad_limit', dailyAdLimit);
-      await updateSetting('reward_per_ad', rewardPerAd);
+      await updateSetting('reward_per_ad', rewardPerAd); // PAD
       await updateSetting('affiliate_commission', affiliateCommission);
-      await updateSetting('wallet_change_fee', walletChangeFeeTON); // Save as TON
-      await updateSetting('minimum_withdrawal', minimumWithdrawal);
-      await updateSetting('task_per_click_reward', taskPerClickRewardTON); // Save as TON
-      await updateSetting('task_creation_cost', taskCreationCost);
-      await updateSetting('minimum_convert', minimumConvert);
+      await updateSetting('wallet_change_fee', walletChangeFee); // PAD
+      await updateSetting('minimum_withdrawal_usd', minimumWithdrawalUSD); // USD
+      await updateSetting('minimum_withdrawal_ton', minimumWithdrawalTON); // TON
+      await updateSetting('channel_task_cost_usd', channelTaskCost); // USD (admin only)
+      await updateSetting('bot_task_cost_usd', botTaskCost); // USD (admin only)
+      await updateSetting('channel_task_reward', channelTaskReward); // PAD
+      await updateSetting('bot_task_reward', botTaskReward); // PAD
+      await updateSetting('minimum_convert_pad', minimumConvertPAD); // PAD
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
       
       res.json({ success: true, message: "Settings updated successfully" });
@@ -3286,15 +3302,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Fetch dynamic task cost per click from admin settings
-      const taskCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'task_creation_cost')).limit(1);
-      const costPerClick = taskCostSetting[0]?.settingValue || "0.0003";
-      const totalCost = (parseFloat(costPerClick) * totalClicksRequired).toFixed(8);
-
       // Get user data to check if admin
       const [user] = await db
         .select({ 
-          tonBalance: users.tonBalance, 
+          usdBalance: users.usdBalance, 
           pdzBalance: users.pdzBalance, 
           telegram_id: users.telegram_id 
         })
@@ -3309,60 +3320,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
-      const requiredAmount = parseFloat(totalCost);
 
-      // Admin users: use TON balance (existing behavior)
-      // Regular users: use PDZ tokens
+      // Admin users: use USD balance and USD-based costs
+      // Regular users: use PDZ tokens and PDZ-based costs
       if (isAdmin) {
-        console.log('🔑 Admin task creation - using TON balance');
-        const currentTonBalance = parseFloat(user.tonBalance || '0');
+        // Fetch USD-based costs for admin
+        const channelCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'channel_task_cost_usd')).limit(1);
+        const botCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bot_task_cost_usd')).limit(1);
+        
+        const channelCostPerClickUSD = parseFloat(channelCostSetting[0]?.settingValue || "0.003");
+        const botCostPerClickUSD = parseFloat(botCostSetting[0]?.settingValue || "0.003");
+        
+        const costPerClickUSD = taskType === "channel" ? channelCostPerClickUSD : botCostPerClickUSD;
+        const totalCostUSD = costPerClickUSD * totalClicksRequired;
 
-        console.log('💰 Payment check (TON):', { currentTonBalance, requiredAmount, sufficient: currentTonBalance >= requiredAmount });
+        console.log('🔑 Admin task creation - using USD balance');
+        const currentUSDBalance = parseFloat(user.usdBalance || '0');
 
-        // Check if user has sufficient TON balance
-        if (currentTonBalance < requiredAmount) {
+        console.log('💰 Payment check (USD):', { currentUSDBalance, totalCostUSD, sufficient: currentUSDBalance >= totalCostUSD });
+
+        if (currentUSDBalance < totalCostUSD) {
           return res.status(400).json({
             success: false,
-            message: "Insufficient TON balance. Please convert PAD to TON before creating a task."
+            message: `Insufficient USD balance. You need $${totalCostUSD.toFixed(2)} USD to create this task.`
           });
         }
 
-        // Deduct TON balance
-        const newTonBalance = (currentTonBalance - requiredAmount).toFixed(8);
+        // Deduct USD balance
+        const newUSDBalance = (currentUSDBalance - totalCostUSD).toFixed(10);
         await db
           .update(users)
-          .set({ tonBalance: newTonBalance })
+          .set({ usdBalance: newUSDBalance })
           .where(eq(users.id, userId));
 
-        console.log('✅ Payment deducted (TON):', { oldBalance: currentTonBalance, newBalance: newTonBalance, deducted: totalCost });
+        console.log('✅ Payment deducted (USD):', { oldBalance: currentUSDBalance, newBalance: newUSDBalance, deducted: totalCostUSD });
 
-        // Log transaction
         await storage.logTransaction({
           userId,
-          amount: totalCost,
+          amount: totalCostUSD.toFixed(10),
           type: "deduction",
           source: "task_creation",
           description: `Created ${taskType} task: ${title}`,
-          metadata: { taskId: null, taskType, totalClicksRequired, paymentMethod: 'TON' }
+          metadata: { taskId: null, taskType, totalClicksRequired, paymentMethod: 'USD' }
+        });
+
+        // Create task with USD cost
+        const task = await storage.createTask({
+          advertiserId: userId,
+          taskType,
+          title,
+          link,
+          totalClicksRequired,
+          costPerClick: costPerClickUSD.toFixed(10),
+          totalCost: totalCostUSD.toFixed(10),
+        });
+
+        console.log('✅ Task saved to database:', task);
+
+        broadcastUpdate({
+          type: 'task:created',
+          task: task
+        });
+
+        return res.json({ 
+          success: true, 
+          message: "Task created successfully",
+          task 
         });
       } else {
+        // Regular users: PDZ-based costs (1 PDZ = 10,000,000 PAD = 1 TON)
+        // For PDZ, we store cost in TON format for compatibility
         console.log('👤 Regular user task creation - using PDZ balance');
+        
+        // Cost is 0.0003 TON per click (same as before)
+        const costPerClickPDZ = 0.0003;
+        const totalCostPDZ = costPerClickPDZ * totalClicksRequired;
+        
         const currentPDZBalance = parseFloat(user.pdzBalance || '0');
 
-        console.log('💰 Payment check (PDZ):', { currentPDZBalance, requiredAmount, sufficient: currentPDZBalance >= requiredAmount });
+        console.log('💰 Payment check (PDZ):', { currentPDZBalance, totalCostPDZ, sufficient: currentPDZBalance >= totalCostPDZ });
 
-        // Check if user has sufficient PDZ balance
-        if (currentPDZBalance < requiredAmount) {
+        if (currentPDZBalance < totalCostPDZ) {
           return res.status(400).json({
             success: false,
-            message: "Insufficient PDZ. You need PDZ tokens to create tasks."
+            message: `Insufficient PDZ. You need ${totalCostPDZ.toFixed(4)} PDZ to create this task.`
           });
         }
 
         // Deduct PDZ balance
         const deductResult = await storage.deductPDZBalance(
           userId, 
-          totalCost, 
+          totalCostPDZ.toFixed(10), 
           'task_creation', 
           `Created ${taskType} task: ${title}`
         );
@@ -3374,33 +3422,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        console.log('✅ Payment deducted (PDZ):', { oldBalance: currentPDZBalance, deducted: totalCost });
+        console.log('✅ Payment deducted (PDZ):', { oldBalance: currentPDZBalance, deducted: totalCostPDZ });
+
+        // Create task with PDZ cost
+        const task = await storage.createTask({
+          advertiserId: userId,
+          taskType,
+          title,
+          link,
+          totalClicksRequired,
+          costPerClick: costPerClickPDZ.toFixed(10),
+          totalCost: totalCostPDZ.toFixed(10),
+        });
+
+        console.log('✅ Task saved to database:', task);
+
+        broadcastUpdate({
+          type: 'task:created',
+          task: task
+        });
+
+        return res.json({ 
+          success: true, 
+          message: "Task created successfully",
+          task 
+        });
       }
-
-      // Create the task
-      const task = await storage.createTask({
-        advertiserId: userId,
-        taskType,
-        title,
-        link,
-        totalClicksRequired,
-        costPerClick,
-        totalCost,
-      });
-
-      console.log('✅ Task saved to database:', task);
-
-      // Broadcast task creation to all users to update feed
-      broadcastUpdate({
-        type: 'task:created',
-        task: task
-      });
-
-      res.json({ 
-        success: true, 
-        message: "Task created successfully",
-        task 
-      });
     } catch (error) {
       console.error("Error creating task:", error);
       res.status(500).json({ 

@@ -2675,9 +2675,16 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Fetch dynamic task reward from admin settings
-      const taskRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'task_per_click_reward')).limit(1);
-      const rewardAmount = taskRewardSetting[0]?.settingValue || "0.0001750";
+      // Fetch dynamic task reward from admin settings based on task type
+      const channelRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'channel_task_reward')).limit(1);
+      const botRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bot_task_reward')).limit(1);
+      
+      const channelRewardPAD = parseInt(channelRewardSetting[0]?.settingValue || "30"); // 30 PAD
+      const botRewardPAD = parseInt(botRewardSetting[0]?.settingValue || "20"); // 20 PAD
+      
+      // Use the correct reward based on task type (in PAD)
+      const rewardPAD = task.taskType === "channel" ? channelRewardPAD : botRewardPAD;
+      const rewardAmount = rewardPAD.toString(); // Store as string for database
 
       // Record the click
       await db.insert(taskClicks).values({
