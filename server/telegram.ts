@@ -20,11 +20,10 @@ const pendingRejections = new Map<string, {
 // State management for admin broadcast flow
 const pendingBroadcasts = new Map<string, { timestamp: number }>();
 
-// Utility function to format TON amounts - removes trailing zeros, max 5 decimals
-function formatTON(value: string | number): string {
-  let num = parseFloat(String(value)).toFixed(5);
-  num = num.replace(/\.?0+$/, ''); // remove trailing zeros & dot
-  return num;
+// Utility function to format USD amounts
+function formatUSD(value: string | number): string {
+  const num = parseFloat(String(value));
+  return num.toFixed(2);
 }
 
 // Escape special characters for Telegram MarkdownV2
@@ -447,9 +446,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const totalPAD = Math.round(parseFloat(totalPADSum[0]?.total || '0') * 100000);
           const todayPAD = Math.round(parseFloat((todayPADQuery.rows[0] as any)?.total || '0') * 100000);
           const yesterdayPAD = Math.round(parseFloat((yesterdayPADQuery.rows[0] as any)?.total || '0') * 100000);
-          const totalPayouts = formatTON(totalPayoutsSum[0]?.total || '0');
-          const todayPayouts = formatTON(todayPayoutsSum[0]?.total || '0');
-          const yesterdayPayouts = formatTON(yesterdayPayoutsSum[0]?.total || '0');
+          const totalPayouts = formatUSD(totalPayoutsSum[0]?.total || '0');
+          const todayPayouts = formatUSD(todayPayoutsSum[0]?.total || '0');
+          const yesterdayPayouts = formatUSD(yesterdayPayoutsSum[0]?.total || '0');
           const totalTasks = totalTasksCount[0]?.count || 0;
           const todayTasks = todayTasksCount[0]?.count || 0;
           const yesterdayTasks = yesterdayTasksCount[0]?.count || 0;
@@ -587,7 +586,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           // Send each withdrawal as a separate message with approve/reject buttons
           for (const { withdrawal, user } of displayWithdrawals) {
             const withdrawalDetails = withdrawal.details as any;
-            const amount = formatTON(withdrawal.amount);
+            const amount = formatUSD(withdrawal.amount);
             const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
             const username = user?.username || user?.firstName || 'Unknown';
             const createdAt = new Date(withdrawal.createdAt!).toUTCString();
@@ -758,7 +757,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             if (user && user.telegram_id) {
               const withdrawalDetails = result.withdrawal.details as any;
               const amount = result.withdrawal.amount;
-              const formattedAmount = formatTON(amount);
+              const formattedAmount = formatUSD(amount);
               const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
               
               // Send user notification
@@ -770,7 +769,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
             // Update admin message with formatted success details
             const withdrawalDetails = result.withdrawal.details as any;
             const amount = result.withdrawal.amount;
-            const formattedAmount = formatTON(amount);
+            const formattedAmount = formatUSD(amount);
             const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
             const userName = user?.firstName || user?.username || 'Unknown';
             const userId = user?.id || 'N/A';
@@ -1238,9 +1237,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         const totalPAD = Math.round(parseFloat(totalPADSum[0]?.total || '0') * 100000);
         const todayPAD = Math.round(parseFloat((todayPADQuery.rows[0] as any)?.total || '0') * 100000);
         const yesterdayPAD = Math.round(parseFloat((yesterdayPADQuery.rows[0] as any)?.total || '0') * 100000);
-        const totalPayouts = formatTON(totalPayoutsSum[0]?.total || '0');
-        const todayPayouts = formatTON(todayPayoutsSum[0]?.total || '0');
-        const yesterdayPayouts = formatTON(yesterdayPayoutsSum[0]?.total || '0');
+        const totalPayouts = formatUSD(totalPayoutsSum[0]?.total || '0');
+        const todayPayouts = formatUSD(todayPayoutsSum[0]?.total || '0');
+        const yesterdayPayouts = formatUSD(yesterdayPayoutsSum[0]?.total || '0');
         const totalTasks = totalTasksCount[0]?.count || 0;
         const todayTasks = todayTasksCount[0]?.count || 0;
         const yesterdayTasks = yesterdayTasksCount[0]?.count || 0;

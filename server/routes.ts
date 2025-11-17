@@ -675,15 +675,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Calculate reward in TON from PAD amount (1000 PAD = 0.0001 TON)
-      const adRewardTON = (rewardPerAdPAD / 10000000).toFixed(8);
+      // PAD reward amount (no conversion needed - store PAD directly)
       const adRewardPAD = rewardPerAdPAD;
       
       try {
         // Process reward with error handling to ensure success response
         await storage.addEarning({
           userId,
-          amount: adRewardTON,
+          amount: String(adRewardPAD),
           source: 'ad_watch',
           description: 'Watched advertisement',
         });
@@ -702,10 +701,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Process 10% referral commission for referrer (if user was referred)
         if (user.referredBy) {
           try {
-            const referralCommissionTON = (parseFloat(adRewardTON) * 0.1).toFixed(8);
+            const referralCommissionPAD = Math.round(adRewardPAD * 0.1);
             await storage.addEarning({
               userId: user.referredBy,
-              amount: referralCommissionTON,
+              amount: String(referralCommissionPAD),
               source: 'referral_commission',
               description: `10% commission from ${user.username || user.telegram_id}'s ad watch`,
             });
@@ -2993,136 +2992,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // PAD to TON conversion endpoint - auth removed to prevent popup spam
-  // ✅ USER ISOLATION: Each user's data is fetched from database using their unique session userId
-  // No global/shared state - prevents "all users seeing same balance" issue
-  app.post('/api/wallet/convert', async (req: any, res) => {
-    try {
-      // Get THIS user's ID from their session - ensures per-user isolation
-      const userId = req.session?.user?.user?.id || req.user?.user?.id;
-      
-      if (!userId) {
-        console.log("⚠️ Convert requested without session - skipping");
-        return res.json({ success: true, skipAuth: true });
-      }
-      const { padAmount } = req.body;
-      
-      console.log('💱 PAD to TON conversion request:', { userId, padAmount });
-      
-      // Validation: Check amount is valid
-      const convertAmount = parseFloat(padAmount);
-      if (!padAmount || isNaN(convertAmount) || convertAmount <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Please enter a valid PAD amount'
-        });
-      }
-      
-      // Conversion rate: 10,000,000 PAD = 1 TON
-      const CONVERSION_RATE = 10000000;
-      
-      // Get minimum convert amount from admin settings (stored in PAD)
-      const minimumConvertSetting = await storage.getAppSetting('minimumConvert', 10000);
-      const minimumPad = parseInt(minimumConvertSetting);
-      
-      if (convertAmount < minimumPad) {
-        return res.status(400).json({
-          success: false,
-          message: `Minimum ${minimumPad} PAD required to convert.`
-        });
-      }
-      
-      // Use transaction to ensure atomicity
-      const result = await db.transaction(async (tx) => {
-        // Lock user row and get current balances
-        const [user] = await tx
-          .select({ 
-            balance: users.balance,
-            tonBalance: users.tonBalance
-          })
-          .from(users)
-          .where(eq(users.id, userId))
-          .for('update');
-        
-        if (!user) {
-          throw new Error('User not found');
-        }
-        
-        // FIX: balance field stores TON amounts (not PAD)
-        // Convert TON to PAD for display and conversion logic
-        const currentBalanceTON = parseFloat(user.balance || '0');
-        const currentTonBalance = parseFloat(user.tonBalance || '0');
-        const currentPadBalance = currentBalanceTON * CONVERSION_RATE; // Convert TON to PAD for display
-        
-        console.log(`📊 Current balances - TON in balance: ${currentBalanceTON}, PAD equivalent: ${currentPadBalance}, TON wallet: ${currentTonBalance}`);
-        
-        // Check if user has enough PAD to convert
-        if (currentPadBalance < convertAmount) {
-          throw new Error('Insufficient PAD balance');
-        }
-        
-        // Calculate TON amount to deduct from balance and add to tonBalance
-        const tonToDeduct = convertAmount / CONVERSION_RATE;
-        
-        // Apply conversion logic:
-        // balance (TON) -= convertAmount / 10000000 (deduct TON equivalent of PAD)
-        // tonBalance += convertAmount / 10000000 (add to TON wallet)
-        const newBalanceTON = currentBalanceTON - tonToDeduct;
-        const newTonBalance = currentTonBalance + tonToDeduct;
-        const newPadBalance = newBalanceTON * CONVERSION_RATE;
-        
-        // Update user balances - store TON amounts in both fields
-        await tx
-          .update(users)
-          .set({
-            balance: newBalanceTON.toFixed(8),
-            tonBalance: newTonBalance.toFixed(8),
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, userId));
-        
-        console.log(`✅ Conversion successful: ${convertAmount} PAD → ${tonToDeduct} TON`);
-        console.log(`   New balance (TON): ${newBalanceTON.toFixed(8)}, New TON wallet: ${newTonBalance.toFixed(8)}`);
-        
-        return {
-          padAmount: convertAmount,
-          tonAmount: tonToDeduct,
-          newPadBalance,
-          newTonBalance
-        };
-      });
-      
-      // Send real-time update - send TON values (frontend converts to PAD for display)
-      sendRealtimeUpdate(userId, {
-        type: 'balance_update',
-        balance: (result.newPadBalance / CONVERSION_RATE).toFixed(8), // Convert back to TON
-        tonBalance: result.newTonBalance.toFixed(8)
-      });
-      
-      res.json({
-        success: true,
-        message: 'Converted successfully!',
-        ...result
-      });
-      
-    } catch (error) {
-      console.error('❌ Error converting PAD to TON:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Failed to convert PAD to TON';
-      
-      if (errorMessage === 'Insufficient PAD balance' || errorMessage === 'User not found') {
-        return res.status(400).json({ 
-          success: false, 
-          message: errorMessage
-        });
-      }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: 'Failed to convert PAD to TON' 
-      });
-    }
-  });
 
   // PAD to USD conversion endpoint
   app.post('/api/convert-to-usd', async (req: any, res) => {
