@@ -674,10 +674,9 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Random reward between 200-1000 PAD
-    // 1 TON = 10,000,000 PAD, so we convert PAD to TON
+    // Store PAD directly as integer (no TON conversion needed)
     const randomPAD = Math.floor(Math.random() * (1000 - 200 + 1)) + 200;
-    const rewardInTON = randomPAD / 10000000;
-    rewardEarned = rewardInTON.toFixed(8);
+    rewardEarned = randomPAD.toString();
 
     await db
       .update(users)
@@ -1264,7 +1263,10 @@ export class DatabaseStorage implements IStorage {
 
       if (level1Referral) {
         // Calculate 10% commission for direct referrer (B)
-        const commission = (parseFloat(earningAmount) * 0.10).toFixed(8);
+        // Handle both new PAD integers and legacy TON decimals
+        const earningValue = parseFloat(earningAmount);
+        const earningInPAD = earningValue < 1 ? Math.round(earningValue * 10000000) : Math.round(earningValue);
+        const commission = Math.round(earningInPAD * 0.10).toString();
         
         // Record the referral commission
         await db.insert(referralCommissions).values({
@@ -1281,8 +1283,10 @@ export class DatabaseStorage implements IStorage {
           .where(eq(users.id, level1Referral.referrerId))
           .limit(1);
         
-        const currentPending = parseFloat(referrer?.pendingBonus || '0');
-        const newPending = (currentPending + parseFloat(commission)).toFixed(8);
+        // Convert legacy TON format to PAD if needed
+        const pendingValue = parseFloat(referrer?.pendingBonus || '0');
+        const currentPending = pendingValue < 1 ? Math.round(pendingValue * 10000000) : Math.round(pendingValue);
+        const newPending = (currentPending + parseFloat(commission)).toString();
         
         await db
           .update(users)
@@ -1321,15 +1325,23 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'User not found' };
       }
 
-      const pendingAmount = parseFloat(user.pendingBonus || '0');
+      // Convert legacy TON format to PAD if needed
+      const pendingValue = parseFloat(user.pendingBonus || '0');
+      const pendingAmount = pendingValue < 1 ? Math.round(pendingValue * 10000000) : Math.round(pendingValue);
       
       if (pendingAmount <= 0) {
         return { success: false, message: 'No referral bonus available to claim' };
       }
 
-      // Add pending bonus to balance and update totals
-      const newBalance = (parseFloat(user.balance || '0') + pendingAmount).toFixed(8);
-      const newTotalClaimed = (parseFloat(user.totalClaimed || '0') + pendingAmount).toFixed(8);
+      // Add pending bonus to balance and update totals (PAD as integers)
+      // Convert legacy balances if needed
+      const balanceValue = parseFloat(user.balance || '0');
+      const currentBalance = balanceValue < 1 ? Math.round(balanceValue * 10000000) : Math.round(balanceValue);
+      const totalClaimedValue = parseFloat(user.totalClaimed || '0');
+      const currentTotalClaimed = totalClaimedValue < 1 ? Math.round(totalClaimedValue * 10000000) : Math.round(totalClaimedValue);
+      
+      const newBalance = (currentBalance + pendingAmount).toString();
+      const newTotalClaimed = (currentTotalClaimed + pendingAmount).toString();
 
       await db
         .update(users)
@@ -1344,7 +1356,7 @@ export class DatabaseStorage implements IStorage {
       // Add earning record for claimed bonus
       await this.addEarning({
         userId,
-        amount: pendingAmount.toFixed(8),
+        amount: pendingAmount.toString(),
         source: 'referral_claim',
         description: 'Claimed referral bonus',
       });
@@ -1352,18 +1364,18 @@ export class DatabaseStorage implements IStorage {
       // Log transaction
       await this.logTransaction({
         userId,
-        amount: pendingAmount.toFixed(8),
+        amount: pendingAmount.toString(),
         type: 'addition',
         source: 'referral_claim',
         description: 'Claimed referral bonus',
       });
 
-      console.log(`✅ User ${userId} claimed ${pendingAmount} referral bonus`);
+      console.log(`✅ User ${userId} claimed ${pendingAmount} PAD referral bonus`);
 
       return { 
         success: true, 
         message: 'Referral bonus claimed successfully!', 
-        amount: pendingAmount.toFixed(8) 
+        amount: pendingAmount.toString() 
       };
     } catch (error) {
       console.error('Error claiming referral bonus:', error);

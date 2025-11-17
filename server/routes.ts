@@ -730,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         sendRealtimeUpdate(userId, {
           type: 'ad_reward',
-          amount: adRewardTON,
+          amount: adRewardPAD.toString(),
           message: 'Ad reward earned!',
           timestamp: new Date().toISOString()
         });
