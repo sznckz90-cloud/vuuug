@@ -6,6 +6,18 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, Gem, UserPlus } from "lucide-react";
 import { formatCompactNumber } from "@shared/constants";
 import { formatCurrency } from "@/lib/utils";
+
+// Helper function to format PAD with compact notation
+const formatPADCompact = (value: string): string => {
+  const numValue = parseFloat(value || '0');
+  if (isNaN(numValue)) return '0 PAD';
+  
+  // If value is very small (< 1), it might be legacy TON format - convert to PAD
+  // Otherwise, treat as PAD integer
+  const padValue = numValue < 1 ? Math.round(numValue * 10000000) : Math.round(numValue);
+  
+  return `${formatCompactNumber(padValue)} PAD`;
+};
 import { useState } from "react";
 import type { User } from "@shared/schema";
 
@@ -167,7 +179,7 @@ export default function Leaderboard() {
                             </div>
                           </div>
                           <div className="text-primary text-sm font-bold flex-shrink-0">
-                            {formatCurrency(earner.totalEarnings, true)}
+                            {formatPADCompact(earner.totalEarnings)}
                           </div>
                         </div>
                       </CardContent>
@@ -277,7 +289,7 @@ export default function Leaderboard() {
                       </div>
                     </div>
                     <div className="text-primary text-xs font-bold flex-shrink-0">
-                      {formatCurrency(leaderboardData.userEarnerRank.totalEarnings, true)}
+                      {formatPADCompact(leaderboardData.userEarnerRank.totalEarnings)}
                     </div>
                   </div>
                 ) : (
