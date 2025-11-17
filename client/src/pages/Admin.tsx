@@ -896,13 +896,16 @@ function SettingsSection() {
   
   const [settings, setSettings] = useState({
     dailyAdLimit: '50',
-    rewardPerAd: '1000',
+    rewardPerAd: '2',
     affiliateCommission: '10',
-    walletChangeFee: '0.01',
-    minimumWithdrawal: '0.5',
-    taskPerClickReward: '0.0001750',
-    taskCreationCost: '0.0003',
-    minimumConvert: '0.01',
+    walletChangeFee: '100',
+    minimumWithdrawalUSD: '1.00',
+    minimumWithdrawalTON: '0.5',
+    channelTaskCost: '0.003',
+    botTaskCost: '0.003',
+    channelTaskReward: '30',
+    botTaskReward: '20',
+    minimumConvertPAD: '100',
     seasonBroadcastActive: false
   });
   
@@ -911,13 +914,16 @@ function SettingsSection() {
     if (settingsData) {
       setSettings({
         dailyAdLimit: settingsData.dailyAdLimit?.toString() || '50',
-        rewardPerAd: settingsData.rewardPerAd?.toString() || '1000',
+        rewardPerAd: settingsData.rewardPerAd?.toString() || '2',
         affiliateCommission: settingsData.affiliateCommission?.toString() || '10',
-        walletChangeFee: settingsData.walletChangeFee?.toString() || '0.01',
-        minimumWithdrawal: settingsData.minimumWithdrawal?.toString() || '0.5',
-        taskPerClickReward: settingsData.taskPerClickReward?.toString() || '0.0001750',
-        taskCreationCost: settingsData.taskCreationCost?.toString() || '0.0003',
-        minimumConvert: settingsData.minimumConvert?.toString() || '0.01',
+        walletChangeFee: settingsData.walletChangeFee?.toString() || '100',
+        minimumWithdrawalUSD: settingsData.minimumWithdrawalUSD?.toString() || '1.00',
+        minimumWithdrawalTON: settingsData.minimumWithdrawalTON?.toString() || '0.5',
+        channelTaskCost: settingsData.channelTaskCost?.toString() || '0.003',
+        botTaskCost: settingsData.botTaskCost?.toString() || '0.003',
+        channelTaskReward: settingsData.channelTaskReward?.toString() || '30',
+        botTaskReward: settingsData.botTaskReward?.toString() || '20',
+        minimumConvertPAD: settingsData.minimumConvertPAD?.toString() || '100',
         seasonBroadcastActive: settingsData.seasonBroadcastActive || false
       });
     }
@@ -927,11 +933,14 @@ function SettingsSection() {
     const adLimit = parseInt(settings.dailyAdLimit);
     const reward = parseInt(settings.rewardPerAd);
     const affiliate = parseFloat(settings.affiliateCommission);
-    const walletFee = parseFloat(settings.walletChangeFee);
-    const minWithdrawal = parseFloat(settings.minimumWithdrawal);
-    const taskReward = parseFloat(settings.taskPerClickReward);
-    const taskCost = parseFloat(settings.taskCreationCost);
-    const minConvert = parseFloat(settings.minimumConvert);
+    const walletFee = parseInt(settings.walletChangeFee);
+    const minWithdrawalUSD = parseFloat(settings.minimumWithdrawalUSD);
+    const minWithdrawalTON = parseFloat(settings.minimumWithdrawalTON);
+    const channelCost = parseFloat(settings.channelTaskCost);
+    const botCost = parseFloat(settings.botTaskCost);
+    const channelReward = parseInt(settings.channelTaskReward);
+    const botReward = parseInt(settings.botTaskReward);
+    const minConvertPAD = parseInt(settings.minimumConvertPAD);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
@@ -958,10 +967,13 @@ function SettingsSection() {
         rewardPerAd: reward,
         affiliateCommission: affiliate,
         walletChangeFee: walletFee,
-        minimumWithdrawal: minWithdrawal,
-        taskPerClickReward: taskReward,
-        taskCreationCost: taskCost,
-        minimumConvert: minConvert,
+        minimumWithdrawalUSD: minWithdrawalUSD,
+        minimumWithdrawalTON: minWithdrawalTON,
+        channelTaskCost: channelCost,
+        botTaskCost: botCost,
+        channelTaskReward: channelReward,
+        botTaskReward: botReward,
+        minimumConvertPAD: minConvertPAD,
         seasonBroadcastActive: settings.seasonBroadcastActive
       });
       
@@ -1107,99 +1119,171 @@ function SettingsSection() {
             </p>
           </div>
 
-          {/* Minimum Withdrawal Setting */}
+          {/* Minimum USD Withdrawal Setting */}
           <div className="space-y-2">
-            <Label htmlFor="minimum-withdrawal" className="text-base font-semibold">
-              <i className="fas fa-money-bill-wave mr-2 text-blue-600"></i>
-              Minimum Withdrawal (TON)
+            <Label htmlFor="minimum-withdrawal-usd" className="text-base font-semibold">
+              <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
+              Minimum USD Withdrawal
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Minimum amount required to withdraw
+              Minimum USD amount required to withdraw
             </p>
             <Input
-              id="minimum-withdrawal"
+              id="minimum-withdrawal-usd"
               type="number"
-              value={settings.minimumWithdrawal}
-              onChange={(e) => setSettings({ ...settings, minimumWithdrawal: e.target.value })}
+              value={settings.minimumWithdrawalUSD}
+              onChange={(e) => setSettings({ ...settings, minimumWithdrawalUSD: e.target.value })}
+              placeholder="1.00"
+              min="0"
+              step="0.01"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: ${settingsData?.minimumWithdrawalUSD || 1.00}
+            </p>
+          </div>
+
+          {/* Minimum TON Withdrawal Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="minimum-withdrawal-ton" className="text-base font-semibold">
+              <i className="fas fa-gem mr-2 text-blue-600"></i>
+              Minimum TON Withdrawal
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Minimum TON amount required to withdraw
+            </p>
+            <Input
+              id="minimum-withdrawal-ton"
+              type="number"
+              value={settings.minimumWithdrawalTON}
+              onChange={(e) => setSettings({ ...settings, minimumWithdrawalTON: e.target.value })}
               placeholder="0.5"
               min="0"
               step="0.01"
               className="text-lg font-semibold"
             />
             <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.minimumWithdrawal || 0.5} TON
+              Current: {settingsData?.minimumWithdrawalTON || 0.5} TON
             </p>
           </div>
 
-          {/* Task Per Click Reward Setting */}
+          {/* Channel Task Reward Setting */}
           <div className="space-y-2">
-            <Label htmlFor="task-per-click-reward" className="text-base font-semibold">
-              <i className="fas fa-mouse-pointer mr-2 text-purple-600"></i>
-              Task Per Click Reward (PAD)
+            <Label htmlFor="channel-task-reward" className="text-base font-semibold">
+              <i className="fas fa-bullhorn mr-2 text-cyan-600"></i>
+              Channel Task Reward (PAD)
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Reward per task completion
+              Reward per channel task completion
             </p>
             <Input
-              id="task-per-click-reward"
+              id="channel-task-reward"
               type="number"
-              value={settings.taskPerClickReward}
-              onChange={(e) => setSettings({ ...settings, taskPerClickReward: e.target.value })}
-              placeholder="1750"
+              value={settings.channelTaskReward}
+              onChange={(e) => setSettings({ ...settings, channelTaskReward: e.target.value })}
+              placeholder="30"
               min="0"
               step="1"
               className="text-lg font-semibold"
             />
             <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.taskPerClickReward || 1750} PAD
+              Current: {settingsData?.channelTaskReward || 30} PAD
             </p>
           </div>
 
-          {/* Task Creation Cost Setting */}
+          {/* Bot Task Reward Setting */}
           <div className="space-y-2">
-            <Label htmlFor="task-creation-cost" className="text-base font-semibold">
-              <i className="fas fa-plus-circle mr-2 text-red-600"></i>
-              Task Creation Cost (TON)
+            <Label htmlFor="bot-task-reward" className="text-base font-semibold">
+              <i className="fas fa-robot mr-2 text-purple-600"></i>
+              Bot Task Reward (PAD)
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Cost to create a new task
+              Reward per bot task completion
             </p>
             <Input
-              id="task-creation-cost"
+              id="bot-task-reward"
               type="number"
-              value={settings.taskCreationCost}
-              onChange={(e) => setSettings({ ...settings, taskCreationCost: e.target.value })}
-              placeholder="0.0003"
+              value={settings.botTaskReward}
+              onChange={(e) => setSettings({ ...settings, botTaskReward: e.target.value })}
+              placeholder="20"
+              min="0"
+              step="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.botTaskReward || 20} PAD
+            </p>
+          </div>
+
+          {/* Channel Task Creation Cost Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="channel-task-cost" className="text-base font-semibold">
+              <i className="fas fa-bullhorn mr-2 text-orange-600"></i>
+              Channel Task Cost (USD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Cost per click to create a channel task
+            </p>
+            <Input
+              id="channel-task-cost"
+              type="number"
+              value={settings.channelTaskCost}
+              onChange={(e) => setSettings({ ...settings, channelTaskCost: e.target.value })}
+              placeholder="0.003"
               min="0"
               step="0.0001"
               className="text-lg font-semibold"
             />
             <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.taskCreationCost || 0.0003} TON
+              Current: ${settingsData?.channelTaskCost || 0.003}
             </p>
           </div>
 
-          {/* Minimum Convert Amount Setting */}
+          {/* Bot Task Creation Cost Setting */}
           <div className="space-y-2">
-            <Label htmlFor="minimum-convert" className="text-base font-semibold">
-              <i className="fas fa-repeat mr-2 text-indigo-600"></i>
-              Minimum Convert Amount (TON)
+            <Label htmlFor="bot-task-cost" className="text-base font-semibold">
+              <i className="fas fa-robot mr-2 text-red-600"></i>
+              Bot Task Cost (USD)
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Minimum amount to convert PAD to TON
+              Cost per click to create a bot task
             </p>
             <Input
-              id="minimum-convert"
+              id="bot-task-cost"
               type="number"
-              value={settings.minimumConvert}
-              onChange={(e) => setSettings({ ...settings, minimumConvert: e.target.value })}
-              placeholder="0.01"
+              value={settings.botTaskCost}
+              onChange={(e) => setSettings({ ...settings, botTaskCost: e.target.value })}
+              placeholder="0.003"
               min="0"
-              step="0.001"
+              step="0.0001"
               className="text-lg font-semibold"
             />
             <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.minimumConvert || 0.01} TON
+              Current: ${settingsData?.botTaskCost || 0.003}
+            </p>
+          </div>
+
+          {/* Minimum Convert Amount Setting (in PAD, showing USD equivalent) */}
+          <div className="space-y-2">
+            <Label htmlFor="minimum-convert-pad" className="text-base font-semibold">
+              <i className="fas fa-repeat mr-2 text-indigo-600"></i>
+              Minimum Convert Amount (PAD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Minimum PAD to convert (10,000 PAD = $1)
+            </p>
+            <Input
+              id="minimum-convert-pad"
+              type="number"
+              value={settings.minimumConvertPAD}
+              onChange={(e) => setSettings({ ...settings, minimumConvertPAD: e.target.value })}
+              placeholder="100"
+              min="0"
+              step="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.minimumConvertPAD || 100} PAD (${((settingsData?.minimumConvertPAD || 100) / 10000).toFixed(2)})
             </p>
           </div>
         </div>
