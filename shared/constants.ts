@@ -27,11 +27,14 @@ export function usdToPAD(usdAmount: number | string): number {
 }
 
 /**
- * Format large numbers into compact format (1k, 1.2M, 1B)
+ * Format large numbers into compact format (1k, 1.2M, 1B, 1T)
  * @param num - Number to format
- * @returns Formatted string (e.g., "1.2M", "154k", "24B")
+ * @returns Formatted string (e.g., "1.2M", "154k", "24B", "1.5T")
  */
 export function formatCompactNumber(num: number): string {
+  if (num >= 1_000_000_000_000) {
+    return (num / 1_000_000_000_000).toFixed(1).replace(/\.0$/, '') + 'T';
+  }
   if (num >= 1_000_000_000) {
     return (num / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
   }
