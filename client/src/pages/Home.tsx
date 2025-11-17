@@ -11,7 +11,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
 import { Trophy } from "lucide-react";
-import { tonToPAD, formatCompactNumber } from "@shared/constants";
+import { formatCompactNumber } from "@shared/constants";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
 interface User {
@@ -65,11 +65,11 @@ export default function Home() {
     );
   }
 
-  const balancePAD = tonToPAD((user as User)?.balance || "0");
+  const balancePAD = parseFloat((user as User)?.balance || "0");
   const balanceUSD = parseFloat((user as User)?.usdBalance || "0");
-  const todayEarnings = tonToPAD(stats?.todayEarnings || "0");
-  const allTimeEarnings = tonToPAD((user as User)?.totalEarned || "0");
-  const referralEarnings = tonToPAD(stats?.referralEarnings || "0");
+  const todayEarnings = parseFloat(stats?.todayEarnings || "0");
+  const allTimeEarnings = parseFloat((user as User)?.totalEarned || "0");
+  const referralEarnings = parseFloat(stats?.referralEarnings || "0");
   
   const referralCode = (user as User)?.referralCode || "000000";
   const formattedUserId = referralCode.slice(-6).toUpperCase();
@@ -133,7 +133,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="text-primary text-sm font-bold flex-shrink-0">
-                {topUser ? formatCompactNumber(tonToPAD(topUser.totalEarnings)) : '0'} PAD
+                {topUser ? formatCompactNumber(parseFloat(topUser.totalEarnings)) : '0'} PAD
               </div>
             </div>
           </CardContent>

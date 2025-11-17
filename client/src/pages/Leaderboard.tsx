@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, Gem, UserPlus } from "lucide-react";
-import { tonToPAD, formatCompactNumber } from "@shared/constants";
+import { formatCompactNumber } from "@shared/constants";
 import { useState } from "react";
 import type { User } from "@shared/schema";
 
@@ -166,7 +166,7 @@ export default function Leaderboard() {
                             </div>
                           </div>
                           <div className="text-primary text-sm font-bold flex-shrink-0">
-                            {formatCompactNumber(tonToPAD(earner.totalEarnings))} PAD
+                            {formatCompactNumber(parseFloat(earner.totalEarnings))} PAD
                           </div>
                         </div>
                       </CardContent>
@@ -276,7 +276,7 @@ export default function Leaderboard() {
                       </div>
                     </div>
                     <div className="text-primary text-xs font-bold flex-shrink-0">
-                      {formatCompactNumber(tonToPAD(leaderboardData.userEarnerRank.totalEarnings))} PAD
+                      {formatCompactNumber(parseFloat(leaderboardData.userEarnerRank.totalEarnings))} PAD
                     </div>
                   </div>
                 ) : (

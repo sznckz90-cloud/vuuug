@@ -64,13 +64,8 @@ export default function WalletActivity() {
     );
   }
 
-  const formatPAD = (amount: string) => {
-    const pad = Math.round(parseFloat(amount) * 100000);
-    return pad.toLocaleString();
-  };
-
-  const formatTON = (amount: string) => {
-    return parseFloat(amount).toFixed(4);
+  const formatUSD = (amount: string) => {
+    return parseFloat(amount).toFixed(2);
   };
 
   return (
@@ -118,10 +113,10 @@ export default function WalletActivity() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-[#4cd3ff]">
-                        {formatPAD(withdrawal.amount)} PAD
+                        ${formatUSD(withdrawal.amount)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {formatTON(withdrawal.amount)} TON
+                        USD
                       </p>
                     </div>
                   </div>
