@@ -51,7 +51,7 @@ export default function WithdrawDialog({ open, onOpenChange }: WithdrawDialogPro
     retry: false,
   });
 
-  const padBalance = parseFloat(user?.balance || "0") * 10000000;
+  const padBalance = parseFloat(user?.balance || "0");
   const usdBalance = parseFloat(user?.usdBalance || "0");
   const friendsInvited = user?.friendsInvited || 0;
   const MINIMUM_FRIENDS_REQUIRED = 3;

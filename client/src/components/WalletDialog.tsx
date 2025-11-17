@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { showNotification } from '@/components/AppNotification';
 import { apiRequest } from '@/lib/queryClient';
 import { Gem, Star, Settings2 } from 'lucide-react';
-import { tonToPAD } from '@shared/constants';
 
 interface WalletDetails {
   tonWalletAddress: string;

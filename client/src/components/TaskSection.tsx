@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { showNotification } from '@/components/AppNotification';
 import { PlayCircle, Share2, Megaphone, Users, Play, Check, Flame } from 'lucide-react';
-import { tonToPAD } from '@shared/constants';
 
 interface User {
   referralCode?: string;
@@ -66,10 +65,10 @@ export default function TaskSection() {
       setCompletedTasks(prev => new Set([...prev, 'claim-streak']));
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
-        const rewardPAD = tonToPAD(rewardAmount);
+        const rewardPAD = Math.round(rewardAmount);
         const message = data.isBonusDay 
-          ? `🔥 5-day streak bonus! You've claimed today's streak reward! +${rewardPAD} PAD`
-          : `✅ You've claimed today's streak reward! +${rewardPAD} PAD`;
+          ? `🔥 5-day streak bonus! You've claimed today's streak reward! +${rewardPAD.toLocaleString()} PAD`
+          : `✅ You've claimed today's streak reward! +${rewardPAD.toLocaleString()} PAD`;
         showNotification(message, 'success');
       } else {
         showNotification("✅ You've claimed today's streak reward!", 'success');

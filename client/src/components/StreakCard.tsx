@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { Flame, Loader, Clock, CheckCircle2 } from "lucide-react";
-import { tonToPAD } from "@shared/constants";
 
 interface StreakCardProps {
   user: any;
@@ -38,10 +37,10 @@ export default function StreakCard({ user }: StreakCardProps) {
       
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
-        const earnedPAD = tonToPAD(data.rewardEarned);
+        const earnedPAD = Math.round(rewardAmount);
         const message = data.isBonusDay 
-          ? ` 5-day streak bonus! You've claimed today's streak reward! +${earnedPAD} PAD`
-          : ` You've claimed today's streak reward! +${earnedPAD} PAD`;
+          ? ` 5-day streak bonus! You've claimed today's streak reward! +${earnedPAD.toLocaleString()} PAD`
+          : ` You've claimed today's streak reward! +${earnedPAD.toLocaleString()} PAD`;
         showNotification(message, "success");
       } else {
         showNotification(" You've claimed today's streak reward!", "success");
