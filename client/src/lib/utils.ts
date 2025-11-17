@@ -1,14 +1,15 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { PAD_TO_USD, tonToPAD, padToUSD } from "@shared/constants"
+import { PAD_TO_USD, padToUSD } from "@shared/constants"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
 /**
- * Format currency values - converts TON to PAD
- * Examples: 0.00033 → "33 PAD", 0.0002 → "20 PAD"
+ * Format currency values - displays PAD amount
+ * Handles both integer PAD values and legacy decimal values
+ * Examples: 1000 → "1,000 PAD", 0.0001 → "1,000 PAD" (legacy TON format)
  */
 export function formatCurrency(value: string | number, includeSymbol: boolean = true): string {
   const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
@@ -17,16 +18,18 @@ export function formatCurrency(value: string | number, includeSymbol: boolean = 
     return includeSymbol ? '0 PAD' : '0';
   }
   
-  // Convert TON to PAD using shared constant
-  const padValue = tonToPAD(numValue);
+  // If value is very small (< 1), it might be legacy TON format - convert to PAD
+  // Otherwise, treat as PAD integer
+  const padValue = numValue < 1 ? Math.round(numValue * 10000000) : Math.round(numValue);
   
   const symbol = includeSymbol ? ' PAD' : '';
   return `${padValue.toLocaleString()}${symbol}`;
 }
 
 /**
- * Format task rewards - converts TON to PAD
- * Examples: 0.00033 → "33 PAD", 0.0002 → "20 PAD"
+ * Format task rewards - displays PAD amount
+ * Handles both integer PAD values and legacy decimal values
+ * Examples: 1000 → "1,000 PAD", 0.0001 → "1,000 PAD" (legacy TON format)
  */
 export function formatTaskReward(value: string | number, includeSymbol: boolean = true): string {
   const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
@@ -35,8 +38,9 @@ export function formatTaskReward(value: string | number, includeSymbol: boolean 
     return includeSymbol ? '0 PAD' : '0';
   }
   
-  // Convert TON to PAD using shared constant
-  const padValue = tonToPAD(numValue);
+  // If value is very small (< 1), it might be legacy TON format - convert to PAD
+  // Otherwise, treat as PAD integer
+  const padValue = numValue < 1 ? Math.round(numValue * 10000000) : Math.round(numValue);
   
   const symbol = includeSymbol ? ' PAD' : '';
   return `${padValue.toLocaleString()}${symbol}`;
