@@ -5,6 +5,31 @@ CashWatch is a Telegram-based earning platform where users can earn PAD currency
 
 ## Recent Changes
 
+### November 17, 2025 - Latest Updates
+
+**Wallet Change Fee Bug Fixed**:
+- USDT and Telegram Stars wallet changes were not charging fees (only TON wallet had fees)
+- **Backend Changes** (`server/routes.ts`):
+  - `/api/wallet/usdt`: Now checks if wallet exists and charges 5000 PAD fee for changes
+  - `/api/wallet/telegram-stars`: Now checks if username exists and charges 5000 PAD fee for changes
+  - First-time setup remains free, only changes are charged
+  - Fee validation and transaction recording implemented
+- **Frontend Changes** (`client/src/components/CwalletSetupDialog.tsx`):
+  - Added fee warning for USDT wallet changes (shows 5000 PAD deduction)
+  - Added fee warning for Telegram Stars username changes (shows 5000 PAD deduction)
+  - Consistent UI across all wallet types (TON, USDT, Stars)
+
+**Faucetpay System Updates**:
+- Renamed from "Daily Streak" to "Faucetpay" (`client/src/components/StreakCard.tsx`)
+- Display changed from "Day X" to "+1 PAD"
+- Backend source changed from 'daily_streak' to 'faucetpay' (`server/storage.ts`)
+- Success message updated to "You've claimed +1 PAD from Faucetpay!"
+
+**Leaderboard Improvements**:
+- Added compact number notation: 1k, 20k, 1M, 1B, 1T (`shared/constants.ts`)
+- Trillion (T) support added for future-proofing
+- PAD amounts now display in compact format throughout leaderboard
+
 ### November 17, 2025 - TON→PAD Conversion Bug Fixes
 
 **Critical Bug Fixed**: PAD rewards were being stored in TON decimal format (0.00008390) instead of PAD integer format (839), causing balance to display as 0.
