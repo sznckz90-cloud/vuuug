@@ -658,25 +658,19 @@ export class DatabaseStorage implements IStorage {
 
     if (lastStreakDate) {
       const lastClaim = new Date(lastStreakDate);
-      const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60);
+      const minutesSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60);
       
-      if (hoursSinceLastClaim < 24) {
+      // Allow claim every 5 minutes
+      if (minutesSinceLastClaim < 5) {
         return { newStreak: user.currentStreak || 0, rewardEarned: "0" };
       }
       
-      const daysSinceLastClaim = Math.floor(hoursSinceLastClaim / 24);
-      
-      if (daysSinceLastClaim === 1 || (daysSinceLastClaim < 2 && hoursSinceLastClaim >= 24)) {
-        newStreak = (user.currentStreak || 0) + 1;
-      } else {
-        newStreak = 1;
-      }
+      // Increment streak
+      newStreak = (user.currentStreak || 0) + 1;
     }
 
-    // Random reward between 200-1000 PAD
-    // Store PAD directly as integer (no TON conversion needed)
-    const randomPAD = Math.floor(Math.random() * (1000 - 200 + 1)) + 200;
-    rewardEarned = randomPAD.toString();
+    // Fixed reward: 1 PAD per claim
+    rewardEarned = "1";
 
     await db
       .update(users)
@@ -691,8 +685,8 @@ export class DatabaseStorage implements IStorage {
       await this.addEarning({
         userId,
         amount: rewardEarned,
-        source: 'daily_streak',
-        description: `Daily streak claim`,
+        source: 'faucetpay',
+        description: `Faucetpay claim`,
       });
     }
 

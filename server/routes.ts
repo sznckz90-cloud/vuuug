@@ -3156,17 +3156,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Update user's USDT wallet address
-      await db
-        .update(users)
-        .set({
-          usdtWalletAddress: usdtAddress.trim(),
-          walletUpdatedAt: new Date(),
-          updatedAt: new Date()
+      // Check if user already has a USDT wallet - if yes, charge fee for change
+      const [currentUser] = await db
+        .select({ 
+          usdtWalletAddress: users.usdtWalletAddress,
+          balance: users.balance
         })
+        .from(users)
         .where(eq(users.id, userId));
       
-      console.log(`✅ USDT wallet set for user ${userId}`);
+      const isChangingWallet = currentUser?.usdtWalletAddress && currentUser.usdtWalletAddress.trim() !== '';
+      
+      if (isChangingWallet) {
+        // Get wallet change fee from admin settings
+        const walletChangeFee = await storage.getAppSetting('walletChangeFee', 5000);
+        const feeInPad = parseInt(walletChangeFee);
+        
+        const currentBalance = parseFloat(currentUser.balance || '0');
+        const currentBalancePad = currentBalance < 1 ? Math.floor(currentBalance * 10000000) : Math.floor(currentBalance);
+        
+        if (currentBalancePad < feeInPad) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient balance. You need ${feeInPad} PAD to change wallet. Current balance: ${currentBalancePad} PAD`
+          });
+        }
+        
+        // Deduct fee from balance (stored as PAD integer)
+        const newBalancePad = currentBalancePad - feeInPad;
+        
+        // Update wallet and deduct fee
+        await db
+          .update(users)
+          .set({
+            usdtWalletAddress: usdtAddress.trim(),
+            balance: newBalancePad.toString(),
+            walletUpdatedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        // Record transaction
+        await db.insert(transactions).values({
+          userId: userId,
+          amount: feeInPad.toString(),
+          type: 'deduction',
+          description: `USDT wallet change fee`,
+          createdAt: new Date()
+        });
+        
+        console.log(`✅ USDT wallet changed for user ${userId} - Fee: ${feeInPad} PAD deducted`);
+        
+        // Send real-time update
+        sendRealtimeUpdate(userId, {
+          type: 'balance_update',
+          balance: newBalancePad.toString()
+        });
+      } else {
+        // First time setup - no fee
+        await db
+          .update(users)
+          .set({
+            usdtWalletAddress: usdtAddress.trim(),
+            walletUpdatedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`✅ USDT wallet set for user ${userId} (first time - no fee)`);
+      }
       
       res.json({
         success: true,
@@ -3217,17 +3275,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Update user's Telegram Stars username
-      await db
-        .update(users)
-        .set({
-          telegramStarsUsername: telegramUsername,
-          walletUpdatedAt: new Date(),
-          updatedAt: new Date()
+      // Check if user already has a Telegram username - if yes, charge fee for change
+      const [currentUser] = await db
+        .select({ 
+          telegramStarsUsername: users.telegramStarsUsername,
+          balance: users.balance
         })
+        .from(users)
         .where(eq(users.id, userId));
       
-      console.log(`✅ Telegram Stars username set for user ${userId}: ${telegramUsername}`);
+      const isChangingUsername = currentUser?.telegramStarsUsername && currentUser.telegramStarsUsername.trim() !== '';
+      
+      if (isChangingUsername) {
+        // Get wallet change fee from admin settings
+        const walletChangeFee = await storage.getAppSetting('walletChangeFee', 5000);
+        const feeInPad = parseInt(walletChangeFee);
+        
+        const currentBalance = parseFloat(currentUser.balance || '0');
+        const currentBalancePad = currentBalance < 1 ? Math.floor(currentBalance * 10000000) : Math.floor(currentBalance);
+        
+        if (currentBalancePad < feeInPad) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient balance. You need ${feeInPad} PAD to change username. Current balance: ${currentBalancePad} PAD`
+          });
+        }
+        
+        // Deduct fee from balance (stored as PAD integer)
+        const newBalancePad = currentBalancePad - feeInPad;
+        
+        // Update username and deduct fee
+        await db
+          .update(users)
+          .set({
+            telegramStarsUsername: telegramUsername,
+            balance: newBalancePad.toString(),
+            walletUpdatedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        // Record transaction
+        await db.insert(transactions).values({
+          userId: userId,
+          amount: feeInPad.toString(),
+          type: 'deduction',
+          description: `Telegram Stars username change fee`,
+          createdAt: new Date()
+        });
+        
+        console.log(`✅ Telegram Stars username changed for user ${userId} - Fee: ${feeInPad} PAD deducted`);
+        
+        // Send real-time update
+        sendRealtimeUpdate(userId, {
+          type: 'balance_update',
+          balance: newBalancePad.toString()
+        });
+      } else {
+        // First time setup - no fee
+        await db
+          .update(users)
+          .set({
+            telegramStarsUsername: telegramUsername,
+            walletUpdatedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`✅ Telegram Stars username set for user ${userId}: ${telegramUsername} (first time - no fee)`);
+      }
       
       res.json({
         success: true,
@@ -4021,6 +4137,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const currentUsdBalance = parseFloat(user.usdBalance || '0');
         
+        // Get minimum withdrawal setting from admin settings
+        const [minWithdrawalSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'minimum_withdrawal_usd'))
+          .limit(1);
+        const minimumWithdrawalUSD = parseFloat(minWithdrawalSetting?.settingValue || '1.00');
+        
         // Calculate withdrawal amount and fee (ALL IN USD ONLY)
         let withdrawalAmount: number; // Always in USD
         let fee: number;
@@ -4065,7 +4189,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error('Insufficient balance for withdrawal');
           }
           
-          fee = currentUsdBalance * 0.05;
+          // Check minimum withdrawal requirement
+          if (currentUsdBalance < minimumWithdrawalUSD) {
+            throw new Error(`Minimum withdrawal is $${minimumWithdrawalUSD.toFixed(2)} USD. Your current balance is $${currentUsdBalance.toFixed(2)}`);
+          }
+          
+          // Different fees for different methods: TON = 5%, USD = 3%
+          const feePercent = method === 'TON' ? 0.05 : 0.03;
+          fee = currentUsdBalance * feePercent;
           withdrawalAmount = currentUsdBalance - fee; // USD amount after fee
           usdToDeduct = currentUsdBalance;
           
