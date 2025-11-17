@@ -12,6 +12,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
 import { Trophy } from "lucide-react";
 import { formatCompactNumber } from "@shared/constants";
+import { formatCurrency } from "@/lib/utils";
 import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
 
 interface User {
@@ -65,11 +66,20 @@ export default function Home() {
     );
   }
 
-  const balancePAD = parseFloat((user as User)?.balance || "0");
+  // Convert legacy TON format to PAD integers
+  const rawBalance = parseFloat((user as User)?.balance || "0");
+  const balancePAD = rawBalance < 1 ? Math.round(rawBalance * 10000000) : Math.round(rawBalance);
+  
   const balanceUSD = parseFloat((user as User)?.usdBalance || "0");
-  const todayEarnings = parseFloat(stats?.todayEarnings || "0");
-  const allTimeEarnings = parseFloat((user as User)?.totalEarned || "0");
-  const referralEarnings = parseFloat(stats?.referralEarnings || "0");
+  
+  const rawTodayEarnings = parseFloat(stats?.todayEarnings || "0");
+  const todayEarnings = rawTodayEarnings < 1 ? Math.round(rawTodayEarnings * 10000000) : Math.round(rawTodayEarnings);
+  
+  const rawAllTimeEarnings = parseFloat((user as User)?.totalEarned || "0");
+  const allTimeEarnings = rawAllTimeEarnings < 1 ? Math.round(rawAllTimeEarnings * 10000000) : Math.round(rawAllTimeEarnings);
+  
+  const rawReferralEarnings = parseFloat(stats?.referralEarnings || "0");
+  const referralEarnings = rawReferralEarnings < 1 ? Math.round(rawReferralEarnings * 10000000) : Math.round(rawReferralEarnings);
   
   const referralCode = (user as User)?.referralCode || "000000";
   const formattedUserId = referralCode.slice(-6).toUpperCase();
@@ -133,7 +143,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="text-primary text-sm font-bold flex-shrink-0">
-                {topUser ? formatCompactNumber(parseFloat(topUser.totalEarnings)) : '0'} PAD
+                {topUser ? formatCurrency(topUser.totalEarnings, true) : '0 PAD'}
               </div>
             </div>
           </CardContent>

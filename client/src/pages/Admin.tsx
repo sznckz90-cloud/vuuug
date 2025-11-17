@@ -13,7 +13,6 @@ import Layout from "@/components/Layout";
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { formatCurrency } from "@/lib/utils";
-import { PAD_TO_TON } from "@shared/constants";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Crown } from "lucide-react";
 
@@ -511,8 +510,8 @@ function PromoCreatorSection() {
       return;
     }
 
-    // For PAD rewards, convert to TON; for PDZ, send as-is
-    const finalAmount = formData.rewardType === 'PAD' ? rewardAmount / PAD_TO_TON : rewardAmount;
+    // Reward amount is already in PAD or PDZ, use as-is
+    const finalAmount = rewardAmount;
 
     setIsCreating(true);
     try {

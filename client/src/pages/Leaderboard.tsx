@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, Gem, UserPlus } from "lucide-react";
 import { formatCompactNumber } from "@shared/constants";
+import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
 import type { User } from "@shared/schema";
 
@@ -166,7 +167,7 @@ export default function Leaderboard() {
                             </div>
                           </div>
                           <div className="text-primary text-sm font-bold flex-shrink-0">
-                            {formatCompactNumber(parseFloat(earner.totalEarnings))} PAD
+                            {formatCurrency(earner.totalEarnings, true)}
                           </div>
                         </div>
                       </CardContent>
@@ -276,7 +277,7 @@ export default function Leaderboard() {
                       </div>
                     </div>
                     <div className="text-primary text-xs font-bold flex-shrink-0">
-                      {formatCompactNumber(parseFloat(leaderboardData.userEarnerRank.totalEarnings))} PAD
+                      {formatCurrency(leaderboardData.userEarnerRank.totalEarnings, true)}
                     </div>
                   </div>
                 ) : (
