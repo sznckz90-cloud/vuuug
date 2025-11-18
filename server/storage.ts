@@ -1665,16 +1665,58 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      // No refund needed - balance was never deducted (it's only deducted on approval)
+      // CRITICAL FIX: Refund the EXACT amount that was deducted
+      // Balance WAS deducted when withdrawal was created (see routes.ts line 4211-4217)
+      const withdrawalDetails = withdrawal.details as any;
       const withdrawalAmount = parseFloat(withdrawal.amount);
-      console.log(`❌ Withdrawal #${withdrawalId} rejected - no refund needed (balance was never deducted)`);
-      console.log(`💡 User balance remains unchanged at: ${withdrawal.amount} TON will stay available`);
+      
+      // Calculate exact refund amount
+      let refundAmount: number;
+      
+      if (withdrawalDetails?.totalDeducted) {
+        // New withdrawals: use the stored exact deducted amount
+        refundAmount = parseFloat(withdrawalDetails.totalDeducted);
+        console.log(`✅ Using stored totalDeducted: $${refundAmount}`);
+      } else {
+        // Legacy withdrawals: calculate correct refund from withdrawal data
+        console.warn(`⚠️ Legacy withdrawal without totalDeducted, calculating refund from withdrawal data`);
+        
+        if (withdrawalDetails?.method === 'STARS' && withdrawalDetails?.starPackage) {
+          // For STARS, reconstruct the total cost including fee
+          const starPackages = [
+            { stars: 15, usdCost: 0.30 },
+            { stars: 25, usdCost: 0.50 },
+            { stars: 50, usdCost: 1.00 },
+            { stars: 100, usdCost: 2.00 }
+          ];
+          const selectedPkg = starPackages.find(p => p.stars === withdrawalDetails.starPackage);
+          refundAmount = selectedPkg ? selectedPkg.usdCost * 1.05 : withdrawalAmount;
+        } else {
+          // For TON/USD, the withdrawal.amount is net (after fee)
+          // We need to add back the fee to get the original deducted amount
+          const feePercent = withdrawalDetails?.method === 'TON' ? 0.05 : 0.03;
+          refundAmount = withdrawalAmount / (1 - feePercent);
+        }
+        console.log(`📊 Calculated legacy refund: $${refundAmount} (from withdrawal amount: $${withdrawalAmount})`);
+      }
+
+      // Refund the EXACT amount back to user's USD balance using numeric addition
+      const refundValue = parseFloat(refundAmount.toFixed(10));
+      await db
+        .update(users)
+        .set({ 
+          usdBalance: sql`${users.usdBalance} + ${refundValue}`,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, withdrawal.userId));
+
+      console.log(`💰 Withdrawal #${withdrawalId} rejected - refunded exactly $${refundValue} USD to user balance`);
 
       // Update withdrawal status to rejected with rejection reason
       const updateData: any = { 
         status: 'rejected', 
-        refunded: false,
-        deducted: false,
+        refunded: true,
+        deducted: true,
         updatedAt: new Date() 
       };
       if (rejectionReason) {
@@ -1684,9 +1726,9 @@ export class DatabaseStorage implements IStorage {
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} rejected - balance remains untouched`);
+      console.log(`✅ Withdrawal #${withdrawalId} rejected - $${refundAmount.toFixed(2)} USD refunded to user`);
       
-      return { success: true, message: 'Withdrawal rejected', withdrawal: updatedWithdrawal };
+      return { success: true, message: 'Withdrawal rejected and amount refunded', withdrawal: updatedWithdrawal };
     } catch (error) {
       console.error('Error rejecting withdrawal:', error);
       return { success: false, message: 'Error processing withdrawal rejection' };

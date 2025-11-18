@@ -4218,6 +4218,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`📝 Creating withdrawal request for $${withdrawalAmount.toFixed(2)} USD via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
 
+        // Store the deducted amount in details for potential refund on rejection
+        withdrawalDetails.totalDeducted = usdToDeduct.toFixed(10);
+        withdrawalDetails.fee = fee.toFixed(10);
+
         // Create withdrawal request - amount is ALWAYS in USD
         const withdrawalData: any = {
           userId,
@@ -4321,13 +4325,23 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to create withdrawal request';
       
-      // Return 400 for validation errors, 500 for others
-      if (errorMessage === 'Insufficient TON balance' || 
-          errorMessage === 'User not found' ||
-          errorMessage === 'No TON wallet address found. Please set up your TON wallet address first.' ||
-          errorMessage === 'You need to invite at least 3 friends to unlock withdrawals.' ||
-          errorMessage === 'This TON wallet address is already in use by another user. Please use a unique TON wallet address.' ||
-          errorMessage === 'Cannot create new request until current one is processed') {
+      // Return 400 for validation errors (user-facing errors), 500 for system errors
+      // Use substring matching to catch all variations of user-facing errors
+      const isValidationError = 
+        errorMessage.includes('Insufficient') || 
+        errorMessage.includes('balance') ||
+        errorMessage.includes('Minimum withdrawal') ||
+        errorMessage.includes('User not found') ||
+        errorMessage.includes('wallet address') ||
+        errorMessage.includes('invite') ||
+        errorMessage.includes('friends') ||
+        errorMessage.includes('already in use') ||
+        errorMessage.includes('Cannot create new request') ||
+        errorMessage.includes('Star package') ||
+        errorMessage.includes('Invalid') ||
+        errorMessage.includes('banned');
+      
+      if (isValidationError) {
         return res.status(400).json({ 
           success: false, 
           message: errorMessage
@@ -4336,7 +4350,7 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       
       res.status(500).json({ 
         success: false, 
-        message: 'Failed to create withdrawal request' 
+        message: errorMessage
       });
     }
   });
