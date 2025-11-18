@@ -6,6 +6,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { Ticket } from "lucide-react";
 
+declare global {
+  interface Window {
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+  }
+}
+
 export default function PromoCodeInput() {
   const [promoCode, setPromoCode] = useState("");
   const queryClient = useQueryClient();
@@ -36,10 +42,19 @@ export default function PromoCodeInput() {
     },
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!promoCode.trim()) {
       showNotification("Please enter a promo code", "error");
       return;
+    }
+
+    // Show ad before redeeming promo code
+    if (typeof window.show_10013974 === 'function') {
+      try {
+        await window.show_10013974('pop');
+      } catch (error) {
+        console.error('Ad error:', error);
+      }
     }
 
     redeemPromoMutation.mutate(promoCode.trim().toUpperCase());

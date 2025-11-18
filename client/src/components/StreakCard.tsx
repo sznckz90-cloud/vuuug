@@ -6,6 +6,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { Flame, Loader, Clock, CheckCircle2 } from "lucide-react";
 
+declare global {
+  interface Window {
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+  }
+}
+
 interface StreakCardProps {
   user: any;
 }
@@ -115,9 +121,24 @@ export default function StreakCard({ user }: StreakCardProps) {
     setIsClaiming(true);
     
     try {
-      claimStreakMutation.mutate();
+      // Show Rewarded Popup ad for streak claim
+      if (typeof window.show_10013974 === 'function') {
+        window.show_10013974('pop')
+          .then(() => {
+            // Ad completed - claim streak
+            claimStreakMutation.mutate();
+          })
+          .catch(() => {
+            // Ad error or closed - still allow claim
+            claimStreakMutation.mutate();
+          });
+      } else {
+        // Ad provider not available - claim anyway
+        claimStreakMutation.mutate();
+      }
     } catch (error) {
       console.error('Streak claim failed:', error);
+      claimStreakMutation.mutate();
     } finally {
       setTimeout(() => setIsClaiming(false), 1000);
     }
@@ -136,45 +157,38 @@ export default function StreakCard({ user }: StreakCardProps) {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-white flex items-center gap-1">
-                Faucetpay
+                Faucetpay se Claim Bonus
                 <span className="text-xs text-[#4cd3ff] font-bold">+1 PAD</span>
               </h3>
               <p className="text-xs text-muted-foreground">
-                {hasClaimed ? "Claimed!" : canClaim ? "Claim your reward!" : "Next claim in"}
+                {hasClaimed ? `Next claim: ${timeUntilNextClaim}` : canClaim ? "Claim your reward!" : "Next claim in"}
               </p>
             </div>
           </div>
           <div>
-            {hasClaimed ? (
-              <div className="bg-green-600/20 border border-green-500/30 text-green-400 px-6 py-2 rounded-md flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="text-sm font-semibold">Claimed</span>
-              </div>
-            ) : (
-              <Button
-                onClick={handleClaimStreak}
-                disabled={isClaiming || !canClaim}
-                className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed px-6"
-                size="sm"
-              >
-                {isClaiming ? (
-                  <div className="flex items-center gap-2">
-                    <Loader className="w-4 h-4 animate-spin" />
-                    <span>Claiming...</span>
-                  </div>
-                ) : canClaim ? (
-                  <div className="flex items-center gap-2">
-                    <Flame className="w-4 h-4" />
-                    <span>Claim</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm font-mono">{timeUntilNextClaim}</span>
-                  </div>
-                )}
-              </Button>
-            )}
+            <Button
+              onClick={handleClaimStreak}
+              disabled={isClaiming || !canClaim}
+              className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed px-6"
+              size="sm"
+            >
+              {isClaiming ? (
+                <div className="flex items-center gap-2">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>Claiming...</span>
+                </div>
+              ) : canClaim ? (
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4" />
+                  <span>Claim</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm font-mono">{timeUntilNextClaim}</span>
+                </div>
+              )}
+            </Button>
           </div>
         </div>
       </CardContent>

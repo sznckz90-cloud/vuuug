@@ -6,6 +6,12 @@ import { showNotification } from "@/components/AppNotification";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { TonCoinIcon } from "@/components/TonCoinIcon";
 
+declare global {
+  interface Window {
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+  }
+}
+
 interface WalletSectionProps {
   padBalance: number;
   usdBalance: number;
@@ -58,12 +64,21 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
     },
   });
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     const minimumConvertPAD = appSettings?.minimumConvertPAD || 10000;
     
     if (padBalance < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
       return;
+    }
+
+    // Show ad before conversion
+    if (typeof window.show_10013974 === 'function') {
+      try {
+        await window.show_10013974('pop');
+      } catch (error) {
+        console.error('Ad error:', error);
+      }
     }
 
     convertMutation.mutate(padBalance);

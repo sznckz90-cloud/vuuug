@@ -27,14 +27,10 @@ import {
   Banknote
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
-import CwalletSetupDialog from "@/components/CwalletSetupDialog";
-import WithdrawDialog from "@/components/WithdrawDialog";
 
 export default function HamburgerMenu() {
   const { isAdmin } = useAdmin();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
-  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
@@ -52,16 +48,6 @@ export default function HamburgerMenu() {
   const firstName = user?.firstName || user?.username || 'User';
   const username = user?.username || '';
   const uid = user?.referralCode || '';
-
-  const handleWalletClick = () => {
-    setMenuOpen(false);
-    setWalletDialogOpen(true);
-  };
-
-  const handleWithdrawClick = () => {
-    setMenuOpen(false);
-    setWithdrawDialogOpen(true);
-  };
 
   const handleExternalLink = (url: string) => {
     window.open(url, '_blank');
@@ -129,23 +115,27 @@ export default function HamburgerMenu() {
           </SheetHeader>
           
           <div className="flex flex-col gap-1.5">
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={handleWalletClick}
-            >
-              <Sparkles className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Wallet Set-up</span>
-            </Button>
+            <Link href="/wallet-setup">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
+                onClick={() => setMenuOpen(false)}
+              >
+                <Sparkles className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                <span className="text-sm">Wallet Set-up</span>
+              </Button>
+            </Link>
 
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={handleWithdrawClick}
-            >
-              <Download className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Withdraw</span>
-            </Button>
+            <Link href="/withdraw">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
+                onClick={() => setMenuOpen(false)}
+              >
+                <Download className="w-5 h-5 mr-3 text-[#4cd3ff]" />
+                <span className="text-sm">Withdraw</span>
+              </Button>
+            </Link>
 
             <Link href="/affiliates">
               <Button
@@ -155,17 +145,6 @@ export default function HamburgerMenu() {
               >
                 <Users className="w-5 h-5 mr-3 text-[#4cd3ff]" />
                 <span className="text-sm">Affiliate Center</span>
-              </Button>
-            </Link>
-
-            <Link href="/leaderboard">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Crown className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">Leaderboard</span>
               </Button>
             </Link>
 
@@ -213,16 +192,6 @@ export default function HamburgerMenu() {
           </div>
         </SheetContent>
       </Sheet>
-
-      <CwalletSetupDialog 
-        open={walletDialogOpen}
-        onOpenChange={setWalletDialogOpen}
-      />
-
-      <WithdrawDialog 
-        open={withdrawDialogOpen}
-        onOpenChange={setWithdrawDialogOpen}
-      />
     </>
   );
 }
