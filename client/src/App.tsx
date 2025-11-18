@@ -18,6 +18,8 @@ const Tasks = lazy(() => import("@/pages/Tasks"));
 const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const Leaderboard = lazy(() => import("@/pages/Leaderboard"));
 const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
+const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
+const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -38,6 +40,8 @@ function Router() {
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/wallet-activity" component={WalletActivity} />
+        <Route path="/wallet-setup" component={WalletSetup} />
+        <Route path="/withdraw" component={Withdraw} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
