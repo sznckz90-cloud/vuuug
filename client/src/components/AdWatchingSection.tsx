@@ -8,7 +8,7 @@ import { Play, Clock } from "lucide-react";
 
 declare global {
   interface Window {
-    show_9368336: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
   }
 }
 
@@ -78,42 +78,38 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     },
   });
 
-  // Initialize auto-popup ads with 30-second cooldown
+  // Initialize automatic In-App Interstitial ads
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    const startAutoAds = () => {
-      interval = setInterval(() => {
-        if (Date.now() - lastAdWatchTime < 30000) return;
-        
-        if (typeof window.show_9368336 === 'function') {
-          try {
-            window.show_9368336();
-          } catch {}
-        }
-      }, 30000);
-    };
-    
-    const timer = setTimeout(startAutoAds, 30000);
-    
-    return () => {
-      clearTimeout(timer);
-      if (interval) clearInterval(interval);
-    };
-  }, [lastAdWatchTime]);
+    if (typeof window.show_10013974 === 'function') {
+      try {
+        window.show_10013974({
+          type: 'inApp',
+          inAppSettings: {
+            frequency: 2,
+            capping: 0.1,
+            interval: 30,
+            timeout: 5,
+            everyPage: false
+          }
+        });
+      } catch (error) {
+        console.error('Failed to initialize in-app ads:', error);
+      }
+    }
+  }, []);
 
   const handleWatchAd = async () => {
     if (cooldownRemaining > 0) return;
     
     try {
-      // Optimized: Credit reward instantly when ad completes
-      if (typeof window.show_9368336 === 'function') {
+      // Rewarded Interstitial for ad watch
+      if (typeof window.show_10013974 === 'function') {
         // Record ad start time for anti-cheat verification
         const startTime = Date.now();
         setAdStartTime(startTime);
         
         // Start ad display with immediate reward on completion
-        window.show_9368336()
+        window.show_10013974()
           .then(() => {
             // Check if user watched for at least 3 seconds (anti-cheat)
             const watchDuration = Date.now() - startTime;
