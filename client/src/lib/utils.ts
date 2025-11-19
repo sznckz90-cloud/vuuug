@@ -70,3 +70,36 @@ export function formatTON(value: string | number, includeSymbol: boolean = true)
   const symbol = includeSymbol ? ' TON' : '';
   return `${numValue.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 8 })}${symbol}`;
 }
+
+/**
+ * Shorten wallet address for display
+ * Examples: 
+ * - UQCW9LwFkPRsL...PvJ (TON addresses)
+ * - 0x1234...5678 (USDT addresses)
+ */
+export function shortenAddress(address: string, startChars: number = 13, endChars: number = 3): string {
+  if (!address || typeof address !== 'string') {
+    return '';
+  }
+  if (address.length <= startChars + endChars) {
+    return address;
+  }
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+}
+
+/**
+ * Canonicalize Telegram username - strips all leading @ symbols and whitespace
+ * Returns clean username for storage and API submission
+ * Examples: "@@username" -> "username", "@user" -> "user", "user" -> "user"
+ */
+export function canonicalizeTelegramUsername(value: string): string {
+  return value?.trim().replace(/^@+/, '').replace(/\s+/g, '') ?? '';
+}
+
+/**
+ * Format Telegram username for display - adds single @ prefix
+ * Examples: "username" -> "@username", "" -> ""
+ */
+export function formatTelegramUsername(value: string): string {
+  return value ? `@${value}` : '';
+}
