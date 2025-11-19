@@ -5,6 +5,26 @@ CashWatch is a Telegram-based earning platform where users can earn PAD currency
 
 ## Recent Changes
 
+### November 18, 2025 - UI/UX Updates
+
+**Navigation & Icon Improvements**:
+- Bottom navigation updated: Replaced "Leaderboard" with "Withdraw" button (`client/src/components/Layout.tsx`)
+- **New Icons Applied**:
+  - ✨ **Sparkles icon** for "Create Task" (replaced PlusCircle) - more creative and attractive
+  - 💲 **CircleDollarSign icon** for "Withdraw" (replaced Download) - unique money-related icon
+- Icons updated in: Layout.tsx, Withdraw.tsx, CreateTask.tsx
+
+**Withdraw Page Toggle System**:
+- Replaced Radix Tabs with CreateTask-style grid toggle buttons (`client/src/pages/Withdraw.tsx`)
+- Two-button toggle: "Withdraw" and "Wallet Setup" sections
+- Matching gradient styling: `from-cyan-500/20 to-blue-500/20` with shadow effects
+- Same visual style as CreateTask's "Add Task" / "My Task" toggle
+
+**Wallet Setup Integration**:
+- Wallet Setup section integrated into Withdraw page (accessible via toggle)
+- Wallet type selector with icons: Gem (TON), DollarSign (USDT), Star (Telegram Stars)
+- Consistent UI with popup dialog layout
+
 ### November 17, 2025 - Latest Updates
 
 **Wallet Change Fee Bug Fixed**:
