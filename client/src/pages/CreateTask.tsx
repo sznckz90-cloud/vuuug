@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   CheckCircle, 
-  PlusCircle, 
+  Sparkles, 
   FileText, 
   Clock, 
   TrendingUp, 
@@ -327,7 +327,7 @@ export default function CreateTask() {
       <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <PlusCircle className="w-6 h-6 text-primary" />
+            <Sparkles className="w-6 h-6 text-primary" />
             Create Task
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -517,7 +517,7 @@ export default function CreateTask() {
                   className="btn-primary"
                   onClick={() => setActiveTab("add-task")}
                 >
-                  <PlusCircle className="w-4 h-4 mr-2" />
+                  <Sparkles className="w-4 h-4 mr-2" />
                   Create Your First Task
                 </Button>
               </div>
