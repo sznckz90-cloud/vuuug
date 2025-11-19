@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, CheckSquare, Users, ClipboardList, Zap, Crown } from "lucide-react";
+import { Home, CheckSquare, Users, ClipboardList, Sparkles, CircleDollarSign } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
@@ -24,9 +24,9 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/tasks", icon: ClipboardList, label: "Tasks" },
-    { href: "/create-task", icon: Zap, label: "Create" },
+    { href: "/create-task", icon: Sparkles, label: "Create" },
     { href: "/", icon: Home, label: "Home" },
-    { href: "/leaderboard", icon: Crown, label: "Leaderboard" },
+    { href: "/withdraw", icon: CircleDollarSign, label: "Withdraw" },
     { href: "/affiliates", icon: Users, label: "Affiliates" },
   ];
 
