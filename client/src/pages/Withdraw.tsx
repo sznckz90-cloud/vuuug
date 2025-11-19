@@ -11,6 +11,7 @@ import { showNotification } from '@/components/AppNotification';
 import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign } from 'lucide-react';
 import { PAYMENT_SYSTEMS, STAR_PACKAGES } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
+import { shortenAddress, canonicalizeTelegramUsername, formatTelegramUsername } from '@/lib/utils';
 
 interface User {
   id: string;
@@ -96,7 +97,7 @@ export default function Withdraw() {
     if (user) {
       if (user.cwalletId) setTonWalletId(user.cwalletId);
       if (user.usdtWalletAddress) setUsdtWalletAddress(user.usdtWalletAddress);
-      if (user.telegramStarsUsername) setTelegramUsername(user.telegramStarsUsername);
+      setTelegramUsername(canonicalizeTelegramUsername(user?.telegramStarsUsername ?? ''));
     }
   }, [user]);
 
@@ -189,8 +190,9 @@ export default function Withdraw() {
   // Telegram Stars mutations
   const saveTelegramStarsMutation = useMutation({
     mutationFn: async () => {
+      const payloadUsername = canonicalizeTelegramUsername(telegramUsername);
       const response = await apiRequest('POST', '/api/wallet/telegram-stars', {
-        telegramUsername: telegramUsername.trim()
+        telegramUsername: payloadUsername
       });
       return response.json();
     },
@@ -206,8 +208,9 @@ export default function Withdraw() {
 
   const changeTelegramStarsMutation = useMutation({
     mutationFn: async () => {
+      const payloadUsername = canonicalizeTelegramUsername(newTelegramUsername);
       const response = await apiRequest('POST', '/api/wallet/telegram-stars', {
-        telegramUsername: newTelegramUsername.trim()
+        telegramUsername: payloadUsername
       });
       return response.json();
     },
@@ -270,7 +273,8 @@ export default function Withdraw() {
       const errorMessage = error.message || "Failed to submit withdrawal request";
       
       if (errorMessage.toLowerCase().includes("minimum") || errorMessage === "minimum withdrawal") {
-        showNotification("Minimum withdrawal amount not met. Please convert more PAD to USD.", "error");
+        const minAmount = selectedPaymentSystem?.minWithdrawal || 1;
+        showNotification(`minimum $${minAmount}`, "error");
       } else if (errorMessage.toLowerCase().includes("pending")) {
         showNotification("You already have a pending withdrawal. Please wait for it to be processed.", "error");
       } else if (errorMessage.toLowerCase().includes("insufficient")) {
@@ -330,7 +334,8 @@ export default function Withdraw() {
   };
 
   const handleSaveTelegramStars = () => {
-    if (!telegramUsername.trim()) {
+    const payloadUsername = canonicalizeTelegramUsername(telegramUsername);
+    if (!payloadUsername) {
       showNotification("Please enter your Telegram username", "error");
       return;
     }
@@ -338,7 +343,8 @@ export default function Withdraw() {
   };
 
   const handleChangeTelegramStars = () => {
-    if (!newTelegramUsername.trim()) {
+    const payloadUsername = canonicalizeTelegramUsername(newTelegramUsername);
+    if (!payloadUsername) {
       showNotification("Please enter a new Telegram username", "error");
       return;
     }
@@ -434,8 +440,7 @@ export default function Withdraw() {
 
         {/* Withdraw Section */}
         {activeTab === 'withdraw' && (
-          <Card className="minimal-card">
-            <CardContent className="pt-6 space-y-4">
+          <div className="space-y-4">
               {friendsInvited < MINIMUM_FRIENDS_REQUIRED && (
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                   <p className="text-xs text-red-500 font-medium">
@@ -501,13 +506,14 @@ export default function Withdraw() {
                         <button
                           key={pkg.stars}
                           onClick={() => setSelectedStarPackage(pkg.stars)}
-                          className={`flex-1 p-2 rounded border text-sm ${
+                          className={`flex-1 p-2 rounded border text-sm flex items-center justify-center gap-1 ${
                             selectedStarPackage === pkg.stars
                               ? 'border-[#4cd3ff] bg-[#4cd3ff]/20 text-white'
                               : 'border-[#3a3a3a] text-[#aaa] hover:border-[#4cd3ff]/50'
                           }`}
                         >
-                          {pkg.stars}⭐
+                          {pkg.stars}
+                          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
                         </button>
                       ))}
                     </div>
@@ -544,17 +550,19 @@ export default function Withdraw() {
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Processing...
                     </>
-                  ) : selectedMethod === 'STARS' && selectedStarPackage ? `Withdraw ${selectedStarPackage} ⭐` : `Withdraw via ${selectedMethod}`}
+                  ) : selectedMethod === 'STARS' && selectedStarPackage ? (
+                    <span className="flex items-center gap-1">
+                      Withdraw {selectedStarPackage} <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    </span>
+                  ) : `Withdraw via ${selectedMethod}`}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         )}
 
-        {/* Wallet Setup Section - Popup Dialog Style */}
+        {/* Wallet Setup Section */}
         {activeTab === 'wallet-setup' && (
-          <Card className="minimal-card border border-white/10 rounded-2xl">
-            <CardContent className="space-y-4 pt-6 pb-6">
+          <div className="space-y-4">
               {/* Wallet Type Selector - List View */}
               <div className="space-y-2">
                 <label className="text-xs text-[#c0c0c0]">Select Wallet Type</label>
@@ -574,7 +582,7 @@ export default function Withdraw() {
                     </div>
                     <div className="flex-1 flex items-center gap-2">
                       <Gem className="w-5 h-5 text-[#4cd3ff]" />
-                      <span className="text-white">{isTonWalletSet ? tonWalletId : 'TON Wallet'}</span>
+                      <span className="text-white truncate">{isTonWalletSet ? shortenAddress(tonWalletId) : 'TON Wallet'}</span>
                     </div>
                   </button>
                   <button
@@ -592,7 +600,7 @@ export default function Withdraw() {
                     </div>
                     <div className="flex-1 flex items-center gap-2">
                       <DollarSign className="w-5 h-5 text-green-500" />
-                      <span className="text-white">{isUsdtWalletSet ? usdtWalletAddress : 'USDT (Optimism)'}</span>
+                      <span className="text-white truncate">{isUsdtWalletSet ? shortenAddress(usdtWalletAddress) : 'USDT (Optimism)'}</span>
                     </div>
                   </button>
                   <button
@@ -610,7 +618,7 @@ export default function Withdraw() {
                     </div>
                     <div className="flex-1 flex items-center gap-2">
                       <Star className="w-5 h-5 text-yellow-500" />
-                      <span className="text-white">{isTelegramStarsSet ? `@${telegramUsername}` : 'Telegram Stars'}</span>
+                      <span className="text-white truncate">{isTelegramStarsSet ? formatTelegramUsername(telegramUsername) : 'Telegram Stars'}</span>
                     </div>
                   </button>
                 </div>
@@ -782,7 +790,7 @@ export default function Withdraw() {
                         <label className="text-xs text-[#c0c0c0]">Current Username</label>
                         <Input
                           type="text"
-                          value={telegramUsername}
+                          value={formatTelegramUsername(telegramUsername)}
                           disabled={true}
                           className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
                         />
@@ -792,8 +800,8 @@ export default function Withdraw() {
                         <Input
                           type="text"
                           placeholder="Your Telegram username (e.g., szxzyz)"
-                          value={newTelegramUsername}
-                          onChange={(e) => setNewTelegramUsername(e.target.value)}
+                          value={formatTelegramUsername(newTelegramUsername)}
+                          onChange={(e) => setNewTelegramUsername(canonicalizeTelegramUsername(e.target.value))}
                           className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
                         />
                       </div>
@@ -813,8 +821,8 @@ export default function Withdraw() {
                         <Input
                           type="text"
                           placeholder="Your Telegram username (e.g., szxzyz)"
-                          value={telegramUsername}
-                          onChange={(e) => setTelegramUsername(e.target.value)}
+                          value={formatTelegramUsername(telegramUsername)}
+                          onChange={(e) => setTelegramUsername(canonicalizeTelegramUsername(e.target.value))}
                           className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
                         />
                         <p className="text-xs text-[#c0c0c0] flex items-center gap-1">
@@ -939,7 +947,10 @@ export default function Withdraw() {
                   <>
                     <Button
                       variant="outline"
-                      onClick={() => setIsChangingStarsUsername(true)}
+                      onClick={() => {
+                        setNewTelegramUsername(telegramUsername);
+                        setIsChangingStarsUsername(true);
+                      }}
                       className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
                     >
                       Change Username
@@ -990,8 +1001,7 @@ export default function Withdraw() {
                   </>
                 )}
               </div>
-            </CardContent>
-          </Card>
+          </div>
         )}
       </main>
     </Layout>
