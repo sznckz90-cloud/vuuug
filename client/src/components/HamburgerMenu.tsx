@@ -115,50 +115,6 @@ export default function HamburgerMenu() {
           </SheetHeader>
           
           <div className="flex flex-col gap-1.5">
-            <Link href="/wallet-setup">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Sparkles className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">Wallet Set-up</span>
-              </Button>
-            </Link>
-
-            <Link href="/withdraw">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Download className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">Withdraw</span>
-              </Button>
-            </Link>
-
-            <Link href="/affiliates">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Users className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">Affiliate Center</span>
-              </Button>
-            </Link>
-
-            <Link href="/create-task">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Zap className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                <span className="text-sm">Create Task</span>
-              </Button>
-            </Link>
-
             <Separator className="my-2 bg-white/10" />
             
             <div className="px-3 py-1">

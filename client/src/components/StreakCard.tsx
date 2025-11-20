@@ -156,36 +156,31 @@ export default function StreakCard({ user }: StreakCardProps) {
               <Flame className="w-6 h-6 text-[#4cd3ff]" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-white flex items-center gap-1">
-                Faucetpay se Claim Bonus
-                <span className="text-xs text-[#4cd3ff] font-bold">+1 PAD</span>
+              <h3 className="text-sm font-semibold text-white">
+                claim bonus
               </h3>
-              <p className="text-xs text-muted-foreground">
-                {hasClaimed ? `Next claim: ${timeUntilNextClaim}` : canClaim ? "Claim your reward!" : "Next claim in"}
-              </p>
             </div>
           </div>
           <div>
             <Button
               onClick={handleClaimStreak}
               disabled={isClaiming || !canClaim}
-              className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed px-6"
+              className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed w-[120px]"
               size="sm"
             >
               {isClaiming ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <Loader className="w-4 h-4 animate-spin" />
                   <span>Claiming...</span>
                 </div>
               ) : canClaim ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <Flame className="w-4 h-4" />
                   <span>Claim</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm font-mono">{timeUntilNextClaim}</span>
+                <div className="flex items-center justify-center">
+                  <span className="text-sm font-mono tabular-nums">{timeUntilNextClaim}</span>
                 </div>
               )}
             </Button>
