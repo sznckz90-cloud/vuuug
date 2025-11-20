@@ -30,6 +30,33 @@ interface AdminStats {
   activePromos: number;
 }
 
+// Compact Pill Stat Component
+function StatPill({ icon, label, value, color }: {
+  icon: string;
+  label: string;
+  value: string;
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'cyan' | 'indigo';
+}) {
+  const colorClasses = {
+    blue: 'bg-blue-50 text-blue-600 border-blue-200',
+    green: 'bg-green-50 text-green-600 border-green-200',
+    purple: 'bg-purple-50 text-purple-600 border-purple-200',
+    orange: 'bg-orange-50 text-orange-600 border-orange-200',
+    cyan: 'bg-cyan-50 text-cyan-600 border-cyan-200',
+    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200'
+  };
+  
+  return (
+    <div className={`${colorClasses[color]} border rounded-lg p-2.5 flex items-center gap-2`}>
+      <i className={`fas fa-${icon} text-sm`}></i>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] opacity-70 truncate">{label}</p>
+        <p className="text-sm font-bold truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
   const { isAdmin, isLoading: adminLoading } = useAdmin();
@@ -94,11 +121,11 @@ export default function AdminPage() {
 
   return (
     <Layout>
-      <main className="max-w-7xl mx-auto px-4 pb-20 pt-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2 truncate">
-            <Crown className="w-6 h-6 text-orange-600" />
+      <main className="max-w-7xl mx-auto px-4 pb-20 pt-3">
+        {/* Slim Header */}
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <Crown className="w-5 h-5 text-orange-600" />
             Admin Dashboard
           </h1>
           <Button 
@@ -106,173 +133,100 @@ export default function AdminPage() {
             variant="outline"
             onClick={() => {
               queryClient.invalidateQueries();
-              toast({ title: "✅ Data refreshed successfully" });
+              toast({ title: "✅ Refreshed" });
             }}
-            className="h-9 px-4"
+            className="h-8 px-3 text-xs"
           >
-            <i className="fas fa-sync-alt mr-2"></i>
-            Refresh
+            <i className="fas fa-sync-alt"></i>
           </Button>
         </div>
 
-        {/* App Dashboard - Vertical Layout */}
-        <div className="space-y-4 mb-6">
-          <h2 className="text-lg font-semibold text-foreground">App Dashboard</h2>
-          
-          {/* User Stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard
-              icon="users"
-              label="Total Users"
-              value={stats?.totalUsers?.toLocaleString() || '0'}
-              iconColor="text-blue-600"
-              bgColor="bg-blue-50"
-            />
-            <StatCard
-              icon="user-check"
-              label="Active Users"
-              value={stats?.dailyActiveUsers?.toLocaleString() || '0'}
-              iconColor="text-green-600"
-              bgColor="bg-green-50"
-            />
-          </div>
-
-          {/* Ad Stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard
-              icon="play-circle"
-              label="Total Ads"
-              value={stats?.totalAdsWatched?.toLocaleString() || '0'}
-              iconColor="text-purple-600"
-              bgColor="bg-purple-50"
-            />
-            <StatCard
-              icon="calendar-day"
-              label="Today Ads"
-              value={stats?.todayAdsWatched?.toLocaleString() || '0'}
-              iconColor="text-orange-600"
-              bgColor="bg-orange-50"
-            />
-          </div>
-
-          {/* Balance Stats */}
-          <div className="grid grid-cols-1 gap-3">
-            <StatCard
-              icon="gem"
-              label="Total PAD"
-              value={formatCurrency(stats?.totalEarnings || '0')}
-              iconColor="text-cyan-600"
-              bgColor="bg-cyan-50"
-            />
-            <StatCard
-              icon="wallet"
-              label="TON Withdrawn"
-              value={formatCurrency(stats?.tonWithdrawn || '0')}
-              iconColor="text-indigo-600"
-              bgColor="bg-indigo-50"
-            />
-          </div>
-
-          {/* Withdrawal Requests */}
-          <h3 className="text-sm font-medium text-muted-foreground mt-4">Total Requests</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              icon="clock"
-              label="Pending"
-              value={stats?.pendingWithdrawals?.toString() || '0'}
-              iconColor="text-yellow-600"
-              bgColor="bg-yellow-50"
-            />
-            <StatCard
-              icon="check-circle"
-              label="Approved"
-              value={stats?.successfulWithdrawals?.toString() || '0'}
-              iconColor="text-green-600"
-              bgColor="bg-green-50"
-            />
-            <StatCard
-              icon="times-circle"
-              label="Rejected"
-              value={stats?.rejectedWithdrawals?.toString() || '0'}
-              iconColor="text-red-600"
-              bgColor="bg-red-50"
-            />
-          </div>
-        </div>
-
-        {/* Tabs Navigation */}
-        <Tabs defaultValue="analytics" className="w-full">
-          <TabsList className="grid grid-cols-5 w-full max-w-3xl mx-auto mb-6">
-            <TabsTrigger value="analytics">
-              <i className="fas fa-chart-line mr-2"></i>
-              Analytics
+        {/* Tabs Navigation - Move to Top */}
+        <Tabs defaultValue="summary" className="w-full">
+          <TabsList className="grid grid-cols-5 w-full mb-3">
+            <TabsTrigger value="summary" className="text-xs">
+              Summary
             </TabsTrigger>
-            <TabsTrigger value="users">
-              <i className="fas fa-users-cog mr-2"></i>
+            <TabsTrigger value="users" className="text-xs">
               Users
             </TabsTrigger>
-            <TabsTrigger value="promos">
-              <i className="fas fa-gift mr-2"></i>
+            <TabsTrigger value="promos" className="text-xs">
               Promos
             </TabsTrigger>
-            <TabsTrigger value="payouts">
-              <i className="fas fa-money-check-alt mr-2"></i>
+            <TabsTrigger value="payouts" className="text-xs">
               Payouts
             </TabsTrigger>
-            <TabsTrigger value="settings">
-              <i className="fas fa-cog mr-2"></i>
+            <TabsTrigger value="settings" className="text-xs">
               Settings
             </TabsTrigger>
           </TabsList>
 
-          {/* Analytics Tab */}
-          <TabsContent value="analytics" className="space-y-4">
-            <AnalyticsSection stats={stats} />
+          {/* Summary Tab - Ultra Compact */}
+          <TabsContent value="summary" className="mt-0 space-y-3">
+            {/* Compact Pill Stats - 2 rows max */}
+            <div className="grid grid-cols-3 gap-2">
+              <StatPill icon="users" label="Users" value={stats?.totalUsers?.toLocaleString() || '0'} color="blue" />
+              <StatPill icon="user-check" label="Active" value={stats?.dailyActiveUsers?.toLocaleString() || '0'} color="green" />
+              <StatPill icon="play-circle" label="Total Ads" value={stats?.totalAdsWatched?.toLocaleString() || '0'} color="purple" />
+              <StatPill icon="calendar-day" label="Today" value={stats?.todayAdsWatched?.toLocaleString() || '0'} color="orange" />
+              <StatPill icon="gem" label="PAD" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
+              <StatPill icon="wallet" label="Withdrawn" value={formatCurrency(stats?.tonWithdrawn || '0', false)} color="indigo" />
+            </div>
+
+            {/* Withdrawal Status - One Row */}
+            <Card>
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Withdrawal Requests</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-yellow-600">{stats?.pendingWithdrawals || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Pending</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-green-600">{stats?.successfulWithdrawals || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Approved</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-red-600">{stats?.rejectedWithdrawals || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Rejected</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => document.querySelector('[value="users"]')?.click()} variant="outline" className="h-10 text-xs">
+                <i className="fas fa-users mr-2"></i>Manage Users
+              </Button>
+              <Button onClick={() => document.querySelector('[value="settings"]')?.click()} variant="outline" className="h-10 text-xs">
+                <i className="fas fa-cog mr-2"></i>Settings
+              </Button>
+            </div>
           </TabsContent>
 
           {/* User Management Tab */}
-          <TabsContent value="users" className="space-y-4">
+          <TabsContent value="users" className="mt-0">
             <UserManagementSection usersData={usersData} />
           </TabsContent>
 
           {/* Promo Creator Tab */}
-          <TabsContent value="promos" className="space-y-4">
+          <TabsContent value="promos" className="mt-0">
             <PromoCreatorSection />
           </TabsContent>
 
           {/* Payout Logs Tab */}
-          <TabsContent value="payouts" className="space-y-4">
+          <TabsContent value="payouts" className="mt-0">
             <PayoutLogsSection data={payoutLogsData} />
           </TabsContent>
           
           {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-4">
+          <TabsContent value="settings" className="mt-0">
             <SettingsSection />
           </TabsContent>
         </Tabs>
       </main>
     </Layout>
-  );
-}
-
-// Compact Stat Card Component
-function StatCard({ icon, label, value, iconColor, bgColor }: {
-  icon: string;
-  label: string;
-  value: string;
-  iconColor: string;
-  bgColor: string;
-}) {
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <i className={`fas fa-${icon} ${iconColor} text-xl`}></i>
-        </div>
-        <div className="text-2xl font-bold text-foreground mb-1">{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1147,10 +1101,10 @@ function SettingsSection() {
           <div className="space-y-2">
             <Label htmlFor="minimum-withdrawal-ton" className="text-base font-semibold">
               <i className="fas fa-gem mr-2 text-blue-600"></i>
-              Minimum TON Withdrawal
+              Minimum USD required for TON withdrawal
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Minimum TON amount required to withdraw
+              Minimum USD amount required to withdraw via TON
             </p>
             <Input
               id="minimum-withdrawal-ton"
