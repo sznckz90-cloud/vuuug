@@ -2022,6 +2022,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('minimum_convert_pad', minimumConvertPAD); // PAD
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
       
+      // Broadcast settings update to all connected users for instant refresh
+      broadcastUpdate({
+        type: 'settings_updated',
+        message: 'App settings have been updated by admin'
+      });
+      
       res.json({ success: true, message: "Settings updated successfully" });
     } catch (error) {
       console.error("Error updating admin settings:", error);
@@ -4118,17 +4124,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let walletAddress: string;
         if (method === 'TON') {
           if (!user.cwalletId) {
-            throw new Error('No TON wallet address found. Please set up your TON wallet first.');
+            throw new Error('TON address not set');
           }
           walletAddress = user.cwalletId;
         } else if (method === 'USD' || method === 'USDT') {
           if (!user.usdtWalletAddress) {
-            throw new Error('No USD wallet address found. Please set up your USD wallet first.');
+            throw new Error('USD address not set');
           }
           walletAddress = user.usdtWalletAddress;
         } else if (method === 'STARS') {
           if (!user.telegramStarsUsername) {
-            throw new Error('No Telegram username found. Please set up your Telegram username first.');
+            throw new Error('Telegram username not set');
           }
           walletAddress = user.telegramStarsUsername;
         } else {
