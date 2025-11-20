@@ -154,6 +154,14 @@ export function useWebSocket() {
               console.log('✨ New task created - feed updated');
               break;
               
+            case 'settings_updated':
+              // Admin updated app settings - refresh for all users
+              showNotification("Settings updated by admin", "success");
+              queryClient.invalidateQueries({ queryKey: ['/api/app-settings'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
+              console.log('⚙️ App settings updated by admin - refreshing');
+              break;
+              
             default:
               // Remove default black notifications to prevent duplicates
               // Only log unhandled messages for debugging
