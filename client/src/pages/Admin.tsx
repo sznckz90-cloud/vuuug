@@ -63,7 +63,7 @@ export default function AdminPage() {
   const queryClient = useQueryClient();
 
   // Fetch admin stats
-  const { data: stats } = useQuery<AdminStats>({
+  const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
     refetchInterval: 30000,
     enabled: isAdmin,
@@ -163,46 +163,58 @@ export default function AdminPage() {
 
           {/* Summary Tab - Ultra Compact */}
           <TabsContent value="summary" className="mt-0 space-y-3">
-            {/* Compact Pill Stats - 2 rows max */}
-            <div className="grid grid-cols-3 gap-2">
-              <StatPill icon="users" label="Users" value={stats?.totalUsers?.toLocaleString() || '0'} color="blue" />
-              <StatPill icon="user-check" label="Active" value={stats?.dailyActiveUsers?.toLocaleString() || '0'} color="green" />
-              <StatPill icon="play-circle" label="Total Ads" value={stats?.totalAdsWatched?.toLocaleString() || '0'} color="purple" />
-              <StatPill icon="calendar-day" label="Today" value={stats?.todayAdsWatched?.toLocaleString() || '0'} color="orange" />
-              <StatPill icon="gem" label="PAD" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
-              <StatPill icon="wallet" label="Withdrawn" value={formatCurrency(stats?.tonWithdrawn || '0', false)} color="indigo" />
-            </div>
-
-            {/* Withdrawal Status - One Row */}
-            <Card>
-              <CardContent className="p-3">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Withdrawal Requests</p>
+            {statsLoading ? (
+              <div className="grid grid-cols-3 gap-2">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-muted h-16 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Compact Pill Stats - 2 rows max */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="text-center">
-                    <p className="text-xl font-bold text-yellow-600">{stats?.pendingWithdrawals || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Pending</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xl font-bold text-green-600">{stats?.successfulWithdrawals || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Approved</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xl font-bold text-red-600">{stats?.rejectedWithdrawals || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Rejected</p>
-                  </div>
+                  <StatPill icon="users" label="Users" value={stats?.totalUsers?.toLocaleString() || '0'} color="blue" />
+                  <StatPill icon="user-check" label="Active" value={stats?.dailyActiveUsers?.toLocaleString() || '0'} color="green" />
+                  <StatPill icon="play-circle" label="Total Ads" value={stats?.totalAdsWatched?.toLocaleString() || '0'} color="purple" />
+                  <StatPill icon="calendar-day" label="Today" value={stats?.todayAdsWatched?.toLocaleString() || '0'} color="orange" />
+                  <StatPill icon="gem" label="PAD" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
+                  <StatPill icon="wallet" label="Withdrawn" value={formatCurrency(stats?.tonWithdrawn || '0', false)} color="indigo" />
                 </div>
-              </CardContent>
-            </Card>
+              </>
+            )}
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => document.querySelector('[value="users"]')?.click()} variant="outline" className="h-10 text-xs">
-                <i className="fas fa-users mr-2"></i>Manage Users
-              </Button>
-              <Button onClick={() => document.querySelector('[value="settings"]')?.click()} variant="outline" className="h-10 text-xs">
-                <i className="fas fa-cog mr-2"></i>Settings
-              </Button>
-            </div>
+                {/* Withdrawal Status - One Row */}
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Withdrawal Requests</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center">
+                        <p className="text-xl font-bold text-yellow-600">{stats?.pendingWithdrawals || 0}</p>
+                        <p className="text-[10px] text-muted-foreground">Pending</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xl font-bold text-green-600">{stats?.successfulWithdrawals || 0}</p>
+                        <p className="text-[10px] text-muted-foreground">Approved</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xl font-bold text-red-600">{stats?.rejectedWithdrawals || 0}</p>
+                        <p className="text-[10px] text-muted-foreground">Rejected</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Actions */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => document.querySelector('[value="users"]')?.click()} variant="outline" className="h-10 text-xs">
+                    <i className="fas fa-users mr-2"></i>Manage Users
+                  </Button>
+                  <Button onClick={() => document.querySelector('[value="settings"]')?.click()} variant="outline" className="h-10 text-xs">
+                    <i className="fas fa-cog mr-2"></i>Settings
+                  </Button>
+                </div>
+              </>
+            )}
           </TabsContent>
 
           {/* User Management Tab */}
@@ -855,11 +867,14 @@ function SettingsSection() {
     walletChangeFee: '100',
     minimumWithdrawalUSD: '1.00',
     minimumWithdrawalTON: '0.5',
+    withdrawalFeeTON: '5',
+    withdrawalFeeUSD: '3',
     channelTaskCost: '0.003',
     botTaskCost: '0.003',
     channelTaskReward: '30',
     botTaskReward: '20',
     minimumConvertPAD: '100',
+    minimumClicks: '500',
     seasonBroadcastActive: false
   });
   
@@ -873,11 +888,14 @@ function SettingsSection() {
         walletChangeFee: settingsData.walletChangeFee?.toString() || '100',
         minimumWithdrawalUSD: settingsData.minimumWithdrawalUSD?.toString() || '1.00',
         minimumWithdrawalTON: settingsData.minimumWithdrawalTON?.toString() || '0.5',
+        withdrawalFeeTON: settingsData.withdrawalFeeTON?.toString() || '5',
+        withdrawalFeeUSD: settingsData.withdrawalFeeUSD?.toString() || '3',
         channelTaskCost: settingsData.channelTaskCost?.toString() || '0.003',
         botTaskCost: settingsData.botTaskCost?.toString() || '0.003',
         channelTaskReward: settingsData.channelTaskReward?.toString() || '30',
         botTaskReward: settingsData.botTaskReward?.toString() || '20',
         minimumConvertPAD: settingsData.minimumConvertPAD?.toString() || '100',
+        minimumClicks: settingsData.minimumClicks?.toString() || '500',
         seasonBroadcastActive: settingsData.seasonBroadcastActive || false
       });
     }
@@ -890,11 +908,14 @@ function SettingsSection() {
     const walletFee = parseInt(settings.walletChangeFee);
     const minWithdrawalUSD = parseFloat(settings.minimumWithdrawalUSD);
     const minWithdrawalTON = parseFloat(settings.minimumWithdrawalTON);
+    const withdrawalFeeTON = parseFloat(settings.withdrawalFeeTON);
+    const withdrawalFeeUSD = parseFloat(settings.withdrawalFeeUSD);
     const channelCost = parseFloat(settings.channelTaskCost);
     const botCost = parseFloat(settings.botTaskCost);
     const channelReward = parseInt(settings.channelTaskReward);
     const botReward = parseInt(settings.botTaskReward);
     const minConvertPAD = parseInt(settings.minimumConvertPAD);
+    const minClicks = parseInt(settings.minimumClicks);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
@@ -923,11 +944,14 @@ function SettingsSection() {
         walletChangeFee: walletFee,
         minimumWithdrawalUSD: minWithdrawalUSD,
         minimumWithdrawalTON: minWithdrawalTON,
+        withdrawalFeeTON: withdrawalFeeTON,
+        withdrawalFeeUSD: withdrawalFeeUSD,
         channelTaskCost: channelCost,
         botTaskCost: botCost,
         channelTaskReward: channelReward,
         botTaskReward: botReward,
         minimumConvertPAD: minConvertPAD,
+        minimumClicks: minClicks,
         seasonBroadcastActive: settings.seasonBroadcastActive
       });
       
@@ -1073,14 +1097,14 @@ function SettingsSection() {
             </p>
           </div>
 
-          {/* Minimum USD Withdrawal Setting */}
+          {/* Minimum USD Balance for USD/USDT/Stars Withdrawal */}
           <div className="space-y-2">
             <Label htmlFor="minimum-withdrawal-usd" className="text-base font-semibold">
               <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
-              Minimum USD Withdrawal
+              Min USD Balance - For USD/USDT/Stars Methods
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Minimum USD amount required to withdraw
+              Minimum USD balance needed to withdraw via USD, USDT, or Telegram Stars
             </p>
             <Input
               id="minimum-withdrawal-usd"
@@ -1097,14 +1121,14 @@ function SettingsSection() {
             </p>
           </div>
 
-          {/* Minimum TON Withdrawal Setting */}
+          {/* Minimum USD Balance for TON Withdrawal Method */}
           <div className="space-y-2">
             <Label htmlFor="minimum-withdrawal-ton" className="text-base font-semibold">
               <i className="fas fa-gem mr-2 text-blue-600"></i>
-              Minimum USD required for TON withdrawal
+              Min USD Balance - For TON Withdrawal Method
             </Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Minimum USD amount required to withdraw via TON
+              Minimum USD balance needed to withdraw via TON method (can be different from other methods)
             </p>
             <Input
               id="minimum-withdrawal-ton"
@@ -1117,7 +1141,7 @@ function SettingsSection() {
               className="text-lg font-semibold"
             />
             <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.minimumWithdrawalTON || 0.5} TON
+              Current: ${settingsData?.minimumWithdrawalTON || 0.5} (USD, not TON)
             </p>
           </div>
 
@@ -1238,6 +1262,80 @@ function SettingsSection() {
             />
             <p className="text-xs text-muted-foreground">
               Current: {settingsData?.minimumConvertPAD || 100} PAD (${((settingsData?.minimumConvertPAD || 100) / 10000).toFixed(2)})
+            </p>
+          </div>
+
+          {/* TON Withdrawal Fee Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="withdrawal-fee-ton" className="text-base font-semibold">
+              <i className="fas fa-percent mr-2 text-blue-600"></i>
+              TON Withdrawal Fee (%)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Fee percentage for TON withdrawals
+            </p>
+            <Input
+              id="withdrawal-fee-ton"
+              type="number"
+              value={settings.withdrawalFeeTON}
+              onChange={(e) => setSettings({ ...settings, withdrawalFeeTON: e.target.value })}
+              placeholder="5"
+              min="0"
+              max="100"
+              step="0.1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.withdrawalFeeTON || 5}%
+            </p>
+          </div>
+
+          {/* USD Withdrawal Fee Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="withdrawal-fee-usd" className="text-base font-semibold">
+              <i className="fas fa-percent mr-2 text-green-600"></i>
+              USD Withdrawal Fee (%)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Fee percentage for USD/USDT withdrawals
+            </p>
+            <Input
+              id="withdrawal-fee-usd"
+              type="number"
+              value={settings.withdrawalFeeUSD}
+              onChange={(e) => setSettings({ ...settings, withdrawalFeeUSD: e.target.value })}
+              placeholder="3"
+              min="0"
+              max="100"
+              step="0.1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.withdrawalFeeUSD || 3}%
+            </p>
+          </div>
+
+          {/* Minimum Clicks Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="minimum-clicks" className="text-base font-semibold">
+              <i className="fas fa-mouse-pointer mr-2 text-pink-600"></i>
+              Minimum Clicks
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Minimum number of clicks required to create a task
+            </p>
+            <Input
+              id="minimum-clicks"
+              type="number"
+              value={settings.minimumClicks}
+              onChange={(e) => setSettings({ ...settings, minimumClicks: e.target.value })}
+              placeholder="500"
+              min="1"
+              step="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.minimumClicks || 500} clicks
             </p>
           </div>
         </div>

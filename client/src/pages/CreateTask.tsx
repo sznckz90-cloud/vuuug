@@ -73,9 +73,9 @@ export default function CreateTask() {
   const [taskType, setTaskType] = useState<"channel" | "bot" | null>(null);
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
-  const [totalClicks, setTotalClicks] = useState("500");
+  const [totalClicks, setTotalClicks] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [additionalClicks, setAdditionalClicks] = useState("500");
+  const [additionalClicks, setAdditionalClicks] = useState("");
   const [isAddClicksDialogOpen, setIsAddClicksDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -86,6 +86,16 @@ export default function CreateTask() {
     queryKey: ['/api/app-settings'],
     retry: false,
   });
+
+  // Set default totalClicks and additionalClicks from admin settings
+  useEffect(() => {
+    if (appSettings?.minimumClicks && !totalClicks) {
+      setTotalClicks(appSettings.minimumClicks.toString());
+    }
+    if (appSettings?.minimumClicks && !additionalClicks) {
+      setAdditionalClicks(appSettings.minimumClicks.toString());
+    }
+  }, [appSettings]);
 
   // Prevent auto-scroll when task type changes
   useEffect(() => {
@@ -104,9 +114,15 @@ export default function CreateTask() {
     }
   }, [taskType]);
 
-  const costPerClick = appSettings?.taskCostPerClick || 0.0003;
-  const rewardPerClick = appSettings?.taskRewardPerClick || 0.0001750;
-  const rewardPerClickPAD = appSettings?.taskRewardPAD || 1750;
+  // Use task-type-specific costs and rewards from admin settings
+  const costPerClick = taskType === 'bot' 
+    ? (appSettings?.botTaskCostUSD || 0.003) 
+    : (appSettings?.channelTaskCostUSD || 0.003);
+  const rewardPerClickPAD = taskType === 'bot'
+    ? (appSettings?.botTaskRewardPAD || 20)
+    : (appSettings?.channelTaskRewardPAD || 30);
+  const minimumClicks = appSettings?.minimumClicks || 500;
+  
   const clicksNum = parseInt(totalClicks) || 0;
   const totalCostUSD = costPerClick * clicksNum;
   const totalRewardsPAD = rewardPerClickPAD * clicksNum;
@@ -158,7 +174,7 @@ export default function CreateTask() {
       
       setTitle("");
       setLink("");
-      setTotalClicks("500");
+      setTotalClicks(appSettings?.minimumClicks?.toString() || "500");
       setTaskType("channel");
       setIsVerified(false);
       setActiveTab("my-task");
@@ -264,8 +280,8 @@ export default function CreateTask() {
       return;
     }
 
-    if (clicksNum < 500) {
-      showNotification("Minimum 500 clicks required", "error");
+    if (clicksNum < minimumClicks) {
+      showNotification(`Minimum clicks required: ${minimumClicks}`, "error");
       return;
     }
 
@@ -286,8 +302,8 @@ export default function CreateTask() {
     if (!selectedTask) return;
 
     const clicks = parseInt(additionalClicks);
-    if (clicks < 500) {
-      showNotification("Minimum 500 additional clicks required", "error");
+    if (clicks < minimumClicks) {
+      showNotification(`Minimum clicks required: ${minimumClicks}`, "error");
       return;
     }
 
@@ -485,7 +501,7 @@ export default function CreateTask() {
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Minimum 500 clicks
+                    Minimum {minimumClicks} clicks
                   </p>
                 </div>
 
@@ -662,7 +678,7 @@ export default function CreateTask() {
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Minimum 500 clicks
+                    Minimum {minimumClicks} clicks
                   </p>
                 </div>
               </div>
