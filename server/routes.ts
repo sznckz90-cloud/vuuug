@@ -615,10 +615,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const walletChangeFeePAD = parseInt(getSetting('wallet_change_fee', '100')); // Default 100 PAD
       const minimumWithdrawalUSD = parseFloat(getSetting('minimum_withdrawal_usd', '1.00')); // Minimum USD withdrawal
       const minimumWithdrawalTON = parseFloat(getSetting('minimum_withdrawal_ton', '0.5')); // Minimum TON withdrawal
+      const withdrawalFeeTON = parseFloat(getSetting('withdrawal_fee_ton', '5')); // TON withdrawal fee %
+      const withdrawalFeeUSD = parseFloat(getSetting('withdrawal_fee_usd', '3')); // USD withdrawal fee %
       
       // Separate channel and bot task costs (in USD for admin, PDZ for users)
-      const channelTaskCostUSD = parseFloat(getSetting('channel_task_cost', '0.003')); // Default $0.003 per click
-      const botTaskCostUSD = parseFloat(getSetting('bot_task_cost', '0.003')); // Default $0.003 per click
+      const channelTaskCostUSD = parseFloat(getSetting('channel_task_cost_usd', '0.003')); // Default $0.003 per click
+      const botTaskCostUSD = parseFloat(getSetting('bot_task_cost_usd', '0.003')); // Default $0.003 per click
       
       // Separate channel and bot task rewards (in PAD)
       const channelTaskRewardPAD = parseInt(getSetting('channel_task_reward', '30')); // Default 30 PAD per click
@@ -627,6 +629,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Minimum convert amount in PAD (100 PAD = $0.01)
       const minimumConvertPAD = parseInt(getSetting('minimum_convert_pad', '100')); // Default 100 PAD
       const minimumConvertUSD = minimumConvertPAD / 10000; // Convert to USD (10,000 PAD = $1)
+      
+      // Minimum clicks for task creation
+      const minimumClicks = parseInt(getSetting('minimum_clicks', '500')); // Default 500 clicks
       
       const withdrawalCurrency = getSetting('withdrawal_currency', 'TON');
       
@@ -647,6 +652,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumWithdrawal,
         minimumWithdrawalUSD,
         minimumWithdrawalTON,
+        withdrawalFeeTON,
+        withdrawalFeeUSD,
         channelTaskCostUSD,
         botTaskCostUSD,
         channelTaskRewardPAD,
@@ -657,6 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumConvert: minimumConvertUSD,
         minimumConvertPAD,
         minimumConvertUSD,
+        minimumClicks,
         withdrawalCurrency
       });
     } catch (error) {
@@ -1959,12 +1967,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         walletChangeFee: parseInt(getSetting('wallet_change_fee', '100')), // Return as PAD, default 100
         minimumWithdrawalUSD: parseFloat(getSetting('minimum_withdrawal_usd', '1.00')), // NEW: Min USD withdrawal
         minimumWithdrawalTON: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')), // NEW: Min TON withdrawal
+        withdrawalFeeTON: parseFloat(getSetting('withdrawal_fee_ton', '5')), // NEW: TON withdrawal fee %
+        withdrawalFeeUSD: parseFloat(getSetting('withdrawal_fee_usd', '3')), // NEW: USD withdrawal fee %
         channelTaskCost: parseFloat(getSetting('channel_task_cost_usd', '0.003')), // NEW: Channel cost in USD (admin only)
         botTaskCost: parseFloat(getSetting('bot_task_cost_usd', '0.003')), // NEW: Bot cost in USD (admin only)
         channelTaskReward: parseInt(getSetting('channel_task_reward', '30')), // NEW: Channel reward in PAD
         botTaskReward: parseInt(getSetting('bot_task_reward', '20')), // NEW: Bot reward in PAD
         minimumConvertPAD: parseInt(getSetting('minimum_convert_pad', '100')), // NEW: Min convert in PAD (100 PAD = $0.01)
         minimumConvertUSD: parseInt(getSetting('minimum_convert_pad', '100')) / 10000, // Convert to USD
+        minimumClicks: parseInt(getSetting('minimum_clicks', '500')), // NEW: Min clicks for task creation
         seasonBroadcastActive: getSetting('season_broadcast_active', 'false') === 'true',
         // Legacy fields for backwards compatibility
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
@@ -1988,11 +1999,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         walletChangeFee,
         minimumWithdrawalUSD,
         minimumWithdrawalTON,
+        withdrawalFeeTON,
+        withdrawalFeeUSD,
         channelTaskCost,
         botTaskCost,
         channelTaskReward,
         botTaskReward,
         minimumConvertPAD,
+        minimumClicks,
         seasonBroadcastActive
       } = req.body;
       
@@ -2015,11 +2029,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('wallet_change_fee', walletChangeFee); // PAD
       await updateSetting('minimum_withdrawal_usd', minimumWithdrawalUSD); // USD
       await updateSetting('minimum_withdrawal_ton', minimumWithdrawalTON); // TON
+      await updateSetting('withdrawal_fee_ton', withdrawalFeeTON); // % fee for TON
+      await updateSetting('withdrawal_fee_usd', withdrawalFeeUSD); // % fee for USD
       await updateSetting('channel_task_cost_usd', channelTaskCost); // USD (admin only)
       await updateSetting('bot_task_cost_usd', botTaskCost); // USD (admin only)
       await updateSetting('channel_task_reward', channelTaskReward); // PAD
       await updateSetting('bot_task_reward', botTaskReward); // PAD
       await updateSetting('minimum_convert_pad', minimumConvertPAD); // PAD
+      await updateSetting('minimum_clicks', minimumClicks); // Minimum clicks for task creation
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
       
       // Broadcast settings update to all connected users for instant refresh
@@ -4143,13 +4160,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const currentUsdBalance = parseFloat(user.usdBalance || '0');
         
-        // Get minimum withdrawal setting from admin settings
+        // Get minimum withdrawal and fee settings from admin settings
         const [minWithdrawalSetting] = await tx
           .select({ settingValue: adminSettings.settingValue })
           .from(adminSettings)
           .where(eq(adminSettings.settingKey, 'minimum_withdrawal_usd'))
           .limit(1);
         const minimumWithdrawalUSD = parseFloat(minWithdrawalSetting?.settingValue || '1.00');
+        
+        const [minWithdrawalTONSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'minimum_withdrawal_ton'))
+          .limit(1);
+        const minimumWithdrawalTON = parseFloat(minWithdrawalTONSetting?.settingValue || '0.5');
+        
+        const [feePercentTONSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'withdrawal_fee_ton'))
+          .limit(1);
+        const feePercentTON = parseFloat(feePercentTONSetting?.settingValue || '5') / 100;
+        
+        const [feePercentUSDSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'withdrawal_fee_usd'))
+          .limit(1);
+        const feePercentUSD = parseFloat(feePercentUSDSetting?.settingValue || '3') / 100;
         
         // Calculate withdrawal amount and fee (ALL IN USD ONLY)
         let withdrawalAmount: number; // Always in USD
@@ -4195,13 +4233,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error('Insufficient balance for withdrawal');
           }
           
-          // Check minimum withdrawal requirement
-          if (currentUsdBalance < minimumWithdrawalUSD) {
-            throw new Error(`Minimum withdrawal is $${minimumWithdrawalUSD.toFixed(2)} USD. Your current balance is $${currentUsdBalance.toFixed(2)}`);
+          // Check minimum withdrawal requirement - use TON minimum for TON method, USD minimum for others
+          const requiredMinimum = method === 'TON' ? minimumWithdrawalTON : minimumWithdrawalUSD;
+          if (currentUsdBalance < requiredMinimum) {
+            throw new Error(`Minimum ${requiredMinimum.toFixed(2)}`);
           }
           
-          // Different fees for different methods: TON = 5%, USD = 3%
-          const feePercent = method === 'TON' ? 0.05 : 0.03;
+          // Use admin-configured fees: TON and USD have different fees
+          const feePercent = method === 'TON' ? feePercentTON : feePercentUSD;
           fee = currentUsdBalance * feePercent;
           withdrawalAmount = currentUsdBalance - fee; // USD amount after fee
           usdToDeduct = currentUsdBalance;
