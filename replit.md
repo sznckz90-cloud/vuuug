@@ -5,6 +5,38 @@ CashWatch is a Telegram-based earning platform where users can earn PAD currency
 
 ## Recent Changes
 
+### November 23, 2025 - Top-Up PDZ Bug Fixes: Amount Validation + Debounce + Data Type Corrections
+
+**Critical Bug Fixes**:
+1. **Data Type Fix**: Changed `parseInt(pdzAmount)` to `parseFloat(pdzAmount)` 
+   - Bug: 0.1 was being converted to 0 (integer) before sending to backend
+   - Fix: Now sends exact decimal value (0.1, 0.5, 1.25, etc.)
+
+2. **Client-side Validation Before Request**: 
+   - New `validateAmount()` function validates before making API call
+   - Prevents invalid/empty/small amounts from reaching backend
+   - Shows real-time error messages: "Enter amount (Min 0.1 TON)", "Enter valid amount", "Minimum top-up is 0.1 TON"
+
+3. **Debounce Implementation**: 
+   - 1 second debounce prevents spam requests
+   - Clears previous timeout when user clicks button again
+   - Only fires request after 1 second delay
+
+4. **Spam Prevention**: 
+   - Button disabled during loading
+   - Prevents double-click spam requests
+   - Re-enables button on error so user can retry
+
+5. **Server-side Error Differentiation**:
+   - "Enter valid amount" → empty/invalid/zero/negative amounts
+   - "Minimum top-up is 0.1 TON" → valid but below minimum
+   - Detailed logging with amount and type at each step
+
+6. **Input Validation State**: 
+   - Clear error message below input field
+   - Summary section hidden when validation error exists
+   - Input disabled during loading
+
 ### November 23, 2025 - Top-Up PDZ Feature Complete + Environment Variables + UI/UX Improvements
 
 **Top-Up PDZ Feature Fully Implemented**:
