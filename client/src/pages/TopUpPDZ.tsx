@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,59 +8,96 @@ import { apiRequest } from "@/lib/queryClient";
 import { Gem, AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 
 const MINIMUM_AMOUNT = 0.1;
+const DEBOUNCE_DELAY = 1000; // 1 second debounce
 
 export default function TopUpPDZ() {
   const [pdzAmount, setPdzAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const { toast } = useToast();
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "" || /^\d*\.?\d*$/.test(value)) {
       setPdzAmount(value);
+      setValidationError(""); // Clear error when user types
     }
   };
 
-  const handleProceedToPay = async () => {
+  const validateAmount = (): boolean => {
+    if (!pdzAmount || pdzAmount.trim() === "") {
+      setValidationError("Enter amount (Min 0.1 TON)");
+      return false;
+    }
+
     const amount = parseFloat(pdzAmount);
-    
-    if (!pdzAmount || isNaN(amount) || amount < MINIMUM_AMOUNT) {
-      toast({
-        title: "Invalid Amount",
-        description: `Minimum amount is ${MINIMUM_AMOUNT} TON`,
-        variant: "destructive",
-      });
+
+    if (isNaN(amount) || amount <= 0) {
+      setValidationError("Enter valid amount");
+      return false;
+    }
+
+    if (amount < MINIMUM_AMOUNT) {
+      setValidationError(`Minimum top-up is ${MINIMUM_AMOUNT} TON`);
+      return false;
+    }
+
+    setValidationError("");
+    return true;
+  };
+
+  const handleProceedToPay = async () => {
+    // Clear any existing debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // Validate before making request
+    if (!validateAmount()) {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const response = await apiRequest("POST", "/api/arcpay/create-payment", {
-        pdzAmount: parseInt(pdzAmount),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create payment");
-      }
-
-      if (data.paymentUrl) {
-        // Open payment URL
-        window.location.href = data.paymentUrl;
-      } else {
-        throw new Error("No payment URL received");
-      }
-    } catch (error: any) {
-      console.error("Payment error:", error);
-      toast({
-        title: "❌ Payment Failed",
-        description: error.message || "Failed to create payment request",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    // Prevent double-click
+    if (isLoading) {
+      return;
     }
+
+    const amount = parseFloat(pdzAmount);
+
+    setIsLoading(true);
+    
+    // Set debounce timeout to prevent spam
+    debounceTimeoutRef.current = setTimeout(async () => {
+      try {
+        console.log(`💳 Sending payment request: ${amount} PDZ (type: ${typeof amount})`);
+        
+        const response = await apiRequest("POST", "/api/arcpay/create-payment", {
+          pdzAmount: amount, // Send as Number, NOT parseInt
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to create payment");
+        }
+
+        if (data.paymentUrl) {
+          // Open payment URL
+          window.location.href = data.paymentUrl;
+        } else {
+          throw new Error("No payment URL received");
+        }
+      } catch (error: any) {
+        console.error("❌ Payment error:", error);
+        toast({
+          title: "Payment Failed",
+          description: error.message || "Failed to create payment request",
+          variant: "destructive",
+        });
+        setIsLoading(false); // Re-enable button on error
+      }
+    }, DEBOUNCE_DELAY);
   };
 
   return (
@@ -101,9 +138,15 @@ export default function TopUpPDZ() {
                 placeholder="0.1"
                 value={pdzAmount}
                 onChange={handleInputChange}
+                disabled={isLoading}
                 className="text-lg py-6"
               />
-              {pdzAmount && (
+              {validationError && (
+                <p className="text-sm text-red-500 font-medium">
+                  {validationError}
+                </p>
+              )}
+              {pdzAmount && !validationError && (
                 <p className="text-sm text-muted-foreground">
                   ≈ {parseFloat(pdzAmount).toFixed(2)} TON needed
                 </p>
@@ -111,7 +154,7 @@ export default function TopUpPDZ() {
             </div>
 
             {/* Summary */}
-            {pdzAmount && (
+            {pdzAmount && !validationError && (
               <div className="bg-muted rounded-lg p-4 space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">PDZ Amount:</span>
@@ -147,7 +190,7 @@ export default function TopUpPDZ() {
             {/* Proceed Button */}
             <Button
               onClick={handleProceedToPay}
-              disabled={!pdzAmount || isLoading}
+              disabled={!pdzAmount || isLoading || !!validationError}
               className="w-full py-6 text-lg"
               size="lg"
             >
