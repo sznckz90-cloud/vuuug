@@ -163,6 +163,7 @@ async function generateArcPayCheckoutUrl(
   // Prepare request payload according to ArcPay documentation
   // See: https://arcpay.online/docs/quick-start/
   // Note: ArcPay expects camelCase field names (orderId, not order_id)
+  // CRITICAL: ArcPay requires "title" field in items[], NOT "name"
   const payload = {
     title: paymentRequest.description || `Top-Up ${paymentRequest.amount} PDZ`,
     orderId: paymentRequest.orderID,
@@ -173,20 +174,42 @@ async function generateArcPayCheckoutUrl(
     metadata: paymentRequest.metadata,
     network: config.network,
     // ArcPay requires items array with at least 1 product
+    // Each item MUST have: title (required), description, quantity, price, currency
     items: [
       {
-        name: `PDZ Tokens - ${paymentRequest.amount} PDZ`,
-        description: paymentRequest.description || `Top-Up ${paymentRequest.amount} PDZ tokens`,
-        quantity: 1,
+        title: `PDZ Token`,
+        description: `Top-Up PDZ Tokens`,
+        quantity: Math.max(1, Math.floor(paymentRequest.amount * 10) / 10),
         price: paymentRequest.amount,
         currency: paymentRequest.currency
       }
     ]
   };
 
+  // Validate items array before sending
+  if (!payload.items || payload.items.length === 0) {
+    throw new Error('Items array cannot be empty - ArcPay requires at least 1 item');
+  }
+  
+  // Validate each item has required fields
+  for (const item of payload.items) {
+    if (!item.title || item.title.trim() === '') {
+      throw new Error('Item title is required and cannot be empty');
+    }
+    if (!item.quantity || item.quantity <= 0) {
+      throw new Error('Item quantity must be greater than 0');
+    }
+    if (!item.price || item.price <= 0) {
+      throw new Error('Item price must be greater than 0');
+    }
+    if (!item.currency) {
+      throw new Error('Item currency is required');
+    }
+  }
+
   try {
     console.log('🌐 Calling ArcPay API:', arcPayApiUrl);
-    console.log('📦 Payload:', JSON.stringify(payload, null, 2));
+    console.log('📦 Final payload before sending:', JSON.stringify(payload, null, 2));
 
     // Use retry logic for network resilience
     const response = await fetchWithRetry(
