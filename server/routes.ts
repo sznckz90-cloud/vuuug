@@ -301,6 +301,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: 'API routes working!', timestamp: new Date().toISOString() });
   });
 
+  // Production health check endpoint - checks database connectivity and user count
+  app.get('/api/health', async (req: any, res) => {
+    try {
+      const dbCheck = await db.select({ count: sql<number>`count(*)` }).from(users);
+      const userCount = dbCheck[0]?.count || 0;
+      
+      const envCheck = {
+        DATABASE_URL: !!process.env.DATABASE_URL,
+        TELEGRAM_BOT_TOKEN: !!process.env.TELEGRAM_BOT_TOKEN,
+        SESSION_SECRET: !!process.env.SESSION_SECRET,
+        NODE_ENV: process.env.NODE_ENV || 'unknown'
+      };
+      
+      res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        database: {
+          connected: true,
+          userCount
+        },
+        environment: envCheck,
+        websockets: {
+          activeConnections: connectedUsers.size
+        }
+      });
+    } catch (error) {
+      console.error('❌ Health check failed:', error);
+      res.status(500).json({
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        database: {
+          connected: false,
+          error: error instanceof Error ? error.message : String(error)
+        },
+        environment: {
+          DATABASE_URL: !!process.env.DATABASE_URL,
+          NODE_ENV: process.env.NODE_ENV || 'unknown'
+        }
+      });
+    }
+  });
+
   // Get channel configuration for frontend
   app.get('/api/config/channel', (req: any, res) => {
     res.json(getChannelConfig());
