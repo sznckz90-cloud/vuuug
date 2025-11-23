@@ -180,8 +180,6 @@ export default function AdminPage() {
                   <StatPill icon="gem" label="PAD" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
                   <StatPill icon="wallet" label="Withdrawn" value={formatCurrency(stats?.tonWithdrawn || '0', false)} color="indigo" />
                 </div>
-              </>
-            )}
 
                 {/* Withdrawal Status - One Row */}
                 <Card>
