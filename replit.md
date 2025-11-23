@@ -1,9 +1,76 @@
 # CashWatch - PAD Earning & Withdrawal Platform
 
 ## Project Overview
-CashWatch is a Telegram-based earning platform where users can earn PAD currency by watching ads, completing tasks, and referring friends. Users can convert their PAD to USD and withdraw via multiple payment methods.
+CashWatch is a Telegram-based earning platform where users can earn PAD currency by watching ads, completing tasks, and referring friends. Users can convert their PAD to USD and withdraw via multiple payment methods. Users can also top-up PDZ tokens directly using ArcPay payment gateway.
 
 ## Recent Changes
+
+### November 23, 2025 - Top-Up PDZ Feature Complete + Environment Variables + UI/UX Improvements
+
+**Top-Up PDZ Feature Fully Implemented**:
+- Created new `/topup-pdz` route with complete ArcPay payment integration
+- Frontend (`client/src/pages/TopUpPDZ.tsx`):
+  - **Professional Icons** (lucide-react): Gem icon (blue), AlertCircle, ChevronRight, Loader2 (no emojis)
+  - **Minimum Amount**: 0.1 TON enforced with clear label and placeholder
+  - **Decimal Support**: Input accepts 0.1, 0.5, 1.5, etc. (not just integers)
+  - Rate display: "Exchange Rate: 1 TON = 1 PDZ"
+  - Live summary with 2 decimal formatting (0.10, 0.50, 1.00)
+  - "Proceed to Pay" button with ChevronRight icon and animated Loader2 spinner
+  - Payment information with AlertCircle icon and professional styling
+  
+- Backend ArcPay Handler (`server/arcpay.ts`):
+  - **Environment Variables**: All credentials loaded from env vars
+    - `ARCPAY_API_KEY`: API key (stored as secret)
+    - `ARCPAY_PRIVATE_KEY`: Private key for webhook verification (stored as secret)
+    - `ARCPAY_RETURN_URL`: Telegram bot return URL
+    - `ARCPAY_WEBHOOK_URL`: Webhook endpoint for payment notifications
+  - NO hardcoded credentials in codebase
+  - `getArcPayConfig()`: Validates environment variables at startup
+  - `createArcPayCheckout()`: Creates payment request with config from environment
+  - `generateArcPayCheckoutUrl()`: Calls ArcPay API with environment credentials
+  - `verifyArcPayWebhookSignature()`: Uses private key from environment
+  - **Development Mode**: Returns mock checkout URL when NODE_ENV is 'development'
+  
+- Backend API Routes (`server/routes.ts`):
+  - `POST /api/arcpay/create-payment`: Creates ArcPay payment checkout
+    - Validates minimum 0.1 TON amount
+    - Correctly accesses `req.user?.user?.id` from authenticated request
+    - Returns paymentUrl for client redirection
+  - `POST /arcpay/webhook`: Handles payment success/failure notifications
+    
+- Security:
+  - **Zero Hardcoded Secrets**: All credentials from environment variables
+  - Private key never exposed to frontend
+  - API key used only in backend
+  - Network: TON blockchain (1 TON = 1 PDZ)
+
+**UI/UX Improvements**:
+- **Replaced Emojis with Icons**: Professional lucide-react icons instead of emoji
+  - Gem icon for header
+  - AlertCircle icon for payment information section
+  - ChevronRight icon for button
+  - Loader2 animated spinner for loading state
+- **Minimum Amount Validation**: 
+  - Frontend: 0.1 TON minimum with user-friendly error message
+  - Backend: Double-checks minimum 0.1 TON requirement
+  - Clear label: "How many PDZ do you want to buy? (Minimum: 0.1)"
+- **Decimal Input Support**: Users can enter 0.1, 0.5, 1.25, etc.
+- **Proper Number Formatting**: All amounts display with 2 decimal places
+
+**Environment Configuration**:
+```
+ARCPAY_API_KEY=<your-api-key>
+ARCPAY_PRIVATE_KEY=<your-private-key>
+ARCPAY_RETURN_URL=https://t.me/Paid_Adzbot
+ARCPAY_WEBHOOK_URL=https://vuuug-5slh.onrender.com/arcpay/webhook
+```
+
+**Admin.tsx JSX Fix**:
+- Fixed JSX structure issue: removed stray `</>` fragment close tag at line 216
+- Fixed extra `)}` closing brace that wasn't properly nested
+- Restructured TabsContent → Summary tab to ensure correct nesting hierarchy
+- "Withdrawal Status" and "Quick Actions" sections now properly inside TabsContent
+- Component validates correctly with proper indentation and tag matching
 
 ### November 18, 2025 - UI/UX Updates
 
