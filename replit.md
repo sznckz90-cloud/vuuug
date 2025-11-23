@@ -5,6 +5,61 @@ CashWatch is a Telegram-based earning platform where users can earn PAD currency
 
 ## Recent Changes
 
+### November 23, 2025 - Replit Import Setup & ArcPay Production Fixes
+
+**Project Successfully Imported to Replit**:
+- ✅ Server running on port 5000 (Vite dev server + Express backend)
+- ✅ Database configured (Replit PostgreSQL at `helium`)
+- ✅ All migrations completed successfully
+- ✅ Workflow configured: "CashWatch Server" running `npm run dev`
+- ✅ Deployment configured: autoscale with `npm run build` and `npm start`
+
+**ArcPay Integration Production Fixes** (`server/arcpay.ts`):
+1. **Corrected API Endpoint**: 
+   - Fixed from: `https://api.arcpay.io/v1/checkout/create` (ENOTFOUND error)
+   - Fixed to: `https://arcpay.online/api/v1/arcpay/order`
+
+2. **Fixed Authentication Header**:
+   - Changed from: `Authorization: Bearer ${apiKey}`
+   - Changed to: `ArcKey: ${apiKey}` (per ArcPay documentation)
+
+3. **Fixed Payment Payload**:
+   - Added missing `amount` field (critical for actual payments)
+   - Fixed `currency` from hard-coded `'ARC'` to dynamic `paymentRequest.currency` ('TON')
+   - Added back `network` field ('TON')
+   - Updated field names to camelCase (orderId, returnUrl, webhookUrl) per ArcPay API
+
+4. **Added Retry Logic**:
+   - 3 retry attempts with exponential backoff (1s delay increasing)
+   - Handles transient network failures gracefully
+
+5. **Enhanced Error Handling**:
+   - Friendly user messages for DNS/network failures
+   - Specific messages for auth errors (401/403)
+   - Service unavailable messages for 5xx errors
+   - Timeout and connection error handling
+
+6. **Development Mode**:
+   - Auto-detects Replit environment (REPL_ID)
+   - Uses mock checkout URLs in development
+   - Production API only called when deployed
+
+**Environment Variables Configured**:
+- `DATABASE_URL`: Existing Replit PostgreSQL (helium)
+- `SESSION_SECRET`: Existing secret
+- Development placeholders set for:
+  - `TELEGRAM_BOT_TOKEN`
+  - `TELEGRAM_ADMIN_ID`
+  - `ARCPAY_API_KEY`
+  - `ARCPAY_PRIVATE_KEY`
+  - `ARCPAY_RETURN_URL`
+  - `ARCPAY_WEBHOOK_URL`
+
+**Production Deployment Notes**:
+- User must set real values for TELEGRAM_BOT_TOKEN and ARCPAY credentials before deploying
+- Webhook URL should point to production domain
+- Return URL should point to Telegram bot
+
 ### November 23, 2025 - Top-Up PDZ Bug Fixes: Amount Validation + Debounce + Data Type Corrections
 
 **Critical Bug Fixes**:
