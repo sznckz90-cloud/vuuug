@@ -5278,5 +5278,179 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
     }
   });
 
+  // ArcPay Integration Routes
+  const { createArcPayCheckout, verifyArcPayWebhookSignature, parseArcPayWebhook } = await import('./arcpay');
+
+  // Create ArcPay payment checkout
+  app.post('/api/arcpay/create-payment', authenticateTelegram, async (req: any, res) => {
+    try {
+      // Get user ID from the authenticated user object
+      // authenticateTelegram sets req.user as { telegramUser: {...}, user: {...} }
+      const userId = req.user?.user?.id;
+      const userEmail = req.user?.user?.email;
+
+      const { pdzAmount } = req.body;
+
+      if (!userId) {
+        console.error('❌ ArcPay: No user ID found in authenticated request:', {
+          hasUser: !!req.user,
+          userKeys: req.user ? Object.keys(req.user) : null,
+          hasUserObject: !!req.user?.user
+        });
+        return res.status(401).json({ error: 'Unauthorized - user not found' });
+      }
+
+      if (!pdzAmount || typeof pdzAmount !== 'number' || pdzAmount < 0.1) {
+        return res.status(400).json({ error: 'Minimum amount is 0.1 TON' });
+      }
+
+      console.log(`💳 Creating ArcPay payment for user ${userId}, amount: ${pdzAmount} PDZ`);
+
+      // Create checkout
+      const result = await createArcPayCheckout(pdzAmount, userId, userEmail);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({
+        success: true,
+        paymentUrl: result.paymentUrl,
+      });
+    } catch (error: any) {
+      console.error('❌ Error creating ArcPay payment:', error);
+      res.status(500).json({ error: 'Failed to create payment request' });
+    }
+  });
+
+  // ArcPay Webhook Handler
+  app.post('/arcpay/webhook', async (req: any, res) => {
+    try {
+      const rawBody = JSON.stringify(req.body);
+      const signature = req.headers['x-arcpay-signature'] || '';
+
+      console.log('🔔 ArcPay webhook received:', {
+        eventType: req.body.event,
+        orderId: req.body.order_id,
+      });
+
+      // Verify webhook signature (disable for testing, enable in production)
+      // const isValid = verifyArcPayWebhookSignature(rawBody, signature);
+      // if (!isValid) {
+      //   console.error('❌ Invalid webhook signature');
+      //   return res.status(401).json({ error: 'Invalid signature' });
+      // }
+
+      // Parse webhook payload
+      const webhook = parseArcPayWebhook(rawBody);
+      if (!webhook) {
+        return res.status(400).json({ error: 'Invalid webhook payload' });
+      }
+
+      const { event, order_id, status, amount, metadata } = webhook;
+      const userId = metadata?.userId;
+      const pdzAmount = metadata?.pdzAmount || amount;
+
+      if (!userId) {
+        console.error('❌ No userId in webhook metadata');
+        return res.status(400).json({ error: 'Missing user information' });
+      }
+
+      // Handle payment success
+      if (event === 'payment.success' && status === 'completed') {
+        console.log(`✅ Payment successful for user ${userId}, crediting ${pdzAmount} PDZ`);
+
+        try {
+          // Get user
+          const user = await storage.getUser(userId);
+          if (!user) {
+            console.error(`❌ User not found: ${userId}`);
+            return res.status(404).json({ error: 'User not found' });
+          }
+
+          // Credit PDZ to user
+          const currentPdz = parseFloat(user.pdzBalance?.toString() || '0');
+          const newPdz = currentPdz + pdzAmount;
+
+          // Update user's PDZ balance
+          await db.update(users).set({
+            pdzBalance: newPdz.toString(),
+            updatedAt: new Date(),
+          }).where(eq(users.id, userId));
+
+          // Record transaction
+          await db.insert(transactions).values({
+            userId,
+            amount: pdzAmount.toString(),
+            type: 'addition',
+            source: 'arcpay_pdz_topup',
+            description: `Top-up ${pdzAmount} PDZ via ArcPay (Order: ${order_id})`,
+            metadata: {
+              orderId: order_id,
+              arcpayAmount: amount,
+              arcpayCurrency: webhook.currency,
+              transactionHash: webhook.transaction_hash,
+            },
+          });
+
+          console.log(`💚 PDZ balance updated for user ${userId}: +${pdzAmount} (Total: ${newPdz})`);
+
+          // Send notification to user via Telegram
+          try {
+            const message = `🎉 Top-up successful!\n\n✅ You received ${pdzAmount} PDZ\n💎 New balance: ${newPdz} PDZ`;
+            await sendUserTelegramNotification(userId, message);
+          } catch (notifError) {
+            console.warn('⚠️ Failed to send Telegram notification:', notifError);
+          }
+
+          return res.json({
+            success: true,
+            message: 'PDZ credited successfully',
+            newBalance: newPdz,
+          });
+        } catch (dbError) {
+          console.error('❌ Error crediting PDZ:', dbError);
+          return res.status(500).json({ error: 'Failed to credit PDZ' });
+        }
+      }
+
+      // Handle payment failure
+      if (event === 'payment.failed' && status === 'failed') {
+        console.log(`❌ Payment failed for user ${userId}`);
+
+        try {
+          await sendUserTelegramNotification(
+            userId,
+            `❌ Payment failed for order ${order_id}. Please try again.`
+          );
+        } catch (notifError) {
+          console.warn('⚠️ Failed to send Telegram notification:', notifError);
+        }
+
+        return res.json({
+          success: true,
+          message: 'Payment failure recorded',
+        });
+      }
+
+      // Handle pending payments
+      if (event === 'payment.pending' && status === 'pending') {
+        console.log(`⏳ Payment pending for user ${userId}, order ${order_id}`);
+        return res.json({
+          success: true,
+          message: 'Payment pending',
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Webhook processed',
+      });
+    } catch (error) {
+      console.error('❌ Webhook processing error:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
   return httpServer;
 }

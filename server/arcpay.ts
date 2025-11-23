@@ -1,0 +1,227 @@
+import crypto from 'crypto';
+
+export interface ArcPayConfig {
+  apiKey: string;
+  privateKey: string;
+  network: 'TON' | 'EVM';
+  returnUrl: string;
+  webhookUrl: string;
+}
+
+function getArcPayConfig(): ArcPayConfig {
+  const apiKey = process.env.ARCPAY_API_KEY;
+  const privateKey = process.env.ARCPAY_PRIVATE_KEY;
+  const returnUrl = process.env.ARCPAY_RETURN_URL;
+  const webhookUrl = process.env.ARCPAY_WEBHOOK_URL;
+  
+  if (!apiKey || !privateKey || !returnUrl || !webhookUrl) {
+    throw new Error('Missing required ArcPay environment variables: ARCPAY_API_KEY, ARCPAY_PRIVATE_KEY, ARCPAY_RETURN_URL, ARCPAY_WEBHOOK_URL');
+  }
+  
+  return {
+    apiKey,
+    privateKey,
+    network: 'TON',
+    returnUrl,
+    webhookUrl,
+  };
+}
+
+export const getARCPAY_CONFIG = getArcPayConfig;
+
+export interface ArcPayPaymentRequest {
+  orderID: string;
+  amount: number;
+  currency: 'TON' | 'USD';
+  returnUrl: string;
+  webhookUrl: string;
+  description?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ArcPayCheckoutResponse {
+  status: 'success' | 'error';
+  checkout_url?: string;
+  order_id?: string;
+  error?: string;
+}
+
+/**
+ * Create a payment request with ArcPay API
+ * This function prepares the payment request payload and returns the checkout URL
+ */
+export async function createArcPayCheckout(
+  pdzAmount: number,
+  userId: string,
+  userEmail?: string
+): Promise<{ success: boolean; paymentUrl?: string; error?: string }> {
+  try {
+    if (pdzAmount <= 0) {
+      return { success: false, error: 'Amount must be greater than 0' };
+    }
+
+    // Generate unique order ID
+    const orderId = `PDZ-${userId}-${Date.now()}`;
+
+    // Get ArcPay config from environment
+    const config = getArcPayConfig();
+    
+    // Create the payment request payload
+    const paymentRequest: ArcPayPaymentRequest = {
+      orderID: orderId,
+      amount: pdzAmount, // 1 PDZ = 1 TON
+      currency: 'TON',
+      returnUrl: config.returnUrl,
+      webhookUrl: config.webhookUrl,
+      description: `Top-Up ${pdzAmount} PDZ tokens`,
+      metadata: {
+        userId,
+        userEmail,
+        pdzAmount,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    console.log('📋 Creating ArcPay payment request:', {
+      orderId,
+      amount: pdzAmount,
+      currency: 'TON',
+      userId,
+    });
+
+    // For production: Call actual ArcPay API
+    // For now, we'll create a checkout URL structure that ArcPay expects
+    const checkoutUrl = await generateArcPayCheckoutUrl(paymentRequest);
+
+    return {
+      success: true,
+      paymentUrl: checkoutUrl,
+    };
+  } catch (error) {
+    console.error('❌ Error creating ArcPay checkout:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to create payment request',
+    };
+  }
+}
+
+/**
+ * Generate ArcPay checkout URL
+ * This creates the payment link to redirect user to ArcPay gateway
+ */
+async function generateArcPayCheckoutUrl(
+  paymentRequest: ArcPayPaymentRequest
+): Promise<string> {
+  // Development mode: Return mock checkout URL
+  if (process.env.NODE_ENV === 'development' || process.env.REPL_ID) {
+    console.log('🧪 Development mode: Generating mock ArcPay checkout URL');
+    const mockCheckoutUrl = `https://checkout-test.arcpay.io?order_id=${encodeURIComponent(paymentRequest.orderID)}&amount=${paymentRequest.amount}&currency=${paymentRequest.currency}`;
+    console.log('✅ Mock ArcPay checkout URL generated:', mockCheckoutUrl);
+    return mockCheckoutUrl;
+  }
+
+  // Get ArcPay config from environment
+  const config = getArcPayConfig();
+  
+  // ArcPay API endpoint
+  const arcPayApiUrl = 'https://api.arcpay.io/v1/checkout/create';
+
+  // Prepare request payload
+  const payload = {
+    api_key: config.apiKey,
+    order_id: paymentRequest.orderID,
+    amount: paymentRequest.amount,
+    currency: paymentRequest.currency,
+    return_url: paymentRequest.returnUrl,
+    webhook_url: paymentRequest.webhookUrl,
+    description: paymentRequest.description,
+    metadata: paymentRequest.metadata,
+    network: config.network,
+  };
+
+  try {
+    console.log('🌐 Calling ArcPay API:', arcPayApiUrl);
+
+    const response = await fetch(arcPayApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('❌ ArcPay API error:', response.status, errorData);
+      throw new Error(`ArcPay API error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as ArcPayCheckoutResponse;
+
+    if (data.status === 'success' && data.checkout_url) {
+      console.log('✅ ArcPay checkout URL generated:', data.checkout_url);
+      return data.checkout_url;
+    } else {
+      throw new Error(data.error || 'Failed to generate checkout URL');
+    }
+  } catch (error) {
+    console.error('❌ Error calling ArcPay API:', error);
+    throw error;
+  }
+}
+
+/**
+ * Verify ArcPay webhook signature
+ * This ensures the webhook is genuinely from ArcPay
+ */
+export function verifyArcPayWebhookSignature(
+  payload: string,
+  signature: string
+): boolean {
+  try {
+    // Get ArcPay config from environment
+    const config = getArcPayConfig();
+    
+    // Create HMAC signature using private key
+    const expectedSignature = crypto
+      .createHmac('sha256', config.privateKey)
+      .update(payload)
+      .digest('hex');
+
+    // Compare signatures
+    return expectedSignature === signature;
+  } catch (error) {
+    console.error('❌ Error verifying webhook signature:', error);
+    return false;
+  }
+}
+
+/**
+ * Process ArcPay webhook payload
+ * Handles payment success/failure notifications
+ */
+export interface ArcPayWebhookPayload {
+  event: 'payment.success' | 'payment.failed' | 'payment.pending';
+  order_id: string;
+  amount: number;
+  currency: string;
+  status: 'completed' | 'failed' | 'pending';
+  transaction_hash?: string;
+  metadata?: {
+    userId?: string;
+    pdzAmount?: number;
+  };
+  timestamp: string;
+}
+
+export function parseArcPayWebhook(body: string): ArcPayWebhookPayload | null {
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    console.error('❌ Error parsing webhook payload:', error);
+    return null;
+  }
+}
