@@ -5300,11 +5300,28 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
         return res.status(401).json({ error: 'Unauthorized - user not found' });
       }
 
-      if (!pdzAmount || typeof pdzAmount !== 'number' || pdzAmount < 0.1) {
-        return res.status(400).json({ error: 'Minimum amount is 0.1 TON' });
+      // Validate amount - differentiate between empty/invalid vs too small
+      console.log(`💳 Payment request - amount: ${pdzAmount}, type: ${typeof pdzAmount}`);
+
+      // Check if amount is missing or not a number
+      if (pdzAmount === undefined || pdzAmount === null || typeof pdzAmount !== 'number') {
+        console.error(`❌ Invalid amount type: ${typeof pdzAmount}, value: ${pdzAmount}`);
+        return res.status(400).json({ error: 'Enter valid amount' });
       }
 
-      console.log(`💳 Creating ArcPay payment for user ${userId}, amount: ${pdzAmount} PDZ`);
+      // Check if amount is 0 or negative
+      if (isNaN(pdzAmount) || pdzAmount <= 0) {
+        console.error(`❌ Invalid amount value: ${pdzAmount}`);
+        return res.status(400).json({ error: 'Enter valid amount' });
+      }
+
+      // Check if amount is below minimum
+      if (pdzAmount < 0.1) {
+        console.error(`❌ Amount below minimum: ${pdzAmount} < 0.1`);
+        return res.status(400).json({ error: 'Minimum top-up is 0.1 TON' });
+      }
+
+      console.log(`✅ Amount validated: ${pdzAmount} PDZ - creating ArcPay payment for user ${userId}`);
 
       // Create checkout
       const result = await createArcPayCheckout(pdzAmount, userId, userEmail);
