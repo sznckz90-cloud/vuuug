@@ -5,6 +5,33 @@ CashWatch is a Telegram-based earning platform where users can earn PAD currency
 
 ## Recent Changes
 
+### November 23, 2025 - ArcPay Items Array Fix & Production Deployment Guide
+
+**Critical ArcPay API Fix**:
+- **Problem**: Production ArcPay payments failing with validation error:
+  ```
+  pydantic_core.ValidationError: 1 validation error for DbCreateOrder
+  items: List should have at least 1 item after validation, not 0
+  ```
+- **Root Cause**: ArcPay API requires `items` array with product details (minimum 1 item)
+- **Solution Applied** (`server/arcpay.ts`):
+  - Added required `items` array to payment payload (line 179-187)
+  - Each item includes: name, description, quantity, price, currency
+  - Example: `[{ name: "PDZ Tokens - 1.5 PDZ", description: "Top-Up 1.5 PDZ tokens", quantity: 1, price: 1.5, currency: "TON" }]`
+- **Impact**: ✅ PDZ top-up payments now work correctly in production
+
+**Production Health Check Endpoint Added** (`/api/health`):
+- Checks database connectivity and user count
+- Validates environment variables (DATABASE_URL, TELEGRAM_BOT_TOKEN, SESSION_SECRET)
+- Shows WebSocket active connections
+- Usage: `curl https://your-app.onrender.com/api/health`
+
+**Production Deployment Documentation**:
+- Complete Render deployment guide added
+- Render.yaml updated with automatic PostgreSQL database setup
+- Environment variable checklist documented
+- Database connection troubleshooting steps included
+
 ### November 23, 2025 - Fresh GitHub Import Setup Complete ✅
 
 **Successfully Imported & Configured CashWatch on Replit**:
