@@ -1,8 +1,10 @@
 import HamburgerMenu from "@/components/HamburgerMenu";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function Header() {
+  const [, navigate] = useLocation();
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
     retry: false,
@@ -11,7 +13,7 @@ export default function Header() {
   const pdzBalance = parseFloat(user?.pdzBalance || "0");
 
   const handleTopUp = () => {
-    window.open("https://t.me/szxzyz?text=Sir%2C%20I%20want%20to%20top%20up%20PDZ%20to%20create%20paid%20tasks", "_blank");
+    navigate("/topup-pdz");
   };
 
   return (
