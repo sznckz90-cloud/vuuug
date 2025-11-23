@@ -172,6 +172,16 @@ async function generateArcPayCheckoutUrl(
     webhookUrl: paymentRequest.webhookUrl,
     metadata: paymentRequest.metadata,
     network: config.network,
+    // ArcPay requires items array with at least 1 product
+    items: [
+      {
+        name: `PDZ Tokens - ${paymentRequest.amount} PDZ`,
+        description: paymentRequest.description || `Top-Up ${paymentRequest.amount} PDZ tokens`,
+        quantity: 1,
+        price: paymentRequest.amount,
+        currency: paymentRequest.currency
+      }
+    ]
   };
 
   try {
