@@ -1,6 +1,13 @@
 services:
+  # PostgreSQL Database
+  - type: pserv
+    name: cashwatch-database
+    env: docker
+    plan: free
+    
+  # Web Service
   - type: web
-    name: lighting-sats-bot
+    name: cashwatch-app
     env: node
     runtime: node
     plan: starter
@@ -12,4 +19,18 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cashwatch-database
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      # Add these manually in Render dashboard:
+      # - TELEGRAM_BOT_TOKEN
+      # - TELEGRAM_ADMIN_ID
+      # - BOT_USERNAME
+      # - ARCPAY_API_KEY (optional)
+      # - ARCPAY_PRIVATE_KEY (optional)
+      # - ARCPAY_RETURN_URL (optional)
+      # - ARCPAY_WEBHOOK_URL (optional)
     autoDeploy: false
