@@ -108,6 +108,38 @@ export async function createArcPayCheckout(
 }
 
 /**
+ * Retry fetch with exponential backoff
+ * Attempts a fetch request multiple times with increasing delays
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  delayMs = 1000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Attempt ${attempt}/${maxRetries} to call ArcPay API`);
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`⚠️ Attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+      
+      if (attempt < maxRetries) {
+        const waitTime = delayMs * attempt;
+        console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+  
+  throw new Error(`ArcPay service temporarily unavailable after ${maxRetries} attempts. Please try again later. ${lastError?.message || ''}`);
+}
+
+/**
  * Generate ArcPay checkout URL
  * This creates the payment link to redirect user to ArcPay gateway
  */
@@ -125,50 +157,79 @@ async function generateArcPayCheckoutUrl(
   // Get ArcPay config from environment
   const config = getArcPayConfig();
   
-  // ArcPay API endpoint
-  const arcPayApiUrl = 'https://api.arcpay.io/v1/checkout/create';
+  // CORRECTED ArcPay API endpoint (arcpay.online, not api.arcpay.io)
+  const arcPayApiUrl = 'https://arcpay.online/api/v1/arcpay/order';
 
-  // Prepare request payload
+  // Prepare request payload according to ArcPay documentation
+  // See: https://arcpay.online/docs/quick-start/
+  // Note: ArcPay expects camelCase field names (orderId, not order_id)
   const payload = {
-    api_key: config.apiKey,
-    order_id: paymentRequest.orderID,
+    title: paymentRequest.description || `Top-Up ${paymentRequest.amount} PDZ`,
+    orderId: paymentRequest.orderID,
     amount: paymentRequest.amount,
     currency: paymentRequest.currency,
-    return_url: paymentRequest.returnUrl,
-    webhook_url: paymentRequest.webhookUrl,
-    description: paymentRequest.description,
+    returnUrl: paymentRequest.returnUrl,
+    webhookUrl: paymentRequest.webhookUrl,
     metadata: paymentRequest.metadata,
     network: config.network,
   };
 
   try {
     console.log('🌐 Calling ArcPay API:', arcPayApiUrl);
+    console.log('📦 Payload:', JSON.stringify(payload, null, 2));
 
-    const response = await fetch(arcPayApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+    // Use retry logic for network resilience
+    const response = await fetchWithRetry(
+      arcPayApiUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ArcKey': config.apiKey,
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+      3,
+      1000
+    );
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error('❌ ArcPay API error:', response.status, errorData);
-      throw new Error(`ArcPay API error: ${response.status}`);
+      
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Invalid ArcPay API credentials. Please check your API key.');
+      } else if (response.status >= 500) {
+        throw new Error('ArcPay service is currently experiencing issues. Please try again later.');
+      }
+      
+      throw new Error(`ArcPay API error: ${response.status} - ${errorData}`);
     }
 
-    const data = (await response.json()) as ArcPayCheckoutResponse;
+    const data = await response.json();
+    console.log('📥 ArcPay response:', JSON.stringify(data, null, 2));
 
-    if (data.status === 'success' && data.checkout_url) {
+    // ArcPay returns { orderId, paymentUrl } on success
+    if (data.paymentUrl) {
+      console.log('✅ ArcPay checkout URL generated:', data.paymentUrl);
+      return data.paymentUrl;
+    } else if (data.checkout_url) {
       console.log('✅ ArcPay checkout URL generated:', data.checkout_url);
       return data.checkout_url;
     } else {
-      throw new Error(data.error || 'Failed to generate checkout URL');
+      throw new Error(data.error || 'Failed to generate checkout URL - no payment URL returned');
     }
   } catch (error) {
     console.error('❌ Error calling ArcPay API:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+        throw new Error('Unable to connect to ArcPay service. Please check your internet connection and try again.');
+      } else if (error.message.includes('ETIMEDOUT') || error.message.includes('timeout')) {
+        throw new Error('ArcPay service request timed out. Please try again.');
+      }
+    }
+    
     throw error;
   }
 }
