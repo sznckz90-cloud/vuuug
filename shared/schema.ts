@@ -47,6 +47,11 @@ export const users = pgTable("users", {
   adsWatched: integer("ads_watched").default(0),
   dailyAdsWatched: integer("daily_ads_watched").default(0),
   adsWatchedToday: integer("ads_watched_today").default(0),
+  // Per-provider ad counters (reset daily)
+  monetagAdsToday: integer("monetag_ads_today").default(0),
+  adsgramAdsToday: integer("adsgram_ads_today").default(0),
+  adexoraAdsToday: integer("adexora_ads_today").default(0),
+  adextraAdsToday: integer("adextra_ads_today").default(0),
   dailyEarnings: decimal("daily_earnings", { precision: 12, scale: 8 }),
   lastAdWatch: timestamp("last_ad_watch"),
   lastAdDate: timestamp("last_ad_date"),
