@@ -2,7 +2,6 @@ import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
-import PromoCodeDialog from "@/components/PromoCodeDialog";
 import PromoCodeInput from "@/components/PromoCodeInput";
 import WalletSection from "@/components/WalletSection";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,10 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Trophy } from "lucide-react";
-import { formatCompactNumber } from "@shared/constants";
-import { formatCurrency } from "@/lib/utils";
-import { DiamondIcon, SparkleIcon } from "@/components/DiamondIcon";
+import { Award } from "lucide-react";
 
 interface User {
   id?: string;
@@ -23,6 +19,7 @@ interface User {
   lastStreakDate?: string;
   username?: string;
   firstName?: string;
+  referralCode?: string;
   [key: string]: any;
 }
 
@@ -30,27 +27,12 @@ export default function Home() {
   const { user, isLoading } = useAuth();
   const { isAdmin } = useAdmin();
   const [, setLocation] = useLocation();
-  const [promoDialogOpen, setPromoDialogOpen] = React.useState(false);
 
-  const { data: stats, isLoading: statsLoading } = useQuery<{
-    todayEarnings?: string;
-    referralEarnings?: string;
+  const { data: leaderboardData } = useQuery<{
+    userEarnerRank?: { rank: number; totalEarnings: string } | null;
   }>({
-    queryKey: ["/api/user/stats"],
+    queryKey: ['/api/leaderboard/monthly'],
     retry: false,
-    // CRITICAL FIX: Always refetch stats from database
-    refetchOnMount: true,
-    staleTime: 0,
-  });
-  
-  const { data: topUser } = useQuery<{
-    username: string;
-    profileImage: string;
-    totalEarnings: string;
-  }>({
-    queryKey: ["/api/leaderboard/top"],
-    retry: false,
-    refetchOnMount: true,
   });
 
   if (isLoading) {
@@ -66,27 +48,61 @@ export default function Home() {
     );
   }
 
-  // Convert legacy TON format to PAD integers
   const rawBalance = parseFloat((user as User)?.balance || "0");
   const balancePAD = rawBalance < 1 ? Math.round(rawBalance * 10000000) : Math.round(rawBalance);
-  
   const balanceUSD = parseFloat((user as User)?.usdBalance || "0");
-  
-  const rawTodayEarnings = parseFloat(stats?.todayEarnings || "0");
-  const todayEarnings = rawTodayEarnings < 1 ? Math.round(rawTodayEarnings * 10000000) : Math.round(rawTodayEarnings);
-  
-  const rawAllTimeEarnings = parseFloat((user as User)?.totalEarned || "0");
-  const allTimeEarnings = rawAllTimeEarnings < 1 ? Math.round(rawAllTimeEarnings * 10000000) : Math.round(rawAllTimeEarnings);
-  
-  const rawReferralEarnings = parseFloat(stats?.referralEarnings || "0");
-  const referralEarnings = rawReferralEarnings < 1 ? Math.round(rawReferralEarnings * 10000000) : Math.round(rawReferralEarnings);
   
   const referralCode = (user as User)?.referralCode || "000000";
   const formattedUserId = referralCode.slice(-6).toUpperCase();
 
+  const photoUrl = typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
+  const firstName = (user as User)?.firstName || (user as User)?.username || 'User';
+  const username = (user as User)?.username || '';
+  const userRank = leaderboardData?.userEarnerRank?.rank;
+
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pt-3">
+      <main className="max-w-md mx-auto px-4 pt-1">
+        {/* User Profile Section - Like Hamburger Menu Style */}
+        <div className="flex flex-col items-center gap-1 mb-2">
+          {/* Profile Photo */}
+          {photoUrl ? (
+            <div className="flex flex-col items-center gap-2">
+              <img 
+                src={photoUrl} 
+                alt="Profile" 
+                className="w-20 h-20 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]"
+              />
+              {userRank && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
+                  <Award className="w-3.5 h-3.5 text-[#4cd3ff]" />
+                  <span className="text-[10px] font-bold text-[#4cd3ff]">#{userRank}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]">
+                <span className="text-black font-bold text-3xl">
+                  {firstName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              {userRank && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
+                  <Award className="w-3.5 h-3.5 text-[#4cd3ff]" />
+                  <span className="text-[10px] font-bold text-[#4cd3ff]">#{userRank}</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* User Info */}
+          <div className="flex flex-col items-center gap-1">
+            <h3 className="text-lg font-bold text-white">{firstName}</h3>
+            {username && <p className="text-sm text-gray-400">@{username}</p>}
+          </div>
+        </div>
+
         {/* Daily Streak Section */}
         <StreakCard user={user as User} />
 
@@ -100,60 +116,15 @@ export default function Home() {
           onWithdraw={() => {}}
         />
 
-        {/* Promo Code Section - Inline */}
+        {/* Promo Code Section */}
         <Card className="mb-3 minimal-card">
           <CardContent className="pt-3 pb-3">
             <PromoCodeInput />
           </CardContent>
         </Card>
 
-        {/* Viewing Ads Section */}
+        {/* Viewing Ads Section - Original Style */}
         <AdWatchingSection user={user as User} />
-
-        {/* Leaderboard Preview */}
-        <Card 
-          className="minimal-card cursor-pointer hover:border-primary/50 transition-colors"
-          onClick={() => setLocation("/leaderboard")}
-        >
-          <CardContent className="pt-3 pb-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-[18px] h-[18px] text-primary" />
-                <h3 className="text-sm font-semibold text-white">Leaderboard</h3>
-              </div>
-              <div className="text-[10px] text-muted-foreground">Tap to view →</div>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {topUser?.profileImage ? (
-                  <img 
-                    src={topUser.profileImage} 
-                    alt={topUser.username}
-                    className="w-10 h-10 rounded-full flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    {topUser?.username?.[0] || '?'}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="text-white font-medium text-sm truncate">
-                    {topUser?.username || 'No data'}
-                  </div>
-                </div>
-              </div>
-              <div className="text-primary text-sm font-bold flex-shrink-0">
-                {topUser ? formatCurrency(topUser.totalEarnings, true) : '0 PAD'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Promo Code Dialog */}
-        <PromoCodeDialog 
-          open={promoDialogOpen}
-          onOpenChange={setPromoDialogOpen}
-        />
       </main>
     </Layout>
   );
