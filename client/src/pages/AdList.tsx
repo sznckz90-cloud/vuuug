@@ -11,6 +11,12 @@ import { showNotification } from "@/components/AppNotification";
 declare global {
   interface Window {
     show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    showAdexora: () => Promise<void>;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
   }
 }
 
@@ -120,33 +126,173 @@ export default function AdList() {
     if (loadingProvider) return;
     
     setLoadingProvider(providerId);
+    const startTime = Date.now();
+    setAdStartTime(startTime);
+    
+    const handleAdCompletion = () => {
+      const watchDuration = Date.now() - startTime;
+      if (watchDuration < 3000) {
+        showNotification("Claiming too fast!", "error");
+        setLoadingProvider(null);
+        return;
+      }
+      watchAdMutation.mutate(providerId);
+    };
+
+    const handleAdError = (error?: any) => {
+      showNotification("Ad failed to load. Please try again.", "error");
+      setLoadingProvider(null);
+    };
     
     try {
-      if (typeof window.show_10013974 === 'function') {
-        const startTime = Date.now();
-        setAdStartTime(startTime);
-        
-        window.show_10013974()
-          .then(() => {
-            const watchDuration = Date.now() - startTime;
-            if (watchDuration < 3000) {
-              showNotification("Claiming too fast!", "error");
-              setLoadingProvider(null);
-              return;
+      switch (providerId) {
+        case 'monetag':
+          console.log('🎬 Attempting Monetag ad, show_10013974 exists:', typeof window.show_10013974 === 'function');
+          if (typeof window.show_10013974 === 'function') {
+            console.log('✅ Calling window.show_10013974()');
+            window.show_10013974()
+              .then(() => {
+                console.log('✅ Monetag ad completed successfully');
+                handleAdCompletion();
+              })
+              .catch((error) => {
+                console.error('❌ Monetag ad error:', error);
+                handleAdError(error);
+              });
+          } else {
+            console.error('❌ window.show_10013974 is not available');
+            showNotification("Monetag not available. Try again later.", "error");
+            setLoadingProvider(null);
+          }
+          break;
+          
+        case 'adexora':
+          console.log('🎬 Attempting Adexora ad, showAdexora exists:', typeof window.showAdexora === 'function');
+          if (typeof window.showAdexora === 'function') {
+            console.log('✅ Calling window.showAdexora()');
+            window.showAdexora()
+              .then(() => {
+                console.log('✅ Adexora ad completed successfully');
+                handleAdCompletion();
+              })
+              .catch((error) => {
+                console.error('❌ Adexora ad error:', error);
+                handleAdError(error);
+              });
+          } else {
+            console.error('❌ window.showAdexora is not available, type:', typeof window.showAdexora);
+            showNotification("Adexora not available. Please open in Telegram app.", "error");
+            setLoadingProvider(null);
+          }
+          break;
+          
+        case 'adextra':
+          const adExtraContainer = document.getElementById('353c332d4f2440f448057df79cb605e5d3d64ef0');
+          if (adExtraContainer) {
+            adExtraContainer.style.display = 'flex';
+            adExtraContainer.style.alignItems = 'center';
+            adExtraContainer.style.justifyContent = 'center';
+            
+            let closeBtn = document.getElementById('adextra-close-btn') as HTMLButtonElement | null;
+            let skipBtn = document.getElementById('adextra-skip-btn') as HTMLButtonElement | null;
+            
+            if (!closeBtn) {
+              closeBtn = document.createElement('button');
+              closeBtn.id = 'adextra-close-btn';
+              closeBtn.style.cssText = 'position:absolute;top:20px;right:20px;background:#4cd3ff;color:#000;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;z-index:10000;display:none;';
+              closeBtn.textContent = 'Claim Reward';
+              adExtraContainer.appendChild(closeBtn);
             }
-            watchAdMutation.mutate(providerId);
-          })
-          .catch(() => {
-            const watchDuration = Date.now() - startTime;
-            if (watchDuration < 3000) {
-              showNotification("Claiming too fast!", "error");
-              setLoadingProvider(null);
-              return;
+            
+            if (!skipBtn) {
+              skipBtn = document.createElement('button');
+              skipBtn.id = 'adextra-skip-btn';
+              skipBtn.style.cssText = 'position:absolute;top:20px;left:20px;background:#333;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;z-index:10000;';
+              skipBtn.textContent = 'Close';
+              adExtraContainer.appendChild(skipBtn);
             }
-            watchAdMutation.mutate(providerId);
-          });
-      } else {
-        watchAdMutation.mutate(providerId);
+            
+            closeBtn.style.display = 'none';
+            skipBtn.style.display = 'block';
+            let adLoadedAndViewed = false;
+            let contentCheckInterval: NodeJS.Timeout | null = null;
+            
+            const checkForAdContent = () => {
+              const hasContent = adExtraContainer.querySelector('iframe, img, video, div[class]');
+              return hasContent !== null && adExtraContainer.childElementCount > 2;
+            };
+            
+            contentCheckInterval = setInterval(() => {
+              if (checkForAdContent()) {
+                clearInterval(contentCheckInterval!);
+                setTimeout(() => {
+                  if (closeBtn) {
+                    closeBtn.style.display = 'block';
+                    adLoadedAndViewed = true;
+                  }
+                }, 5000);
+              }
+            }, 500);
+            
+            setTimeout(() => {
+              if (contentCheckInterval) clearInterval(contentCheckInterval);
+              if (!adLoadedAndViewed && closeBtn) {
+                closeBtn.style.display = 'none';
+              }
+            }, 15000);
+            
+            const handleClaim = () => {
+              if (contentCheckInterval) clearInterval(contentCheckInterval);
+              adExtraContainer.style.display = 'none';
+              if (closeBtn) closeBtn.style.display = 'none';
+              if (skipBtn) skipBtn.style.display = 'none';
+              closeBtn?.removeEventListener('click', handleClaim);
+              skipBtn?.removeEventListener('click', handleSkip);
+              
+              if (adLoadedAndViewed) {
+                handleAdCompletion();
+              } else {
+                showNotification("Ad did not load properly", "error");
+                setLoadingProvider(null);
+              }
+            };
+            
+            const handleSkip = () => {
+              if (contentCheckInterval) clearInterval(contentCheckInterval);
+              adExtraContainer.style.display = 'none';
+              if (closeBtn) closeBtn.style.display = 'none';
+              if (skipBtn) skipBtn.style.display = 'none';
+              closeBtn?.removeEventListener('click', handleClaim);
+              skipBtn?.removeEventListener('click', handleSkip);
+              showNotification("Ad skipped - no reward earned", "info");
+              setLoadingProvider(null);
+            };
+            
+            closeBtn.addEventListener('click', handleClaim);
+            skipBtn.addEventListener('click', handleSkip);
+          } else {
+            showNotification("AdExtra not available. Try again later.", "error");
+            setLoadingProvider(null);
+          }
+          break;
+          
+        case 'adsgram':
+          if (window.Adsgram) {
+            try {
+              await window.Adsgram.init({ blockId: "int-18225" }).show();
+              handleAdCompletion();
+            } catch (error) {
+              handleAdError(error);
+            }
+          } else {
+            showNotification("Adsgram not available. Try again later.", "error");
+            setLoadingProvider(null);
+          }
+          break;
+          
+        default:
+          showNotification("Unknown ad provider", "error");
+          setLoadingProvider(null);
       }
     } catch (error) {
       showNotification("Ad display failed. Please try again.", "error");
