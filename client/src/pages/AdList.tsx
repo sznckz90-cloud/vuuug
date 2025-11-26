@@ -2,73 +2,56 @@ import { useState } from "react";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Play, Gift, Clock, Film, Tv, Target, Star } from "lucide-react";
+import { ArrowLeft, Play, Loader2, Film, Tv, Target, Star } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
-
-declare global {
-  interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
-    showAdexora: () => Promise<void>;
-    Adsgram: {
-      init: (config: { blockId: string }) => {
-        show: () => Promise<void>;
-      };
-    };
-  }
-}
+import { adSdkManager, type AdProviderId } from "@/lib/adSdkManager";
 
 interface AdProvider {
-  id: string;
+  id: AdProviderId;
   name: string;
-  description: string;
-  expectedReward: string;
   icon: React.ReactNode;
   iconBg: string;
+  borderColor: string;
 }
 
 const adProviders: AdProvider[] = [
   {
     id: "monetag",
-    name: "Monetag Ads",
-    description: "Watch video ads to earn rewards",
-    expectedReward: "500-1000 PAD",
-    icon: <Film className="w-5 h-5 text-purple-400" />,
-    iconBg: "bg-purple-500/20"
+    name: "Monetag",
+    icon: <Film className="w-6 h-6 text-purple-400" />,
+    iconBg: "bg-purple-500/20",
+    borderColor: "border-purple-500/30"
   },
   {
     id: "adsgram",
-    name: "Adsgram",
-    description: "Interactive ad experiences",
-    expectedReward: "300-800 PAD",
-    icon: <Tv className="w-5 h-5 text-blue-400" />,
-    iconBg: "bg-blue-500/20"
+    name: "AdsGram",
+    icon: <Tv className="w-6 h-6 text-blue-400" />,
+    iconBg: "bg-blue-500/20",
+    borderColor: "border-blue-500/30"
   },
   {
     id: "adexora",
     name: "Adexora",
-    description: "Premium brand advertisements",
-    expectedReward: "400-900 PAD",
-    icon: <Target className="w-5 h-5 text-green-400" />,
-    iconBg: "bg-green-500/20"
+    icon: <Target className="w-6 h-6 text-green-400" />,
+    iconBg: "bg-green-500/20",
+    borderColor: "border-green-500/30"
   },
   {
     id: "adextra",
     name: "AdExtra",
-    description: "Bonus reward advertisements",
-    expectedReward: "200-600 PAD",
-    icon: <Star className="w-5 h-5 text-yellow-400" />,
-    iconBg: "bg-yellow-500/20"
+    icon: <Star className="w-6 h-6 text-yellow-400" />,
+    iconBg: "bg-yellow-500/20",
+    borderColor: "border-yellow-500/30"
   }
 ];
 
 export default function AdList() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
-  const [adStartTime, setAdStartTime] = useState<number>(0);
+  const [loadingProvider, setLoadingProvider] = useState<AdProviderId | null>(null);
 
   const { data: user } = useQuery<any>({
     queryKey: ['/api/auth/user'],
@@ -85,8 +68,27 @@ export default function AdList() {
     refetchInterval: 60000,
   });
 
+  const getProviderSettings = (providerId: AdProviderId) => {
+    const settings = appSettings?.adProviderSettings?.[providerId];
+    return {
+      limit: settings?.limit || 50,
+      reward: settings?.reward || 2,
+    };
+  };
+
+  const getProviderWatched = (providerId: AdProviderId): number => {
+    if (!user) return 0;
+    switch (providerId) {
+      case 'monetag': return user.monetagAdsToday || 0;
+      case 'adsgram': return user.adsgramAdsToday || 0;
+      case 'adexora': return user.adexoraAdsToday || 0;
+      case 'adextra': return user.adextraAdsToday || 0;
+      default: return 0;
+    }
+  };
+
   const watchAdMutation = useMutation({
-    mutationFn: async (adType: string) => {
+    mutationFn: async (adType: AdProviderId) => {
       const response = await apiRequest("POST", "/api/ads/watch", { adType });
       if (!response.ok) {
         const error = await response.json();
@@ -98,215 +100,76 @@ export default function AdList() {
       queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
         ...old,
         balance: data.newBalance,
-        adsWatchedToday: data.adsWatchedToday
+        adsWatchedToday: data.adsWatchedToday,
+        monetagAdsToday: data.providerCounters?.monetag || old?.monetagAdsToday || 0,
+        adsgramAdsToday: data.providerCounters?.adsgram || old?.adsgramAdsToday || 0,
+        adexoraAdsToday: data.providerCounters?.adexora || old?.adexoraAdsToday || 0,
+        adextraAdsToday: data.providerCounters?.adextra || old?.adextraAdsToday || 0,
       }));
       
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       
-      showNotification(`You received ${data.rewardPAD || 1000} PAD on your balance`, "success");
+      showNotification(`+${data.rewardPAD || 2} PAD earned!`, "success");
       setLoadingProvider(null);
     },
     onError: (error: any) => {
       if (error.status === 429) {
-        const limit = error.limit || appSettings?.dailyAdLimit || 50;
-        showNotification(`Daily ad limit reached (${limit} ads/day)`, "error");
+        const providerName = error.provider ? error.provider.charAt(0).toUpperCase() + error.provider.slice(1) : 'This provider';
+        showNotification(`${providerName} limit reached (${error.limit}/day)`, "error");
       } else if (error.status === 401 || error.status === 403) {
-        showNotification("Authentication error. Please refresh the page.", "error");
+        showNotification("Authentication error. Please refresh.", "error");
       } else if (error.message) {
         showNotification(`Error: ${error.message}`, "error");
       } else {
-        showNotification("Network error. Check your connection and try again.", "error");
+        showNotification("Network error. Try again.", "error");
       }
       setLoadingProvider(null);
     },
   });
 
-  const handleWatchAd = async (providerId: string) => {
-    if (loadingProvider) return;
+  const handleWatchAd = async (providerId: AdProviderId) => {
+    if (loadingProvider || adSdkManager.isProviderLoading()) {
+      showNotification("Please wait for the current ad to finish", "info");
+      return;
+    }
+    
+    const settings = getProviderSettings(providerId);
+    const watched = getProviderWatched(providerId);
+    
+    if (watched >= settings.limit) {
+      showNotification(`${providerId.charAt(0).toUpperCase() + providerId.slice(1)} limit reached (${settings.limit}/day)`, "error");
+      return;
+    }
     
     setLoadingProvider(providerId);
-    const startTime = Date.now();
-    setAdStartTime(startTime);
-    
-    const handleAdCompletion = () => {
-      const watchDuration = Date.now() - startTime;
-      if (watchDuration < 3000) {
-        showNotification("Claiming too fast!", "error");
-        setLoadingProvider(null);
-        return;
-      }
+
+    const handleComplete = () => {
       watchAdMutation.mutate(providerId);
     };
 
-    const handleAdError = (error?: any) => {
-      showNotification("Ad failed to load. Please try again.", "error");
+    const handleError = (error: any) => {
+      console.error(`${providerId} ad error:`, error);
+      const errorMessage = error?.message || "Ad failed to load. Try again.";
+      showNotification(errorMessage, "error");
       setLoadingProvider(null);
     };
-    
-    try {
-      switch (providerId) {
-        case 'monetag':
-          console.log('🎬 Attempting Monetag ad, show_10013974 exists:', typeof window.show_10013974 === 'function');
-          if (typeof window.show_10013974 === 'function') {
-            console.log('✅ Calling window.show_10013974()');
-            window.show_10013974()
-              .then(() => {
-                console.log('✅ Monetag ad completed successfully');
-                handleAdCompletion();
-              })
-              .catch((error) => {
-                console.error('❌ Monetag ad error:', error);
-                handleAdError(error);
-              });
-          } else {
-            console.error('❌ window.show_10013974 is not available');
-            showNotification("Monetag not available. Try again later.", "error");
-            setLoadingProvider(null);
-          }
-          break;
-          
-        case 'adexora':
-          console.log('🎬 Attempting Adexora ad, showAdexora exists:', typeof window.showAdexora === 'function');
-          if (typeof window.showAdexora === 'function') {
-            console.log('✅ Calling window.showAdexora()');
-            window.showAdexora()
-              .then(() => {
-                console.log('✅ Adexora ad completed successfully');
-                handleAdCompletion();
-              })
-              .catch((error) => {
-                console.error('❌ Adexora ad error:', error);
-                handleAdError(error);
-              });
-          } else {
-            console.error('❌ window.showAdexora is not available, type:', typeof window.showAdexora);
-            showNotification("Adexora not available. Please open in Telegram app.", "error");
-            setLoadingProvider(null);
-          }
-          break;
-          
-        case 'adextra':
-          const adExtraContainer = document.getElementById('353c332d4f2440f448057df79cb605e5d3d64ef0');
-          if (adExtraContainer) {
-            adExtraContainer.style.display = 'flex';
-            adExtraContainer.style.alignItems = 'center';
-            adExtraContainer.style.justifyContent = 'center';
-            
-            let closeBtn = document.getElementById('adextra-close-btn') as HTMLButtonElement | null;
-            let skipBtn = document.getElementById('adextra-skip-btn') as HTMLButtonElement | null;
-            
-            if (!closeBtn) {
-              closeBtn = document.createElement('button');
-              closeBtn.id = 'adextra-close-btn';
-              closeBtn.style.cssText = 'position:absolute;top:20px;right:20px;background:#4cd3ff;color:#000;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;z-index:10000;display:none;';
-              closeBtn.textContent = 'Claim Reward';
-              adExtraContainer.appendChild(closeBtn);
-            }
-            
-            if (!skipBtn) {
-              skipBtn = document.createElement('button');
-              skipBtn.id = 'adextra-skip-btn';
-              skipBtn.style.cssText = 'position:absolute;top:20px;left:20px;background:#333;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;z-index:10000;';
-              skipBtn.textContent = 'Close';
-              adExtraContainer.appendChild(skipBtn);
-            }
-            
-            closeBtn.style.display = 'none';
-            skipBtn.style.display = 'block';
-            let adLoadedAndViewed = false;
-            let contentCheckInterval: NodeJS.Timeout | null = null;
-            
-            const checkForAdContent = () => {
-              const hasContent = adExtraContainer.querySelector('iframe, img, video, div[class]');
-              return hasContent !== null && adExtraContainer.childElementCount > 2;
-            };
-            
-            contentCheckInterval = setInterval(() => {
-              if (checkForAdContent()) {
-                clearInterval(contentCheckInterval!);
-                setTimeout(() => {
-                  if (closeBtn) {
-                    closeBtn.style.display = 'block';
-                    adLoadedAndViewed = true;
-                  }
-                }, 5000);
-              }
-            }, 500);
-            
-            setTimeout(() => {
-              if (contentCheckInterval) clearInterval(contentCheckInterval);
-              if (!adLoadedAndViewed && closeBtn) {
-                closeBtn.style.display = 'none';
-              }
-            }, 15000);
-            
-            const handleClaim = () => {
-              if (contentCheckInterval) clearInterval(contentCheckInterval);
-              adExtraContainer.style.display = 'none';
-              if (closeBtn) closeBtn.style.display = 'none';
-              if (skipBtn) skipBtn.style.display = 'none';
-              closeBtn?.removeEventListener('click', handleClaim);
-              skipBtn?.removeEventListener('click', handleSkip);
-              
-              if (adLoadedAndViewed) {
-                handleAdCompletion();
-              } else {
-                showNotification("Ad did not load properly", "error");
-                setLoadingProvider(null);
-              }
-            };
-            
-            const handleSkip = () => {
-              if (contentCheckInterval) clearInterval(contentCheckInterval);
-              adExtraContainer.style.display = 'none';
-              if (closeBtn) closeBtn.style.display = 'none';
-              if (skipBtn) skipBtn.style.display = 'none';
-              closeBtn?.removeEventListener('click', handleClaim);
-              skipBtn?.removeEventListener('click', handleSkip);
-              showNotification("Ad skipped - no reward earned", "info");
-              setLoadingProvider(null);
-            };
-            
-            closeBtn.addEventListener('click', handleClaim);
-            skipBtn.addEventListener('click', handleSkip);
-          } else {
-            showNotification("AdExtra not available. Try again later.", "error");
-            setLoadingProvider(null);
-          }
-          break;
-          
-        case 'adsgram':
-          if (window.Adsgram) {
-            try {
-              await window.Adsgram.init({ blockId: "int-18225" }).show();
-              handleAdCompletion();
-            } catch (error) {
-              handleAdError(error);
-            }
-          } else {
-            showNotification("Adsgram not available. Try again later.", "error");
-            setLoadingProvider(null);
-          }
-          break;
-          
-        default:
-          showNotification("Unknown ad provider", "error");
-          setLoadingProvider(null);
-      }
-    } catch (error) {
-      showNotification("Ad display failed. Please try again.", "error");
+
+    const handleSkip = () => {
+      showNotification("Ad skipped - no reward", "info");
       setLoadingProvider(null);
+    };
+
+    try {
+      await adSdkManager.showAd(providerId, handleComplete, handleError, handleSkip);
+    } catch (error) {
+      handleError(error);
     }
   };
-
-  const adsWatchedToday = user?.adsWatchedToday || 0;
-  const dailyLimit = appSettings?.dailyAdLimit || 50;
 
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-3 pb-6">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           <button 
             onClick={() => setLocation("/")}
@@ -315,71 +178,73 @@ export default function AdList() {
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           <div>
-            <h1 className="text-lg font-bold text-white">Ad Providers</h1>
-            <p className="text-xs text-[#888888]">Choose an ad to watch and earn</p>
+            <h1 className="text-lg font-bold text-white">Watch Ads</h1>
+            <p className="text-xs text-[#888888]">Earn PAD for each ad watched</p>
           </div>
         </div>
 
-        {/* Ad Counter */}
-        <Card className="mb-4 minimal-card">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-[#4cd3ff]" />
-                <span className="text-sm text-white font-medium">Today's Progress</span>
-              </div>
-              <span className="text-sm font-bold text-[#4cd3ff]">{adsWatchedToday}/{dailyLimit}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Ad Provider Cards */}
-        <div className="space-y-2.5">
-          {adProviders.map((provider) => (
-            <Card 
-              key={provider.id}
-              className="minimal-card border-0"
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`w-12 h-12 rounded-lg ${provider.iconBg} border border-[#2A2A2A] flex items-center justify-center flex-shrink-0`}>
-                      {provider.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-white leading-tight">{provider.name}</h3>
-                      <p className="text-xs text-[#888888] mb-1.5 leading-tight">{provider.description}</p>
-                      <div className="flex items-center gap-1.5">
-                        <Gift className="w-3 h-3 text-[#4cd3ff] flex-shrink-0" />
-                        <span className="text-xs font-semibold text-[#4cd3ff]">{provider.expectedReward}</span>
+        <div className="space-y-3">
+          {adProviders.map((provider) => {
+            const settings = getProviderSettings(provider.id);
+            const watched = getProviderWatched(provider.id);
+            const isLimitReached = watched >= settings.limit;
+            const isLoading = loadingProvider === provider.id;
+            
+            return (
+              <Card 
+                key={provider.id}
+                className={`rounded-xl bg-[#111111] border ${provider.borderColor} overflow-hidden`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-lg ${provider.iconBg} flex items-center justify-center`}>
+                        {provider.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white">{provider.name}</h3>
+                        <div className="flex flex-col gap-0.5 mt-1">
+                          <span className="text-xs text-[#888888]">
+                            Watched: <span className={isLimitReached ? "text-red-400" : "text-[#4cd3ff]"}>{watched}</span> / {settings.limit}
+                          </span>
+                          <span className="text-xs text-[#888888]">
+                            Reward: <span className="text-green-400 font-medium">{settings.reward} PAD</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
+                    
+                    <Button
+                      onClick={() => handleWatchAd(provider.id)}
+                      disabled={loadingProvider !== null || isLimitReached}
+                      className={`h-10 px-5 font-semibold ${
+                        isLimitReached 
+                          ? 'bg-[#333] text-[#666] cursor-not-allowed' 
+                          : 'bg-[#4cd3ff] hover:bg-[#6ddeff] text-black'
+                      }`}
+                      size="sm"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : isLimitReached ? (
+                        <span>Done</span>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Play className="w-4 h-4" />
+                          <span>Start</span>
+                        </div>
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => handleWatchAd(provider.id)}
-                    disabled={loadingProvider !== null || adsWatchedToday >= dailyLimit}
-                    className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold h-9 px-3 flex-shrink-0"
-                    size="sm"
-                  >
-                    {loadingProvider === provider.id ? (
-                      <Clock className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <Play className="w-4 h-4" />
-                        <span>Start</span>
-                      </div>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
-        {/* Info Text */}
-        <div className="mt-4 p-3 bg-[#0F0F0F] rounded-lg border border-[#1A1A1A]">
-          <p className="text-xs text-[#888888] text-center">
-            Watch ads to earn PAD rewards. Complete viewing to receive your reward.
+        <div className="mt-5 p-3 bg-[#0A0A0A] rounded-lg border border-[#1A1A1A]">
+          <p className="text-xs text-[#666666] text-center">
+            Each provider has its own daily limit. Watch the full ad to receive rewards.
           </p>
         </div>
       </main>
