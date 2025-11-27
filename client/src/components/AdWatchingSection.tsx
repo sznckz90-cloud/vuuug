@@ -1,15 +1,29 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Play } from "lucide-react";
-import { useLocation } from "wouter";
+import { Play, Clock } from "lucide-react";
+import { showNotification } from "@/components/AppNotification";
+
+declare global {
+  interface Window {
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
+  }
+}
 
 interface AdWatchingSectionProps {
   user: any;
 }
 
 export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
-  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const [isShowingAds, setIsShowingAds] = useState(false);
+  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram'>('idle');
 
   const { data: appSettings } = useQuery({
     queryKey: ["/api/app-settings"],
@@ -21,8 +35,103 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     refetchInterval: 60000,
   });
 
-  const handleStartEarning = () => {
-    setLocation("/ad-list");
+  const watchAdMutation = useMutation({
+    mutationFn: async (adType: string) => {
+      const response = await apiRequest("POST", "/api/ads/watch", { adType });
+      if (!response.ok) {
+        const error = await response.json();
+        throw { status: response.status, ...error };
+      }
+      return response.json();
+    },
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
+        ...old,
+        balance: data.newBalance,
+        adsWatchedToday: data.adsWatchedToday
+      }));
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
+      
+      showNotification(`You received ${data.rewardPAD || 1000} PAD on your balance`, "success");
+    },
+    onError: (error: any) => {
+      if (error.status === 429) {
+        const limit = error.limit || appSettings?.dailyAdLimit || 50;
+        showNotification(`Daily ad limit reached (${limit} ads/day)`, "error");
+      } else if (error.status === 401 || error.status === 403) {
+        showNotification("Authentication error. Please refresh the page.", "error");
+      } else if (error.message) {
+        showNotification(`Error: ${error.message}`, "error");
+      } else {
+        showNotification("Network error. Check your connection and try again.", "error");
+      }
+    },
+  });
+
+  const showMonetagAd = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window.show_10013974 === 'function') {
+        window.show_10013974()
+          .then(() => {
+            watchAdMutation.mutate('monetag');
+            resolve(true);
+          })
+          .catch((error) => {
+            console.error('Monetag ad error:', error);
+            resolve(false);
+          });
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
+  const showAdsgramAd = (): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      if (window.Adsgram) {
+        try {
+          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          watchAdMutation.mutate('adsgram');
+          resolve(true);
+        } catch (error) {
+          console.error('Adsgram ad error:', error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
+  const handleStartEarning = async () => {
+    if (isShowingAds) return;
+    
+    setIsShowingAds(true);
+    
+    // Step 1: Show Monetag ad
+    setCurrentAdStep('monetag');
+    const monetagSuccess = await showMonetagAd();
+    
+    if (!monetagSuccess) {
+      showNotification("Monetag not available. Trying AdGram...", "info");
+    }
+    
+    // Small delay between ads
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Step 2: Show AdGram ad
+    setCurrentAdStep('adsgram');
+    const adsgramSuccess = await showAdsgramAd();
+    
+    if (!adsgramSuccess && !monetagSuccess) {
+      showNotification("No ads available. Please try again later.", "error");
+    }
+    
+    // Reset state
+    setCurrentAdStep('idle');
+    setIsShowingAds(false);
   };
 
   const adsWatchedToday = user?.adsWatchedToday || 0;
@@ -39,11 +148,24 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         <div className="flex justify-center mb-3">
           <button
             onClick={handleStartEarning}
-            className="btn-primary px-6 py-3 flex items-center gap-2 min-w-[160px] justify-center text-base"
+            disabled={isShowingAds || adsWatchedToday >= dailyLimit}
+            className="btn-primary px-6 py-3 flex items-center gap-2 min-w-[160px] justify-center text-base disabled:opacity-50"
             data-testid="button-watch-ad"
           >
-            <Play size={16} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-semibold">Start Earning</span>
+            {isShowingAds ? (
+              <>
+                <Clock size={16} className="animate-spin" />
+                <span className="text-sm font-semibold">
+                  {currentAdStep === 'monetag' ? 'Showing Monetag...' : 
+                   currentAdStep === 'adsgram' ? 'Showing AdGram...' : 'Loading...'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Play size={16} className="group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold">Start Earning</span>
+              </>
+            )}
           </button>
         </div>
         
