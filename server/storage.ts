@@ -863,17 +863,11 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, referredId));
     
-    // Increment the referrer's friendsInvited count (for withdrawal unlock)
-    const currentCount = referrer.friendsInvited || 0;
-    await db
-      .update(users)
-      .set({
-        friendsInvited: currentCount + 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, referrerId));
+    // NOTE: friendsInvited is NOT incremented here. It will only be incremented
+    // when the referred user watches their first ad (in checkAndActivateReferralBonus).
+    // This prevents fake referrals from counting towards the 3-friends withdrawal unlock.
     
-    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}, friendsInvited incremented to ${currentCount + 1}`);
+    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}. Will count towards friendsInvited when friend watches first ad.`);
     return referral;
   }
 
@@ -916,7 +910,7 @@ export class DatabaseStorage implements IStorage {
             eq(referrals.status, 'pending')
           ));
 
-        // Activate each pending referral (no bonus - it was already awarded on join)
+        // Activate each pending referral and increment friendsInvited for the referrer
         for (const referral of pendingReferrals) {
           // Update referral status to completed
           await db
@@ -924,7 +918,16 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId} (bonus already awarded on join)`);
+          // NOW increment the referrer's friendsInvited count (since referral is now valid)
+          await db
+            .update(users)
+            .set({
+              friendsInvited: sql`COALESCE(${users.friendsInvited}, 0) + 1`,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, referral.referrerId));
+
+          console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId}. friendsInvited incremented.`);
         }
       }
     } catch (error) {
@@ -1057,11 +1060,14 @@ export class DatabaseStorage implements IStorage {
       
       for (const user of allUsers) {
         try {
-          // Count actual referrals for this user
+          // Count only COMPLETED referrals (pending ones don't count until friend watches first ad)
           const [result] = await db
             .select({ count: sql<number>`count(*)` })
             .from(referrals)
-            .where(eq(referrals.referrerId, user.id));
+            .where(and(
+              eq(referrals.referrerId, user.id),
+              eq(referrals.status, 'completed')
+            ));
           
           const actualCount = result?.count || 0;
           

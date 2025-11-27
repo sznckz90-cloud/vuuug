@@ -569,12 +569,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user.referralCode = updatedUser?.referralCode || '';
       }
       
-      // Ensure friendsInvited is properly calculated from actual referrals
-      // This ensures the count is always accurate, even if DB field is NULL
+      // Ensure friendsInvited is properly calculated from COMPLETED referrals only
+      // Pending referrals (where friend hasn't watched their first ad) don't count
       const actualReferralsCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(referrals)
-        .where(eq(referrals.referrerId, userId));
+        .where(and(
+          eq(referrals.referrerId, userId),
+          eq(referrals.status, 'completed')
+        ));
       
       const friendsInvited = actualReferralsCount[0]?.count || 0;
       
