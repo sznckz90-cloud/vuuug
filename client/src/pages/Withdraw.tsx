@@ -535,6 +535,9 @@ export default function Withdraw() {
                     <div className="text-xs text-yellow-400/80 mt-1">
                       Withdrawal method: {selectedMethod}
                     </div>
+                    <div className="text-xs text-cyan-400/80 mt-1">
+                      Minimum: ${selectedPaymentSystem?.minWithdrawal?.toFixed(2) || '0.50'} USD
+                    </div>
                   </div>
                 )}
               </div>
