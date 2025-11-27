@@ -3,9 +3,10 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Target, Radio, Bot as BotIcon } from "lucide-react";
+import { CheckCircle, Target, Radio, Bot as BotIcon, Sparkles, ChevronRight } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 interface Task {
   id: string;
@@ -26,6 +27,7 @@ export default function Tasks() {
   const { user, isLoading, authenticateWithTelegramWebApp } = useAuth();
   const queryClient = useQueryClient();
   const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
+  const [, setLocation] = useLocation();
 
   const { data: appSettings } = useQuery({
     queryKey: ['/api/app-settings'],
@@ -217,6 +219,25 @@ export default function Tasks() {
             Earn PAD by completing tasks
           </p>
         </div>
+
+        {/* I want my task here section - at top */}
+        <Card 
+          className="minimal-card mb-4 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
+          onClick={() => setLocation("/create-task")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-white font-semibold text-sm">I want my task here</h3>
+                <p className="text-muted-foreground text-xs mt-0.5">Create your own task</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+            </div>
+          </CardContent>
+        </Card>
 
         {tasksLoading ? (
           <div className="text-center py-8">

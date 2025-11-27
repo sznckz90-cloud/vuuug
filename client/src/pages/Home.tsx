@@ -2,9 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import StreakCard from "@/components/StreakCard";
-import PromoCodeInput from "@/components/PromoCodeInput";
 import WalletSection from "@/components/WalletSection";
-import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -57,7 +55,6 @@ export default function Home() {
 
   const photoUrl = typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
   const firstName = (user as User)?.firstName || (user as User)?.username || 'User';
-  const username = (user as User)?.username || '';
   const userRank = leaderboardData?.userEarnerRank?.rank;
 
   return (
@@ -96,11 +93,6 @@ export default function Home() {
             </div>
           )}
           
-          {/* User Info */}
-          <div className="flex flex-col items-center gap-1">
-            <h3 className="text-lg font-bold text-white">{firstName}</h3>
-            {username && <p className="text-sm text-gray-400">@{username}</p>}
-          </div>
         </div>
 
         {/* Daily Streak Section */}
@@ -115,13 +107,6 @@ export default function Home() {
           onAdminClick={() => setLocation("/admin")}
           onWithdraw={() => {}}
         />
-
-        {/* Promo Code Section */}
-        <Card className="mb-3 minimal-card">
-          <CardContent className="pt-3 pb-3">
-            <PromoCodeInput />
-          </CardContent>
-        </Card>
 
         {/* Viewing Ads Section - Original Style */}
         <AdWatchingSection user={user as User} />
