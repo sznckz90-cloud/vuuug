@@ -1,153 +1,213 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { 
-  Menu, 
-  Sparkles, 
-  Receipt, 
-  Users, 
-  Crown, 
-  ClipboardList,
-  MessagesSquare,
-  Megaphone,
-  Code2,
-  HelpCircle,
-  Sliders,
-  Award,
-  Zap,
-  Download,
-  Banknote
+  Gift, 
+  Ticket,
+  Receipt,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Loader2
 } from "lucide-react";
-import { useAdmin } from "@/hooks/useAdmin";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { showNotification } from "@/components/AppNotification";
+import { format } from "date-fns";
+
+interface Withdrawal {
+  id: string;
+  amount: string;
+  details: string;
+  status: string;
+  createdAt: string;
+  comment?: string;
+  method?: string;
+}
+
+interface WithdrawalsResponse {
+  success: boolean;
+  withdrawals: Withdrawal[];
+}
+
+declare global {
+  interface Window {
+    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+  }
+}
 
 export default function HamburgerMenu() {
-  const { isAdmin } = useAdmin();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const queryClient = useQueryClient();
 
-  const { data: user } = useQuery<any>({
-    queryKey: ['/api/auth/user'],
+  const { data: withdrawalsData, isLoading: withdrawalsLoading } = useQuery<WithdrawalsResponse>({
+    queryKey: ['/api/withdrawals'],
     retry: false,
   });
 
-  const { data: leaderboardData } = useQuery<{
-    userEarnerRank?: { rank: number; totalEarnings: string } | null;
-  }>({
-    queryKey: ['/api/leaderboard/monthly'],
-    retry: false,
+  const withdrawals = (withdrawalsData?.withdrawals || []).slice(0, 5);
+
+  const redeemPromoMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const response = await apiRequest("POST", "/api/promo-codes/redeem", { code });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
+      setPromoCode("");
+      showNotification("Promo applied successfully!", "success");
+    },
+    onError: (error: any) => {
+      const message = error.message || "Invalid code.";
+      if (message.includes("expired")) {
+        showNotification("Promo expired.", "error");
+      } else if (message.includes("already")) {
+        showNotification("Already claimed.", "error");
+      } else {
+        showNotification("Invalid code.", "error");
+      }
+    },
   });
 
-  const photoUrl = typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
-  const firstName = user?.firstName || user?.username || 'User';
-  const username = user?.username || '';
-  const uid = user?.referralCode || '';
-
-  const handleExternalLink = (url: string) => {
-    window.open(url, '_blank');
-  };
-
-  const getRankBadge = () => {
-    const rank = leaderboardData?.userEarnerRank?.rank;
-    
-    if (!rank) {
-      return null;
+  const handleSubmit = async () => {
+    if (!promoCode.trim()) {
+      showNotification("Please enter a promo code", "error");
+      return;
     }
 
-    return (
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
-        <Award className="w-3.5 h-3.5 text-[#4cd3ff]" />
-        <span className="text-[10px] font-bold text-[#4cd3ff]">#{rank}</span>
-      </div>
-    );
+    if (typeof window.show_10013974 === 'function') {
+      try {
+        await window.show_10013974('pop');
+      } catch (error) {
+        console.error('Ad error:', error);
+      }
+    }
+
+    redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+  };
+
+  const getStatusIcon = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('approved') || lowerStatus.includes('success') || lowerStatus.includes('paid')) {
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    } else if (lowerStatus.includes('reject')) {
+      return <XCircle className="w-4 h-4 text-red-500" />;
+    } else if (lowerStatus.includes('pending')) {
+      return <Clock className="w-4 h-4 text-yellow-500" />;
+    }
+    return <Loader2 className="w-4 h-4 text-gray-500" />;
+  };
+
+  const getStatusColor = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('approved') || lowerStatus.includes('success') || lowerStatus.includes('paid')) {
+      return 'text-green-500';
+    } else if (lowerStatus.includes('reject')) {
+      return 'text-red-500';
+    } else if (lowerStatus.includes('pending')) {
+      return 'text-yellow-500';
+    }
+    return 'text-gray-500';
+  };
+
+  const formatUSD = (amount: string) => {
+    return parseFloat(amount).toFixed(2);
   };
 
   return (
-    <>
-      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-[50px] h-[50px] bg-gray-700/50 text-white hover:bg-gray-700/70 active:bg-gray-600/80 p-0 transition-all duration-200 rounded-lg"
-          >
-            <Menu className="w-6 h-6" strokeWidth={2.5} />
-          </Button>
-        </SheetTrigger>
-        <SheetContent 
-          side="left" 
-          className="w-[280px] bg-black/40 backdrop-blur-xl border-r border-white/10 [&>button]:hidden overflow-y-auto"
-        >
-          <SheetHeader className="mb-6">
-            <div className="flex flex-col items-center gap-3 pt-4">
-              {photoUrl ? (
-                <div className="flex flex-col items-center gap-2">
-                  <img 
-                    src={photoUrl} 
-                    alt="Profile" 
-                    className="w-20 h-20 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]"
+    <Drawer open={menuOpen} onOpenChange={setMenuOpen}>
+      <DrawerTrigger asChild>
+        <button className="cursor-pointer">
+          <Gift className="w-5 h-5 text-yellow-400" strokeWidth={2} />
+        </button>
+      </DrawerTrigger>
+      <DrawerContent className="bg-black/95 backdrop-blur-xl border-t-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(76,211,255,0.15)] max-h-[85vh]">
+        <div className="px-4 pb-8 pt-2 overflow-y-auto">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-[#4cd3ff]" />
+                <span className="text-sm font-semibold text-white">Promo Code</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <Input
+                    placeholder="Enter code"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    disabled={redeemPromoMutation.isPending}
+                    className="bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-11 rounded-xl"
                   />
-                  {getRankBadge()}
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]">
-                    <span className="text-black font-bold text-3xl">
-                      {firstName.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  {getRankBadge()}
-                </div>
-              )}
-              
-              <div className="flex flex-col items-center gap-1">
-                <h3 className="text-lg font-bold text-white">{firstName}</h3>
-                {username && <p className="text-sm text-gray-400">@{username}</p>}
-                <p className="text-xs text-[#4cd3ff] font-mono">UID: {uid}</p>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={redeemPromoMutation.isPending || !promoCode.trim()}
+                  className="h-11 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] font-semibold rounded-xl"
+                >
+                  {redeemPromoMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                </Button>
               </div>
             </div>
-          </SheetHeader>
-          
-          <div className="flex flex-col gap-1.5">
-            <Separator className="my-2 bg-white/10" />
-            
-            <div className="px-3 py-1">
-              <p className="text-xs font-semibold text-[#4cd3ff] mb-2">Community & Info</p>
+
+            <div className="h-px bg-white/10" />
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-[#4cd3ff]" />
+                <span className="text-sm font-semibold text-white">Wallet Activity</span>
+              </div>
+              
+              {withdrawalsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#4cd3ff]" />
+                </div>
+              ) : withdrawals.length === 0 ? (
+                <div className="text-center py-6 bg-[#1a1a1a]/50 rounded-xl">
+                  <p className="text-gray-500 text-sm">No transactions yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {withdrawals.map((withdrawal) => (
+                    <div 
+                      key={withdrawal.id}
+                      className="flex items-center justify-between p-3 bg-[#1a1a1a]/50 rounded-xl border border-white/5"
+                    >
+                      <div className="flex items-center gap-3">
+                        {getStatusIcon(withdrawal.status)}
+                        <div>
+                          <p className="text-sm text-white font-medium">
+                            ${formatUSD(withdrawal.amount)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xs font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
+                          {withdrawal.status}
+                        </span>
+                        <p className="text-xs text-gray-500">
+                          {withdrawal.method || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-              onClick={() => handleExternalLink('https://t.me/PaidAdsNews')}
-            >
-              <Megaphone className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-              <span className="text-sm">Announcements/Updates</span>
-            </Button>
-
-            {isAdmin && (
-              <>
-                <Separator className="my-2 bg-white/10" />
-                <Link href="/admin">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start h-11 text-white hover:bg-[#4cd3ff]/10 hover:text-[#4cd3ff]"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <Sliders className="w-5 h-5 mr-3 text-[#4cd3ff]" />
-                    <span className="text-sm">Settings</span>
-                  </Button>
-                </Link>
-              </>
-            )}
           </div>
-        </SheetContent>
-      </Sheet>
-    </>
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }

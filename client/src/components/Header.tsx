@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Menu } from "lucide-react";
 import { useLocation } from "wouter";
+import HamburgerMenu from "./HamburgerMenu";
 
 export default function Header() {
   const [, navigate] = useLocation();
@@ -17,7 +18,10 @@ export default function Header() {
 
   return (
     <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background to-background/95 backdrop-blur-sm border-b border-white/5">
-      <div className="max-w-md mx-auto px-4 py-2 flex items-center justify-end">
+      <div className="max-w-md mx-auto px-4 py-2 flex items-center justify-between">
+        {/* Left: Hamburger Menu */}
+        <HamburgerMenu />
+        
         {/* Right: PDZ Balance with Top Up */}
         <div className="flex items-center gap-2 bg-gray-700/50 px-3 py-2 rounded-lg">
           <button
