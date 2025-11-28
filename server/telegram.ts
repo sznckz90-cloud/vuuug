@@ -397,18 +397,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const user = await storage.getUserByTelegramId(chatId);
           
           if (user && user.referralCode) {
-            let botUsername = 'PaidADsBot';
-            try {
-              const botInfo = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`);
-              const botData = await botInfo.json();
-              if (botData.ok && botData.result?.username) {
-                botUsername = botData.result.username;
-              }
-            } catch (e) {
-              console.warn('⚠️ Could not get bot username, using default');
-            }
-            
-            const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+            const referralLink = `https://t.me/Paid_Adzbot?start=ref${user.referralCode}`;
             
             const inviteMessage = `👫🏼 <b>Invite Your Friends!</b>
 

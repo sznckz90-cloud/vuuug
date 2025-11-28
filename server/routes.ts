@@ -4106,6 +4106,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's deposit history (PDZ top-ups)
+  app.get('/api/deposits/history', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, deposits: [] });
+      }
+      
+      // Get PDZ top-up transactions from transactions table
+      const depositHistory = await db
+        .select({
+          id: transactions.id,
+          amount: transactions.amount,
+          type: transactions.type,
+          source: transactions.source,
+          createdAt: transactions.createdAt
+        })
+        .from(transactions)
+        .where(and(
+          eq(transactions.userId, userId),
+          eq(transactions.source, 'pdz_topup')
+        ))
+        .orderBy(desc(transactions.createdAt))
+        .limit(10);
+      
+      res.json({ 
+        success: true,
+        deposits: depositHistory.map(d => ({
+          id: d.id,
+          amount: d.amount,
+          status: 'completed',
+          createdAt: d.createdAt
+        }))
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fetching deposit history:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch deposits' 
+      });
+    }
+  });
+
   // Create new withdrawal request - auth removed to prevent popup spam
   app.post('/api/withdrawals', async (req: any, res) => {
     try {
