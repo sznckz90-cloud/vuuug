@@ -2018,6 +2018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         botTaskCost: parseFloat(getSetting('bot_task_cost_usd', '0.003')), // NEW: Bot cost in USD (admin only)
         channelTaskReward: parseInt(getSetting('channel_task_reward', '30')), // NEW: Channel reward in PAD
         botTaskReward: parseInt(getSetting('bot_task_reward', '20')), // NEW: Bot reward in PAD
+        partnerTaskReward: parseInt(getSetting('partner_task_reward', '5')), // NEW: Partner reward in PAD
         minimumConvertPAD: parseInt(getSetting('minimum_convert_pad', '100')), // NEW: Min convert in PAD (100 PAD = $0.01)
         minimumConvertUSD: parseInt(getSetting('minimum_convert_pad', '100')) / 10000, // Convert to USD
         minimumClicks: parseInt(getSetting('minimum_clicks', '500')), // NEW: Min clicks for task creation
@@ -2050,6 +2051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         botTaskCost,
         channelTaskReward,
         botTaskReward,
+        partnerTaskReward,
         minimumConvertPAD,
         minimumClicks,
         seasonBroadcastActive
@@ -2080,6 +2082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('bot_task_cost_usd', botTaskCost); // USD (admin only)
       await updateSetting('channel_task_reward', channelTaskReward); // PAD
       await updateSetting('bot_task_reward', botTaskReward); // PAD
+      await updateSetting('partner_task_reward', partnerTaskReward); // PAD
       await updateSetting('minimum_convert_pad', minimumConvertPAD); // PAD
       await updateSetting('minimum_clicks', minimumClicks); // Minimum clicks for task creation
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
@@ -5285,8 +5288,18 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
             reward: rewardAmount,
             rewardType: 'PDZ'
           });
+        } else if (rewardType === 'USD') {
+          // Add USD balance
+          await storage.addUSDBalance(userId, rewardAmount, 'promo_code', `Redeemed promo code: ${code}`);
+          
+          res.json({ 
+            success: true, 
+            message: `$${rewardAmount} USD added to your balance!`,
+            reward: rewardAmount,
+            rewardType: 'USD'
+          });
         } else {
-          // Add PAD balance (adds to balance field which is in TON)
+          // Add PAD balance (adds to balance field)
           await storage.addEarning({
             userId,
             amount: rewardAmount,
@@ -5296,7 +5309,7 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
           
           res.json({ 
             success: true, 
-            message: `${rewardAmount} TON added to your balance!`,
+            message: `${rewardAmount} PAD added to your balance!`,
             reward: rewardAmount,
             rewardType: 'PAD'
           });
@@ -5341,8 +5354,8 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       
       // Validate reward type
       const finalRewardType = rewardType || 'PAD';
-      if (finalRewardType !== 'PAD' && finalRewardType !== 'PDZ') {
-        return res.status(400).json({ message: 'Reward type must be either PAD or PDZ' });
+      if (finalRewardType !== 'PAD' && finalRewardType !== 'PDZ' && finalRewardType !== 'USD') {
+        return res.status(400).json({ message: 'Reward type must be PAD, PDZ, or USD' });
       }
       
       const promoCode = await storage.createPromoCode({

@@ -301,12 +301,6 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
       ],
       [
         {
-          text: "👫🏼 Invite Friend",
-          callback_data: "invite_friend"
-        }
-      ],
-      [
-        {
           text: "🤝🏻 Announce",
           url: "https://t.me/PaidADsNews"
         },

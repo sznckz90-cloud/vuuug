@@ -2219,6 +2219,35 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async addUSDBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      await db.update(users)
+        .set({
+          usdBalance: sql`${users.usdBalance} + ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      // Record transaction for USD addition
+      await this.logTransaction({
+        userId,
+        amount,
+        type: 'addition',
+        source,
+        description: description || `USD balance added from ${source}`,
+        metadata: { 
+          usdAmount: amount,
+          source
+        }
+      });
+
+      return { success: true, message: 'USD balance added successfully' };
+    } catch (error) {
+      console.error('Error adding USD balance:', error);
+      return { success: false, message: 'Error adding USD balance' };
+    }
+  }
+
   async deductPDZBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
     try {
       // Check if user is admin - admins have unlimited PDZ balance
