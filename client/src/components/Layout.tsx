@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, CheckSquare, Users, ClipboardList, Sparkles, CircleDollarSign } from "lucide-react";
+import { Home, Users, ClipboardList, CircleDollarSign } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
@@ -23,11 +23,10 @@ export default function Layout({ children }: LayoutProps) {
   });
 
   const navItems = [
-    { href: "/tasks", icon: ClipboardList, label: "Tasks" },
-    { href: "/create-task", icon: Sparkles, label: "Create" },
     { href: "/", icon: Home, label: "Home" },
-    { href: "/withdraw", icon: CircleDollarSign, label: "Withdraw" },
+    { href: "/tasks", icon: ClipboardList, label: "Tasks" },
     { href: "/affiliates", icon: Users, label: "Affiliates" },
+    { href: "/withdraw", icon: CircleDollarSign, label: "Withdraw" },
   ];
 
   const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
@@ -38,17 +37,17 @@ export default function Layout({ children }: LayoutProps) {
       {/* Header - Fixed - Hidden when season end is shown */}
       {!showSeasonEnd && <Header />}
       
-      {/* Scrollable Content Area */}
+      {/* Scrollable Content Area - Instant transitions */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '76px', paddingTop: '60px' }}>
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ 
-              duration: 0.2,
-              ease: [0.645, 0.045, 0.355, 1]
+              duration: 0.1,
+              ease: "easeOut"
             }}
             className="min-h-full"
           >

@@ -9,11 +9,6 @@ import { Flame, Loader } from "lucide-react";
 declare global {
   interface Window {
     show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
-    Adsgram?: {
-      init: (config: { blockId: string; debug?: boolean }) => {
-        show: () => Promise<{ done: boolean; description: string; state: string; error: boolean }>;
-      };
-    };
   }
 }
 
@@ -49,9 +44,9 @@ export default function StreakCard({ user }: StreakCardProps) {
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
         const earnedPAD = Math.round(rewardAmount);
-        showNotification(`You've claimed +${earnedPAD} PAD from Faucetpay!`, "success");
+        showNotification(`You've claimed +${earnedPAD} PAD!`, "success");
       } else {
-        showNotification("You've claimed your Faucetpay reward!", "success");
+        showNotification("You've claimed your streak bonus!", "success");
       }
     },
     onError: (error: any) => {
@@ -126,23 +121,6 @@ export default function StreakCard({ user }: StreakCardProps) {
     });
   };
 
-  const showAdgram = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (window.Adsgram) {
-        try {
-          const AdController = window.Adsgram.init({ blockId: "int-5893", debug: false });
-          AdController.show()
-            .then(() => resolve(true))
-            .catch(() => resolve(true));
-        } catch {
-          resolve(true);
-        }
-      } else {
-        resolve(true);
-      }
-    });
-  };
-
   const handleClaimStreak = async () => {
     if (isClaiming || hasClaimed) return;
     
@@ -150,7 +128,6 @@ export default function StreakCard({ user }: StreakCardProps) {
     
     try {
       await showMonetag();
-      await showAdgram();
       claimStreakMutation.mutate();
     } catch (error) {
       console.error('Streak claim failed:', error);

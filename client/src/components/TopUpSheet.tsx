@@ -6,13 +6,22 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Loader2, Gem } from "lucide-react";
+import { Plus, Loader2, Gem, Clock, CreditCard } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 
 const MINIMUM_AMOUNT = 0.1;
 const DEBOUNCE_DELAY = 1000;
 const PRESET_AMOUNTS = [1, 3, 5, 10];
+
+interface DepositHistory {
+  id: string;
+  amount: string;
+  status: string;
+  createdAt: string;
+}
 
 interface TopUpSheetProps {
   trigger?: React.ReactNode;
@@ -20,31 +29,39 @@ interface TopUpSheetProps {
 
 export default function TopUpSheet({ trigger }: TopUpSheetProps) {
   const [open, setOpen] = useState(false);
-  const [padAmount, setPadAmount] = useState("");
+  const [pdzAmount, setPdzAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const { data: depositsData } = useQuery<{ success: boolean; deposits: DepositHistory[] }>({
+    queryKey: ['/api/deposits/history'],
+    retry: false,
+    enabled: open,
+  });
+
+  const deposits = depositsData?.deposits?.slice(0, 5) || [];
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "" || /^\d*\.?\d*$/.test(value)) {
-      setPadAmount(value);
+      setPdzAmount(value);
       setValidationError("");
     }
   };
 
   const handlePresetSelect = (amount: number) => {
-    setPadAmount(amount.toString());
+    setPdzAmount(amount.toString());
     setValidationError("");
   };
 
   const validateAmount = (): boolean => {
-    if (!padAmount || padAmount.trim() === "") {
+    if (!pdzAmount || pdzAmount.trim() === "") {
       setValidationError("Enter amount (Min 0.1 TON)");
       return false;
     }
 
-    const amount = parseFloat(padAmount);
+    const amount = parseFloat(pdzAmount);
 
     if (isNaN(amount) || amount <= 0) {
       setValidationError("Enter valid amount");
@@ -73,7 +90,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
       return;
     }
 
-    const amount = parseFloat(padAmount);
+    const amount = parseFloat(pdzAmount);
     setIsLoading(true);
 
     debounceTimeoutRef.current = setTimeout(async () => {
@@ -104,7 +121,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
-      setPadAmount("");
+      setPdzAmount("");
       setValidationError("");
       setIsLoading(false);
       if (debounceTimeoutRef.current) {
@@ -123,13 +140,13 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
           </button>
         )}
       </DrawerTrigger>
-      <DrawerContent className="bg-black/95 backdrop-blur-xl border-t-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(76,211,255,0.15)]">
-        <div className="px-4 pb-5 pt-1">
+      <DrawerContent className="bg-black/95 backdrop-blur-xl border-t-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(76,211,255,0.15)] max-h-[80vh]">
+        <div className="px-4 pb-5 pt-1 overflow-y-auto">
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2">
               <Gem className="w-5 h-5 text-[#4cd3ff]" />
-              <span className="text-base font-semibold text-white">Top-Up PAD</span>
-              <span className="text-xs text-gray-500">(1 TON = 1 PAD)</span>
+              <span className="text-base font-semibold text-white">Top-Up PDZ</span>
+              <span className="text-xs text-gray-500">(1 TON = 1 PDZ)</span>
             </div>
 
             <div className="grid grid-cols-4 gap-2">
@@ -139,7 +156,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
                   onClick={() => handlePresetSelect(amount)}
                   disabled={isLoading}
                   className={`py-2 px-2 rounded-lg border transition-all text-sm font-medium ${
-                    padAmount === amount.toString()
+                    pdzAmount === amount.toString()
                       ? "bg-[#4cd3ff] text-black border-[#4cd3ff]"
                       : "bg-[#1a1a1a] text-white border-white/10 hover:border-[#4cd3ff]/50"
                   }`}
@@ -154,14 +171,14 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
                 type="text"
                 inputMode="decimal"
                 placeholder="Custom amount"
-                value={padAmount}
+                value={pdzAmount}
                 onChange={handleInputChange}
                 disabled={isLoading}
                 className="bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-10 rounded-lg flex-1"
               />
               <Button
                 onClick={handlePay}
-                disabled={!padAmount || isLoading || !!validationError}
+                disabled={!pdzAmount || isLoading || !!validationError}
                 className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold rounded-lg transition-all active:scale-[0.98]"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Pay"}
@@ -175,6 +192,32 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
             <p className="text-[10px] text-center text-gray-600">
               Min 0.1 TON • Secured by ArcPay
             </p>
+
+            {deposits.length > 0 && (
+              <div className="mt-4 border-t border-white/10 pt-3">
+                <h4 className="text-xs font-semibold text-gray-400 mb-2">Deposit History</h4>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {deposits.map((deposit) => (
+                    <div key={deposit.id} className="flex items-center gap-3 bg-[#1a1a1a] rounded-lg p-2">
+                      <div className="w-8 h-8 rounded-full bg-[#4cd3ff]/10 flex items-center justify-center">
+                        <CreditCard className="w-4 h-4 text-[#4cd3ff]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          <span>{format(new Date(deposit.createdAt), 'MMM dd, HH:mm')}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-[#4cd3ff]">
+                          +{parseFloat(deposit.amount).toFixed(2)} PDZ
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </DrawerContent>
