@@ -6,6 +6,7 @@ import { Home, Users, ClipboardList, CircleDollarSign } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
+import BanScreen from "@/components/BanScreen";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,6 +22,11 @@ export default function Layout({ children }: LayoutProps) {
     queryKey: ['/api/auth/user'],
     retry: false,
   });
+
+  // Show ban screen if user is banned
+  if (user?.banned) {
+    return <BanScreen reason={user.bannedReason} />;
+  }
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },

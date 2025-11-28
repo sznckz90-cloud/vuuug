@@ -45,10 +45,6 @@ export default function BanScreen({ reason }: BanScreenProps) {
             >
               Contact Support
             </button>
-
-            <p className="text-xs text-gray-500 mt-4">
-              Support: https://t.me/PaidAdsCommunity
-            </p>
           </div>
         </div>
       </div>
