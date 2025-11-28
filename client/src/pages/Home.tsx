@@ -58,12 +58,6 @@ export default function Home() {
   
   const getDisplayName = (): string => {
     const typedUser = user as User;
-    if (typedUser?.telegramUsername) {
-      return typedUser.telegramUsername;
-    }
-    if (typedUser?.username) {
-      return typedUser.username;
-    }
     if (typedUser?.firstName) {
       return typedUser.firstName;
     }
@@ -71,6 +65,8 @@ export default function Home() {
   };
   
   const displayName = getDisplayName();
+  const userId = (user as User)?.id || '';
+  const userUID = userId.length >= 5 ? userId.slice(-5).toUpperCase() : userId.padStart(5, '0').toUpperCase();
   const userRank = leaderboardData?.userEarnerRank?.rank;
 
   return (
@@ -78,13 +74,14 @@ export default function Home() {
       <main className="max-w-md mx-auto px-4 pt-1">
         {/* User Profile Section - Like Hamburger Menu Style */}
         <div className="flex flex-col items-center gap-1 mb-2">
-          {/* Profile Photo */}
+          {/* Profile Photo - Clickable for admin */}
           {photoUrl ? (
             <div className="flex flex-col items-center gap-2">
               <img 
                 src={photoUrl} 
                 alt="Profile" 
-                className="w-20 h-20 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]"
+                className={`w-20 h-20 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)] ${isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                onClick={() => isAdmin && setLocation("/admin")}
               />
               {userRank && (
                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
@@ -95,7 +92,10 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]">
+              <div 
+                className={`w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)] ${isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                onClick={() => isAdmin && setLocation("/admin")}
+              >
                 <span className="text-black font-bold text-3xl">
                   {displayName.charAt(0).toUpperCase()}
                 </span>
@@ -109,10 +109,10 @@ export default function Home() {
             </div>
           )}
           
-          {/* User Name and ID */}
+          {/* User Name and UID */}
           <div className="text-center mt-2 mb-1">
             <h1 className="text-lg font-bold text-white">{displayName}</h1>
-            <p className="text-xs text-gray-400">ID: {(user as User)?.telegramId}</p>
+            <p className="text-xs text-gray-400">UID: {userUID}</p>
           </div>
         </div>
 
