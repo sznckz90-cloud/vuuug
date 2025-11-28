@@ -234,7 +234,7 @@ export default function Tasks() {
 
         <Card 
           className="minimal-card mb-4 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
-          onClick={() => setLocation("/create-task")}
+          onClick={() => setLocation("/task/create")}
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">

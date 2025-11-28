@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { formatCurrency } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Crown } from "lucide-react";
 
 interface AdminStats {
@@ -338,90 +339,251 @@ function AnalyticsSection({ stats }: { stats: AdminStats | undefined }) {
 // User Management Section
 function UserManagementSection({ usersData }: { usersData: any }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const users = usersData?.users || [];
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const itemsPerPage = 15;
+  const users = usersData?.users || usersData || [];
 
-  const filteredUsers = users.filter((user: any) => 
-    user.personalCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.username?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter((user: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      user.personalCode?.toLowerCase().includes(search) ||
+      user.firstName?.toLowerCase().includes(search) ||
+      user.username?.toLowerCase().includes(search)
+    );
+  });
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center">
-            <i className="fas fa-users-cog mr-2 text-purple-600"></i>
-            User Management
-          </CardTitle>
-          <Input
-            placeholder="🔍 Search by UID or username..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-xs"
-          />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Username</TableHead>
-                <TableHead>UID</TableHead>
-                <TableHead>Join Date</TableHead>
-                <TableHead>Friends</TableHead>
-                <TableHead>Wallet</TableHead>
-                <TableHead className="text-right">Total Earned</TableHead>
-                <TableHead className="text-right">Withdrawn</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.length === 0 ? (
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="flex items-center">
+              <i className="fas fa-users-cog mr-2 text-purple-600"></i>
+              User Management
+            </CardTitle>
+            <Input
+              placeholder="🔍 Search by UID or username..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-xs"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    No users found
-                  </TableCell>
+                  <TableHead>Username</TableHead>
+                  <TableHead>UID</TableHead>
+                  <TableHead>Join Date</TableHead>
+                  <TableHead>Friends</TableHead>
+                  <TableHead>Wallet</TableHead>
+                  <TableHead className="text-right">Total Earned</TableHead>
+                  <TableHead className="text-right">Withdrawn</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : (
-                filteredUsers.map((user: any) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      {user.username || user.firstName || 'Anonymous'}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{user.personalCode || 'N/A'}</TableCell>
-                    <TableCell className="text-sm">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.friendsInvited || 0}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono max-w-[150px] truncate">
-                      {user.walletAddress ? (
-                        <span className="text-green-600" title={user.walletAddress}>
-                          {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Not set</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(user.totalEarned || '0')}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-green-600">
-                      {formatCurrency(user.totalWithdrawn || '0')}
+              </TableHeader>
+              <TableBody>
+                {paginatedUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      No users found
                     </TableCell>
                   </TableRow>
-                ))
+                ) : (
+                  paginatedUsers.map((user: any) => (
+                    <TableRow key={user.id} className="hover:bg-muted/50">
+                      <TableCell className="font-medium">
+                        {user.username || user.firstName || 'Anonymous'}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm font-bold text-blue-600">
+                        {user.personalCode || 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{user.friendsInvited || 0}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono max-w-[150px] truncate">
+                        {user.walletAddress ? (
+                          <span className="text-green-600" title={user.walletAddress}>
+                            {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Not set</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatCurrency(user.totalEarned || '0')}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-green-600">
+                        {formatCurrency(user.totalWithdrawn || '0')}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedUser(user)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <i className="fas fa-eye mr-1"></i> View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="text-sm text-muted-foreground">
+              Showing {paginatedUsers.length} of {filteredUsers.length} users
+              {searchTerm && ` (filtered from ${users.length} total)`}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  <i className="fas fa-angle-double-left"></i>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <i className="fas fa-angle-left"></i>
+                </Button>
+                <span className="text-sm px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <i className="fas fa-angle-right"></i>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <i className="fas fa-angle-double-right"></i>
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* User Detail Dialog */}
+      <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <i className="fas fa-user-circle text-blue-600"></i>
+              User Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Username</p>
+                  <p className="font-semibold">{selectedUser.username || selectedUser.firstName || 'Anonymous'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">UID</p>
+                  <p className="font-mono font-bold text-blue-600">{selectedUser.personalCode || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Join Date</p>
+                  <p className="text-sm">{selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Friends Invited</p>
+                  <p className="font-semibold">{selectedUser.friendsInvited || 0}</p>
+                </div>
+              </div>
+              
+              <div className="border-t pt-4">
+                <p className="text-xs text-muted-foreground mb-2">Balances</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-blue-50 dark:bg-blue-950 p-2 rounded text-center">
+                    <p className="text-xs text-muted-foreground">PAD</p>
+                    <p className="font-bold text-blue-600">{Math.round(parseFloat(selectedUser.balance || '0') * 100000)}</p>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-950 p-2 rounded text-center">
+                    <p className="text-xs text-muted-foreground">PDZ</p>
+                    <p className="font-bold text-purple-600">{parseFloat(selectedUser.pdzBalance || '0').toFixed(2)}</p>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-950 p-2 rounded text-center">
+                    <p className="text-xs text-muted-foreground">USD</p>
+                    <p className="font-bold text-green-600">${parseFloat(selectedUser.usdBalance || '0').toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-xs text-muted-foreground mb-2">Earnings & Withdrawals</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-emerald-50 dark:bg-emerald-950 p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Total Earned</p>
+                    <p className="font-bold text-emerald-600">{formatCurrency(selectedUser.totalEarned || '0')}</p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950 p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Total Withdrawn</p>
+                    <p className="font-bold text-amber-600">{formatCurrency(selectedUser.totalWithdrawn || '0')}</p>
+                  </div>
+                </div>
+              </div>
+
+              {selectedUser.walletAddress && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-1">Wallet Address</p>
+                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">{selectedUser.walletAddress}</p>
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="mt-4 text-sm text-muted-foreground">
-          Showing {filteredUsers.length} of {users.length} users
-        </div>
-      </CardContent>
-    </Card>
+
+              <div className="border-t pt-4">
+                <p className="text-xs text-muted-foreground mb-2">Activity</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Ads Watched:</span>
+                    <span className="ml-2 font-semibold">{selectedUser.adsWatched || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tasks Done:</span>
+                    <span className="ml-2 font-semibold">{selectedUser.tasksCompleted || 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -432,7 +594,7 @@ function PromoCreatorSection() {
   const [formData, setFormData] = useState({
     code: '',
     rewardAmount: '',
-    rewardType: 'PAD' as 'PAD' | 'PDZ',
+    rewardType: 'PAD' as 'PAD' | 'PDZ' | 'USD',
     usageLimit: '',
     perUserLimit: '1',
     expiresAt: ''
@@ -575,7 +737,7 @@ function PromoCreatorSection() {
           </div>
           <div>
             <Label htmlFor="reward-type">Reward Type *</Label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
+            <div className="grid grid-cols-3 gap-2 mt-1">
               <Button
                 type="button"
                 variant={formData.rewardType === 'PAD' ? 'default' : 'outline'}
@@ -591,6 +753,14 @@ function PromoCreatorSection() {
                 className="w-full"
               >
                 PDZ
+              </Button>
+              <Button
+                type="button"
+                variant={formData.rewardType === 'USD' ? 'default' : 'outline'}
+                onClick={() => setFormData({ ...formData, rewardType: 'USD' })}
+                className="w-full"
+              >
+                USD
               </Button>
             </div>
           </div>
@@ -736,15 +906,34 @@ function PromoCreatorSection() {
 // Payout Logs Section
 function PayoutLogsSection({ data }: { data: any }) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const itemsPerPage = 10;
   const payouts = data?.withdrawals || [];
 
   const filteredPayouts = payouts.filter((payout: any) => {
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'approved') return ['success', 'paid', 'Approved'].includes(payout.status);
-    if (statusFilter === 'rejected') return payout.status === 'rejected';
-    if (statusFilter === 'pending') return payout.status === 'pending';
-    return true;
+    const matchesStatus = statusFilter === 'all' ? true :
+      statusFilter === 'approved' ? ['success', 'paid', 'Approved'].includes(payout.status) :
+      statusFilter === 'rejected' ? payout.status === 'rejected' :
+      statusFilter === 'pending' ? payout.status === 'pending' : true;
+    
+    const matchesSearch = searchQuery === '' ? true :
+      (payout.user?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+       payout.user?.personalCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+       payout.details?.paymentDetails?.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    return matchesStatus && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredPayouts.length / itemsPerPage);
+  const paginatedPayouts = filteredPayouts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchQuery]);
 
   const getStatusBadge = (status: string) => {
     if (['success', 'paid', 'Approved'].includes(status)) {
@@ -759,28 +948,36 @@ function PayoutLogsSection({ data }: { data: any }) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <CardTitle className="flex items-center">
-            <i className="fas fa-file-invoice-dollar mr-2 text-green-600"></i>
-            Payout Logs
-          </CardTitle>
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'pending', 'approved', 'rejected'] as const).map((filter) => (
-              <Button
-                key={filter}
-                size="sm"
-                variant={statusFilter === filter ? 'default' : 'outline'}
-                onClick={() => setStatusFilter(filter)}
-                className="text-xs capitalize flex-shrink-0"
-              >
-                {filter}
-              </Button>
-            ))}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="flex items-center">
+              <i className="fas fa-file-invoice-dollar mr-2 text-green-600"></i>
+              Payout Logs
+            </CardTitle>
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'pending', 'approved', 'rejected'] as const).map((filter) => (
+                <Button
+                  key={filter}
+                  size="sm"
+                  variant={statusFilter === filter ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter(filter)}
+                  className="text-xs capitalize flex-shrink-0"
+                >
+                  {filter}
+                </Button>
+              ))}
+            </div>
           </div>
+          <Input
+            placeholder="🔍 Search by username, UID, or wallet..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-md"
+          />
         </div>
       </CardHeader>
       <CardContent>
-        {filteredPayouts.length === 0 ? (
+        {paginatedPayouts.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <i className="fas fa-inbox text-4xl mb-2"></i>
             <p>No {statusFilter !== 'all' && statusFilter} payout records found</p>
@@ -799,7 +996,7 @@ function PayoutLogsSection({ data }: { data: any }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPayouts.map((payout: any) => (
+                {paginatedPayouts.map((payout: any) => (
                   <TableRow key={payout.id}>
                     <TableCell className="font-medium">
                       @{payout.user?.username || payout.user?.telegram_id || 'Unknown'}
@@ -837,8 +1034,50 @@ function PayoutLogsSection({ data }: { data: any }) {
             </Table>
           </div>
         )}
-        <div className="mt-4 text-sm text-muted-foreground">
-          Showing {filteredPayouts.length} of {payouts.length} payout records
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            Showing {paginatedPayouts.length} of {filteredPayouts.length} records
+            {searchQuery && ` (filtered from ${payouts.length} total)`}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+              >
+                <i className="fas fa-angle-double-left"></i>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <i className="fas fa-angle-left"></i>
+              </Button>
+              <span className="text-sm px-2">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <i className="fas fa-angle-right"></i>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+              >
+                <i className="fas fa-angle-double-right"></i>
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -871,6 +1110,7 @@ function SettingsSection() {
     botTaskCost: '0.003',
     channelTaskReward: '30',
     botTaskReward: '20',
+    partnerTaskReward: '5',
     minimumConvertPAD: '100',
     minimumClicks: '500',
     seasonBroadcastActive: false
@@ -892,6 +1132,7 @@ function SettingsSection() {
         botTaskCost: settingsData.botTaskCost?.toString() || '0.003',
         channelTaskReward: settingsData.channelTaskReward?.toString() || '30',
         botTaskReward: settingsData.botTaskReward?.toString() || '20',
+        partnerTaskReward: settingsData.partnerTaskReward?.toString() || '5',
         minimumConvertPAD: settingsData.minimumConvertPAD?.toString() || '100',
         minimumClicks: settingsData.minimumClicks?.toString() || '500',
         seasonBroadcastActive: settingsData.seasonBroadcastActive || false
@@ -912,6 +1153,7 @@ function SettingsSection() {
     const botCost = parseFloat(settings.botTaskCost);
     const channelReward = parseInt(settings.channelTaskReward);
     const botReward = parseInt(settings.botTaskReward);
+    const partnerReward = parseInt(settings.partnerTaskReward);
     const minConvertPAD = parseInt(settings.minimumConvertPAD);
     const minClicks = parseInt(settings.minimumClicks);
     
@@ -948,6 +1190,7 @@ function SettingsSection() {
         botTaskCost: botCost,
         channelTaskReward: channelReward,
         botTaskReward: botReward,
+        partnerTaskReward: partnerReward,
         minimumConvertPAD: minConvertPAD,
         minimumClicks: minClicks,
         seasonBroadcastActive: settings.seasonBroadcastActive
@@ -1188,6 +1431,30 @@ function SettingsSection() {
             />
             <p className="text-xs text-muted-foreground">
               Current: {settingsData?.botTaskReward || 20} PAD
+            </p>
+          </div>
+
+          {/* Partner Task Reward Setting */}
+          <div className="space-y-2">
+            <Label htmlFor="partner-task-reward" className="text-base font-semibold">
+              <i className="fas fa-handshake mr-2 text-green-600"></i>
+              Partner Task Reward (PAD)
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Reward per partner task completion (admin-created external links)
+            </p>
+            <Input
+              id="partner-task-reward"
+              type="number"
+              value={settings.partnerTaskReward}
+              onChange={(e) => setSettings({ ...settings, partnerTaskReward: e.target.value })}
+              placeholder="5"
+              min="0"
+              step="1"
+              className="text-lg font-semibold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.partnerTaskReward || 5} PAD
             </p>
           </div>
 
