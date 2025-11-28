@@ -17,7 +17,8 @@ import {
   ArrowLeft, 
   Trash2,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Handshake
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect, useRef } from "react";
@@ -70,7 +71,7 @@ export default function CreateTask() {
     }
     return "add-task";
   });
-  const [taskType, setTaskType] = useState<"channel" | "bot" | null>(null);
+  const [taskType, setTaskType] = useState<"channel" | "bot" | "partner" | null>(null);
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
   const [totalClicks, setTotalClicks] = useState("");
@@ -115,13 +116,17 @@ export default function CreateTask() {
   }, [taskType]);
 
   // Use task-type-specific costs and rewards from admin settings
-  const costPerClick = taskType === 'bot' 
-    ? (appSettings?.botTaskCostUSD || 0.003) 
-    : (appSettings?.channelTaskCostUSD || 0.003);
-  const rewardPerClickPAD = taskType === 'bot'
-    ? (appSettings?.botTaskRewardPAD || 20)
-    : (appSettings?.channelTaskRewardPAD || 30);
-  const minimumClicks = appSettings?.minimumClicks || 500;
+  const costPerClick = taskType === 'partner' 
+    ? 0 
+    : taskType === 'bot' 
+      ? (appSettings?.botTaskCostUSD || 0.003) 
+      : (appSettings?.channelTaskCostUSD || 0.003);
+  const rewardPerClickPAD = taskType === 'partner'
+    ? 5
+    : taskType === 'bot'
+      ? (appSettings?.botTaskRewardPAD || 20)
+      : (appSettings?.channelTaskRewardPAD || 30);
+  const minimumClicks = taskType === 'partner' ? 1 : (appSettings?.minimumClicks || 500);
   
   const clicksNum = parseInt(totalClicks) || 0;
   const totalCostUSD = costPerClick * clicksNum;
@@ -259,7 +264,12 @@ export default function CreateTask() {
     e.preventDefault();
 
     if (!taskType) {
-      showNotification("Please select a task type (Channel or Bot)", "error");
+      showNotification("Please select a task type", "error");
+      return;
+    }
+
+    if (taskType === "partner" && !isAdmin) {
+      showNotification("Only admins can create partner tasks", "error");
       return;
     }
 
@@ -268,14 +278,18 @@ export default function CreateTask() {
       return;
     }
 
-    // Validate that title doesn't contain URLs or links
     const urlPattern = /(https?:\/\/|t\.me\/|\.com|\.net|\.org|\.io|www\.)/i;
     if (urlPattern.test(title)) {
       showNotification("Links are not allowed in task title", "error");
       return;
     }
 
-    if (!link.trim() || (!link.startsWith("http") && !link.startsWith("t.me"))) {
+    if (!link.trim()) {
+      showNotification("Please enter a valid link", "error");
+      return;
+    }
+
+    if (taskType !== "partner" && !link.startsWith("http") && !link.startsWith("t.me")) {
       showNotification("Please enter a valid Telegram link", "error");
       return;
     }
@@ -285,7 +299,7 @@ export default function CreateTask() {
       return;
     }
 
-    if (!hasSufficientBalance) {
+    if (taskType !== "partner" && !hasSufficientBalance) {
       showNotification(`Insufficient ${paymentCurrency} balance`, "error");
       return;
     }
@@ -382,36 +396,45 @@ export default function CreateTask() {
           <div className="space-y-4">
             <div>
               <Label className="text-xs font-medium mb-2 block text-muted-foreground">Select Type:</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
+              <div className={`grid gap-2 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <button
                   type="button"
-                  variant="outline"
-                  className={`h-auto py-2.5 flex items-center justify-center gap-2 transition-all ${
+                  className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
                     taskType === "channel" 
-                      ? "bg-blue-500/20 border-blue-500 text-blue-400 hover:bg-blue-500/30" 
-                      : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                      ? "bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500 shadow-lg shadow-blue-500/20" 
+                      : "bg-[#1A1A1A] border-[#2A2A2A] hover:border-blue-500/50"
                   }`}
                   onClick={() => {
                     setTaskType("channel");
                     setIsVerified(false);
                   }}
                 >
-                  <Radio className="w-4 h-4" />
-                  <span className="font-semibold text-sm">Channel</span>
-                </Button>
-                <Button
+                  <Radio className={`w-4 h-4 ${taskType === "channel" ? "text-blue-400" : "text-gray-400"}`} />
+                </button>
+                <button
                   type="button"
-                  variant="outline"
-                  className={`h-auto py-2.5 flex items-center justify-center gap-2 transition-all ${
+                  className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
                     taskType === "bot" 
-                      ? "bg-blue-500/20 border-blue-500 text-blue-400 hover:bg-blue-500/30" 
-                      : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                      ? "bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-500 shadow-lg shadow-purple-500/20" 
+                      : "bg-[#1A1A1A] border-[#2A2A2A] hover:border-purple-500/50"
                   }`}
                   onClick={() => setTaskType("bot")}
                 >
-                  <BotIcon className="w-4 h-4" />
-                  <span className="font-semibold text-sm">Bot</span>
-                </Button>
+                  <BotIcon className={`w-4 h-4 ${taskType === "bot" ? "text-purple-400" : "text-gray-400"}`} />
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+                      taskType === "partner" 
+                        ? "bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-500 shadow-lg shadow-green-500/20" 
+                        : "bg-[#1A1A1A] border-[#2A2A2A] hover:border-green-500/50"
+                    }`}
+                    onClick={() => setTaskType("partner")}
+                  >
+                    <Handshake className={`w-4 h-4 ${taskType === "partner" ? "text-green-400" : "text-gray-400"}`} />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -430,12 +453,12 @@ export default function CreateTask() {
 
                 <div>
                   <Label htmlFor="link">
-                    {taskType === "channel" ? "Telegram Channel Link" : "Bot Link"}
+                    {taskType === "partner" ? "Task Link (Any URL)" : taskType === "channel" ? "Telegram Channel Link" : "Bot Link"}
                   </Label>
                   <Input
                     id="link"
                     type="text"
-                    placeholder={taskType === "channel" ? "https://t.me/yourchannel" : "https://t.me/yourbot"}
+                    placeholder={taskType === "partner" ? "https://example.com/..." : taskType === "channel" ? "https://t.me/yourchannel" : "https://t.me/yourbot"}
                     value={link}
                     onChange={(e) => {
                       setLink(e.target.value);
@@ -443,6 +466,9 @@ export default function CreateTask() {
                     }}
                     className="mt-1"
                   />
+                  {taskType === "partner" && (
+                    <p className="text-xs text-green-400 mt-1">Partner tasks: 5 PAD reward, any link type allowed</p>
+                  )}
                 </div>
 
                 {taskType === "channel" && (
@@ -509,9 +535,13 @@ export default function CreateTask() {
                 <Button
                   type="submit"
                   className="w-full btn-primary"
-                  disabled={createTaskMutation.isPending || !hasSufficientBalance || (taskType === "channel" && !isVerified)}
+                  disabled={createTaskMutation.isPending || (taskType !== "partner" && !hasSufficientBalance) || (taskType === "channel" && !isVerified)}
                 >
-                  {createTaskMutation.isPending ? "Publishing..." : `Pay ${totalCost.toFixed(4)} ${paymentCurrency} & Publish`}
+                  {createTaskMutation.isPending 
+                    ? "Publishing..." 
+                    : taskType === "partner" 
+                      ? "Publish Partner Task" 
+                      : `Pay ${totalCost.toFixed(4)} ${paymentCurrency} & Publish`}
                 </Button>
               </form>
             )}

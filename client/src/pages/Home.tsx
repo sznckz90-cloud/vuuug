@@ -17,6 +17,7 @@ interface User {
   lastStreakDate?: string;
   username?: string;
   firstName?: string;
+  telegramUsername?: string;
   referralCode?: string;
   [key: string]: any;
 }
@@ -54,7 +55,22 @@ export default function Home() {
   const formattedUserId = referralCode.slice(-6).toUpperCase();
 
   const photoUrl = typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
-  const firstName = (user as User)?.firstName || (user as User)?.username || 'User';
+  
+  const getDisplayName = (): string => {
+    const typedUser = user as User;
+    if (typedUser?.telegramUsername) {
+      return typedUser.telegramUsername;
+    }
+    if (typedUser?.username) {
+      return typedUser.username;
+    }
+    if (typedUser?.firstName) {
+      return typedUser.firstName;
+    }
+    return 'Guest';
+  };
+  
+  const displayName = getDisplayName();
   const userRank = leaderboardData?.userEarnerRank?.rank;
 
   return (
@@ -81,7 +97,7 @@ export default function Home() {
             <div className="flex flex-col items-center gap-2">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)]">
                 <span className="text-black font-bold text-3xl">
-                  {firstName.charAt(0).toUpperCase()}
+                  {displayName.charAt(0).toUpperCase()}
                 </span>
               </div>
               {userRank && (
@@ -95,7 +111,7 @@ export default function Home() {
           
           {/* User Name and ID */}
           <div className="text-center mt-2 mb-1">
-            <h1 className="text-lg font-bold text-white">{firstName}</h1>
+            <h1 className="text-lg font-bold text-white">{displayName}</h1>
             <p className="text-xs text-gray-400">ID: {(user as User)?.telegramId}</p>
           </div>
         </div>

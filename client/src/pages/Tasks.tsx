@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Target, Radio, Bot as BotIcon, Sparkles, ChevronRight } from "lucide-react";
+import { CheckCircle, Target, Radio, Bot as BotIcon, Sparkles, ChevronRight, Handshake } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -23,13 +23,22 @@ interface Task {
   completedAt?: string;
 }
 
+interface AppSettings {
+  taskCostPerClick?: number;
+  taskRewardPerClick?: number;
+  taskRewardPAD?: number;
+  partnerTaskRewardPAD?: number;
+  [key: string]: any;
+}
+
 export default function Tasks() {
   const { user, isLoading, authenticateWithTelegramWebApp } = useAuth();
   const queryClient = useQueryClient();
   const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
+  const [selectedCategory, setSelectedCategory] = useState<"channel" | "bot" | "partner" | null>(null);
 
-  const { data: appSettings } = useQuery({
+  const { data: appSettings } = useQuery<AppSettings>({
     queryKey: ['/api/app-settings'],
     retry: false,
     refetchOnMount: true,
@@ -38,6 +47,7 @@ export default function Tasks() {
   const costPerClick = appSettings?.taskCostPerClick || 0.0003;
   const rewardPerClick = appSettings?.taskRewardPerClick || 0.000175;
   const rewardPAD = appSettings?.taskRewardPAD || 1750;
+  const partnerRewardPAD = 5;
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<{
     success: boolean;
@@ -99,19 +109,16 @@ export default function Tasks() {
   });
 
   const handleTaskClick = async (task: Task) => {
-    // Validate that task has a link
     if (!task.link || task.link.trim() === '') {
       showNotification("Task link is missing or invalid", "error");
       return;
     }
 
-    // If already clicked, complete the task
     if (clickedTasks.has(task.id)) {
       clickTaskMutation.mutate(task.id);
       return;
     }
 
-    // Check if already completed
     try {
       const checkResult = await checkTaskClickedMutation.mutateAsync(task.id);
       if (checkResult.hasClicked) {
@@ -121,17 +128,11 @@ export default function Tasks() {
     } catch (error: any) {
       console.error("Failed to check task status:", error);
       
-      // Handle session expiration (401 or 403) - try to re-authenticate
       if (error.status === 401 || error.status === 403 || error.errorCode === 'SESSION_EXPIRED') {
-        console.log('🔄 Session expired, attempting re-authentication...');
+        console.log('Session expired, attempting re-authentication...');
         try {
-          // Re-authenticate with Telegram
           authenticateWithTelegramWebApp();
-          
-          // Wait for authentication to complete
           await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Retry the check after re-authentication
           const retryResult = await checkTaskClickedMutation.mutateAsync(task.id);
           if (retryResult.hasClicked) {
             showNotification("You have already completed this task", "error");
@@ -139,41 +140,31 @@ export default function Tasks() {
           }
         } catch (retryError) {
           console.error("Failed to re-authenticate:", retryError);
-          // Continue anyway - open the link
         }
       }
     }
 
-    // Prepare the link to open - automatically add https:// if missing
     let linkToOpen = task.link.trim();
     
-    // Add https:// prefix if the link doesn't start with http://, https://
     if (!linkToOpen.startsWith('http://') && !linkToOpen.startsWith('https://')) {
-      // If it's a t.me or telegram.me link without protocol, add https://
       if (linkToOpen.match(/^(t\.me|telegram\.me)\//)) {
         linkToOpen = 'https://' + linkToOpen;
       } else {
-        // For other links, add https://
         linkToOpen = 'https://' + linkToOpen;
       }
     }
 
-    // Open the link using Telegram WebApp API
     let opened = false;
     
-    // Check if we're inside Telegram WebApp
     if (window.Telegram?.WebApp) {
-      // Check if this is a Telegram link (t.me or telegram.me)
       const isTelegramLink = linkToOpen.includes('t.me/') || linkToOpen.includes('telegram.me/');
       
       if (isTelegramLink) {
-        // For Telegram links, use openTelegramLink with https://t.me/ URL
         if (window.Telegram.WebApp.openTelegramLink) {
           window.Telegram.WebApp.openTelegramLink(linkToOpen);
           opened = true;
         }
       } else {
-        // For external non-Telegram links, use openLink
         if (window.Telegram.WebApp.openLink) {
           window.Telegram.WebApp.openLink(linkToOpen);
           opened = true;
@@ -181,12 +172,10 @@ export default function Tasks() {
       }
     }
     
-    // Fallback to window.open if Telegram WebApp API is not available
     if (!opened) {
       window.open(linkToOpen, "_blank");
     }
 
-    // Mark as clicked so button changes to "Check"
     setClickedTasks(prev => new Set(prev).add(task.id));
   };
 
@@ -205,7 +194,30 @@ export default function Tasks() {
     );
   }
 
-  const activePublicTasks = tasksData?.tasks || [];
+  const allTasks = tasksData?.tasks || [];
+  const filteredTasks = selectedCategory 
+    ? allTasks.filter(task => task.taskType === selectedCategory)
+    : allTasks;
+
+  const getTaskReward = (task: Task) => {
+    if (task.taskType === 'partner') {
+      return partnerRewardPAD;
+    }
+    return rewardPAD;
+  };
+
+  const getTaskIcon = (taskType: string) => {
+    switch (taskType) {
+      case 'channel':
+        return <Radio className="w-4 h-4" />;
+      case 'bot':
+        return <BotIcon className="w-4 h-4" />;
+      case 'partner':
+        return <Handshake className="w-4 h-4" />;
+      default:
+        return <Radio className="w-4 h-4" />;
+    }
+  };
 
   return (
     <Layout>
@@ -220,7 +232,6 @@ export default function Tasks() {
           </p>
         </div>
 
-        {/* I want my task here section - at top */}
         <Card 
           className="minimal-card mb-4 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
           onClick={() => setLocation("/create-task")}
@@ -231,13 +242,46 @@ export default function Tasks() {
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
-                <h3 className="text-white font-semibold text-sm">I want my task here</h3>
-                <p className="text-muted-foreground text-xs mt-0.5">Create your own task</p>
+                <h3 className="text-white font-semibold text-sm">Create My Task</h3>
+                <p className="text-muted-foreground text-xs mt-0.5">Promote your channel or bot</p>
               </div>
               <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
+
+        <div className="grid grid-cols-3 gap-2 mb-6">
+          <button
+            onClick={() => setSelectedCategory(selectedCategory === 'channel' ? null : 'channel')}
+            className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+              selectedCategory === 'channel'
+                ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500 shadow-lg shadow-blue-500/20'
+                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-blue-500/50'
+            }`}
+          >
+            <Radio className={`w-4 h-4 ${selectedCategory === 'channel' ? 'text-blue-400' : 'text-gray-400'}`} />
+          </button>
+          <button
+            onClick={() => setSelectedCategory(selectedCategory === 'bot' ? null : 'bot')}
+            className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+              selectedCategory === 'bot'
+                ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-500 shadow-lg shadow-purple-500/20'
+                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-purple-500/50'
+            }`}
+          >
+            <BotIcon className={`w-4 h-4 ${selectedCategory === 'bot' ? 'text-purple-400' : 'text-gray-400'}`} />
+          </button>
+          <button
+            onClick={() => setSelectedCategory(selectedCategory === 'partner' ? null : 'partner')}
+            className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+              selectedCategory === 'partner'
+                ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-500 shadow-lg shadow-green-500/20'
+                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-green-500/50'
+            }`}
+          >
+            <Handshake className={`w-4 h-4 ${selectedCategory === 'partner' ? 'text-green-400' : 'text-gray-400'}`} />
+          </button>
+        </div>
 
         {tasksLoading ? (
           <div className="text-center py-8">
@@ -246,18 +290,22 @@ export default function Tasks() {
             </div>
             <p className="text-muted-foreground">Loading tasks...</p>
           </div>
-        ) : activePublicTasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <Card className="minimal-card">
             <CardContent className="pt-6 pb-6 text-center">
               <Target className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-muted-foreground">No active tasks available</p>
+              <p className="text-muted-foreground">
+                {selectedCategory 
+                  ? `No ${selectedCategory} tasks available` 
+                  : 'No active tasks available'}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">Check back later for new tasks</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {activePublicTasks.map((task) => {
-              const padReward = rewardPAD;
+            {filteredTasks.map((task) => {
+              const padReward = getTaskReward(task);
               const hasClicked = clickedTasks.has(task.id);
 
               return (
@@ -265,12 +313,12 @@ export default function Tasks() {
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-[#007BFF] flex-shrink-0">
-                          {task.taskType === "channel" ? (
-                            <Radio className="w-4 h-4" />
-                          ) : (
-                            <BotIcon className="w-4 h-4" />
-                          )}
+                        <div className={`w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center flex-shrink-0 ${
+                          task.taskType === 'channel' ? 'text-blue-500' :
+                          task.taskType === 'bot' ? 'text-purple-500' :
+                          'text-green-500'
+                        }`}>
+                          {getTaskIcon(task.taskType)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-white font-medium text-xs truncate">{task.title}</h3>
