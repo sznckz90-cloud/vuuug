@@ -4,7 +4,8 @@
 CashWatch is a Telegram-based earning platform designed for users to earn PAD currency through various activities such as watching ads, completing tasks, and referring new users. The platform allows users to convert their earned PAD into USD and facilitate withdrawals via multiple payment methods. Additionally, users can top-up PDZ tokens directly using the ArcPay payment gateway. The project aims to provide a seamless and engaging experience for earning and managing digital currency within the Telegram ecosystem.
 
 ## User Preferences
-None documented yet.
+- Task type icons should be small and compact (w-4 h-4 with p-2.5 padding)
+- Icon-only display for task categories (no text labels)
 
 ## System Architecture
 
@@ -45,6 +46,12 @@ None documented yet.
 - **Top-Up PDZ**: Dedicated `/topup-pdz` route with ArcPay integration. Minimum top-up amount of 0.1 TON, with clear UI/UX for input, summary, and payment flow.
 - **Withdrawal Toggle**: Replaced Radix Tabs with a custom grid toggle for "Withdraw" and "Wallet Setup" sections.
 - **Health Check Endpoint**: `/api/health` checks database connectivity, environment variables, and WebSocket activity.
+- **Task Category System**: 
+    - Three task types: Channel (blue), Bot (purple), Partner (green)
+    - Icon-based category filtering on Tasks page
+    - Partner tasks: Admin-only creation, any link type allowed, fixed 5 PAD reward
+- **Ad Sequence for Claims**: Monetag popup first, then AdGram popup automatically for streak/promo code claims
+- **Home Page Username Display**: Shows telegram_username > username > firstName > "Guest" in priority order
 
 ### System Design Choices
 - **Environment Variable Driven Configuration**: All sensitive credentials (API keys, secrets) are loaded from environment variables (e.g., `ARCPAY_API_KEY`, `ARCPAY_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`).
