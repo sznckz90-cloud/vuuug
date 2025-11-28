@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppNotification from "@/components/AppNotification";
-import { useEffect, lazy, Suspense, useState } from "react";
+import { useEffect, lazy, Suspense, useState, useCallback, memo } from "react";
 import { setupDeviceTracking } from "@/lib/deviceId";
 import BanScreen from "@/components/BanScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
@@ -15,21 +15,19 @@ const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Tasks = lazy(() => import("@/pages/Tasks"));
-const CreateTask = lazy(() => import("@/pages/CreateTask"));
-const Leaderboard = lazy(() => import("@/pages/Leaderboard"));
 const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
 const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const AdList = lazy(() => import("@/pages/AdList"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
-function PageLoader() {
+const PageLoader = memo(function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="w-8 h-8 border-2 border-[#4cd3ff] border-t-transparent rounded-full animate-spin"></div>
     </div>
   );
-}
+});
 
 function Router() {
   return (
@@ -37,9 +35,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/tasks" component={Tasks} />
-        <Route path="/create-task" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
-        <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/wallet-activity" component={WalletActivity} />
         <Route path="/wallet-setup" component={WalletSetup} />
         <Route path="/withdraw" component={Withdraw} />
