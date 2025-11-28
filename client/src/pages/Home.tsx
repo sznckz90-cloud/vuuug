@@ -93,6 +93,11 @@ export default function Home() {
             </div>
           )}
           
+          {/* User Name and ID */}
+          <div className="text-center mt-2 mb-1">
+            <h1 className="text-lg font-bold text-white">{firstName}</h1>
+            <p className="text-xs text-gray-400">ID: {(user as User)?.telegramId}</p>
+          </div>
         </div>
 
         {/* Daily Streak Section */}
