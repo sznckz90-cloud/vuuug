@@ -45,6 +45,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       return response.json();
     },
     onSuccess: async (data) => {
+      // Sync actual balance from server (notification already shown instantly)
       queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
         ...old,
         balance: data.newBalance,
@@ -53,8 +54,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
-      
-      showNotification(`You received ${data.rewardPAD || 1000} PAD on your balance`, "success");
+      // Notification already shown instantly from ad callback - no duplicate needed
     },
     onError: (error: any) => {
       if (error.status === 429) {
@@ -75,6 +75,18 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       if (typeof window.show_10013974 === 'function') {
         window.show_10013974()
           .then(() => {
+            // INSTANT notification - show immediately from ad callback
+            const rewardAmount = appSettings?.rewardPerAd || 2;
+            showNotification(`+${rewardAmount} PAD earned!`, "success");
+            
+            // Update UI immediately for instant feedback
+            queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
+              ...old,
+              balance: String(parseFloat(old?.balance || '0') + rewardAmount),
+              adsWatchedToday: (old?.adsWatchedToday || 0) + 1
+            }));
+            
+            // Then sync with backend in background (silent)
             watchAdMutation.mutate('monetag');
             resolve(true);
           })
@@ -93,6 +105,19 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       if (window.Adsgram) {
         try {
           await window.Adsgram.init({ blockId: "int-18225" }).show();
+          
+          // INSTANT notification - show immediately from ad callback
+          const rewardAmount = appSettings?.rewardPerAd || 2;
+          showNotification(`+${rewardAmount} PAD earned!`, "success");
+          
+          // Update UI immediately for instant feedback
+          queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
+            ...old,
+            balance: String(parseFloat(old?.balance || '0') + rewardAmount),
+            adsWatchedToday: (old?.adsWatchedToday || 0) + 1
+          }));
+          
+          // Then sync with backend in background (silent)
           watchAdMutation.mutate('adsgram');
           resolve(true);
         } catch (error) {
