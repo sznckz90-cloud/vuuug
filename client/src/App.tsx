@@ -15,6 +15,7 @@ const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Tasks = lazy(() => import("@/pages/Tasks"));
+const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
 const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
@@ -35,6 +36,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/tasks" component={Tasks} />
+        <Route path="/task/create" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/wallet-activity" component={WalletActivity} />
         <Route path="/wallet-setup" component={WalletSetup} />
