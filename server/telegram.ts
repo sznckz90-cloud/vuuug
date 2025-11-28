@@ -282,16 +282,14 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
-  const message = `👋 Welcome to Paid Adz!
+  const message = `👋 Welcome to Paid Adz
 
-🚀 You've entered the world of Paid Adz, where every ad you watch earns you PAD Tokens — your gateway to real TON rewards.
+🚀 Earn PAD Tokens by watching ads or completing tasks — your gateway to real rewards.
 
-⚡ Earn PAD, convert it instantly to TON anytime, or create your own paid tasks to promote anything you want!
+📈 Start earning and growing your balance today!`;
 
-📈 Start earning and growing your balance every day — your journey begins now.`;
-
-  // Get the app URL from environment variables
-  const appUrl = process.env.RENDER_EXTERNAL_URL || "https://vuuug.onrender.com";
+  const appUrl = process.env.RENDER_EXTERNAL_URL || 
+                (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : "https://vuuug.onrender.com");
 
   const inlineKeyboard = {
     inline_keyboard: [
@@ -303,8 +301,24 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
       ],
       [
         {
-          text: "🤝 Join Community",
+          text: "👫🏼 Invite Friend",
+          callback_data: "invite_friend"
+        }
+      ],
+      [
+        {
+          text: "🤝🏻 Announce",
           url: "https://t.me/PaidADsNews"
+        },
+        {
+          text: "💬 Group Chat",
+          url: "https://t.me/PaidADsChat"
+        }
+      ],
+      [
+        {
+          text: "⁉️ FAQ",
+          url: "https://t.me/szxzyz"
         }
       ]
     ]
@@ -377,6 +391,67 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
       const callbackQuery = update.callback_query;
       const chatId = callbackQuery.from.id.toString();
       const data = callbackQuery.data;
+      
+      if (data === 'invite_friend') {
+        try {
+          const user = await storage.getUserByTelegramId(chatId);
+          
+          if (user && user.referralCode) {
+            let botUsername = 'PaidADsBot';
+            try {
+              const botInfo = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`);
+              const botData = await botInfo.json();
+              if (botData.ok && botData.result?.username) {
+                botUsername = botData.result.username;
+              }
+            } catch (e) {
+              console.warn('⚠️ Could not get bot username, using default');
+            }
+            
+            const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+            
+            const inviteMessage = `👫🏼 <b>Invite Your Friends!</b>
+
+Share your unique referral link and earn PAD when your friends join:
+
+🔗 <code>${referralLink}</code>
+
+📋 Just tap the link above to copy it, then share it with your friends!
+
+💰 You'll earn bonus PAD for every friend who joins using your link.`;
+
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callback_query_id: callbackQuery.id })
+            });
+            
+            await sendUserTelegramNotification(chatId, inviteMessage);
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'Please start the bot first with /start',
+                show_alert: true
+              })
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error handling invite_friend callback:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error getting referral link. Please try again.',
+              show_alert: true
+            })
+          });
+        }
+        return true;
+      }
       
       if (data === 'refresh_stats' && isAdmin(chatId)) {
         try {
@@ -752,19 +827,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const result = await storage.approveWithdrawal(withdrawalId, `Approved by admin ${chatId}`);
           
           if (result.success && result.withdrawal) {
-            // Get user to send notification
             const user = await storage.getUser(result.withdrawal.userId);
-            if (user && user.telegram_id) {
-              const withdrawalDetails = result.withdrawal.details as any;
-              const amount = result.withdrawal.amount;
-              const formattedAmount = formatUSD(amount);
-              const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
-              
-              // Send user notification
-              const userMessage = `🔔 Payout was made in the amount of ${formattedAmount} TON to TON Wallet address:\n\n${walletAddress}`;
-              
-              await sendUserTelegramNotification(user.telegram_id, userMessage);
-            }
             
             // Update admin message with formatted success details
             const withdrawalDetails = result.withdrawal.details as any;
@@ -935,13 +998,6 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
         const result = await storage.rejectWithdrawal(rejectionState.withdrawalId, rejectionReason);
         
         if (result.success && result.withdrawal) {
-          // Get user to send notification with rejection reason
-          const user = await storage.getUser(result.withdrawal.userId);
-          if (user && user.telegram_id) {
-            const userMessage = `❌ Your withdrawal request was rejected.\n\nReason: ${rejectionReason}`;
-            await sendUserTelegramNotification(user.telegram_id, userMessage);
-          }
-          
           // Update original admin message
           try {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
@@ -960,7 +1016,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           
           // Confirm rejection to admin
           await sendUserTelegramNotification(chatId, 
-            `✅ Withdrawal rejected successfully.\n\nReason sent to user: "${rejectionReason}"`
+            `✅ Withdrawal rejected successfully.\n\nReason: "${rejectionReason}"`
           );
         } else {
           await sendUserTelegramNotification(chatId, 

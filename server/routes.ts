@@ -4388,14 +4388,6 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
         });
       }
 
-      // ✅ NEW: Send confirmation message to user via Telegram bot
-      if (newWithdrawal.userTelegramId) {
-        const userMessage = "✅ You have sent a withdrawal request and it will be processed within an hour.";
-        sendUserTelegramNotification(newWithdrawal.userTelegramId, userMessage).catch(err => {
-          console.error('❌ Failed to send user notification:', err);
-        });
-      }
-
       res.json({
         success: true,
         message: 'You have sent a withdrawal request',
