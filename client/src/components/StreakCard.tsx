@@ -4,11 +4,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
-import { Flame, Loader, Clock, CheckCircle2 } from "lucide-react";
+import { Flame, Loader } from "lucide-react";
 
 declare global {
   interface Window {
     show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    Adsgram?: {
+      init: (config: { blockId: string; debug?: boolean }) => {
+        show: () => Promise<{ done: boolean; description: string; state: string; error: boolean }>;
+      };
+    };
   }
 }
 
@@ -44,9 +49,9 @@ export default function StreakCard({ user }: StreakCardProps) {
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
         const earnedPAD = Math.round(rewardAmount);
-        showNotification(` You've claimed +${earnedPAD} PAD from Faucetpay!`, "success");
+        showNotification(`You've claimed +${earnedPAD} PAD from Faucetpay!`, "success");
       } else {
-        showNotification(" You've claimed your Faucetpay reward!", "success");
+        showNotification("You've claimed your Faucetpay reward!", "success");
       }
     },
     onError: (error: any) => {
@@ -65,14 +70,12 @@ export default function StreakCard({ user }: StreakCardProps) {
     const updateTimer = () => {
       const now = new Date();
       
-      // Check localStorage for claim status
       if (user?.id) {
         const claimedTimestamp = localStorage.getItem(`streak_claimed_${user.id}`);
         if (claimedTimestamp) {
           const claimedDate = new Date(claimedTimestamp);
-          const nextClaimTime = new Date(claimedDate.getTime() + 5 * 60 * 1000); // Add 5 minutes
+          const nextClaimTime = new Date(claimedDate.getTime() + 5 * 60 * 1000);
           
-          // If we haven't reached the next claim time yet, keep claimed status
           if (now.getTime() < nextClaimTime.getTime()) {
             setHasClaimed(true);
             const diff = nextClaimTime.getTime() - now.getTime();
@@ -81,19 +84,16 @@ export default function StreakCard({ user }: StreakCardProps) {
             setTimeUntilNextClaim(`${minutes}:${seconds.toString().padStart(2, '0')}`);
             return;
           } else {
-            // Past the next claim time, allow claiming again
             setHasClaimed(false);
             localStorage.removeItem(`streak_claimed_${user.id}`);
           }
         }
       }
       
-      // Check if user has claimed recently (within last 5 minutes)
       if (user?.lastStreakDate) {
         const lastClaim = new Date(user.lastStreakDate);
         const minutesSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60);
         
-        // If last claim was less than 5 minutes ago, show countdown
         if (minutesSinceLastClaim < 5) {
           setHasClaimed(true);
           const nextClaimTime = new Date(lastClaim.getTime() + 5 * 60 * 1000);
@@ -105,7 +105,6 @@ export default function StreakCard({ user }: StreakCardProps) {
         }
       }
       
-      // If not claimed recently or never claimed, show available
       setHasClaimed(false);
       setTimeUntilNextClaim("Available now");
     };
@@ -115,27 +114,44 @@ export default function StreakCard({ user }: StreakCardProps) {
     return () => clearInterval(interval);
   }, [user?.lastStreakDate, user?.id]);
 
+  const showMonetag = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window.show_10013974 === 'function') {
+        window.show_10013974('pop')
+          .then(() => resolve(true))
+          .catch(() => resolve(true));
+      } else {
+        resolve(true);
+      }
+    });
+  };
+
+  const showAdgram = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.Adsgram) {
+        try {
+          const AdController = window.Adsgram.init({ blockId: "int-5893", debug: false });
+          AdController.show()
+            .then(() => resolve(true))
+            .catch(() => resolve(true));
+        } catch {
+          resolve(true);
+        }
+      } else {
+        resolve(true);
+      }
+    });
+  };
+
   const handleClaimStreak = async () => {
     if (isClaiming || hasClaimed) return;
     
     setIsClaiming(true);
     
     try {
-      // Show Rewarded Popup ad for streak claim
-      if (typeof window.show_10013974 === 'function') {
-        window.show_10013974('pop')
-          .then(() => {
-            // Ad completed - claim streak
-            claimStreakMutation.mutate();
-          })
-          .catch(() => {
-            // Ad error or closed - still allow claim
-            claimStreakMutation.mutate();
-          });
-      } else {
-        // Ad provider not available - claim anyway
-        claimStreakMutation.mutate();
-      }
+      await showMonetag();
+      await showAdgram();
+      claimStreakMutation.mutate();
     } catch (error) {
       console.error('Streak claim failed:', error);
       claimStreakMutation.mutate();
@@ -144,7 +160,6 @@ export default function StreakCard({ user }: StreakCardProps) {
     }
   };
 
-  const currentStreak = user?.currentStreak || 0;
   const canClaim = timeUntilNextClaim === "Available now" && !hasClaimed;
 
   return (
