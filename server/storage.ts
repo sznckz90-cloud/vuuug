@@ -103,7 +103,7 @@ export interface IStorage {
   
   // Admin operations
   getAllUsers(): Promise<User[]>;
-  updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
+  updateUserBanStatus(userId: string, banned: boolean, reason?: string): Promise<void>;
   
   // Telegram user operations
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
@@ -910,6 +910,30 @@ export class DatabaseStorage implements IStorage {
             eq(referrals.status, 'pending')
           ));
 
+        // Check if referral rewards are enabled
+        const [referralRewardSetting] = await db
+          .select()
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'referral_reward_enabled'))
+          .limit(1);
+        
+        const referralRewardEnabled = referralRewardSetting?.settingValue === 'true';
+        
+        // Get reward amounts from settings (defaults: 0.0005 USD and 50 PAD)
+        const [usdRewardSetting] = await db
+          .select()
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'referral_reward_usd'))
+          .limit(1);
+        const [padRewardSetting] = await db
+          .select()
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'referral_reward_pad'))
+          .limit(1);
+        
+        const referralRewardUSD = parseFloat(usdRewardSetting?.settingValue || '0.0005');
+        const referralRewardPAD = parseInt(padRewardSetting?.settingValue || '50');
+
         // Activate each pending referral and increment friendsInvited for the referrer
         for (const referral of pendingReferrals) {
           // Update referral status to completed
@@ -919,15 +943,41 @@ export class DatabaseStorage implements IStorage {
             .where(eq(referrals.id, referral.id));
 
           // NOW increment the referrer's friendsInvited count (since referral is now valid)
-          await db
-            .update(users)
-            .set({
-              friendsInvited: sql`COALESCE(${users.friendsInvited}, 0) + 1`,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, referral.referrerId));
-
-          console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId}. friendsInvited incremented.`);
+          // Also award referral bonus if enabled
+          if (referralRewardEnabled) {
+            // Award USD and PAD bonus to the referrer
+            await db
+              .update(users)
+              .set({
+                friendsInvited: sql`COALESCE(${users.friendsInvited}, 0) + 1`,
+                usdBalance: sql`COALESCE(${users.usdBalance}, 0) + ${referralRewardUSD}`,
+                balance: sql`COALESCE(${users.balance}, 0) + ${referralRewardPAD}`,
+                pendingReferralBonus: sql`COALESCE(${users.pendingReferralBonus}, 0) + ${referralRewardUSD}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, referral.referrerId));
+            
+            // Record the referral reward as an earning
+            await db.insert(earnings).values({
+              userId: referral.referrerId,
+              amount: String(referralRewardUSD),
+              source: 'referral_bonus',
+              description: `Referral bonus: Friend watched first ad (+${referralRewardPAD} PAD, +$${referralRewardUSD} USD)`,
+            });
+            
+            console.log(`✅ Activated pending referral with bonus: ${referral.referrerId} -> ${userId}. Awarded ${referralRewardPAD} PAD + $${referralRewardUSD} USD`);
+          } else {
+            // Just increment friendsInvited without bonus
+            await db
+              .update(users)
+              .set({
+                friendsInvited: sql`COALESCE(${users.friendsInvited}, 0) + 1`,
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, referral.referrerId));
+            
+            console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId}. friendsInvited incremented (bonus disabled).`);
+          }
         }
       }
     } catch (error) {
@@ -941,6 +991,42 @@ export class DatabaseStorage implements IStorage {
       .from(referrals)
       .where(eq(referrals.referrerId, userId))
       .orderBy(desc(referrals.createdAt));
+  }
+
+  // Get count of valid referrals (friends who watched at least 1 ad)
+  async getValidReferralCount(userId: string): Promise<number> {
+    try {
+      // Get all referrals for this user
+      const userReferrals = await db
+        .select({
+          refereeId: referrals.refereeId,
+        })
+        .from(referrals)
+        .where(eq(referrals.referrerId, userId));
+      
+      if (userReferrals.length === 0) {
+        return 0;
+      }
+
+      // Count how many referred users have watched at least 1 ad
+      let validCount = 0;
+      for (const ref of userReferrals) {
+        const [referee] = await db
+          .select({ adsWatched: users.adsWatched })
+          .from(users)
+          .where(eq(users.id, ref.refereeId))
+          .limit(1);
+        
+        if (referee && (referee.adsWatched || 0) >= 1) {
+          validCount++;
+        }
+      }
+      
+      return validCount;
+    } catch (error) {
+      console.error('Error getting valid referral count:', error);
+      return 0;
+    }
   }
 
   async getUserByReferralCode(referralCode: string): Promise<User | null> {
@@ -1126,11 +1212,13 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(users.createdAt));
   }
 
-  async updateUserBanStatus(userId: string, banned: boolean): Promise<void> {
+  async updateUserBanStatus(userId: string, banned: boolean, reason?: string): Promise<void> {
     await db
       .update(users)
       .set({
         banned,
+        bannedReason: reason || null,
+        bannedAt: banned ? new Date() : null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));

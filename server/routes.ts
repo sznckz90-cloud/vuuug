@@ -680,6 +680,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const withdrawalCurrency = getSetting('withdrawal_currency', 'TON');
       
+      // Referral reward settings
+      const referralRewardEnabled = getSetting('referral_reward_enabled', 'false') === 'true';
+      const referralRewardUSD = parseFloat(getSetting('referral_reward_usd', '0.0005'));
+      const referralRewardPAD = parseInt(getSetting('referral_reward_pad', '50'));
+      
       // Legacy compatibility - keep old values for backwards compatibility
       const taskCostPerClick = channelTaskCostUSD; // Use channel cost as default
       const taskRewardPerClick = channelTaskRewardPAD / 10000000; // Legacy TON format for compatibility
@@ -710,7 +715,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumConvertPAD,
         minimumConvertUSD,
         minimumClicks,
-        withdrawalCurrency
+        withdrawalCurrency,
+        referralRewardEnabled,
+        referralRewardUSD,
+        referralRewardPAD,
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -1037,6 +1045,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error claiming referral bonus:", error);
       res.status(500).json({ message: "Failed to claim referral bonus" });
+    }
+  });
+
+  // Get valid referral count (friends who watched at least 1 ad)
+  app.get('/api/referrals/valid-count', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ validReferralCount: 0 });
+      }
+      
+      const validCount = await storage.getValidReferralCount(userId);
+      res.json({ validReferralCount: validCount });
+    } catch (error) {
+      console.error("Error fetching valid referral count:", error);
+      res.status(500).json({ message: "Failed to fetch valid referral count" });
     }
   });
 
@@ -2023,6 +2048,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumConvertUSD: parseInt(getSetting('minimum_convert_pad', '100')) / 10000, // Convert to USD
         minimumClicks: parseInt(getSetting('minimum_clicks', '500')), // NEW: Min clicks for task creation
         seasonBroadcastActive: getSetting('season_broadcast_active', 'false') === 'true',
+        referralRewardEnabled: getSetting('referral_reward_enabled', 'false') === 'true',
+        referralRewardUSD: parseFloat(getSetting('referral_reward_usd', '0.0005')),
+        referralRewardPAD: parseInt(getSetting('referral_reward_pad', '50')),
         // Legacy fields for backwards compatibility
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
         taskPerClickReward: parseInt(getSetting('channel_task_reward', '30')),
@@ -2054,7 +2082,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         partnerTaskReward,
         minimumConvertPAD,
         minimumClicks,
-        seasonBroadcastActive
+        seasonBroadcastActive,
+        referralRewardEnabled,
+        referralRewardUSD,
+        referralRewardPAD
       } = req.body;
       
       // Helper function to update a setting
@@ -2086,6 +2117,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('minimum_convert_pad', minimumConvertPAD); // PAD
       await updateSetting('minimum_clicks', minimumClicks); // Minimum clicks for task creation
       await updateSetting('season_broadcast_active', seasonBroadcastActive);
+      await updateSetting('referral_reward_enabled', referralRewardEnabled);
+      await updateSetting('referral_reward_usd', referralRewardUSD);
+      await updateSetting('referral_reward_pad', referralRewardPAD);
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
@@ -2334,7 +2368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin ban/unban user endpoint
+  // Admin ban/unban user endpoint (by URL param)
   app.post('/api/admin/users/:id/ban', authenticateAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
@@ -2349,6 +2383,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating user ban status:", error);
       res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
+  // Admin ban/unban user endpoint (by body)
+  app.post('/api/admin/users/ban', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { userId, banned, reason } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ success: false, message: "User ID is required" });
+      }
+      
+      await storage.updateUserBanStatus(userId, banned, reason);
+      
+      res.json({ 
+        success: true,
+        message: banned ? 'User banned successfully' : 'User unbanned successfully'
+      });
+    } catch (error) {
+      console.error("Error updating user ban status:", error);
+      res.status(500).json({ success: false, message: "Failed to update user status" });
     }
   });
 
