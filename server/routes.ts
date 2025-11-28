@@ -3471,23 +3471,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate task type
-      if (taskType !== "channel" && taskType !== "bot") {
+      if (taskType !== "channel" && taskType !== "bot" && taskType !== "partner") {
         return res.status(400).json({
           success: false,
-          message: "Task type must be either 'channel' or 'bot'"
+          message: "Task type must be 'channel', 'bot', or 'partner'"
         });
       }
 
-      // Minimum 500 clicks required
-      if (totalClicksRequired < 500) {
-        return res.status(400).json({
-          success: false,
-          message: "Minimum 500 clicks required"
-        });
-      }
-
-      // Get user data to check if admin
-      const [user] = await db
+      // Get user data to check if admin early for partner task validation
+      const [userData] = await db
         .select({ 
           usdBalance: users.usdBalance, 
           pdzBalance: users.pdzBalance, 
@@ -3496,14 +3488,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(users)
         .where(eq(users.id, userId));
 
-      if (!user) {
+      if (!userData) {
         return res.status(404).json({
           success: false,
           message: "User not found"
         });
       }
 
-      const isAdmin = user.telegram_id === process.env.TELEGRAM_ADMIN_ID;
+      const userIsAdmin = userData.telegram_id === process.env.TELEGRAM_ADMIN_ID;
+
+      // Partner tasks can only be created by admin
+      if (taskType === "partner" && !userIsAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "Only admins can create partner tasks"
+        });
+      }
+
+      // Minimum clicks: 1 for partner tasks, 500 for others
+      const minClicks = taskType === "partner" ? 1 : 500;
+      if (totalClicksRequired < minClicks) {
+        return res.status(400).json({
+          success: false,
+          message: `Minimum ${minClicks} clicks required`
+        });
+      }
+
+      // Partner tasks are free and always reward 5 PAD
+      if (taskType === "partner") {
+        const task = await storage.createTask({
+          advertiserId: userId,
+          taskType,
+          title,
+          link,
+          totalClicksRequired,
+          costPerClick: "0",
+          totalCost: "0",
+        });
+
+        console.log('✅ Partner task created:', task);
+
+        broadcastUpdate({
+          type: 'task:created',
+          task: task
+        });
+
+        return res.json({ 
+          success: true, 
+          message: "Partner task created successfully",
+          task 
+        });
+      }
+
+      // Use the userData already fetched for partner task validation
+      const user = userData;
+      const isAdmin = userIsAdmin;
 
       // Admin users: use USD balance and USD-based costs
       // Regular users: use PDZ tokens and PDZ-based costs

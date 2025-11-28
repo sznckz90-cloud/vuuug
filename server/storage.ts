@@ -2723,9 +2723,17 @@ export class DatabaseStorage implements IStorage {
       
       const channelRewardPAD = parseInt(channelRewardSetting[0]?.settingValue || "30"); // 30 PAD
       const botRewardPAD = parseInt(botRewardSetting[0]?.settingValue || "20"); // 20 PAD
+      const partnerRewardPAD = 5; // Partner tasks always reward 5 PAD
       
       // Use the correct reward based on task type (in PAD)
-      const rewardPAD = task.taskType === "channel" ? channelRewardPAD : botRewardPAD;
+      let rewardPAD: number;
+      if (task.taskType === "partner") {
+        rewardPAD = partnerRewardPAD;
+      } else if (task.taskType === "channel") {
+        rewardPAD = channelRewardPAD;
+      } else {
+        rewardPAD = botRewardPAD;
+      }
       const rewardAmount = rewardPAD.toString(); // Store as string for database
 
       // Record the click
