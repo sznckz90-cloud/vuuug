@@ -336,6 +336,114 @@ function AnalyticsSection({ stats }: { stats: AdminStats | undefined }) {
   );
 }
 
+// Ban User Button Component
+function BanUserButton({ user, onSuccess }: { user: any; onSuccess: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isLoading, setIsLoading] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  const handleBanToggle = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest('POST', '/api/admin/users/ban', {
+        userId: user.id,
+        banned: !user.banned,
+        reason: banReason || (user.banned ? 'Unbanned by admin' : 'Banned by admin')
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: user.banned ? "✅ User Unbanned" : "🚫 User Banned",
+          description: result.message,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+        onSuccess();
+      } else {
+        throw new Error(result.message || 'Failed to update ban status');
+      }
+    } catch (error: any) {
+      toast({
+        title: "❌ Error",
+        description: error.message || "Failed to update user status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      setShowConfirmDialog(false);
+      setBanReason('');
+    }
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant={user.banned ? "outline" : "destructive"}
+        onClick={() => setShowConfirmDialog(true)}
+        disabled={isLoading}
+        className={user.banned ? "border-green-500 text-green-600 hover:bg-green-50" : ""}
+      >
+        {isLoading ? (
+          <i className="fas fa-spinner fa-spin"></i>
+        ) : user.banned ? (
+          <><i className="fas fa-unlock mr-1"></i>Unban</>
+        ) : (
+          <><i className="fas fa-ban mr-1"></i>Ban</>
+        )}
+      </Button>
+
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {user.banned ? (
+                <><i className="fas fa-unlock text-green-600"></i> Unban User</>
+              ) : (
+                <><i className="fas fa-ban text-red-600"></i> Ban User</>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {user.banned 
+                ? `Are you sure you want to unban ${user.username || user.firstName || 'this user'}?`
+                : `Are you sure you want to ban ${user.username || user.firstName || 'this user'}? They will not be able to access the app.`
+              }
+            </p>
+            {!user.banned && (
+              <div>
+                <Label htmlFor="ban-reason">Ban Reason (optional)</Label>
+                <Input
+                  id="ban-reason"
+                  placeholder="e.g., Violation of terms"
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant={user.banned ? "default" : "destructive"}
+                onClick={handleBanToggle}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Processing...' : user.banned ? 'Unban User' : 'Ban User'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // User Management Section
 function UserManagementSection({ usersData }: { usersData: any }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -577,6 +685,23 @@ function UserManagementSection({ usersData }: { usersData: any }) {
                     <span className="text-muted-foreground">Tasks Done:</span>
                     <span className="ml-2 font-semibold">{selectedUser.tasksCompleted || 0}</span>
                   </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-xs text-muted-foreground mb-2">Account Status</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {selectedUser.banned ? (
+                      <Badge className="bg-red-600">Banned</Badge>
+                    ) : (
+                      <Badge className="bg-green-600">Active</Badge>
+                    )}
+                    {selectedUser.bannedReason && (
+                      <span className="text-xs text-muted-foreground">({selectedUser.bannedReason})</span>
+                    )}
+                  </div>
+                  <BanUserButton user={selectedUser} onSuccess={() => setSelectedUser(null)} />
                 </div>
               </div>
             </div>
@@ -858,9 +983,11 @@ function PromoCreatorSection() {
                       <div>
                         <span className="text-muted-foreground">Reward:</span>
                         <span className="font-semibold ml-1">
-                          {promo.rewardType === 'PDZ' 
-                            ? `${parseFloat(promo.rewardAmount).toFixed(2)} PDZ`
-                            : `${Math.round(parseFloat(promo.rewardAmount) * 100000)} PAD`
+                          {promo.rewardType === 'USD' 
+                            ? `$${parseFloat(promo.rewardAmount).toFixed(2)} USD`
+                            : promo.rewardType === 'PDZ' 
+                              ? `${parseFloat(promo.rewardAmount).toFixed(2)} PDZ`
+                              : `${Math.round(parseFloat(promo.rewardAmount))} PAD`
                           }
                         </span>
                       </div>
@@ -879,9 +1006,11 @@ function PromoCreatorSection() {
                       <div>
                         <span className="text-muted-foreground">Distributed:</span>
                         <span className="font-semibold ml-1">
-                          {promo.rewardType === 'PDZ'
-                            ? `${parseFloat(promo.totalDistributed).toFixed(2)} PDZ`
-                            : `${Math.round(parseFloat(promo.totalDistributed) * 100000)} PAD`
+                          {promo.rewardType === 'USD'
+                            ? `$${parseFloat(promo.totalDistributed).toFixed(2)} USD`
+                            : promo.rewardType === 'PDZ'
+                              ? `${parseFloat(promo.totalDistributed).toFixed(2)} PDZ`
+                              : `${Math.round(parseFloat(promo.totalDistributed))} PAD`
                           }
                         </span>
                       </div>
@@ -1113,7 +1242,10 @@ function SettingsSection() {
     partnerTaskReward: '5',
     minimumConvertPAD: '100',
     minimumClicks: '500',
-    seasonBroadcastActive: false
+    seasonBroadcastActive: false,
+    referralRewardEnabled: false,
+    referralRewardUSD: '0.0005',
+    referralRewardPAD: '50'
   });
   
   // Update form when settings data loads
@@ -1135,7 +1267,10 @@ function SettingsSection() {
         partnerTaskReward: settingsData.partnerTaskReward?.toString() || '5',
         minimumConvertPAD: settingsData.minimumConvertPAD?.toString() || '100',
         minimumClicks: settingsData.minimumClicks?.toString() || '500',
-        seasonBroadcastActive: settingsData.seasonBroadcastActive || false
+        seasonBroadcastActive: settingsData.seasonBroadcastActive || false,
+        referralRewardEnabled: settingsData.referralRewardEnabled || false,
+        referralRewardUSD: settingsData.referralRewardUSD?.toString() || '0.0005',
+        referralRewardPAD: settingsData.referralRewardPAD?.toString() || '50'
       });
     }
   }, [settingsData]);
@@ -1156,6 +1291,8 @@ function SettingsSection() {
     const partnerReward = parseInt(settings.partnerTaskReward);
     const minConvertPAD = parseInt(settings.minimumConvertPAD);
     const minClicks = parseInt(settings.minimumClicks);
+    const refRewardUSD = parseFloat(settings.referralRewardUSD);
+    const refRewardPAD = parseInt(settings.referralRewardPAD);
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
@@ -1193,7 +1330,10 @@ function SettingsSection() {
         partnerTaskReward: partnerReward,
         minimumConvertPAD: minConvertPAD,
         minimumClicks: minClicks,
-        seasonBroadcastActive: settings.seasonBroadcastActive
+        seasonBroadcastActive: settings.seasonBroadcastActive,
+        referralRewardEnabled: settings.referralRewardEnabled,
+        referralRewardUSD: refRewardUSD,
+        referralRewardPAD: refRewardPAD
       });
       
       const result = await response.json();
@@ -1311,6 +1451,71 @@ function SettingsSection() {
             />
             <p className="text-xs text-muted-foreground">
               Current: {settingsData?.affiliateCommission || 10}%
+            </p>
+          </div>
+
+          {/* Referral Reward Settings */}
+          <div className="space-y-3 p-4 border rounded-lg bg-green-50/5 border-green-500/20">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">
+                <i className="fas fa-gift mr-2 text-green-500"></i>
+                Referral Reward (First Ad Bonus)
+              </Label>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${settings.referralRewardEnabled ? 'text-green-500' : 'text-muted-foreground'}`}>
+                  {settings.referralRewardEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, referralRewardEnabled: !settings.referralRewardEnabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.referralRewardEnabled ? 'bg-green-500' : 'bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.referralRewardEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Bonus awarded to referrer when their friend watches their first ad
+            </p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="referral-reward-pad" className="text-sm">PAD Reward</Label>
+                <Input
+                  id="referral-reward-pad"
+                  type="number"
+                  value={settings.referralRewardPAD}
+                  onChange={(e) => setSettings({ ...settings, referralRewardPAD: e.target.value })}
+                  placeholder="50"
+                  min="0"
+                  step="1"
+                  disabled={!settings.referralRewardEnabled}
+                  className={!settings.referralRewardEnabled ? 'opacity-50' : ''}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="referral-reward-usd" className="text-sm">USD Reward</Label>
+                <Input
+                  id="referral-reward-usd"
+                  type="number"
+                  value={settings.referralRewardUSD}
+                  onChange={(e) => setSettings({ ...settings, referralRewardUSD: e.target.value })}
+                  placeholder="0.0005"
+                  min="0"
+                  step="0.0001"
+                  disabled={!settings.referralRewardEnabled}
+                  className={!settings.referralRewardEnabled ? 'opacity-50' : ''}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Current: {settingsData?.referralRewardPAD || 50} PAD + ${settingsData?.referralRewardUSD || 0.0005} USD
             </p>
           </div>
 

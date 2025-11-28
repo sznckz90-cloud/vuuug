@@ -20,6 +20,13 @@ interface ReferralStats {
   readyToClaim: string;
 }
 
+interface AppSettings {
+  affiliateCommission?: number;
+  referralRewardEnabled?: boolean;
+  referralRewardUSD?: number;
+  referralRewardPAD?: number;
+}
+
 export default function Affiliates() {
   const queryClient = useQueryClient();
   
@@ -33,7 +40,7 @@ export default function Affiliates() {
     retry: false,
   });
 
-  const { data: appSettings } = useQuery({
+  const { data: appSettings } = useQuery<AppSettings>({
     queryKey: ['/api/app-settings'],
     retry: false,
   });
@@ -133,6 +140,14 @@ export default function Affiliates() {
             <p className="text-sm text-center text-white leading-relaxed mb-4">
               Invite friends and get <span className="font-bold">{appSettings?.affiliateCommission || 10}%</span> of every ads completed by your referrals automatically added to your balance
             </p>
+            
+            {appSettings?.referralRewardEnabled && (
+              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <p className="text-xs text-green-400 font-medium text-center">
+                  Bonus: Earn <span className="font-bold">{appSettings.referralRewardPAD || 50} PAD</span> + <span className="font-bold">${appSettings.referralRewardUSD || 0.0005} USD</span> when your friend watches their first ad!
+                </p>
+              </div>
+            )}
             
             <div className="flex items-center gap-2 mb-3">
               <Share2 className="w-4 h-4 text-blue-400" />

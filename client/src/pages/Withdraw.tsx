@@ -79,11 +79,17 @@ export default function Withdraw() {
     retry: false,
   });
 
+  // Fetch valid referral count (friends who watched at least 1 ad)
+  const { data: validReferralData } = useQuery<{ validReferralCount: number }>({
+    queryKey: ['/api/referrals/valid-count'],
+    retry: false,
+  });
+
   const walletChangeFee = appSettings?.walletChangeFee || 5000;
   const padBalance = parseFloat(user?.balance || "0");
   const usdBalance = parseFloat(user?.usdBalance || "0");
-  const friendsInvited = user?.friendsInvited || 0;
-  const MINIMUM_FRIENDS_REQUIRED = 3;
+  const validReferralCount = validReferralData?.validReferralCount || 0;
+  const MINIMUM_VALID_REFERRALS_REQUIRED = 3;
 
   const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
@@ -352,8 +358,8 @@ export default function Withdraw() {
   };
 
   const handleWithdraw = () => {
-    if (friendsInvited < MINIMUM_FRIENDS_REQUIRED) {
-      showNotification("You need to invite at least 3 friends to unlock withdrawals.", "error");
+    if (validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED) {
+      showNotification("You need 3 friends who watched at least 1 ad to unlock withdrawals.", "error");
       return;
     }
 
@@ -441,13 +447,13 @@ export default function Withdraw() {
         {/* Withdraw Section */}
         {activeTab === 'withdraw' && (
           <div className="space-y-4">
-              {friendsInvited < MINIMUM_FRIENDS_REQUIRED && (
+              {validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED && (
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                   <p className="text-xs text-red-500 font-medium">
-                    You need to invite at least 3 friends to unlock withdrawals.
+                    Invite 3 friends to unlock withdrawal access.
                   </p>
                   <p className="text-xs text-red-400 mt-1">
-                    Friends invited: {friendsInvited}/3
+                    Valid referrals: {validReferralCount}/3 (friends who watched at least 1 ad)
                   </p>
                 </div>
               )}
@@ -460,6 +466,8 @@ export default function Withdraw() {
                 </div>
               )}
 
+              {validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED && (
+              <>
               <div className="space-y-3">
                 <Label className="text-sm text-white">Withdrawal Method</Label>
                 <div className="space-y-2">
@@ -545,7 +553,7 @@ export default function Withdraw() {
               <div className="mt-6">
                 <Button
                   onClick={handleWithdraw}
-                  disabled={withdrawMutation.isPending || hasPendingWithdrawal}
+                  disabled={withdrawMutation.isPending || hasPendingWithdrawal || validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED}
                   className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {withdrawMutation.isPending ? (
@@ -560,6 +568,8 @@ export default function Withdraw() {
                   ) : `Withdraw via ${selectedMethod}`}
                 </Button>
               </div>
+              </>
+              )}
           </div>
         )}
 
