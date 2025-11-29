@@ -20,10 +20,46 @@ export const STAR_PACKAGES: StarPackage[] = [
   { stars: 100, usdCost: 2.00 }
 ];
 
-export const PAYMENT_SYSTEMS: PaymentSystem[] = [
+export const DEFAULT_PAYMENT_SYSTEMS: PaymentSystem[] = [
   { id: 'TON', name: 'TON', icon: 'Gem', minWithdrawal: 0.5, fee: 5, feeType: 'percentage' },
   { id: 'USD', name: 'USD', icon: 'DollarSign', minWithdrawal: 0.5, fee: 3, feeType: 'percentage' },
   { id: 'STARS', name: 'Telegram Stars', icon: 'Star', minWithdrawal: 0, fee: 5, feeType: 'percentage', requiresStarPackage: true }
 ];
+
+export function getPaymentSystems(appSettings?: any): PaymentSystem[] {
+  if (!appSettings) {
+    return DEFAULT_PAYMENT_SYSTEMS;
+  }
+  
+  return [
+    { 
+      id: 'TON', 
+      name: 'TON', 
+      icon: 'Gem', 
+      minWithdrawal: appSettings.minimumWithdrawalTON ?? 0.5, 
+      fee: appSettings.withdrawalFeeTON ?? 5, 
+      feeType: 'percentage' 
+    },
+    { 
+      id: 'USD', 
+      name: 'USD', 
+      icon: 'DollarSign', 
+      minWithdrawal: appSettings.minimumWithdrawalUSD ?? 0.5, 
+      fee: appSettings.withdrawalFeeUSD ?? 3, 
+      feeType: 'percentage' 
+    },
+    { 
+      id: 'STARS', 
+      name: 'Telegram Stars', 
+      icon: 'Star', 
+      minWithdrawal: 0, 
+      fee: 5, 
+      feeType: 'percentage', 
+      requiresStarPackage: true 
+    }
+  ];
+}
+
+export const PAYMENT_SYSTEMS = DEFAULT_PAYMENT_SYSTEMS;
 
 export const PAD_TO_USD_RATE = 10000; // 10,000 PAD = $1
