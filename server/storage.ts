@@ -792,39 +792,52 @@ export class DatabaseStorage implements IStorage {
     }
     
     // CRITICAL: Detect device-based self-referrals (same device creating multiple accounts)
-    if (referrer.deviceId && referred.deviceId && referrer.deviceId === referred.deviceId) {
-      console.error(`🚨 Self-referral attempt detected! Same device ID: ${referrer.deviceId}`);
+    const sameDeviceId = referrer.deviceId && referred.deviceId && referrer.deviceId === referred.deviceId;
+    const sameIP = referrer.lastLoginIp && referred.lastLoginIp && referrer.lastLoginIp === referred.lastLoginIp;
+    const sameBrowserFingerprint = referrer.browserFingerprint && referred.browserFingerprint && 
+                                    referrer.browserFingerprint === referred.browserFingerprint;
+    
+    // Self-referral if: same device ID, OR same IP + same browser fingerprint
+    const isSelfReferral = sameDeviceId || (sameIP && sameBrowserFingerprint);
+    
+    if (isSelfReferral) {
+      const reason = sameDeviceId 
+        ? `Same device ID: ${referrer.deviceId}` 
+        : `Same IP (${referrer.lastLoginIp}) + browser fingerprint`;
+      console.error(`🚨 Self-referral attempt detected! ${reason}`);
       
-      // Determine which account is primary
-      const isPrimaryReferrer = referrer.isPrimaryAccount === true;
-      const isPrimaryReferred = referred.isPrimaryAccount === true;
+      // Determine which account is primary (older account or marked as primary)
+      const referrerCreated = referrer.createdAt ? new Date(referrer.createdAt).getTime() : 0;
+      const referredCreated = referred.createdAt ? new Date(referred.createdAt).getTime() : Date.now();
+      const isPrimaryReferrer = referrer.isPrimaryAccount === true || referrerCreated < referredCreated;
+      const isPrimaryReferred = referred.isPrimaryAccount === true || referredCreated < referrerCreated;
       
-      const { banUserForMultipleAccounts, sendWarningToMainAccount } = await import('./deviceTracking');
+      const { banUserForMultipleAccounts, sendWarningToMainAccount, createBanLog } = await import('./deviceTracking');
       
       if (isPrimaryReferrer && !isPrimaryReferred) {
         // Referrer is primary, ban the referred account
         await banUserForMultipleAccounts(
           referredId,
-          'Self-referral attempt - duplicate account tried to use referral from same device'
+          `Self-referral attempt - ${reason}`
         );
         await sendWarningToMainAccount(referrerId);
-        throw new Error('Referral invalid - same device detected. Duplicate account has been banned.');
+        throw new Error('Referral invalid - same device/network detected. Duplicate account has been banned.');
       } else if (!isPrimaryReferrer && isPrimaryReferred) {
         // Referred is primary, ban the referrer account
         await banUserForMultipleAccounts(
           referrerId,
-          'Self-referral attempt - duplicate account tried to refer user from same device'
+          `Self-referral attempt - ${reason}`
         );
         await sendWarningToMainAccount(referredId);
-        throw new Error('Referral invalid - same device detected. Duplicate account has been banned.');
+        throw new Error('Referral invalid - same device/network detected. Duplicate account has been banned.');
       } else {
         // Both are duplicates or can't determine, ban the newer one (referred)
         await banUserForMultipleAccounts(
           referredId,
-          'Self-referral attempt - same device detected'
+          `Self-referral attempt - ${reason}`
         );
         await sendWarningToMainAccount(referrerId);
-        throw new Error('Referral invalid - same device detected. Account has been banned.');
+        throw new Error('Referral invalid - same device/network detected. Account has been banned.');
       }
     }
     

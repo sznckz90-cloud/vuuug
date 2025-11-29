@@ -11,8 +11,25 @@ import {
   validateDeviceAndDetectDuplicate, 
   banUserForMultipleAccounts,
   sendWarningToMainAccount,
+  createBanLog,
   type DeviceInfo 
 } from "./deviceTracking";
+import { users } from "../shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+
+// Helper to extract client IP from request
+function getClientIP(req: any): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    // Take first IP in case of multiple proxies
+    return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
+  }
+  return req.headers['x-real-ip'] || 
+         req.connection?.remoteAddress || 
+         req.socket?.remoteAddress ||
+         'unknown';
+}
 
 // Session configuration
 export function getSession() {
@@ -91,17 +108,31 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
   try {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
     
+    // Extract device tracking information
     const deviceId = req.headers['x-device-id'] as string;
     const deviceFingerprint = req.headers['x-device-fingerprint'];
+    const clientIP = getClientIP(req);
+    const userAgent = req.headers['user-agent'] as string;
+    const appVersion = req.headers['x-app-version'] as string;
     
+    // Build comprehensive device info for tracking
     let deviceInfo: DeviceInfo | null = null;
-    if (deviceId) {
-      deviceInfo = {
-        deviceId,
-        fingerprint: deviceFingerprint ? JSON.parse(deviceFingerprint as string) : {
-          userAgent: req.headers['user-agent'],
+    if (deviceId || clientIP !== 'unknown') {
+      let fingerprint: any = null;
+      try {
+        fingerprint = deviceFingerprint ? JSON.parse(deviceFingerprint as string) : {
+          userAgent: userAgent,
           platform: req.headers['sec-ch-ua-platform'],
-        }
+        };
+      } catch (e) {
+        fingerprint = { userAgent };
+      }
+      
+      deviceInfo = {
+        deviceId: deviceId || `ip_${clientIP}`,
+        fingerprint,
+        ip: clientIP,
+        userAgent,
       };
     }
     
@@ -259,6 +290,32 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       banned: false,
       referralCode: '',
     }, deviceInfo);
+    
+    // CRITICAL: Check if returning user is already banned
+    if (upsertedUser.banned) {
+      console.log(`🚫 Banned user attempted login: ${upsertedUser.id} (Telegram: ${telegramUser.id})`);
+      return res.status(403).json({ 
+        banned: true,
+        message: "Your account has been banned due to suspicious multi-account activity.",
+        reason: upsertedUser.bannedReason || "Account banned"
+      });
+    }
+    
+    // Update user tracking data on every login (IP, user agent, app version, etc.)
+    try {
+      await db.update(users).set({
+        lastLoginAt: new Date(),
+        lastLoginIp: clientIP,
+        lastLoginUserAgent: userAgent,
+        lastLoginDevice: deviceId || deviceInfo?.deviceId,
+        appVersion: appVersion || undefined,
+        browserFingerprint: deviceInfo?.fingerprint ? JSON.stringify(deviceInfo.fingerprint) : undefined,
+        updatedAt: new Date(),
+      }).where(eq(users.id, upsertedUser.id));
+      console.log(`📍 Updated tracking data for user ${upsertedUser.id}: IP=${clientIP}`);
+    } catch (trackingError) {
+      console.error('⚠️ Failed to update user tracking data:', trackingError);
+    }
     
     // Send welcome message for new users with referral code
     if (isNewUser) {
