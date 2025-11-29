@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Play, Clock } from "lucide-react";
+import { Play, Clock, Shield } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 
 declare global {
@@ -23,7 +23,9 @@ interface AdWatchingSectionProps {
 export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
   const [isShowingAds, setIsShowingAds] = useState(false);
-  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram'>('idle');
+  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram' | 'verifying'>('idle');
+  const [securityTimer, setSecurityTimer] = useState(0);
+  const sessionRewardedRef = useRef(false);
 
   const { data: appSettings } = useQuery({
     queryKey: ["/api/app-settings"],
@@ -44,12 +46,15 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       }
       return response.json();
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      const rewardAmount = data?.rewardPAD || appSettings?.rewardPerAd || 2;
+      showNotification(`+${rewardAmount} PAD earned!`, "success");
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
     },
     onError: (error: any) => {
+      sessionRewardedRef.current = false;
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       
       if (error.status === 429) {
@@ -70,19 +75,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       if (typeof window.show_10013974 === 'function') {
         window.show_10013974()
           .then(() => {
-            // INSTANT notification - show immediately from ad callback
-            const rewardAmount = appSettings?.rewardPerAd || 2;
-            showNotification(`+${rewardAmount} PAD earned!`, "success");
-            
-            // Update UI immediately for instant feedback
-            queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
-              ...old,
-              balance: String(parseFloat(old?.balance || '0') + rewardAmount),
-              adsWatchedToday: (old?.adsWatchedToday || 0) + 1
-            }));
-            
-            // Then sync with backend in background (silent)
-            watchAdMutation.mutate('monetag');
             resolve(true);
           })
           .catch((error) => {
@@ -100,20 +92,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       if (window.Adsgram) {
         try {
           await window.Adsgram.init({ blockId: "int-18225" }).show();
-          
-          // INSTANT notification - show immediately from ad callback
-          const rewardAmount = appSettings?.rewardPerAd || 2;
-          showNotification(`+${rewardAmount} PAD earned!`, "success");
-          
-          // Update UI immediately for instant feedback
-          queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
-            ...old,
-            balance: String(parseFloat(old?.balance || '0') + rewardAmount),
-            adsWatchedToday: (old?.adsWatchedToday || 0) + 1
-          }));
-          
-          // Then sync with backend in background (silent)
-          watchAdMutation.mutate('adsgram');
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
@@ -125,33 +103,76 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     });
   };
 
+  const runSecurityTimer = (): Promise<void> => {
+    return new Promise((resolve) => {
+      setSecurityTimer(3);
+      const interval = setInterval(() => {
+        setSecurityTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            resolve();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    });
+  };
+
   const handleStartEarning = async () => {
     if (isShowingAds) return;
     
     setIsShowingAds(true);
+    sessionRewardedRef.current = false;
+    let monetagSuccess = false;
+    let adsgramSuccess = false;
     
-    // Step 1: Show Monetag ad
-    setCurrentAdStep('monetag');
-    const monetagSuccess = await showMonetagAd();
-    
-    if (!monetagSuccess) {
-      showNotification("Monetag not available. Trying AdGram...", "info");
+    try {
+      // Step 1: Show Monetag ad
+      setCurrentAdStep('monetag');
+      monetagSuccess = await showMonetagAd();
+      
+      if (!monetagSuccess) {
+        showNotification("Monetag not available. Trying AdGram...", "info");
+      }
+      
+      // Small delay between ads (500ms)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Step 2: Show AdGram ad
+      setCurrentAdStep('adsgram');
+      adsgramSuccess = await showAdsgramAd();
+      
+      // Check if at least one ad was watched
+      if (!monetagSuccess && !adsgramSuccess) {
+        showNotification("No ads available. Please try again later.", "error");
+        return;
+      }
+      
+      // Step 3: Security verification (3-second timer)
+      setCurrentAdStep('verifying');
+      await runSecurityTimer();
+      
+      // Step 4: Grant ONE reward only (after both ads and security check)
+      if (!sessionRewardedRef.current) {
+        sessionRewardedRef.current = true;
+        
+        // Optimistic UI update
+        const rewardAmount = appSettings?.rewardPerAd || 2;
+        queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
+          ...old,
+          balance: String(parseFloat(old?.balance || '0') + rewardAmount),
+          adsWatchedToday: (old?.adsWatchedToday || 0) + 1
+        }));
+        
+        // Sync with backend - use 'monetag' as default valid adType (backend accepts monetag/adsgram)
+        watchAdMutation.mutate(monetagSuccess ? 'monetag' : 'adsgram');
+      }
+    } finally {
+      // Always reset state on completion or error
+      setCurrentAdStep('idle');
+      setIsShowingAds(false);
     }
-    
-    // Small delay between ads
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Step 2: Show AdGram ad
-    setCurrentAdStep('adsgram');
-    const adsgramSuccess = await showAdsgramAd();
-    
-    if (!adsgramSuccess && !monetagSuccess) {
-      showNotification("No ads available. Please try again later.", "error");
-    }
-    
-    // Reset state
-    setCurrentAdStep('idle');
-    setIsShowingAds(false);
   };
 
   const adsWatchedToday = user?.adsWatchedToday || 0;
@@ -174,10 +195,15 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           >
             {isShowingAds ? (
               <>
-                <Clock size={16} className="animate-spin" />
+                {currentAdStep === 'verifying' ? (
+                  <Shield size={16} className="animate-pulse text-green-400" />
+                ) : (
+                  <Clock size={16} className="animate-spin" />
+                )}
                 <span className="text-sm font-semibold">
                   {currentAdStep === 'monetag' ? 'Showing Monetag...' : 
-                   currentAdStep === 'adsgram' ? 'Showing AdGram...' : 'Loading...'}
+                   currentAdStep === 'adsgram' ? 'Showing AdGram...' : 
+                   currentAdStep === 'verifying' ? `Verifying... ${securityTimer}s` : 'Loading...'}
                 </span>
               </>
             ) : (
