@@ -514,30 +514,41 @@ Share your unique referral link and earn PAD when your friends join:
           const approvedRequests = approvedWithdrawalsCount[0]?.count || 0;
           const rejectedRequests = rejectedWithdrawalsCount[0]?.count || 0;
           
-          const adminPanelMessage = `⚙️ <b>Admin Control Panel</b>\n\n` +
-            `<b>📊 𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
-            `Total Users: ${totalUsers}\n` +
-            `Active Users: ${activeUsers}\n\n` +
-            `<b>🎬 AD ANALYSIS</b>\n` +
-            `Total Ads: ${totalAds}\n` +
-            `Today Ads: ${todayAds}\n` +
-            `Yesterday Ads: ${yesterdayAds}\n\n` +
-            `<b>📈 PLATFORM EARNING</b>\n` +
-            `Total PAD: ${totalPAD}\n` +
-            `Today PAD: ${todayPAD}\n` +
-            `Yesterday PAD: ${yesterdayPAD}\n\n` +
-            `<b>💸 WITHDRAWN</b>\n` +
-            `Total Payouts: ${totalPayouts} TON\n` +
-            `Today Payouts: ${todayPayouts} TON\n` +
-            `Yesterday Payouts: ${yesterdayPayouts} TON\n\n` +
-            `<b>📑 TASK CREATED</b>\n` +
-            `Total tasks: ${totalTasks}\n` +
-            `Today tasks: ${todayTasks}\n` +
-            `Yesterday tasks: ${yesterdayTasks}\n\n` +
-            `<b>🏦 𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
-            `Approved: ${approvedRequests}\n` +
-            `Rejected: ${rejectedRequests}\n` +
-            `Pending: ${pendingRequests}`;
+          const adminPanelMessage = 
+            `🎛 <b>CASHWATCH ADMIN PANEL</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            
+            `👥 <b>USERS</b>\n` +
+            `┌ Total  ∙ <code>${totalUsers.toLocaleString()}</code>\n` +
+            `└ Active ∙ <code>${activeUsers.toLocaleString()}</code>\n\n` +
+            
+            `🎬 <b>AD VIEWS</b>\n` +
+            `┌ Total     ∙ <code>${totalAds.toLocaleString()}</code>\n` +
+            `├ Today     ∙ <code>${todayAds.toLocaleString()}</code>\n` +
+            `└ Yesterday ∙ <code>${yesterdayAds.toLocaleString()}</code>\n\n` +
+            
+            `💰 <b>PAD DISTRIBUTED</b>\n` +
+            `┌ Total     ∙ <code>${totalPAD.toLocaleString()}</code>\n` +
+            `├ Today     ∙ <code>${todayPAD.toLocaleString()}</code>\n` +
+            `└ Yesterday ∙ <code>${yesterdayPAD.toLocaleString()}</code>\n\n` +
+            
+            `💸 <b>PAYOUTS (TON)</b>\n` +
+            `┌ Total     ∙ <code>${totalPayouts}</code>\n` +
+            `├ Today     ∙ <code>${todayPayouts}</code>\n` +
+            `└ Yesterday ∙ <code>${yesterdayPayouts}</code>\n\n` +
+            
+            `📋 <b>TASKS</b>\n` +
+            `┌ Total     ∙ <code>${totalTasks}</code>\n` +
+            `├ Today     ∙ <code>${todayTasks}</code>\n` +
+            `└ Yesterday ∙ <code>${yesterdayTasks}</code>\n\n` +
+            
+            `📊 <b>WITHDRAWALS</b>\n` +
+            `┌ ✅ Approved ∙ <code>${approvedRequests}</code>\n` +
+            `├ ❌ Rejected ∙ <code>${rejectedRequests}</code>\n` +
+            `└ ⏳ Pending  ∙ <code>${pendingRequests}</code>\n\n` +
+            
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🕐 ${new Date().toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' })} UTC`;
           
           // Answer callback query and edit message
           await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
@@ -874,7 +885,7 @@ Share your unique referral link and earn PAD when your friends join:
         return true;
       }
       
-      // Handle admin withdrawal rejection - ask for reason
+      // Handle admin withdrawal rejection - direct reject without requiring reason
       if (data && data.startsWith('withdraw_reject_')) {
         const withdrawalId = data.replace('withdraw_reject_', '');
         
@@ -892,36 +903,47 @@ Share your unique referral link and earn PAD when your friends join:
         }
         
         try {
-          // Store pending rejection state
-          pendingRejections.set(chatId, {
-            withdrawalId,
-            messageId: callbackQuery.message.message_id,
-            timestamp: Date.now()
-          });
+          // Direct rejection - no reason required
+          const result = await storage.rejectWithdrawal(withdrawalId);
           
-          // Clean up old pending rejections (older than 5 minutes)
-          for (const [key, value] of pendingRejections.entries()) {
-            if (Date.now() - value.timestamp > 5 * 60 * 1000) {
-              pendingRejections.delete(key);
+          if (result.success && result.withdrawal) {
+            // Update original admin message
+            try {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  message_id: callbackQuery.message.message_id,
+                  text: `🚫 <b>REJECTED</b>\n\nWithdrawal ID: ${withdrawalId}\n\n<b>Status:</b> Request rejected\n<b>Time:</b> ${new Date().toUTCString()}`,
+                  parse_mode: 'HTML'
+                })
+              });
+            } catch (editError) {
+              console.log('Could not edit original message:', editError);
             }
+            
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: '🚫 Withdrawal rejected - balance refunded'
+              })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: result.message || 'Error processing rejection',
+                show_alert: true
+              })
+            });
           }
-          
-          // Ask admin for rejection reason
-          await sendUserTelegramNotification(chatId, 
-            '💬 Please type the reason for rejecting this withdrawal request.\n\n' +
-            'The user will see this reason in their notification.'
-          );
-          
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              callback_query_id: callbackQuery.id,
-              text: 'Please type the rejection reason'
-            })
-          });
         } catch (error) {
-          console.error('Error initiating rejection:', error);
+          console.error('Error processing rejection:', error);
           await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1286,30 +1308,41 @@ Share your unique referral link and earn PAD when your friends join:
         const approvedRequests = approvedWithdrawalsCount[0]?.count || 0;
         const rejectedRequests = rejectedWithdrawalsCount[0]?.count || 0;
         
-        const adminPanelMessage = `⚙️ <b>Admin Control Panel</b>\n\n` +
-          `<b>📊 𝗔𝗣𝗣 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</b>\n` +
-          `Total Users: ${totalUsers}\n` +
-          `Active Users: ${activeUsers}\n\n` +
-          `<b>🎬 AD ANALYSIS</b>\n` +
-          `Total Ads: ${totalAds}\n` +
-          `Today Ads: ${todayAds}\n` +
-          `Yesterday Ads: ${yesterdayAds}\n\n` +
-          `<b>📈 PLATFORM EARNING</b>\n` +
-          `Total PAD: ${totalPAD}\n` +
-          `Today PAD: ${todayPAD}\n` +
-          `Yesterday PAD: ${yesterdayPAD}\n\n` +
-          `<b>💸 WITHDRAWN</b>\n` +
-          `Total Payouts: ${totalPayouts} TON\n` +
-          `Today Payouts: ${todayPayouts} TON\n` +
-          `Yesterday Payouts: ${yesterdayPayouts} TON\n\n` +
-          `<b>📑 TASK CREATED</b>\n` +
-          `Total tasks: ${totalTasks}\n` +
-          `Today tasks: ${todayTasks}\n` +
-          `Yesterday tasks: ${yesterdayTasks}\n\n` +
-          `<b>🏦 𝗧𝗢𝗧𝗔𝗟 𝗥𝗘𝗤𝗨𝗘𝗦𝗧𝗦</b>\n` +
-          `Approved: ${approvedRequests}\n` +
-          `Rejected: ${rejectedRequests}\n` +
-          `Pending: ${pendingRequests}`;
+        const adminPanelMessage = 
+          `🎛 <b>CASHWATCH ADMIN PANEL</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          
+          `👥 <b>USERS</b>\n` +
+          `┌ Total  ∙ <code>${totalUsers.toLocaleString()}</code>\n` +
+          `└ Active ∙ <code>${activeUsers.toLocaleString()}</code>\n\n` +
+          
+          `🎬 <b>AD VIEWS</b>\n` +
+          `┌ Total     ∙ <code>${totalAds.toLocaleString()}</code>\n` +
+          `├ Today     ∙ <code>${todayAds.toLocaleString()}</code>\n` +
+          `└ Yesterday ∙ <code>${yesterdayAds.toLocaleString()}</code>\n\n` +
+          
+          `💰 <b>PAD DISTRIBUTED</b>\n` +
+          `┌ Total     ∙ <code>${totalPAD.toLocaleString()}</code>\n` +
+          `├ Today     ∙ <code>${todayPAD.toLocaleString()}</code>\n` +
+          `└ Yesterday ∙ <code>${yesterdayPAD.toLocaleString()}</code>\n\n` +
+          
+          `💸 <b>PAYOUTS (TON)</b>\n` +
+          `┌ Total     ∙ <code>${totalPayouts}</code>\n` +
+          `├ Today     ∙ <code>${todayPayouts}</code>\n` +
+          `└ Yesterday ∙ <code>${yesterdayPayouts}</code>\n\n` +
+          
+          `📋 <b>TASKS</b>\n` +
+          `┌ Total     ∙ <code>${totalTasks}</code>\n` +
+          `├ Today     ∙ <code>${todayTasks}</code>\n` +
+          `└ Yesterday ∙ <code>${yesterdayTasks}</code>\n\n` +
+          
+          `📊 <b>WITHDRAWALS</b>\n` +
+          `┌ ✅ Approved ∙ <code>${approvedRequests}</code>\n` +
+          `├ ❌ Rejected ∙ <code>${rejectedRequests}</code>\n` +
+          `└ ⏳ Pending  ∙ <code>${pendingRequests}</code>\n\n` +
+          
+          `━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `🕐 ${new Date().toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' })} UTC`;
         
         // Send message with inline buttons (vertically arranged)
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
