@@ -29,7 +29,7 @@ interface TopUpSheetProps {
 
 export default function TopUpSheet({ trigger }: TopUpSheetProps) {
   const [open, setOpen] = useState(false);
-  const [pdzAmount, setPdzAmount] = useState("");
+  const [tonAmount, setTonAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -45,23 +45,23 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "" || /^\d*\.?\d*$/.test(value)) {
-      setPdzAmount(value);
+      setTonAmount(value);
       setValidationError("");
     }
   };
 
   const handlePresetSelect = (amount: number) => {
-    setPdzAmount(amount.toString());
+    setTonAmount(amount.toString());
     setValidationError("");
   };
 
   const validateAmount = (): boolean => {
-    if (!pdzAmount || pdzAmount.trim() === "") {
+    if (!tonAmount || tonAmount.trim() === "") {
       setValidationError("Enter amount (Min 0.1 TON)");
       return false;
     }
 
-    const amount = parseFloat(pdzAmount);
+    const amount = parseFloat(tonAmount);
 
     if (isNaN(amount) || amount <= 0) {
       setValidationError("Enter valid amount");
@@ -90,13 +90,13 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
       return;
     }
 
-    const amount = parseFloat(pdzAmount);
+    const amount = parseFloat(tonAmount);
     setIsLoading(true);
 
     debounceTimeoutRef.current = setTimeout(async () => {
       try {
         const response = await apiRequest("POST", "/api/arcpay/create-payment", {
-          pdzAmount: amount,
+          tonAmount: amount,
         });
 
         const data = await response.json();
@@ -121,7 +121,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
-      setPdzAmount("");
+      setTonAmount("");
       setValidationError("");
       setIsLoading(false);
       if (debounceTimeoutRef.current) {
@@ -145,8 +145,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2">
               <Gem className="w-5 h-5 text-[#4cd3ff]" />
-              <span className="text-base font-semibold text-white">Top-Up PDZ</span>
-              <span className="text-xs text-gray-500">(1 TON = 1 PDZ)</span>
+              <span className="text-base font-semibold text-white">Top-Up TON</span>
             </div>
 
             <div className="grid grid-cols-4 gap-2">
@@ -156,7 +155,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
                   onClick={() => handlePresetSelect(amount)}
                   disabled={isLoading}
                   className={`py-2 px-2 rounded-lg border transition-all text-sm font-medium ${
-                    pdzAmount === amount.toString()
+                    tonAmount === amount.toString()
                       ? "bg-[#4cd3ff] text-black border-[#4cd3ff]"
                       : "bg-[#1a1a1a] text-white border-white/10 hover:border-[#4cd3ff]/50"
                   }`}
@@ -171,14 +170,14 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
                 type="text"
                 inputMode="decimal"
                 placeholder="Custom amount"
-                value={pdzAmount}
+                value={tonAmount}
                 onChange={handleInputChange}
                 disabled={isLoading}
                 className="bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-10 rounded-lg flex-1"
               />
               <Button
                 onClick={handlePay}
-                disabled={!pdzAmount || isLoading || !!validationError}
+                disabled={!tonAmount || isLoading || !!validationError}
                 className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold rounded-lg transition-all active:scale-[0.98]"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Pay"}
@@ -210,7 +209,7 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
                       </div>
                       <div className="text-right">
                         <span className="text-sm font-semibold text-[#4cd3ff]">
-                          +{parseFloat(deposit.amount).toFixed(2)} PDZ
+                          +{parseFloat(deposit.amount).toFixed(2)} TON
                         </span>
                       </div>
                     </div>
