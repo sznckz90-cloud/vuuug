@@ -206,7 +206,7 @@ export default function CreateTask() {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setIsAddClicksDialogOpen(false);
       setSelectedTask(null);
-      setAdditionalClicks("500");
+      setAdditionalClicks(appSettings?.minimumClicks?.toString() || "500");
     },
     onError: (error: Error) => {
       showNotification(error.message || "Failed to add clicks", "error");
@@ -519,9 +519,9 @@ export default function CreateTask() {
                   <Input
                     id="clicks"
                     type="number"
-                    min="500"
+                    min={minimumClicks}
                     step="100"
-                    placeholder="500"
+                    placeholder={minimumClicks.toString()}
                     value={totalClicks}
                     onChange={(e) => setTotalClicks(e.target.value)}
                     className="mt-1"
@@ -701,7 +701,7 @@ export default function CreateTask() {
                   <Input
                     id="additional-clicks"
                     type="number"
-                    min="500"
+                    min={minimumClicks}
                     step="100"
                     value={additionalClicks}
                     onChange={(e) => setAdditionalClicks(e.target.value)}
@@ -728,7 +728,7 @@ export default function CreateTask() {
                 onClick={() => {
                   setIsAddClicksDialogOpen(false);
                   setSelectedTask(null);
-                  setAdditionalClicks("500");
+                  setAdditionalClicks(appSettings?.minimumClicks?.toString() || "500");
                 }}
               >
                 Cancel

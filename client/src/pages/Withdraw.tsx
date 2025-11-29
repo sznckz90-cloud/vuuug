@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
 import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign } from 'lucide-react';
-import { PAYMENT_SYSTEMS, STAR_PACKAGES } from '@/constants/paymentSystems';
+import { getPaymentSystems, STAR_PACKAGES } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
 import { shortenAddress, canonicalizeTelegramUsername, formatTelegramUsername } from '@/lib/utils';
 
@@ -391,7 +391,8 @@ export default function Withdraw() {
     withdrawMutation.mutate();
   };
 
-  const selectedPaymentSystem = PAYMENT_SYSTEMS.find(p => p.id === selectedMethod);
+  const paymentSystems = getPaymentSystems(appSettings);
+  const selectedPaymentSystem = paymentSystems.find(p => p.id === selectedMethod);
   const calculateWithdrawalAmount = () => {
     if (selectedMethod === 'STARS' && selectedStarPackage) {
       const starPkg = STAR_PACKAGES.find(p => p.stars === selectedStarPackage);
@@ -471,7 +472,7 @@ export default function Withdraw() {
               <div className="space-y-3">
                 <Label className="text-sm text-white">Withdrawal Method</Label>
                 <div className="space-y-2">
-                  {PAYMENT_SYSTEMS.map((system) => (
+                  {paymentSystems.map((system) => (
                     <button
                       key={system.id}
                       onClick={() => {

@@ -444,12 +444,14 @@ function BanUserButton({ user, onSuccess }: { user: any; onSuccess: () => void }
   );
 }
 
-// User Management Section
+type UserViewTab = 'list' | 'stats';
+
 function UserManagementSection({ usersData }: { usersData: any }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const itemsPerPage = 15;
+  const [activeView, setActiveView] = useState<UserViewTab>('list');
+  const itemsPerPage = 8;
   const users = usersData?.users || usersData || [];
 
   const filteredUsers = users.filter((user: any) => {
@@ -468,239 +470,165 @@ function UserManagementSection({ usersData }: { usersData: any }) {
     currentPage * itemsPerPage
   );
 
+  const bannedUsers = users.filter((u: any) => u.banned);
+  const activeUsers = users.filter((u: any) => !u.banned);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="flex items-center">
-              <i className="fas fa-users-cog mr-2 text-purple-600"></i>
-              User Management
-            </CardTitle>
-            <Input
-              placeholder="🔍 Search by UID or username..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-xs"
-            />
+      <div className="space-y-3">
+        <div className="flex gap-2 flex-wrap items-center">
+          <Button size="sm" variant="outline" onClick={() => setActiveView('list')} className={`text-xs h-7 ${activeView === 'list' ? 'bg-gradient-to-r from-[#4cd3ff]/20 to-[#4cd3ff]/10 border-[#4cd3ff] text-[#4cd3ff]' : 'border-white/20 text-muted-foreground hover:border-[#4cd3ff]/50'}`}>
+            <i className="fas fa-list mr-1"></i>List ({users.length})
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setActiveView('stats')} className={`text-xs h-7 ${activeView === 'stats' ? 'bg-gradient-to-r from-[#4cd3ff]/20 to-[#4cd3ff]/10 border-[#4cd3ff] text-[#4cd3ff]' : 'border-white/20 text-muted-foreground hover:border-[#4cd3ff]/50'}`}>
+            <i className="fas fa-chart-pie mr-1"></i>Stats
+          </Button>
+        </div>
+        
+        {activeView === 'list' && (
+          <Input
+            placeholder="🔍 Search by UID or username..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-8 text-sm"
+          />
+        )}
+
+        {activeView === 'stats' ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gradient-to-br from-[#4cd3ff]/20 to-[#4cd3ff]/5 p-3 rounded text-center border border-[#4cd3ff]/30">
+              <p className="text-2xl font-bold text-[#4cd3ff]">{users.length}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-500/20 to-green-500/5 p-3 rounded text-center border border-green-500/30">
+              <p className="text-2xl font-bold text-green-400">{activeUsers.length}</p>
+              <p className="text-xs text-muted-foreground">Active</p>
+            </div>
+            <div className="bg-gradient-to-br from-red-500/20 to-red-500/5 p-3 rounded text-center border border-red-500/30">
+              <p className="text-2xl font-bold text-red-400">{bannedUsers.length}</p>
+              <p className="text-xs text-muted-foreground">Banned</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500/20 to-purple-500/5 p-3 rounded text-center border border-purple-500/30">
+              <p className="text-2xl font-bold text-purple-400">{users.filter((u: any) => u.cwalletId).length}</p>
+              <p className="text-xs text-muted-foreground">Wallet</p>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        ) : (
+          <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-white/10 rounded-lg">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>UID</TableHead>
-                  <TableHead>Join Date</TableHead>
-                  <TableHead>Friends</TableHead>
-                  <TableHead>Wallet</TableHead>
-                  <TableHead className="text-right">Total Earned</TableHead>
-                  <TableHead className="text-right">Withdrawn</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="text-xs">User</TableHead>
+                  <TableHead className="text-xs">UID</TableHead>
+                  <TableHead className="text-xs">Friends</TableHead>
+                  <TableHead className="text-xs text-right">Earned</TableHead>
+                  <TableHead className="text-xs">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                      No users found
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-4 text-sm">
+                      No users
                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedUsers.map((user: any) => (
                     <TableRow key={user.id} className="hover:bg-muted/50">
-                      <TableCell className="font-medium">
-                        {user.username || user.firstName || 'Anonymous'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm font-bold text-blue-600">
-                        {user.personalCode || 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{user.friendsInvited || 0}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono max-w-[150px] truncate">
-                        {user.walletAddress ? (
-                          <span className="text-green-600" title={user.walletAddress}>
-                            {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(user.totalEarned || '0')}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-green-600">
-                        {formatCurrency(user.totalWithdrawn || '0')}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setSelectedUser(user)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <i className="fas fa-eye mr-1"></i> View
-                        </Button>
-                      </TableCell>
+                      <TableCell className="text-xs py-2">{user.username || user.firstName || 'Anon'}{user.banned && <Badge className="ml-1 bg-red-600 text-[10px] px-1">Ban</Badge>}</TableCell>
+                      <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">{user.personalCode || 'N/A'}</TableCell>
+                      <TableCell className="py-2"><Badge variant="outline" className="text-[10px]">{user.friendsInvited || 0}</Badge></TableCell>
+                      <TableCell className="text-right text-xs font-semibold py-2">{formatCurrency(user.totalEarned || '0')}</TableCell>
+                      <TableCell className="py-2"><Button size="sm" variant="ghost" onClick={() => setSelectedUser(user)} className="h-6 text-xs px-2"><i className="fas fa-eye"></i></Button></TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
             </Table>
           </div>
-          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="text-sm text-muted-foreground">
-              Showing {paginatedUsers.length} of {filteredUsers.length} users
-              {searchTerm && ` (filtered from ${users.length} total)`}
+        )}
+        
+        {activeView === 'list' && totalPages > 1 && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{filteredUsers.length} users</span>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-6 w-6 p-0"><i className="fas fa-chevron-left text-xs"></i></Button>
+              <span className="px-2">{currentPage}/{totalPages}</span>
+              <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="h-6 w-6 p-0"><i className="fas fa-chevron-right text-xs"></i></Button>
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
-                >
-                  <i className="fas fa-angle-double-left"></i>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <i className="fas fa-angle-left"></i>
-                </Button>
-                <span className="text-sm px-2">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <i className="fas fa-angle-right"></i>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                >
-                  <i className="fas fa-angle-double-right"></i>
-                </Button>
-              </div>
-            )}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
       {/* User Detail Dialog */}
       <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <i className="fas fa-user-circle text-blue-600"></i>
-              User Details
+              <i className="fas fa-user-circle text-[#4cd3ff]"></i>
+              {selectedUser?.username || selectedUser?.firstName || 'User'}
             </DialogTitle>
           </DialogHeader>
           {selectedUser && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Username</p>
-                  <p className="font-semibold">{selectedUser.username || selectedUser.firstName || 'Anonymous'}</p>
-                </div>
-                <div>
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white/5 p-2 rounded">
                   <p className="text-xs text-muted-foreground">UID</p>
-                  <p className="font-mono font-bold text-blue-600">{selectedUser.personalCode || 'N/A'}</p>
+                  <p className="font-mono font-bold text-[#4cd3ff]">{selectedUser.personalCode || 'N/A'}</p>
                 </div>
-                <div>
+                <div className="bg-white/5 p-2 rounded">
                   <p className="text-xs text-muted-foreground">Join Date</p>
                   <p className="text-sm">{selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'N/A'}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Friends Invited</p>
-                  <p className="font-semibold">{selectedUser.friendsInvited || 0}</p>
-                </div>
               </div>
               
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2">Balances</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-blue-50 dark:bg-blue-950 p-2 rounded text-center">
-                    <p className="text-xs text-muted-foreground">PAD</p>
-                    <p className="font-bold text-blue-600">{Math.round(parseFloat(selectedUser.balance || '0') * 100000)}</p>
-                  </div>
-                  <div className="bg-purple-50 dark:bg-purple-950 p-2 rounded text-center">
-                    <p className="text-xs text-muted-foreground">PDZ</p>
-                    <p className="font-bold text-purple-600">{parseFloat(selectedUser.pdzBalance || '0').toFixed(2)}</p>
-                  </div>
-                  <div className="bg-green-50 dark:bg-green-950 p-2 rounded text-center">
-                    <p className="text-xs text-muted-foreground">USD</p>
-                    <p className="font-bold text-green-600">${parseFloat(selectedUser.usdBalance || '0').toFixed(2)}</p>
-                  </div>
+              <div className="bg-gradient-to-r from-[#4cd3ff]/10 to-[#4cd3ff]/5 border border-[#4cd3ff]/30 p-3 rounded">
+                <p className="text-xs text-muted-foreground mb-2">💰 Balances</p>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div><p className="text-xs text-muted-foreground">PAD</p><p className="font-bold text-[#4cd3ff]">{Math.round(parseFloat(selectedUser.balance || '0') * 100000)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">PDZ</p><p className="font-bold text-purple-400">{parseFloat(selectedUser.pdzBalance || '0').toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">USD</p><p className="font-bold text-green-400">${parseFloat(selectedUser.usdBalance || '0').toFixed(2)}</p></div>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2">Earnings & Withdrawals</p>
+              <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 p-3 rounded">
+                <p className="text-xs text-muted-foreground mb-2">📈 Earnings</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-emerald-50 dark:bg-emerald-950 p-2 rounded">
-                    <p className="text-xs text-muted-foreground">Total Earned</p>
-                    <p className="font-bold text-emerald-600">{formatCurrency(selectedUser.totalEarned || '0')}</p>
-                  </div>
-                  <div className="bg-amber-50 dark:bg-amber-950 p-2 rounded">
-                    <p className="text-xs text-muted-foreground">Total Withdrawn</p>
-                    <p className="font-bold text-amber-600">{formatCurrency(selectedUser.totalWithdrawn || '0')}</p>
-                  </div>
+                  <div><p className="text-xs text-muted-foreground">Total Earned</p><p className="font-bold text-emerald-400">{formatCurrency(selectedUser.totalEarned || '0')}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Total Withdrawn</p><p className="font-bold text-amber-400">{formatCurrency(selectedUser.totalWithdrawn || '0')}</p></div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-500/10 to-blue-500/5 border border-blue-500/30 p-3 rounded">
+                <p className="text-xs text-muted-foreground mb-2">📊 Activity</p>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div><p className="text-xs text-muted-foreground">Friends</p><p className="font-bold">{selectedUser.friendsInvited || 0}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Ads Watched</p><p className="font-bold">{selectedUser.adsWatched || 0}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Tasks Done</p><p className="font-bold">{selectedUser.tasksCompleted || 0}</p></div>
                 </div>
               </div>
 
               {selectedUser.walletAddress && (
-                <div className="border-t pt-4">
+                <div className="bg-white/5 border border-white/10 p-2 rounded">
                   <p className="text-xs text-muted-foreground mb-1">Wallet Address</p>
-                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">{selectedUser.walletAddress}</p>
+                  <p className="font-mono text-xs text-[#4cd3ff] break-all">{selectedUser.walletAddress}</p>
                 </div>
               )}
 
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2">Activity</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Ads Watched:</span>
-                    <span className="ml-2 font-semibold">{selectedUser.adsWatched || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Tasks Done:</span>
-                    <span className="ml-2 font-semibold">{selectedUser.tasksCompleted || 0}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2">Account Status</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {selectedUser.banned ? (
-                      <Badge className="bg-red-600">Banned</Badge>
-                    ) : (
-                      <Badge className="bg-green-600">Active</Badge>
-                    )}
-                    {selectedUser.bannedReason && (
-                      <span className="text-xs text-muted-foreground">({selectedUser.bannedReason})</span>
-                    )}
-                  </div>
+              <div className="flex gap-2 items-center pt-2 border-t border-white/10">
+                {selectedUser.banned ? (
+                  <Badge className="bg-red-600 text-xs">🚫 Banned</Badge>
+                ) : (
+                  <Badge className="bg-green-600 text-xs">✓ Active</Badge>
+                )}
+                {selectedUser.bannedReason && (
+                  <span className="text-xs text-muted-foreground">({selectedUser.bannedReason})</span>
+                )}
+                <div className="ml-auto">
                   <BanUserButton user={selectedUser} onSuccess={() => setSelectedUser(null)} />
                 </div>
               </div>
@@ -712,10 +640,12 @@ function UserManagementSection({ usersData }: { usersData: any }) {
   );
 }
 
-// Promo Creator Section (Fixed Bug)
+type PromoTab = 'create' | 'manage';
+
 function PromoCreatorSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<PromoTab>('create');
   const [formData, setFormData] = useState({
     code: '',
     rewardAmount: '',
@@ -729,10 +659,7 @@ function PromoCreatorSection() {
   const handleGenerateCode = () => {
     const randomCode = 'PROMO' + Math.random().toString(36).substring(2, 10).toUpperCase();
     setFormData({ ...formData, code: randomCode });
-    toast({
-      title: "✨ Code Generated!",
-      description: `Generated code: ${randomCode}`,
-    });
+    toast({ title: "✨ Code Generated!", description: randomCode });
   };
 
   const { data: promoCodesData } = useQuery({
@@ -743,484 +670,224 @@ function PromoCreatorSection() {
 
   const handleCreate = async () => {
     if (!formData.code.trim() || !formData.rewardAmount) {
-      toast({
-        title: "⚠️ Validation Error",
-        description: "Promo code and reward amount are required",
-        variant: "destructive",
-      });
+      toast({ title: "⚠️ Error", description: "Code and amount required", variant: "destructive" });
       return;
     }
-
     const rewardAmount = parseFloat(formData.rewardAmount);
     if (isNaN(rewardAmount) || rewardAmount <= 0) {
-      toast({
-        title: "⚠️ Validation Error",
-        description: "Reward amount must be a positive number",
-        variant: "destructive",
-      });
+      toast({ title: "⚠️ Error", description: "Amount must be positive", variant: "destructive" });
       return;
     }
-
-    // Reward amount is already in PAD or PDZ, use as-is
-    const finalAmount = rewardAmount;
 
     setIsCreating(true);
     try {
       const response = await apiRequest('POST', '/api/promo-codes/create', {
         code: formData.code.trim().toUpperCase(),
-        rewardAmount: finalAmount,
+        rewardAmount,
         rewardType: formData.rewardType,
         usageLimit: formData.usageLimit ? parseInt(formData.usageLimit) : null,
         perUserLimit: parseInt(formData.perUserLimit),
         expiresAt: formData.expiresAt || null
       });
-
       const result = await response.json();
-
       if (result.success) {
-        toast({
-          title: "✅ Success!",
-          description: `Promo code created: ${rewardAmount} ${formData.rewardType} reward`,
-        });
-        setFormData({
-          code: '',
-          rewardAmount: '',
-          rewardType: 'PAD',
-          usageLimit: '',
-          perUserLimit: '1',
-          expiresAt: ''
-        });
+        toast({ title: "✅ Created!", description: `${rewardAmount} ${formData.rewardType}` });
+        setFormData({ code: '', rewardAmount: '', rewardType: 'PAD', usageLimit: '', perUserLimit: '1', expiresAt: '' });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/promo-codes"] });
+        setActiveTab('manage');
       } else {
-        throw new Error(result.message || 'Failed to create promo code');
+        throw new Error(result.message);
       }
     } catch (error: any) {
-      toast({
-        title: "❌ Error",
-        description: error.message || "Failed to create promo code",
-        variant: "destructive",
-      });
+      toast({ title: "❌ Error", description: error.message, variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
   };
 
   const promoCodes = promoCodesData?.promoCodes || [];
-
-  // Calculate promo status
   const getPromoStatus = (promo: any) => {
     const now = new Date();
     const expiresAt = promo.expiresAt ? new Date(promo.expiresAt) : null;
-    const isExpired = expiresAt && now > expiresAt;
-    const isFullyClaimed = promo.usageLimit && promo.usageCount >= promo.usageLimit;
-
-    if (isFullyClaimed) return { label: 'Fully Claimed', color: 'bg-orange-600' };
-    if (isExpired) return { label: 'Expired', color: 'bg-gray-600' };
+    if (promo.usageLimit && promo.usageCount >= promo.usageLimit) return { label: 'Full', color: 'bg-orange-600' };
+    if (expiresAt && now > expiresAt) return { label: 'Expired', color: 'bg-gray-600' };
     if (promo.isActive) return { label: 'Active', color: 'bg-green-600' };
-    return { label: 'Inactive', color: 'bg-gray-600' };
+    return { label: 'Off', color: 'bg-gray-600' };
   };
 
   const copyToClipboard = (code: string) => {
     navigator.clipboard.writeText(code);
-    toast({
-      title: "✅ Copied!",
-      description: `Code "${code}" copied to clipboard`,
-    });
+    toast({ title: "✅ Copied!", description: code });
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Create Promo Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <i className="fas fa-plus-circle mr-2 text-green-600"></i>
-            Create Promo Code
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="promo-code">Promo Code *</Label>
-            <div className="flex gap-2">
-              <Input
-                id="promo-code"
-                placeholder="e.g., WELCOME100"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                maxLength={20}
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGenerateCode}
-                className="shrink-0"
-              >
-                <i className="fas fa-random mr-2"></i>Generate
-              </Button>
-            </div>
+    <div className="space-y-3">
+      <div className="flex gap-1 flex-wrap">
+        <Button size="sm" variant="outline" onClick={() => setActiveTab('create')} className={`text-xs h-7 ${activeTab === 'create' ? 'bg-gradient-to-r from-green-500/20 to-green-500/10 border-green-500 text-green-400' : 'border-white/20 text-muted-foreground hover:border-green-500/50'}`}>
+          <i className="fas fa-plus mr-1"></i>Create
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setActiveTab('manage')} className={`text-xs h-7 ${activeTab === 'manage' ? 'bg-gradient-to-r from-[#4cd3ff]/20 to-[#4cd3ff]/10 border-[#4cd3ff] text-[#4cd3ff]' : 'border-white/20 text-muted-foreground hover:border-[#4cd3ff]/50'}`}>
+          <i className="fas fa-list mr-1"></i>Manage ({promoCodes.length})
+        </Button>
+      </div>
+      
+      {activeTab === 'create' ? (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Input placeholder="PROMO CODE" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} maxLength={20} className="flex-1 h-8 text-sm" />
+            <Button type="button" variant="outline" onClick={handleGenerateCode} size="sm" className="h-8"><i className="fas fa-random"></i></Button>
           </div>
-          <div>
-            <Label htmlFor="reward-type">Reward Type *</Label>
-            <div className="grid grid-cols-3 gap-2 mt-1">
-              <Button
-                type="button"
-                variant={formData.rewardType === 'PAD' ? 'default' : 'outline'}
-                onClick={() => setFormData({ ...formData, rewardType: 'PAD' })}
-                className="w-full"
-              >
-                PAD
-              </Button>
-              <Button
-                type="button"
-                variant={formData.rewardType === 'PDZ' ? 'default' : 'outline'}
-                onClick={() => setFormData({ ...formData, rewardType: 'PDZ' })}
-                className="w-full"
-              >
-                PDZ
-              </Button>
-              <Button
-                type="button"
-                variant={formData.rewardType === 'USD' ? 'default' : 'outline'}
-                onClick={() => setFormData({ ...formData, rewardType: 'USD' })}
-                className="w-full"
-              >
-                USD
-              </Button>
-            </div>
+          <div className="grid grid-cols-3 gap-1">
+            {(['PAD', 'PDZ', 'USD'] as const).map(type => (
+              <Button key={type} type="button" variant={formData.rewardType === type ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, rewardType: type })} className="h-8 text-xs">{type}</Button>
+            ))}
           </div>
-          <div>
-            <Label htmlFor="reward-amount">Reward Amount ({formData.rewardType}) *</Label>
-            <Input
-              id="reward-amount"
-              type="number"
-              placeholder={`Enter exact ${formData.rewardType} amount`}
-              value={formData.rewardAmount}
-              onChange={(e) => setFormData({ ...formData, rewardAmount: e.target.value })}
-              min="0"
-              step="1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Value will be exactly {formData.rewardAmount || '0'} {formData.rewardType} per user
-            </p>
+          <Input type="number" placeholder={`Amount (${formData.rewardType})`} value={formData.rewardAmount} onChange={(e) => setFormData({ ...formData, rewardAmount: e.target.value })} min="0" className="h-8 text-sm" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input type="number" placeholder="Max Claims" value={formData.usageLimit} onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })} min="1" className="h-8 text-sm" />
+            <Input type="date" value={formData.expiresAt} onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })} className="h-8 text-sm" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="max-users">Max Claims</Label>
-              <Input
-                id="max-users"
-                type="number"
-                placeholder="Unlimited"
-                value={formData.usageLimit}
-                onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
-                min="1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="expiry-date">Expiry Date</Label>
-              <Input
-                id="expiry-date"
-                type="date"
-                value={formData.expiresAt}
-                onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
-              />
-            </div>
-          </div>
-          <Button 
-            onClick={handleCreate}
-            disabled={isCreating}
-            className="w-full"
-          >
-            {isCreating ? (
-              <><i className="fas fa-spinner fa-spin mr-2"></i>Creating...</>
-            ) : (
-              <><i className="fas fa-plus mr-2"></i>Create Promo</>
-            )}
+          <Button onClick={handleCreate} disabled={isCreating} className="w-full h-8 text-sm">
+            {isCreating ? <><i className="fas fa-spinner fa-spin mr-1"></i>Creating...</> : <><i className="fas fa-plus mr-1"></i>Create</>}
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Active Promos Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <i className="fas fa-list mr-2 text-blue-600"></i>
-            Active Promo Codes ({promoCodes.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 max-h-[400px] overflow-y-auto">
-            {promoCodes.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <i className="fas fa-gift text-4xl mb-2"></i>
-                <p>No promo codes created yet</p>
-              </div>
-            ) : (
-              promoCodes.map((promo: any) => {
-                const status = getPromoStatus(promo);
-                return (
-                  <div key={promo.id} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <code className="font-bold text-lg bg-muted px-2 py-1 rounded">{promo.code}</code>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => copyToClipboard(promo.code)}
-                          className="h-7 w-7 p-0"
-                        >
-                          <i className="fas fa-copy text-xs"></i>
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {promo.rewardType || 'PAD'}
-                        </Badge>
-                        <Badge className={status.color}>{status.label}</Badge>
-                      </div>
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[300px] overflow-y-auto border border-white/10 rounded-lg p-2">
+          {promoCodes.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground text-sm"><i className="fas fa-gift text-2xl mb-2"></i><p>No codes</p></div>
+          ) : (
+            promoCodes.map((promo: any) => {
+              const status = getPromoStatus(promo);
+              return (
+                <div key={promo.id} className="border border-white/10 rounded p-2 hover:bg-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <code className="font-bold text-sm bg-white/10 px-1.5 py-0.5 rounded text-[#4cd3ff]">{promo.code}</code>
+                      <Button size="sm" variant="ghost" onClick={() => copyToClipboard(promo.code)} className="h-5 w-5 p-0"><i className="fas fa-copy text-[10px]"></i></Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                      <div>
-                        <span className="text-muted-foreground">Reward:</span>
-                        <span className="font-semibold ml-1">
-                          {promo.rewardType === 'USD' 
-                            ? `$${parseFloat(promo.rewardAmount).toFixed(2)} USD`
-                            : promo.rewardType === 'PDZ' 
-                              ? `${parseFloat(promo.rewardAmount).toFixed(2)} PDZ`
-                              : `${Math.round(parseFloat(promo.rewardAmount))} PAD`
-                          }
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Claimed:</span>
-                        <span className="font-semibold ml-1">{promo.usageCount || 0} / {promo.usageLimit || '∞'}</span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">Remaining:</span>
-                        <span className="font-semibold ml-1">
-                          {promo.remainingCount}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Distributed:</span>
-                        <span className="font-semibold ml-1">
-                          {promo.rewardType === 'USD'
-                            ? `$${parseFloat(promo.totalDistributed).toFixed(2)} USD`
-                            : promo.rewardType === 'PDZ'
-                              ? `${parseFloat(promo.totalDistributed).toFixed(2)} PDZ`
-                              : `${Math.round(parseFloat(promo.totalDistributed))} PAD`
-                          }
-                        </span>
-                      </div>
-                    </div>
-                    {promo.expiresAt && (
-                      <div className="text-xs text-muted-foreground mt-2">
-                        <i className="fas fa-clock mr-1"></i>
-                        Expires: {new Date(promo.expiresAt).toLocaleDateString()}
-                      </div>
-                    )}
+                    <Badge className={`${status.color} text-[10px]`}>{status.label}</Badge>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                  <div className="flex justify-between text-xs mt-1 text-muted-foreground"><span>{promo.rewardType === 'USD' ? `$${parseFloat(promo.rewardAmount).toFixed(2)}` : `${Math.round(parseFloat(promo.rewardAmount))} ${promo.rewardType || 'PAD'}`}</span><span>{promo.usageCount || 0}/{promo.usageLimit || '∞'}</span></div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// Payout Logs Section
+type PayoutTab = 'all' | 'pending' | 'approved' | 'rejected';
+
 function PayoutLogsSection({ data }: { data: any }) {
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<PayoutTab>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const itemsPerPage = 10;
+  const itemsPerPage = 6;
   const payouts = data?.withdrawals || [];
+
+  const pendingCount = payouts.filter((p: any) => p.status === 'pending').length;
+  const approvedCount = payouts.filter((p: any) => ['success', 'paid', 'Approved'].includes(p.status)).length;
+  const rejectedCount = payouts.filter((p: any) => p.status === 'rejected').length;
 
   const filteredPayouts = payouts.filter((payout: any) => {
     const matchesStatus = statusFilter === 'all' ? true :
       statusFilter === 'approved' ? ['success', 'paid', 'Approved'].includes(payout.status) :
       statusFilter === 'rejected' ? payout.status === 'rejected' :
       statusFilter === 'pending' ? payout.status === 'pending' : true;
-    
     const matchesSearch = searchQuery === '' ? true :
       (payout.user?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        payout.user?.personalCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        payout.details?.paymentDetails?.toLowerCase().includes(searchQuery.toLowerCase()));
-    
     return matchesStatus && matchesSearch;
   });
 
   const totalPages = Math.ceil(filteredPayouts.length / itemsPerPage);
-  const paginatedPayouts = filteredPayouts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedPayouts = filteredPayouts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [statusFilter, searchQuery]);
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, searchQuery]);
 
   const getStatusBadge = (status: string) => {
-    if (['success', 'paid', 'Approved'].includes(status)) {
-      return <Badge className="bg-green-600">✓ Approved</Badge>;
-    }
-    if (status === 'rejected') {
-      return <Badge className="bg-red-600">✗ Rejected</Badge>;
-    }
-    return <Badge className="bg-yellow-600">⏳ Pending</Badge>;
+    if (['success', 'paid', 'Approved'].includes(status)) return <Badge className="bg-green-600 text-[10px] h-4">✓</Badge>;
+    if (status === 'rejected') return <Badge className="bg-red-600 text-[10px] h-4">✗</Badge>;
+    return <Badge className="bg-yellow-600 text-[10px] h-4">⏳</Badge>;
   };
 
+  const tabButtons: { key: PayoutTab; label: string; count: number; color: string }[] = [
+    { key: 'all', label: 'All', count: payouts.length, color: '' },
+    { key: 'pending', label: 'Pending', count: pendingCount, color: 'text-yellow-600' },
+    { key: 'approved', label: 'Done', count: approvedCount, color: 'text-green-600' },
+    { key: 'rejected', label: 'Reject', count: rejectedCount, color: 'text-red-600' },
+  ];
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="flex items-center">
-              <i className="fas fa-file-invoice-dollar mr-2 text-green-600"></i>
-              Payout Logs
-            </CardTitle>
-            <div className="flex flex-wrap gap-2">
-              {(['all', 'pending', 'approved', 'rejected'] as const).map((filter) => (
-                <Button
-                  key={filter}
-                  size="sm"
-                  variant={statusFilter === filter ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter(filter)}
-                  className="text-xs capitalize flex-shrink-0"
-                >
-                  {filter}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <Input
-            placeholder="🔍 Search by username, UID, or wallet..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="max-w-md"
-          />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {paginatedPayouts.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <i className="fas fa-inbox text-4xl mb-2"></i>
-            <p>No {statusFilter !== 'all' && statusFilter} payout records found</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Wallet</TableHead>
-                  <TableHead>Reason</TableHead>
+    <div className="space-y-3">
+      <div className="flex gap-1 flex-wrap">
+        {tabButtons.map((tab) => {
+          const isActive = statusFilter === tab.key;
+          const activeColors = tab.key === 'pending' ? 'from-yellow-500/20 to-yellow-500/10 border-yellow-500 text-yellow-400' :
+            tab.key === 'approved' ? 'from-green-500/20 to-green-500/10 border-green-500 text-green-400' :
+            tab.key === 'rejected' ? 'from-red-500/20 to-red-500/10 border-red-500 text-red-400' :
+            'from-[#4cd3ff]/20 to-[#4cd3ff]/10 border-[#4cd3ff] text-[#4cd3ff]';
+          return (
+            <Button key={tab.key} size="sm" variant="outline" onClick={() => setStatusFilter(tab.key)} className={`text-xs h-7 ${isActive ? `bg-gradient-to-r ${activeColors}` : 'border-white/20 text-muted-foreground hover:border-white/40'}`}>
+              {tab.label} ({tab.count})
+            </Button>
+          );
+        })}
+      </div>
+      <Input placeholder="🔍 Search user, UID, wallet..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
+      
+      {paginatedPayouts.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground text-sm"><i className="fas fa-inbox text-2xl mb-2"></i><p>No payouts</p></div>
+      ) : (
+        <div className="overflow-x-auto max-h-[280px] overflow-y-auto border border-white/10 rounded-lg">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background">
+              <TableRow>
+                <TableHead className="text-xs">User</TableHead>
+                <TableHead className="text-xs">Amount</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedPayouts.map((payout: any) => (
+                <TableRow key={payout.id} className="hover:bg-white/5">
+                  <TableCell className="text-xs py-2">@{payout.user?.username || 'Anon'}</TableCell>
+                  <TableCell className="text-xs py-2 font-semibold text-green-400">{formatCurrency(payout.amount || '0')}</TableCell>
+                  <TableCell className="py-2">{getStatusBadge(payout.status)}</TableCell>
+                  <TableCell className="text-[10px] py-2 text-muted-foreground">{new Date(payout.createdAt || payout.created_on).toLocaleDateString()}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedPayouts.map((payout: any) => (
-                  <TableRow key={payout.id}>
-                    <TableCell className="font-medium">
-                      @{payout.user?.username || payout.user?.telegram_id || 'Unknown'}
-                    </TableCell>
-                    <TableCell className="font-bold text-green-600">
-                      {formatCurrency(payout.amount || '0')}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(payout.status)}</TableCell>
-                    <TableCell className="text-sm">
-                      {new Date(payout.createdAt || payout.created_on).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono max-w-[150px] truncate">
-                      {payout.details?.paymentDetails ? (
-                        <span title={payout.details.paymentDetails}>
-                          {payout.details.paymentDetails.slice(0, 8)}...{payout.details.paymentDetails.slice(-6)}
-                        </span>
-                      ) : (
-                        'N/A'
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[200px]">
-                      {payout.status === 'rejected' && payout.rejectionReason ? (
-                        <span className="text-red-500" title={payout.rejectionReason}>
-                          {payout.rejectionReason.length > 30 
-                            ? `${payout.rejectionReason.slice(0, 30)}...` 
-                            : payout.rejectionReason}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+      
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{filteredPayouts.length} records</span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-6 w-6 p-0"><i className="fas fa-chevron-left text-xs"></i></Button>
+            <span className="px-2">{currentPage}/{totalPages}</span>
+            <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="h-6 w-6 p-0"><i className="fas fa-chevron-right text-xs"></i></Button>
           </div>
         )}
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="text-sm text-muted-foreground">
-            Showing {paginatedPayouts.length} of {filteredPayouts.length} records
-            {searchQuery && ` (filtered from ${payouts.length} total)`}
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(1)}
-                disabled={currentPage === 1}
-              >
-                <i className="fas fa-angle-double-left"></i>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <i className="fas fa-angle-left"></i>
-              </Button>
-              <span className="text-sm px-2">
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <i className="fas fa-angle-right"></i>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
-              >
-                <i className="fas fa-angle-double-right"></i>
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
-// Settings Section Component
+type SettingsCategory = 'ads' | 'affiliates' | 'withdrawals' | 'tasks' | 'other';
+
 function SettingsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
-  const [isTogglingSeason, setIsTogglingSeason] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('ads');
   
-  // Fetch current settings
   const { data: settingsData, isLoading } = useQuery({
     queryKey: ["/api/admin/settings"],
     queryFn: () => apiRequest("GET", "/api/admin/settings").then(res => res.json()),
@@ -1248,7 +915,6 @@ function SettingsSection() {
     referralRewardPAD: '50'
   });
   
-  // Update form when settings data loads
   useEffect(() => {
     if (settingsData) {
       setSettings({
@@ -1274,6 +940,14 @@ function SettingsSection() {
       });
     }
   }, [settingsData]);
+  
+  const categories = [
+    { id: 'ads' as const, label: 'Ads & Rewards', icon: 'play-circle' },
+    { id: 'affiliates' as const, label: 'Affiliates', icon: 'users' },
+    { id: 'withdrawals' as const, label: 'Withdrawals', icon: 'wallet' },
+    { id: 'tasks' as const, label: 'Tasks', icon: 'tasks' },
+    { id: 'other' as const, label: 'Other', icon: 'cog' },
+  ];
   
   const handleSaveSettings = async () => {
     const adLimit = parseInt(settings.dailyAdLimit);
@@ -1361,491 +1035,392 @@ function SettingsSection() {
   
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <i className="fas fa-spinner fa-spin text-3xl text-primary mb-2"></i>
-          <p className="text-muted-foreground">Loading settings...</p>
-        </CardContent>
-      </Card>
+      <div className="text-center py-8">
+        <i className="fas fa-spinner fa-spin text-3xl text-primary mb-2"></i>
+        <p className="text-muted-foreground">Loading settings...</p>
+      </div>
     );
   }
   
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <i className="fas fa-cog mr-2 text-blue-600"></i>
-          App Settings
-        </CardTitle>
-        <p className="text-sm text-muted-foreground mt-2">
-          Configure app-wide settings for ad limits and reward amounts
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Daily Ad Limit Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="daily-ad-limit" className="text-base font-semibold">
-              <i className="fas fa-calendar-day mr-2 text-orange-600"></i>
-              Daily Ad Limit
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Maximum number of ads a user can watch per day
-            </p>
-            <Input
-              id="daily-ad-limit"
-              type="number"
-              value={settings.dailyAdLimit}
-              onChange={(e) => setSettings({ ...settings, dailyAdLimit: e.target.value })}
-              placeholder="50"
-              min="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.dailyAdLimit || 50} ads per day
-            </p>
-          </div>
-          
-          {/* Reward Per Ad Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="reward-per-ad" className="text-base font-semibold">
-              <i className="fas fa-gem mr-2 text-purple-600"></i>
-              Reward Per Ad (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Amount of PAD tokens awarded for watching one ad
-            </p>
-            <Input
-              id="reward-per-ad"
-              type="number"
-              value={settings.rewardPerAd}
-              onChange={(e) => setSettings({ ...settings, rewardPerAd: e.target.value })}
-              placeholder="1000"
-              min="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.rewardPerAd || 1000} PAD per ad
-            </p>
-          </div>
+    <div className="space-y-3">
+      <div className="flex gap-1 flex-wrap">
+        {categories.map((cat) => {
+          const isActive = activeCategory === cat.id;
+          const catColors = cat.id === 'ads' ? 'from-orange-500/20 to-orange-500/10 border-orange-500 text-orange-400' :
+            cat.id === 'affiliates' ? 'from-green-500/20 to-green-500/10 border-green-500 text-green-400' :
+            cat.id === 'withdrawals' ? 'from-emerald-500/20 to-emerald-500/10 border-emerald-500 text-emerald-400' :
+            cat.id === 'tasks' ? 'from-cyan-500/20 to-cyan-500/10 border-[#4cd3ff] text-[#4cd3ff]' :
+            'from-purple-500/20 to-purple-500/10 border-purple-500 text-purple-400';
+          return (
+            <Button key={cat.id} size="sm" variant="outline" onClick={() => setActiveCategory(cat.id)} className={`text-xs h-7 ${isActive ? `bg-gradient-to-r ${catColors}` : 'border-white/20 text-muted-foreground hover:border-white/40'}`}>
+              <i className={`fas fa-${cat.icon} mr-1`}></i>{cat.label}
+            </Button>
+          );
+        })}
+      </div>
 
-          {/* Affiliate Commission Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="affiliate-commission" className="text-base font-semibold">
-              <i className="fas fa-users mr-2 text-green-600"></i>
-              Affiliate Commission (%)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Percentage of earnings given to referrers
-            </p>
-            <Input
-              id="affiliate-commission"
-              type="number"
-              value={settings.affiliateCommission}
-              onChange={(e) => setSettings({ ...settings, affiliateCommission: e.target.value })}
-              placeholder="10"
-              min="0"
-              max="100"
-              step="0.1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.affiliateCommission || 10}%
-            </p>
-          </div>
-
-          {/* Referral Reward Settings */}
-          <div className="space-y-3 p-4 border rounded-lg bg-green-50/5 border-green-500/20">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">
-                <i className="fas fa-gift mr-2 text-green-500"></i>
-                Referral Reward (First Ad Bonus)
+      <div className="space-y-3">
+        {activeCategory === 'ads' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="daily-ad-limit" className="text-sm font-semibold">
+                <i className="fas fa-calendar-day mr-2 text-orange-600"></i>
+                Daily Ad Limit
               </Label>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${settings.referralRewardEnabled ? 'text-green-500' : 'text-muted-foreground'}`}>
-                  {settings.referralRewardEnabled ? 'Enabled' : 'Disabled'}
-                </span>
+              <Input
+                id="daily-ad-limit"
+                type="number"
+                value={settings.dailyAdLimit}
+                onChange={(e) => setSettings({ ...settings, dailyAdLimit: e.target.value })}
+                placeholder="50"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.dailyAdLimit || 50} ads/day
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="reward-per-ad" className="text-sm font-semibold">
+                <i className="fas fa-gem mr-2 text-purple-600"></i>
+                Reward Per Ad (PAD)
+              </Label>
+              <Input
+                id="reward-per-ad"
+                type="number"
+                value={settings.rewardPerAd}
+                onChange={(e) => setSettings({ ...settings, rewardPerAd: e.target.value })}
+                placeholder="1000"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.rewardPerAd || 1000} PAD
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeCategory === 'affiliates' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="affiliate-commission" className="text-sm font-semibold">
+                <i className="fas fa-percent mr-2 text-green-600"></i>
+                Affiliate Commission (%)
+              </Label>
+              <Input
+                id="affiliate-commission"
+                type="number"
+                value={settings.affiliateCommission}
+                onChange={(e) => setSettings({ ...settings, affiliateCommission: e.target.value })}
+                placeholder="10"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.affiliateCommission || 10}%
+              </p>
+            </div>
+
+            <div className="space-y-2 p-3 border rounded-lg bg-green-50/5 border-green-500/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  <i className="fas fa-gift mr-2 text-green-500"></i>
+                  Referral Bonus
+                </Label>
                 <button
                   type="button"
                   onClick={() => setSettings({ ...settings, referralRewardEnabled: !settings.referralRewardEnabled })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                     settings.referralRewardEnabled ? 'bg-green-500' : 'bg-gray-600'
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      settings.referralRewardEnabled ? 'translate-x-6' : 'translate-x-1'
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      settings.referralRewardEnabled ? 'translate-x-5' : 'translate-x-1'
                     }`}
                   />
                 </button>
               </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Bonus awarded to referrer when their friend watches their first ad
-            </p>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="referral-reward-pad" className="text-sm">PAD Reward</Label>
-                <Input
-                  id="referral-reward-pad"
-                  type="number"
-                  value={settings.referralRewardPAD}
-                  onChange={(e) => setSettings({ ...settings, referralRewardPAD: e.target.value })}
-                  placeholder="50"
-                  min="0"
-                  step="1"
-                  disabled={!settings.referralRewardEnabled}
-                  className={!settings.referralRewardEnabled ? 'opacity-50' : ''}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="referral-reward-usd" className="text-sm">USD Reward</Label>
-                <Input
-                  id="referral-reward-usd"
-                  type="number"
-                  value={settings.referralRewardUSD}
-                  onChange={(e) => setSettings({ ...settings, referralRewardUSD: e.target.value })}
-                  placeholder="0.0005"
-                  min="0"
-                  step="0.0001"
-                  disabled={!settings.referralRewardEnabled}
-                  className={!settings.referralRewardEnabled ? 'opacity-50' : ''}
-                />
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div>
+                  <Label className="text-xs">PAD</Label>
+                  <Input
+                    type="number"
+                    value={settings.referralRewardPAD}
+                    onChange={(e) => setSettings({ ...settings, referralRewardPAD: e.target.value })}
+                    placeholder="50"
+                    disabled={!settings.referralRewardEnabled}
+                    className={`h-8 ${!settings.referralRewardEnabled ? 'opacity-50' : ''}`}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">USD</Label>
+                  <Input
+                    type="number"
+                    value={settings.referralRewardUSD}
+                    onChange={(e) => setSettings({ ...settings, referralRewardUSD: e.target.value })}
+                    placeholder="0.0005"
+                    step="0.0001"
+                    disabled={!settings.referralRewardEnabled}
+                    className={`h-8 ${!settings.referralRewardEnabled ? 'opacity-50' : ''}`}
+                  />
+                </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.referralRewardPAD || 50} PAD + ${settingsData?.referralRewardUSD || 0.0005} USD
-            </p>
           </div>
+        )}
 
-          {/* Wallet Change Fee Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="wallet-change-fee" className="text-base font-semibold">
-              <i className="fas fa-exchange-alt mr-2 text-yellow-600"></i>
-              Wallet Change Fee (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Fee charged when users change wallet address
-            </p>
-            <Input
-              id="wallet-change-fee"
-              type="number"
-              value={settings.walletChangeFee}
-              onChange={(e) => setSettings({ ...settings, walletChangeFee: e.target.value })}
-              placeholder="5000"
-              min="0"
-              step="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.walletChangeFee || 5000} PAD
-            </p>
-          </div>
-
-          {/* Minimum USD Balance for USD/USDT/Stars Withdrawal */}
-          <div className="space-y-2">
-            <Label htmlFor="minimum-withdrawal-usd" className="text-base font-semibold">
-              <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
-              Min USD Balance - For USD/USDT/Stars Methods
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Minimum USD balance needed to withdraw via USD, USDT, or Telegram Stars
-            </p>
-            <Input
-              id="minimum-withdrawal-usd"
-              type="number"
-              value={settings.minimumWithdrawalUSD}
-              onChange={(e) => setSettings({ ...settings, minimumWithdrawalUSD: e.target.value })}
-              placeholder="1.00"
-              min="0"
-              step="0.01"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: ${settingsData?.minimumWithdrawalUSD || 1.00}
-            </p>
-          </div>
-
-          {/* Minimum USD Balance for TON Withdrawal Method */}
-          <div className="space-y-2">
-            <Label htmlFor="minimum-withdrawal-ton" className="text-base font-semibold">
-              <i className="fas fa-gem mr-2 text-blue-600"></i>
-              Min USD Balance - For TON Withdrawal Method
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Minimum USD balance needed to withdraw via TON method (can be different from other methods)
-            </p>
-            <Input
-              id="minimum-withdrawal-ton"
-              type="number"
-              value={settings.minimumWithdrawalTON}
-              onChange={(e) => setSettings({ ...settings, minimumWithdrawalTON: e.target.value })}
-              placeholder="0.5"
-              min="0"
-              step="0.01"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: ${settingsData?.minimumWithdrawalTON || 0.5} (USD, not TON)
-            </p>
-          </div>
-
-          {/* Channel Task Reward Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="channel-task-reward" className="text-base font-semibold">
-              <i className="fas fa-bullhorn mr-2 text-cyan-600"></i>
-              Channel Task Reward (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Reward per channel task completion
-            </p>
-            <Input
-              id="channel-task-reward"
-              type="number"
-              value={settings.channelTaskReward}
-              onChange={(e) => setSettings({ ...settings, channelTaskReward: e.target.value })}
-              placeholder="30"
-              min="0"
-              step="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.channelTaskReward || 30} PAD
-            </p>
-          </div>
-
-          {/* Bot Task Reward Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="bot-task-reward" className="text-base font-semibold">
-              <i className="fas fa-robot mr-2 text-purple-600"></i>
-              Bot Task Reward (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Reward per bot task completion
-            </p>
-            <Input
-              id="bot-task-reward"
-              type="number"
-              value={settings.botTaskReward}
-              onChange={(e) => setSettings({ ...settings, botTaskReward: e.target.value })}
-              placeholder="20"
-              min="0"
-              step="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.botTaskReward || 20} PAD
-            </p>
-          </div>
-
-          {/* Partner Task Reward Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="partner-task-reward" className="text-base font-semibold">
-              <i className="fas fa-handshake mr-2 text-green-600"></i>
-              Partner Task Reward (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Reward per partner task completion (admin-created external links)
-            </p>
-            <Input
-              id="partner-task-reward"
-              type="number"
-              value={settings.partnerTaskReward}
-              onChange={(e) => setSettings({ ...settings, partnerTaskReward: e.target.value })}
-              placeholder="5"
-              min="0"
-              step="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.partnerTaskReward || 5} PAD
-            </p>
-          </div>
-
-          {/* Channel Task Creation Cost Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="channel-task-cost" className="text-base font-semibold">
-              <i className="fas fa-bullhorn mr-2 text-orange-600"></i>
-              Channel Task Cost (USD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Cost per click to create a channel task
-            </p>
-            <Input
-              id="channel-task-cost"
-              type="number"
-              value={settings.channelTaskCost}
-              onChange={(e) => setSettings({ ...settings, channelTaskCost: e.target.value })}
-              placeholder="0.003"
-              min="0"
-              step="0.0001"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: ${settingsData?.channelTaskCost || 0.003}
-            </p>
-          </div>
-
-          {/* Bot Task Creation Cost Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="bot-task-cost" className="text-base font-semibold">
-              <i className="fas fa-robot mr-2 text-red-600"></i>
-              Bot Task Cost (USD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Cost per click to create a bot task
-            </p>
-            <Input
-              id="bot-task-cost"
-              type="number"
-              value={settings.botTaskCost}
-              onChange={(e) => setSettings({ ...settings, botTaskCost: e.target.value })}
-              placeholder="0.003"
-              min="0"
-              step="0.0001"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: ${settingsData?.botTaskCost || 0.003}
-            </p>
-          </div>
-
-          {/* Minimum Convert Amount Setting (in PAD, showing USD equivalent) */}
-          <div className="space-y-2">
-            <Label htmlFor="minimum-convert-pad" className="text-base font-semibold">
-              <i className="fas fa-repeat mr-2 text-indigo-600"></i>
-              Minimum Convert Amount (PAD)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Minimum PAD to convert (10,000 PAD = $1)
-            </p>
-            <Input
-              id="minimum-convert-pad"
-              type="number"
-              value={settings.minimumConvertPAD}
-              onChange={(e) => setSettings({ ...settings, minimumConvertPAD: e.target.value })}
-              placeholder="100"
-              min="0"
-              step="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.minimumConvertPAD || 100} PAD (${((settingsData?.minimumConvertPAD || 100) / 10000).toFixed(2)})
-            </p>
-          </div>
-
-          {/* TON Withdrawal Fee Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="withdrawal-fee-ton" className="text-base font-semibold">
-              <i className="fas fa-percent mr-2 text-blue-600"></i>
-              TON Withdrawal Fee (%)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Fee percentage for TON withdrawals
-            </p>
-            <Input
-              id="withdrawal-fee-ton"
-              type="number"
-              value={settings.withdrawalFeeTON}
-              onChange={(e) => setSettings({ ...settings, withdrawalFeeTON: e.target.value })}
-              placeholder="5"
-              min="0"
-              max="100"
-              step="0.1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.withdrawalFeeTON || 5}%
-            </p>
-          </div>
-
-          {/* USD Withdrawal Fee Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="withdrawal-fee-usd" className="text-base font-semibold">
-              <i className="fas fa-percent mr-2 text-green-600"></i>
-              USD Withdrawal Fee (%)
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Fee percentage for USD/USDT withdrawals
-            </p>
-            <Input
-              id="withdrawal-fee-usd"
-              type="number"
-              value={settings.withdrawalFeeUSD}
-              onChange={(e) => setSettings({ ...settings, withdrawalFeeUSD: e.target.value })}
-              placeholder="3"
-              min="0"
-              max="100"
-              step="0.1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.withdrawalFeeUSD || 3}%
-            </p>
-          </div>
-
-          {/* Minimum Clicks Setting */}
-          <div className="space-y-2">
-            <Label htmlFor="minimum-clicks" className="text-base font-semibold">
-              <i className="fas fa-mouse-pointer mr-2 text-pink-600"></i>
-              Minimum Clicks
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Minimum number of clicks required to create a task
-            </p>
-            <Input
-              id="minimum-clicks"
-              type="number"
-              value={settings.minimumClicks}
-              onChange={(e) => setSettings({ ...settings, minimumClicks: e.target.value })}
-              placeholder="500"
-              min="1"
-              step="1"
-              className="text-lg font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Current: {settingsData?.minimumClicks || 500} clicks
-            </p>
-          </div>
-        </div>
-
-        {/* Season Broadcast Toggle */}
-        <div className="space-y-2 pt-4 border-t">
-          <Label className="text-base font-semibold flex items-center gap-2">
-            <i className="fas fa-broadcast-tower mr-2 text-cyan-600"></i>
-            Season Broadcast
-          </Label>
-          <p className="text-xs text-muted-foreground mb-2">
-            Enable or disable season broadcast messages
-          </p>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setSettings({ ...settings, seasonBroadcastActive: !settings.seasonBroadcastActive })}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.seasonBroadcastActive ? 'bg-green-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.seasonBroadcastActive ? 'translate-x-6' : 'translate-x-1'
-                }`}
+        {activeCategory === 'withdrawals' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="minimum-withdrawal-usd" className="text-sm font-semibold">
+                <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
+                Min USD (USD/USDT/Stars)
+              </Label>
+              <Input
+                id="minimum-withdrawal-usd"
+                type="number"
+                value={settings.minimumWithdrawalUSD}
+                onChange={(e) => setSettings({ ...settings, minimumWithdrawalUSD: e.target.value })}
+                placeholder="1.00"
+                min="0"
+                step="0.01"
               />
-            </button>
-            <span className="text-sm font-medium">
-              {settings.seasonBroadcastActive ? 'Active' : 'Inactive'}
-            </span>
+              <p className="text-xs text-muted-foreground">
+                Current: ${settingsData?.minimumWithdrawalUSD || 1.00}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minimum-withdrawal-ton" className="text-sm font-semibold">
+                <i className="fas fa-gem mr-2 text-blue-600"></i>
+                Min USD (TON Method)
+              </Label>
+              <Input
+                id="minimum-withdrawal-ton"
+                type="number"
+                value={settings.minimumWithdrawalTON}
+                onChange={(e) => setSettings({ ...settings, minimumWithdrawalTON: e.target.value })}
+                placeholder="0.5"
+                min="0"
+                step="0.01"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: ${settingsData?.minimumWithdrawalTON || 0.5}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-fee-ton" className="text-sm font-semibold">
+                <i className="fas fa-percent mr-2 text-blue-600"></i>
+                TON Fee (%)
+              </Label>
+              <Input
+                id="withdrawal-fee-ton"
+                type="number"
+                value={settings.withdrawalFeeTON}
+                onChange={(e) => setSettings({ ...settings, withdrawalFeeTON: e.target.value })}
+                placeholder="5"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.withdrawalFeeTON || 5}%
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-fee-usd" className="text-sm font-semibold">
+                <i className="fas fa-percent mr-2 text-green-600"></i>
+                USD/USDT Fee (%)
+              </Label>
+              <Input
+                id="withdrawal-fee-usd"
+                type="number"
+                value={settings.withdrawalFeeUSD}
+                onChange={(e) => setSettings({ ...settings, withdrawalFeeUSD: e.target.value })}
+                placeholder="3"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.withdrawalFeeUSD || 3}%
+              </p>
+            </div>
           </div>
-        </div>
+        )}
+
+        {activeCategory === 'tasks' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">
+                <i className="fas fa-bullhorn mr-2 text-cyan-600"></i>
+                Channel Task
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Cost (USD)</Label>
+                  <Input
+                    type="number"
+                    value={settings.channelTaskCost}
+                    onChange={(e) => setSettings({ ...settings, channelTaskCost: e.target.value })}
+                    placeholder="0.003"
+                    step="0.0001"
+                    className="h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Reward (PAD)</Label>
+                  <Input
+                    type="number"
+                    value={settings.channelTaskReward}
+                    onChange={(e) => setSettings({ ...settings, channelTaskReward: e.target.value })}
+                    placeholder="30"
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">
+                <i className="fas fa-robot mr-2 text-purple-600"></i>
+                Bot Task
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Cost (USD)</Label>
+                  <Input
+                    type="number"
+                    value={settings.botTaskCost}
+                    onChange={(e) => setSettings({ ...settings, botTaskCost: e.target.value })}
+                    placeholder="0.003"
+                    step="0.0001"
+                    className="h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Reward (PAD)</Label>
+                  <Input
+                    type="number"
+                    value={settings.botTaskReward}
+                    onChange={(e) => setSettings({ ...settings, botTaskReward: e.target.value })}
+                    placeholder="20"
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="partner-task-reward" className="text-sm font-semibold">
+                <i className="fas fa-handshake mr-2 text-green-600"></i>
+                Partner Task Reward (PAD)
+              </Label>
+              <Input
+                id="partner-task-reward"
+                type="number"
+                value={settings.partnerTaskReward}
+                onChange={(e) => setSettings({ ...settings, partnerTaskReward: e.target.value })}
+                placeholder="5"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.partnerTaskReward || 5} PAD
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minimum-clicks" className="text-sm font-semibold">
+                <i className="fas fa-mouse-pointer mr-2 text-pink-600"></i>
+                Minimum Clicks
+              </Label>
+              <Input
+                id="minimum-clicks"
+                type="number"
+                value={settings.minimumClicks}
+                onChange={(e) => setSettings({ ...settings, minimumClicks: e.target.value })}
+                placeholder="500"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.minimumClicks || 500} clicks
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeCategory === 'other' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="wallet-change-fee" className="text-sm font-semibold">
+                <i className="fas fa-exchange-alt mr-2 text-yellow-600"></i>
+                Wallet Change Fee (PAD)
+              </Label>
+              <Input
+                id="wallet-change-fee"
+                type="number"
+                value={settings.walletChangeFee}
+                onChange={(e) => setSettings({ ...settings, walletChangeFee: e.target.value })}
+                placeholder="5000"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.walletChangeFee || 5000} PAD
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minimum-convert-pad" className="text-sm font-semibold">
+                <i className="fas fa-repeat mr-2 text-indigo-600"></i>
+                Min Convert (PAD)
+              </Label>
+              <Input
+                id="minimum-convert-pad"
+                type="number"
+                value={settings.minimumConvertPAD}
+                onChange={(e) => setSettings({ ...settings, minimumConvertPAD: e.target.value })}
+                placeholder="100"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.minimumConvertPAD || 100} PAD
+              </p>
+            </div>
+
+            <div className="space-y-2 p-3 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  <i className="fas fa-broadcast-tower mr-2 text-cyan-600"></i>
+                  Season Broadcast
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, seasonBroadcastActive: !settings.seasonBroadcastActive })}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    settings.seasonBroadcastActive ? 'bg-green-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      settings.seasonBroadcastActive ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {settings.seasonBroadcastActive ? 'Active' : 'Inactive'}
+              </p>
+            </div>
+          </div>
+        )}
         
-        {/* Save Button */}
-        <div className="pt-4 border-t">
+        <div className="pt-3 border-t flex gap-2">
           <Button
             onClick={handleSaveSettings}
             disabled={isSaving}
-            className="w-full md:w-auto"
-            size="lg"
+            size="sm"
           >
             {isSaving ? (
               <>
@@ -1860,22 +1435,7 @@ function SettingsSection() {
             )}
           </Button>
         </div>
-        
-        {/* Info Box */}
-        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-start gap-2">
-            <i className="fas fa-info-circle text-blue-600 mt-1"></i>
-            <div className="text-sm text-blue-900 dark:text-blue-100">
-              <p className="font-semibold mb-1">Settings Information</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>Changes take effect immediately for all users</li>
-                <li>Daily ad limit resets at midnight (UTC)</li>
-                <li>Reward amounts are distributed when ads are watched</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

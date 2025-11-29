@@ -108,8 +108,8 @@ export default function Affiliates() {
     claimMutation.mutate();
   };
 
-  const totalClaimedPAD = Math.round(parseFloat(stats?.totalClaimed || '0') * 100000);
-  const availableBonusPAD = Math.round(parseFloat(stats?.availableBonus || '0') * 100000);
+  const totalClaimedPAD = Math.round(parseFloat(stats?.totalClaimed || '0'));
+  const availableBonusPAD = Math.round(parseFloat(stats?.availableBonus || '0'));
   const hasBonus = availableBonusPAD > 0;
 
   if (isLoading) {
