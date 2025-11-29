@@ -245,6 +245,21 @@ export const taskClicks = pgTable("task_clicks", {
   unique("task_clicks_unique").on(table.taskId, table.publisherId),
 ]);
 
+// Ban logs table - stores all ban records for admin panel
+export const banLogs = pgTable("ban_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bannedUserId: varchar("banned_user_id").references(() => users.id).notNull(),
+  bannedUserUid: text("banned_user_uid"),
+  ip: text("ip"),
+  deviceId: text("device_id"),
+  userAgent: text("user_agent"),
+  fingerprint: jsonb("fingerprint"),
+  reason: text("reason").notNull(),
+  banType: varchar("ban_type").notNull(), // 'auto' or 'manual'
+  bannedBy: varchar("banned_by"), // Admin user ID for manual bans, null for auto
+  relatedAccountIds: jsonb("related_account_ids"), // Array of related account IDs
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
@@ -260,6 +275,7 @@ export const insertPromoCodeUsageSchema = createInsertSchema(promoCodeUsage).omi
 export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAdvertiserTaskSchema = createInsertSchema(advertiserTasks).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export const insertTaskClickSchema = createInsertSchema(taskClicks).omit({ id: true, clickedAt: true });
+export const insertBanLogSchema = createInsertSchema(banLogs).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -288,3 +304,5 @@ export type AdvertiserTask = typeof advertiserTasks.$inferSelect;
 export type InsertAdvertiserTask = z.infer<typeof insertAdvertiserTaskSchema>;
 export type TaskClick = typeof taskClicks.$inferSelect;
 export type InsertTaskClick = z.infer<typeof insertTaskClickSchema>;
+export type BanLog = typeof banLogs.$inferSelect;
+export type InsertBanLog = z.infer<typeof insertBanLogSchema>;
