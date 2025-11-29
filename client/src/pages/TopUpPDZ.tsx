@@ -10,8 +10,8 @@ import { Gem, AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 const MINIMUM_AMOUNT = 0.1;
 const DEBOUNCE_DELAY = 1000; // 1 second debounce
 
-export default function TopUpPDZ() {
-  const [pdzAmount, setPdzAmount] = useState("");
+export default function TopUpTON() {
+  const [tonAmount, setTonAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
   const { toast } = useToast();
@@ -20,18 +20,18 @@ export default function TopUpPDZ() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "" || /^\d*\.?\d*$/.test(value)) {
-      setPdzAmount(value);
+      setTonAmount(value);
       setValidationError(""); // Clear error when user types
     }
   };
 
   const validateAmount = (): boolean => {
-    if (!pdzAmount || pdzAmount.trim() === "") {
+    if (!tonAmount || tonAmount.trim() === "") {
       setValidationError("Enter amount (Min 0.1 TON)");
       return false;
     }
 
-    const amount = parseFloat(pdzAmount);
+    const amount = parseFloat(tonAmount);
 
     if (isNaN(amount) || amount <= 0) {
       setValidationError("Enter valid amount");
@@ -63,17 +63,17 @@ export default function TopUpPDZ() {
       return;
     }
 
-    const amount = parseFloat(pdzAmount);
+    const amount = parseFloat(tonAmount);
 
     setIsLoading(true);
     
     // Set debounce timeout to prevent spam
     debounceTimeoutRef.current = setTimeout(async () => {
       try {
-        console.log(`💳 Sending payment request: ${amount} PDZ (type: ${typeof amount})`);
+        console.log(`💳 Sending payment request: ${amount} TON (type: ${typeof amount})`);
         
         const response = await apiRequest("POST", "/api/arcpay/create-payment", {
-          pdzAmount: amount, // Send as Number, NOT parseInt
+          tonAmount: amount, // Send as Number, NOT parseInt
         });
 
         const data = await response.json();
@@ -108,9 +108,9 @@ export default function TopUpPDZ() {
             <div className="flex justify-center mb-4">
               <Gem className="w-10 h-10 text-blue-500" />
             </div>
-            <CardTitle className="text-2xl">Top-Up PDZ</CardTitle>
+            <CardTitle className="text-2xl">Top-Up TON</CardTitle>
             <p className="text-sm text-muted-foreground mt-2">
-              Buy PDZ tokens with TON
+              Add TON to your balance
             </p>
           </CardHeader>
 
@@ -119,24 +119,24 @@ export default function TopUpPDZ() {
             <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Exchange Rate:
+                  Payment Method:
                 </span>
                 <span className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                  1 TON = 1 PDZ
+                  TON Blockchain
                 </span>
               </div>
             </div>
 
-            {/* PDZ Amount Input */}
+            {/* TON Amount Input */}
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                How many PDZ do you want to buy? (Minimum: {MINIMUM_AMOUNT})
+                How much TON do you want to add? (Minimum: {MINIMUM_AMOUNT})
               </label>
               <Input
                 type="text"
                 inputMode="decimal"
                 placeholder="0.1"
-                value={pdzAmount}
+                value={tonAmount}
                 onChange={handleInputChange}
                 disabled={isLoading}
                 className="text-lg py-6"
@@ -146,27 +146,23 @@ export default function TopUpPDZ() {
                   {validationError}
                 </p>
               )}
-              {pdzAmount && !validationError && (
+              {tonAmount && !validationError && (
                 <p className="text-sm text-muted-foreground">
-                  ≈ {parseFloat(pdzAmount).toFixed(2)} TON needed
+                  ≈ {parseFloat(tonAmount).toFixed(2)} TON
                 </p>
               )}
             </div>
 
             {/* Summary */}
-            {pdzAmount && !validationError && (
+            {tonAmount && !validationError && (
               <div className="bg-muted rounded-lg p-4 space-y-2">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">PDZ Amount:</span>
-                  <span className="font-semibold">{parseFloat(pdzAmount).toFixed(2)} PDZ</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">TON Required:</span>
-                  <span className="font-semibold">{parseFloat(pdzAmount).toFixed(2)} TON</span>
+                  <span className="text-muted-foreground">TON Amount:</span>
+                  <span className="font-semibold">{parseFloat(tonAmount).toFixed(2)} TON</span>
                 </div>
                 <div className="border-t border-border pt-2 flex justify-between items-center font-semibold">
                   <span>Total:</span>
-                  <span className="text-lg text-primary">{parseFloat(pdzAmount).toFixed(2)} TON</span>
+                  <span className="text-lg text-primary">{parseFloat(tonAmount).toFixed(2)} TON</span>
                 </div>
               </div>
             )}
@@ -182,7 +178,7 @@ export default function TopUpPDZ() {
               <ul className="list-disc list-inside space-y-1 text-amber-900 dark:text-amber-100">
                 <li>You'll be redirected to secure ArcPay checkout</li>
                 <li>After payment, you'll return to Telegram bot</li>
-                <li>PDZ will be credited to your account</li>
+                <li>TON will be credited to your account</li>
                 <li>Payment processed on TON blockchain</li>
               </ul>
             </div>
@@ -190,7 +186,7 @@ export default function TopUpPDZ() {
             {/* Proceed Button */}
             <Button
               onClick={handleProceedToPay}
-              disabled={!pdzAmount || isLoading || !!validationError}
+              disabled={!tonAmount || isLoading || !!validationError}
               className="w-full py-6 text-lg"
               size="lg"
             >

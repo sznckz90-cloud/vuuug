@@ -140,14 +140,17 @@ export default function CreateTask() {
   const totalCostUSD = costPerClick * clicksNum;
   const totalRewardsPAD = rewardPerClickPAD * clicksNum;
   const usdBalance = parseFloat((user as any)?.usdBalance || "0");
-  const pdzBalance = parseFloat((user as any)?.pdzBalance || "0");
+  const tonBalance = parseFloat((user as any)?.tonBalance || "0");
   const additionalCostUSD = costPerClick * (parseInt(additionalClicks) || 0);
   
   // Determine payment method based on user type
-  const paymentCurrency = isAdmin ? "USD" : "PDZ";
-  // PDZ uses same cost as USD (1 PDZ = 1 USD for task creation pricing)
-  const totalCost = totalCostUSD;
-  const availableBalance = isAdmin ? usdBalance : pdzBalance;
+  // Admin uses USD, Regular users use TON
+  const paymentCurrency = isAdmin ? "USD" : "TON";
+  // TON cost per click is 0.0003 TON for regular users
+  const tonCostPerClick = 0.0003;
+  const totalCostTON = tonCostPerClick * clicksNum;
+  const totalCost = isAdmin ? totalCostUSD : totalCostTON;
+  const availableBalance = isAdmin ? usdBalance : tonBalance;
   const hasSufficientBalance = availableBalance >= totalCost;
 
   const { data: myTasksData, isLoading: myTasksLoading, refetch: refetchMyTasks } = useQuery<{
@@ -329,9 +332,10 @@ export default function CreateTask() {
       return;
     }
 
-    const additionalCost = additionalCostUSD;
-    const balance = isAdmin ? usdBalance : pdzBalance;
-    const currency = isAdmin ? "USD" : "PDZ";
+    const additionalCostTON = tonCostPerClick * (parseInt(additionalClicks) || 0);
+    const additionalCost = isAdmin ? additionalCostUSD : additionalCostTON;
+    const balance = isAdmin ? usdBalance : tonBalance;
+    const currency = isAdmin ? "USD" : "TON";
 
     if (balance < additionalCost) {
       showNotification(`Insufficient ${currency} balance`, "error");
@@ -725,7 +729,7 @@ export default function CreateTask() {
               <Button
                 className="w-full btn-primary"
                 onClick={handleIncreaseClicks}
-                disabled={increaseClicksMutation.isPending || (isAdmin ? usdBalance < additionalCostUSD : pdzBalance < additionalCostUSD)}
+                disabled={increaseClicksMutation.isPending || (isAdmin ? usdBalance < additionalCostUSD : tonBalance < (tonCostPerClick * (parseInt(additionalClicks) || 0)))}
               >
                 {increaseClicksMutation.isPending ? "Processing..." : `Pay & Add`}
               </Button>

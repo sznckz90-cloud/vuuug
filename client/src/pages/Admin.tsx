@@ -181,7 +181,7 @@ export default function AdminPage() {
                   <StatPill icon="user-check" label="Active" value={stats?.dailyActiveUsers?.toLocaleString() || '0'} color="green" />
                   <StatPill icon="play-circle" label="Total Ads" value={stats?.totalAdsWatched?.toLocaleString() || '0'} color="purple" />
                   <StatPill icon="calendar-day" label="Today" value={stats?.todayAdsWatched?.toLocaleString() || '0'} color="orange" />
-                  <StatPill icon="gem" label="PAD" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
+                  <StatPill icon="gem" label="TON Earned" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
                   <StatPill icon="wallet" label="Withdrawn" value={formatCurrency(stats?.tonWithdrawn || '0', false)} color="indigo" />
                 </div>
 
@@ -323,7 +323,7 @@ function AnalyticsSection({ stats }: { stats: AdminStats | undefined }) {
                 dataKey="earnings" 
                 stroke="#10b981" 
                 strokeWidth={2}
-                name="📈 PAD Earned"
+                name="📈 TON Earned"
                 dot={{ fill: '#10b981', r: 3 }}
                 activeDot={{ r: 5 }}
               />
@@ -598,7 +598,7 @@ function UserManagementSection({ usersData }: { usersData: any }) {
                 <p className="text-xs text-muted-foreground mb-2">💰 Balances</p>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div><p className="text-xs text-muted-foreground">PAD</p><p className="font-bold text-[#4cd3ff]">{Math.round(parseFloat(selectedUser.balance || '0') * 100000)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">PDZ</p><p className="font-bold text-purple-400">{parseFloat(selectedUser.pdzBalance || '0').toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">TON</p><p className="font-bold text-purple-400">{parseFloat(selectedUser.tonBalance || '0').toFixed(4)}</p></div>
                   <div><p className="text-xs text-muted-foreground">USD</p><p className="font-bold text-green-400">${parseFloat(selectedUser.usdBalance || '0').toFixed(2)}</p></div>
                 </div>
               </div>
@@ -657,7 +657,7 @@ function PromoCreatorSection() {
   const [formData, setFormData] = useState({
     code: '',
     rewardAmount: '',
-    rewardType: 'PAD' as 'PAD' | 'PDZ' | 'USD',
+    rewardType: 'TON' as 'PAD' | 'TON' | 'USD',
     usageLimit: '',
     perUserLimit: '1',
     expiresAt: ''
@@ -700,7 +700,7 @@ function PromoCreatorSection() {
       const result = await response.json();
       if (result.success) {
         toast({ title: "✅ Created!", description: `${rewardAmount} ${formData.rewardType}` });
-        setFormData({ code: '', rewardAmount: '', rewardType: 'PAD', usageLimit: '', perUserLimit: '1', expiresAt: '' });
+        setFormData({ code: '', rewardAmount: '', rewardType: 'TON', usageLimit: '', perUserLimit: '1', expiresAt: '' });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/promo-codes"] });
         setActiveTab('manage');
       } else {
@@ -746,7 +746,7 @@ function PromoCreatorSection() {
             <Button type="button" variant="outline" onClick={handleGenerateCode} size="sm" className="h-8"><i className="fas fa-random"></i></Button>
           </div>
           <div className="grid grid-cols-3 gap-1">
-            {(['PAD', 'PDZ', 'USD'] as const).map(type => (
+            {(['PAD', 'TON', 'USD'] as const).map(type => (
               <Button key={type} type="button" variant={formData.rewardType === type ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, rewardType: type })} className="h-8 text-xs">{type}</Button>
             ))}
           </div>
