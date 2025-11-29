@@ -88,6 +88,11 @@ export const users = pgTable("users", {
   walletUpdatedAt: timestamp("wallet_updated_at"),
   pendingReferralBonus: decimal("pending_referral_bonus", { precision: 12, scale: 8 }).default("0"),
   totalClaimedReferralBonus: decimal("total_claimed_referral_bonus", { precision: 12, scale: 8 }).default("0"),
+  // Enhanced tracking for auto-ban system
+  appVersion: text("app_version"),
+  browserFingerprint: text("browser_fingerprint"), // Full fingerprint hash for WebApp detection
+  registeredAt: timestamp("registered_at").defaultNow(), // First account registration timestamp
+  referrerUid: text("referrer_uid"), // Referrer's UID for ban logs
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -258,6 +263,10 @@ export const banLogs = pgTable("ban_logs", {
   banType: varchar("ban_type").notNull(), // 'auto' or 'manual'
   bannedBy: varchar("banned_by"), // Admin user ID for manual bans, null for auto
   relatedAccountIds: jsonb("related_account_ids"), // Array of related account IDs
+  referrerUid: text("referrer_uid"), // UID of the referrer if self-referral ban
+  telegramId: text("telegram_id"), // Telegram ID for tracking (not displayed)
+  appVersion: text("app_version"), // App version at time of ban
+  browserFingerprint: text("browser_fingerprint"), // Full fingerprint for detection
   createdAt: timestamp("created_at").defaultNow(),
 });
 
