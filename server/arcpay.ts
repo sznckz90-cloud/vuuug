@@ -51,17 +51,17 @@ export interface ArcPayCheckoutResponse {
  * This function prepares the payment request payload and returns the checkout URL
  */
 export async function createArcPayCheckout(
-  pdzAmount: number,
+  tonAmount: number,
   userId: string,
   userEmail?: string
 ): Promise<{ success: boolean; paymentUrl?: string; error?: string }> {
   try {
-    if (pdzAmount <= 0) {
+    if (tonAmount <= 0) {
       return { success: false, error: 'Amount must be greater than 0' };
     }
 
     // Generate unique order ID
-    const orderId = `PDZ-${userId}-${Date.now()}`;
+    const orderId = `TON-${userId}-${Date.now()}`;
 
     // Get ArcPay config from environment
     const config = getArcPayConfig();
@@ -69,22 +69,22 @@ export async function createArcPayCheckout(
     // Create the payment request payload
     const paymentRequest: ArcPayPaymentRequest = {
       orderID: orderId,
-      amount: pdzAmount, // 1 PDZ = 1 TON
+      amount: tonAmount,
       currency: 'TON',
       returnUrl: config.returnUrl,
       webhookUrl: config.webhookUrl,
-      description: `Top-Up ${pdzAmount} PDZ tokens`,
+      description: `Top-Up ${tonAmount} TON`,
       metadata: {
         userId,
         userEmail,
-        pdzAmount,
+        tonAmount,
         timestamp: new Date().toISOString(),
       },
     };
 
     console.log('📋 Creating ArcPay payment request:', {
       orderId,
-      amount: pdzAmount,
+      amount: tonAmount,
       currency: 'TON',
       userId,
     });
@@ -165,7 +165,7 @@ async function generateArcPayCheckoutUrl(
   // Note: ArcPay expects camelCase field names (orderId, not order_id)
   // CRITICAL: ArcPay requires "title" field in items[], NOT "name"
   const payload = {
-    title: paymentRequest.description || `Top-Up ${paymentRequest.amount} PDZ`,
+    title: paymentRequest.description || `Top-Up ${paymentRequest.amount} TON`,
     orderId: paymentRequest.orderID,
     amount: paymentRequest.amount,
     currency: paymentRequest.currency,
@@ -177,8 +177,8 @@ async function generateArcPayCheckoutUrl(
     // Each item MUST have: title (required), description, quantity, price, currency
     items: [
       {
-        title: `PDZ Token`,
-        description: `Top-Up PDZ Tokens`,
+        title: `TON Token`,
+        description: `Top-Up TON Balance`,
         quantity: Math.max(1, Math.floor(paymentRequest.amount * 10) / 10),
         price: paymentRequest.amount,
         currency: paymentRequest.currency
@@ -306,7 +306,8 @@ export interface ArcPayWebhookPayload {
   transaction_hash?: string;
   metadata?: {
     userId?: string;
-    pdzAmount?: number;
+    tonAmount?: number;
+    pdzAmount?: number; // Legacy support
   };
   timestamp: string;
 }

@@ -2284,44 +2284,44 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // ===== PDZ BALANCE MANAGEMENT =====
+  // ===== TON BALANCE MANAGEMENT =====
   
-  async getPDZBalance(userId: string): Promise<string> {
+  async getTONBalance(userId: string): Promise<string> {
     try {
-      const [user] = await db.select({ pdzBalance: users.pdzBalance }).from(users).where(eq(users.id, userId));
-      return user?.pdzBalance || '0';
+      const [user] = await db.select({ tonBalance: users.tonBalance }).from(users).where(eq(users.id, userId));
+      return user?.tonBalance || '0';
     } catch (error) {
-      console.error('Error getting PDZ balance:', error);
+      console.error('Error getting TON balance:', error);
       return '0';
     }
   }
 
-  async addPDZBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
+  async addTONBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
     try {
       await db.update(users)
         .set({
-          pdzBalance: sql`${users.pdzBalance} + ${amount}`,
+          tonBalance: sql`${users.tonBalance} + ${amount}`,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId));
 
-      // Record transaction for PDZ addition
+      // Record transaction for TON addition
       await this.logTransaction({
         userId,
         amount,
         type: 'addition',
         source,
-        description: description || `PDZ balance added from ${source}`,
+        description: description || `TON balance added from ${source}`,
         metadata: { 
-          pdzAmount: amount,
+          tonAmount: amount,
           source
         }
       });
 
-      return { success: true, message: 'PDZ balance added successfully' };
+      return { success: true, message: 'TON balance added successfully' };
     } catch (error) {
-      console.error('Error adding PDZ balance:', error);
-      return { success: false, message: 'Error adding PDZ balance' };
+      console.error('Error adding TON balance:', error);
+      return { success: false, message: 'Error adding TON balance' };
     }
   }
 
@@ -2354,48 +2354,48 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async deductPDZBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
+  async deductTONBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
     try {
-      // Check if user is admin - admins have unlimited PDZ balance
+      // Check if user is admin - admins have unlimited TON balance
       const user = await this.getUser(userId);
       const isAdmin = user?.telegram_id === process.env.TELEGRAM_ADMIN_ID;
       
       if (isAdmin) {
-        console.log('🔑 Admin has unlimited PDZ balance - allowing deduction');
-        return { success: true, message: 'PDZ deducted successfully (admin unlimited)' };
+        console.log('🔑 Admin has unlimited TON balance - allowing deduction');
+        return { success: true, message: 'TON deducted successfully (admin unlimited)' };
       }
 
-      const currentPDZBalance = parseFloat(user?.pdzBalance || '0');
+      const currentTONBalance = parseFloat(user?.tonBalance || '0');
       const deductAmount = parseFloat(amount);
 
-      if (currentPDZBalance < deductAmount) {
-        return { success: false, message: 'Insufficient PDZ' };
+      if (currentTONBalance < deductAmount) {
+        return { success: false, message: 'Insufficient TON' };
       }
 
       await db.update(users)
         .set({
-          pdzBalance: sql`${users.pdzBalance} - ${amount}`,
+          tonBalance: sql`${users.tonBalance} - ${amount}`,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId));
 
-      // Record transaction for PDZ deduction
+      // Record transaction for TON deduction
       await this.logTransaction({
         userId,
         amount: `-${amount}`,
         type: 'deduction',
         source,
-        description: description || `PDZ balance deducted for ${source}`,
+        description: description || `TON balance deducted for ${source}`,
         metadata: { 
-          pdzAmount: amount,
+          tonAmount: amount,
           source
         }
       });
 
-      return { success: true, message: 'PDZ deducted successfully' };
+      return { success: true, message: 'TON deducted successfully' };
     } catch (error) {
-      console.error('Error deducting PDZ balance:', error);
-      return { success: false, message: 'Error deducting PDZ balance' };
+      console.error('Error deducting TON balance:', error);
+      return { success: false, message: 'Error deducting TON balance' };
     }
   }
 
