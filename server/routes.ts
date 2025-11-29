@@ -4546,27 +4546,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Deduct USD balance immediately to prevent double withdrawals
-        await tx
-          .update(users)
-          .set({ 
-            usdBalance: sql`${users.usdBalance} - ${usdToDeduct.toFixed(10)}`
-          })
-          .where(eq(users.id, userId));
+        console.log(`📝 Creating withdrawal request for $${withdrawalAmount.toFixed(2)} USD via ${method} (balance will be deducted on approval)`);
 
-        console.log(`📝 Creating withdrawal request for $${withdrawalAmount.toFixed(2)} USD via ${method} (USD balance deducted: ${usdToDeduct.toFixed(2)})`);
-
-        // Store the deducted amount in details for potential refund on rejection
         withdrawalDetails.totalDeducted = usdToDeduct.toFixed(10);
         withdrawalDetails.fee = fee.toFixed(10);
 
-        // Create withdrawal request - amount is ALWAYS in USD
         const withdrawalData: any = {
           userId,
-          amount: withdrawalAmount.toFixed(10), // USD amount
+          amount: withdrawalAmount.toFixed(10),
           method: method,
           status: 'pending',
-          deducted: true,
+          deducted: false,
           refunded: false,
           details: withdrawalDetails
         };

@@ -1740,7 +1740,6 @@ export class DatabaseStorage implements IStorage {
 
   async approveWithdrawal(withdrawalId: string, adminNotes?: string, transactionHash?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
     try {
-      // Get withdrawal details
       const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
       if (!withdrawal) {
         return { success: false, message: 'Withdrawal not found' };
@@ -1750,33 +1749,35 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      // Get user for logging and balance management
       const user = await this.getUser(withdrawal.userId);
       if (!user) {
         return { success: false, message: 'User not found' };
       }
 
-      const withdrawalAmount = parseFloat(withdrawal.amount);
-      const userTonBalance = parseFloat(user.tonBalance || '0');
+      const alreadyDeducted = withdrawal.deducted === true;
 
-      // Verify user has sufficient TON balance
-      if (userTonBalance < withdrawalAmount) {
-        return { success: false, message: 'User has insufficient TON balance for withdrawal' };
+      if (alreadyDeducted) {
+        console.log(`💰 Balance already deducted for withdrawal #${withdrawalId} (legacy), skipping deduction`);
+      } else {
+        const withdrawalDetails = withdrawal.details as any;
+        const totalToDeduct = parseFloat(withdrawalDetails?.totalDeducted || withdrawal.amount);
+        const userUsdBalance = parseFloat(user.usdBalance || '0');
+        
+        if (userUsdBalance < totalToDeduct) {
+          return { success: false, message: 'User has insufficient USD balance for withdrawal' };
+        }
+
+        console.log(`💰 Deducting USD balance now for approved withdrawal: $${totalToDeduct.toFixed(2)}`);
+        console.log(`💰 Previous USD balance: $${userUsdBalance.toFixed(2)}, New USD balance: $${(userUsdBalance - totalToDeduct).toFixed(2)}`);
+
+        await db.update(users)
+          .set({ 
+            usdBalance: sql`${users.usdBalance} - ${totalToDeduct.toFixed(10)}`,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
       }
 
-      console.log(`💰 Deducting TON balance now for approved withdrawal: ${withdrawalAmount} TON`);
-      console.log(`💰 Previous TON balance: ${userTonBalance} TON, New TON balance: ${(userTonBalance - withdrawalAmount).toFixed(8)} TON`);
-
-      // Deduct TON balance directly (not from PAD balance)
-      const newTonBalance = userTonBalance - withdrawalAmount;
-      await db.update(users)
-        .set({ 
-          tonBalance: newTonBalance.toString(),
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, withdrawal.userId));
-
-      // Update withdrawal status to success and mark as deducted
       const updateData: any = { 
         status: 'success', 
         deducted: true,
@@ -1787,7 +1788,7 @@ export class DatabaseStorage implements IStorage {
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} approved - TON balance deducted — OK ✅`);
+      console.log(`✅ Withdrawal #${withdrawalId} approved — OK ✅`);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
@@ -1798,7 +1799,6 @@ export class DatabaseStorage implements IStorage {
 
   async rejectWithdrawal(withdrawalId: string, rejectionReason?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
     try {
-      // Get withdrawal details
       const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
       if (!withdrawal) {
         return { success: false, message: 'Withdrawal not found' };
@@ -1808,58 +1808,27 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      // CRITICAL FIX: Refund the EXACT amount that was deducted
-      // Balance WAS deducted when withdrawal was created (see routes.ts line 4211-4217)
-      const withdrawalDetails = withdrawal.details as any;
-      const withdrawalAmount = parseFloat(withdrawal.amount);
+      const alreadyDeducted = withdrawal.deducted === true;
       
-      // Calculate exact refund amount
-      let refundAmount: number;
-      
-      if (withdrawalDetails?.totalDeducted) {
-        // New withdrawals: use the stored exact deducted amount
-        refundAmount = parseFloat(withdrawalDetails.totalDeducted);
-        console.log(`✅ Using stored totalDeducted: $${refundAmount}`);
-      } else {
-        // Legacy withdrawals: calculate correct refund from withdrawal data
-        console.warn(`⚠️ Legacy withdrawal without totalDeducted, calculating refund from withdrawal data`);
+      if (alreadyDeducted) {
+        const withdrawalDetails = withdrawal.details as any;
+        const refundAmount = parseFloat(withdrawalDetails?.totalDeducted || withdrawal.amount);
         
-        if (withdrawalDetails?.method === 'STARS' && withdrawalDetails?.starPackage) {
-          // For STARS, reconstruct the total cost including fee
-          const starPackages = [
-            { stars: 15, usdCost: 0.30 },
-            { stars: 25, usdCost: 0.50 },
-            { stars: 50, usdCost: 1.00 },
-            { stars: 100, usdCost: 2.00 }
-          ];
-          const selectedPkg = starPackages.find(p => p.stars === withdrawalDetails.starPackage);
-          refundAmount = selectedPkg ? selectedPkg.usdCost * 1.05 : withdrawalAmount;
-        } else {
-          // For TON/USD, the withdrawal.amount is net (after fee)
-          // We need to add back the fee to get the original deducted amount
-          const feePercent = withdrawalDetails?.method === 'TON' ? 0.05 : 0.03;
-          refundAmount = withdrawalAmount / (1 - feePercent);
-        }
-        console.log(`📊 Calculated legacy refund: $${refundAmount} (from withdrawal amount: $${withdrawalAmount})`);
+        await db.update(users)
+          .set({ 
+            usdBalance: sql`${users.usdBalance} + ${refundAmount.toFixed(10)}`,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
+        
+        console.log(`💰 Withdrawal #${withdrawalId} rejected - refunded $${refundAmount.toFixed(2)} USD`);
+      } else {
+        console.log(`📝 Withdrawal #${withdrawalId} rejected - no balance was deducted, no refund needed`);
       }
 
-      // Refund the EXACT amount back to user's USD balance using numeric addition
-      const refundValue = parseFloat(refundAmount.toFixed(10));
-      await db
-        .update(users)
-        .set({ 
-          usdBalance: sql`${users.usdBalance} + ${refundValue}`,
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, withdrawal.userId));
-
-      console.log(`💰 Withdrawal #${withdrawalId} rejected - refunded exactly $${refundValue} USD to user balance`);
-
-      // Update withdrawal status to rejected with rejection reason
       const updateData: any = { 
         status: 'rejected', 
-        refunded: true,
-        deducted: true,
+        refunded: alreadyDeducted,
         updatedAt: new Date() 
       };
       if (rejectionReason) {
@@ -1869,9 +1838,9 @@ export class DatabaseStorage implements IStorage {
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} rejected - $${refundAmount.toFixed(2)} USD refunded to user`);
+      console.log(`✅ Withdrawal #${withdrawalId} rejected`);
       
-      return { success: true, message: 'Withdrawal rejected and amount refunded', withdrawal: updatedWithdrawal };
+      return { success: true, message: 'Withdrawal rejected', withdrawal: updatedWithdrawal };
     } catch (error) {
       console.error('Error rejecting withdrawal:', error);
       return { success: false, message: 'Error processing withdrawal rejection' };

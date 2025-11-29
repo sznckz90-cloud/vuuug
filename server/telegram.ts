@@ -662,8 +662,8 @@ Share your unique referral link and earn PAD when your friends join:
             
             const message = `💰 <b>Withdrawal Request</b>\n\n` +
               `<b>User:</b> ${username}\n` +
-              `<b>Amount:</b> ${amount} TON\n` +
-              `<b>Method:</b> ${withdrawal.method}\n` +
+              `<b>Amount:</b> ${amount} ${withdrawal.method || 'USD'}\n` +
+              `<b>Method:</b> ${withdrawal.method || 'USD'}\n` +
               `<b>Wallet:</b> ${walletAddress}\n` +
               `<b>Created:</b> ${createdAt}\n` +
               `<b>ID:</b> ${withdrawal.id}`;
@@ -832,10 +832,11 @@ Share your unique referral link and earn PAD when your friends join:
             const userId = user?.id || 'N/A';
             const currentDate = new Date().toString();
             
+            const method = result.withdrawal.method || 'USD';
             const adminSuccessMessage = `✅ <b>Payout approved successfully</b>\n\n` +
               `👤 User: ${userName}\n` +
               `🆔 User ID: ${userId}\n` +
-              `💸 Amount: ${formattedAmount} TON\n` +
+              `💸 Amount: ${formattedAmount} ${method}\n` +
               `💳 Address: ${walletAddress}\n` +
               `📅 Date: ${currentDate}\n` +
               `🤖 Bot: @Paid_Adzbot`;

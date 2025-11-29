@@ -336,33 +336,7 @@ export async function manualBanUser(
 export async function sendWarningToMainAccount(
   primaryAccountId: string
 ): Promise<void> {
-  try {
-    const primaryUser = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, primaryAccountId))
-      .limit(1);
-
-    if (primaryUser.length === 0 || !primaryUser[0].telegram_id) {
-      console.log("Primary account not found or no Telegram ID");
-      return;
-    }
-
-    const { sendUserTelegramNotification } = await import('./telegram');
-    
-    const warningMessage = 
-      "⚠️ Warning: We've detected another account from your device that violated our multi-account policy.\n\n" +
-      "If this happens again, your main account will be permanently banned without any further notice.";
-
-    await sendUserTelegramNotification(
-      primaryUser[0].telegram_id,
-      warningMessage
-    );
-
-    console.log(`Warning sent to main account: ${primaryAccountId}`);
-  } catch (error) {
-    console.error("Error sending warning to main account:", error);
-  }
+  console.log(`🔇 Silent mode: No warning sent to account ${primaryAccountId} (auto-ban happens silently)`);
 }
 
 export async function detectSelfReferral(
