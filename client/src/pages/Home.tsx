@@ -51,8 +51,8 @@ export default function Home() {
   const balancePAD = rawBalance < 1 ? Math.round(rawBalance * 10000000) : Math.round(rawBalance);
   const balanceUSD = parseFloat((user as User)?.usdBalance || "0");
   
-  const referralCode = (user as User)?.referralCode || "000000";
-  const formattedUserId = referralCode.slice(-6).toUpperCase();
+  // Use referralCode as the 5-character UID (consistent everywhere)
+  const userUID = (user as User)?.referralCode || "00000";
 
   const photoUrl = typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
   
@@ -65,8 +65,6 @@ export default function Home() {
   };
   
   const displayName = getDisplayName();
-  const userId = (user as User)?.id || '';
-  const userUID = userId.length >= 5 ? userId.slice(-5).toUpperCase() : userId.padStart(5, '0').toUpperCase();
   const userRank = leaderboardData?.userEarnerRank?.rank;
 
   return (
@@ -123,7 +121,7 @@ export default function Home() {
         <WalletSection
           padBalance={balancePAD}
           usdBalance={balanceUSD}
-          uid={formattedUserId}
+          uid={userUID}
           isAdmin={isAdmin}
           onAdminClick={() => setLocation("/admin")}
           onWithdraw={() => {}}

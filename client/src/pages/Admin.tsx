@@ -144,7 +144,7 @@ export default function AdminPage() {
 
         {/* Tabs Navigation - Move to Top */}
         <Tabs defaultValue="summary" className="w-full">
-          <TabsList className="grid grid-cols-5 w-full mb-3">
+          <TabsList className="grid grid-cols-6 w-full mb-3">
             <TabsTrigger value="summary" className="text-xs">
               Summary
             </TabsTrigger>
@@ -156,6 +156,9 @@ export default function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="payouts" className="text-xs">
               Payouts
+            </TabsTrigger>
+            <TabsTrigger value="bans" className="text-xs">
+              Bans
             </TabsTrigger>
             <TabsTrigger value="settings" className="text-xs">
               Settings
@@ -229,6 +232,11 @@ export default function AdminPage() {
           {/* Payout Logs Tab */}
           <TabsContent value="payouts" className="mt-0">
             <PayoutLogsSection data={payoutLogsData} />
+          </TabsContent>
+
+          {/* Ban Logs Tab */}
+          <TabsContent value="bans" className="mt-0">
+            <BanLogsSection />
           </TabsContent>
           
           {/* Settings Tab */}
@@ -459,8 +467,8 @@ function UserManagementSection({ usersData }: { usersData: any }) {
     const search = searchTerm.toLowerCase();
     return (
       user.personalCode?.toLowerCase().includes(search) ||
-      user.firstName?.toLowerCase().includes(search) ||
-      user.username?.toLowerCase().includes(search)
+      user.referralCode?.toLowerCase().includes(search) ||
+      user.firstName?.toLowerCase().includes(search)
     );
   });
 
@@ -491,7 +499,7 @@ function UserManagementSection({ usersData }: { usersData: any }) {
         
         {activeView === 'list' && (
           <Input
-            placeholder="🔍 Search by UID or username..."
+            placeholder="🔍 Search by UID or name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="h-8 text-sm"
@@ -522,8 +530,8 @@ function UserManagementSection({ usersData }: { usersData: any }) {
             <Table>
               <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
-                  <TableHead className="text-xs">User</TableHead>
                   <TableHead className="text-xs">UID</TableHead>
+                  <TableHead className="text-xs">Name</TableHead>
                   <TableHead className="text-xs">Friends</TableHead>
                   <TableHead className="text-xs text-right">Earned</TableHead>
                   <TableHead className="text-xs">Action</TableHead>
@@ -539,8 +547,8 @@ function UserManagementSection({ usersData }: { usersData: any }) {
                 ) : (
                   paginatedUsers.map((user: any) => (
                     <TableRow key={user.id} className="hover:bg-muted/50">
-                      <TableCell className="text-xs py-2">{user.username || user.firstName || 'Anon'}{user.banned && <Badge className="ml-1 bg-red-600 text-[10px] px-1">Ban</Badge>}</TableCell>
-                      <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">{user.personalCode || 'N/A'}</TableCell>
+                      <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">{user.referralCode || user.personalCode || 'N/A'}{user.banned && <Badge className="ml-1 bg-red-600 text-[10px] px-1">Ban</Badge>}</TableCell>
+                      <TableCell className="text-xs py-2">{user.firstName || 'User'}</TableCell>
                       <TableCell className="py-2"><Badge variant="outline" className="text-[10px]">{user.friendsInvited || 0}</Badge></TableCell>
                       <TableCell className="text-right text-xs font-semibold py-2">{formatCurrency(user.totalEarned || '0')}</TableCell>
                       <TableCell className="py-2"><Button size="sm" variant="ghost" onClick={() => setSelectedUser(user)} className="h-6 text-xs px-2"><i className="fas fa-eye"></i></Button></TableCell>
@@ -570,7 +578,7 @@ function UserManagementSection({ usersData }: { usersData: any }) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <i className="fas fa-user-circle text-[#4cd3ff]"></i>
-              {selectedUser?.username || selectedUser?.firstName || 'User'}
+              UID: {selectedUser?.referralCode || selectedUser?.personalCode || 'N/A'}
             </DialogTitle>
           </DialogHeader>
           {selectedUser && (
@@ -797,7 +805,7 @@ function PayoutLogsSection({ data }: { data: any }) {
       statusFilter === 'rejected' ? payout.status === 'rejected' :
       statusFilter === 'pending' ? payout.status === 'pending' : true;
     const matchesSearch = searchQuery === '' ? true :
-      (payout.user?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (payout.user?.referralCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        payout.user?.personalCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        payout.details?.paymentDetails?.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesStatus && matchesSearch;
@@ -855,7 +863,7 @@ function PayoutLogsSection({ data }: { data: any }) {
             <TableBody>
               {paginatedPayouts.map((payout: any) => (
                 <TableRow key={payout.id} className="hover:bg-white/5">
-                  <TableCell className="text-xs py-2">@{payout.user?.username || 'Anon'}</TableCell>
+                  <TableCell className="text-xs py-2 font-mono text-[#4cd3ff]">{payout.user?.referralCode || payout.user?.personalCode || 'N/A'}</TableCell>
                   <TableCell className="text-xs py-2 font-semibold text-green-400">{formatCurrency(payout.amount || '0')}</TableCell>
                   <TableCell className="py-2">{getStatusBadge(payout.status)}</TableCell>
                   <TableCell className="text-[10px] py-2 text-muted-foreground">{new Date(payout.createdAt || payout.created_on).toLocaleDateString()}</TableCell>
@@ -876,6 +884,111 @@ function PayoutLogsSection({ data }: { data: any }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function BanLogsSection() {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  const { data: banLogsData, isLoading } = useQuery({
+    queryKey: ["/api/admin/ban-logs"],
+    queryFn: () => apiRequest("GET", "/api/admin/ban-logs").then(res => res.json()),
+    refetchInterval: 30000,
+  });
+
+  const logs = banLogsData?.logs || [];
+  const totalPages = Math.ceil(logs.length / itemsPerPage);
+  const paginatedLogs = logs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const autoBanCount = logs.filter((l: any) => l.banType === 'auto').length;
+  const manualBanCount = logs.filter((l: any) => l.banType === 'manual').length;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="bg-muted h-16 rounded-lg animate-pulse" />
+          ))}
+        </div>
+        <div className="bg-muted h-48 rounded-lg animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-gradient-to-br from-red-500/20 to-red-500/5 p-3 rounded text-center border border-red-500/30">
+          <p className="text-2xl font-bold text-red-400">{logs.length}</p>
+          <p className="text-xs text-muted-foreground">Total Bans</p>
+        </div>
+        <div className="bg-gradient-to-br from-orange-500/20 to-orange-500/5 p-3 rounded text-center border border-orange-500/30">
+          <p className="text-2xl font-bold text-orange-400">{autoBanCount}</p>
+          <p className="text-xs text-muted-foreground">Auto Bans</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500/20 to-purple-500/5 p-3 rounded text-center border border-purple-500/30">
+          <p className="text-2xl font-bold text-purple-400">{manualBanCount}</p>
+          <p className="text-xs text-muted-foreground">Manual Bans</p>
+        </div>
+      </div>
+
+      {logs.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <i className="fas fa-shield-alt text-2xl mb-2"></i>
+          <p>No ban logs yet</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-white/10 rounded-lg">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background">
+              <TableRow>
+                <TableHead className="text-xs">UID</TableHead>
+                <TableHead className="text-xs">Type</TableHead>
+                <TableHead className="text-xs">Reason</TableHead>
+                <TableHead className="text-xs">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedLogs.map((log: any) => (
+                <TableRow key={log.id} className="hover:bg-muted/50">
+                  <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">
+                    {log.bannedUserUid || log.bannedUserId?.slice(0, 8) || 'N/A'}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    <Badge className={`text-[10px] ${log.banType === 'auto' ? 'bg-orange-600' : 'bg-purple-600'}`}>
+                      {log.banType === 'auto' ? '🤖 Auto' : '👤 Manual'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs py-2 max-w-[150px] truncate" title={log.reason}>
+                    {log.reason}
+                  </TableCell>
+                  <TableCell className="text-[10px] text-muted-foreground py-2">
+                    {log.createdAt ? new Date(log.createdAt).toLocaleDateString() : 'N/A'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">{logs.length} ban logs</span>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-6 w-6 p-0">
+              <i className="fas fa-chevron-left text-xs"></i>
+            </Button>
+            <span className="px-2">{currentPage}/{totalPages}</span>
+            <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="h-6 w-6 p-0">
+              <i className="fas fa-chevron-right text-xs"></i>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
