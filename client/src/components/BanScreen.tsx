@@ -19,23 +19,23 @@ export default function BanScreen({ reason }: BanScreenProps) {
             </div>
 
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-red-500">
-                Your account has been banned
+              <h1 className="text-xl font-bold text-red-500 leading-tight">
+                Your account has been banned due to suspicious multi-account activity
               </h1>
-              
+
               {reason && (
-                <div className="mt-4 p-4 bg-red-950/30 border border-red-900/50 rounded-lg">
-                  <p className="text-sm font-semibold text-red-400/90 mb-1">
-                    Reason:
+                <div className="mt-4 p-3 bg-red-950/20 border border-red-900/30 rounded-lg">
+                  <p className="text-xs font-semibold text-red-400/70 mb-1">
+                    Details:
                   </p>
-                  <p className="text-sm text-gray-300">
+                  <p className="text-xs text-gray-400">
                     {reason}
                   </p>
                 </div>
               )}
 
               <p className="text-gray-400 text-sm mt-4">
-                If you believe this is a mistake, please contact our support team.
+                All features are disabled. If you believe this is a mistake, please contact our support team.
               </p>
             </div>
 
