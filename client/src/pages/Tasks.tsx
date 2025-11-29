@@ -184,8 +184,10 @@ export default function Tasks() {
       <Layout>
         <div className="min-h-screen bg-background flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin text-primary text-3xl mb-4">
-              <i className="fas fa-spinner"></i>
+            <div className="flex gap-1 justify-center mb-4">
+              <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
             <div className="text-foreground font-medium">Loading...</div>
           </div>
