@@ -2395,7 +2395,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ success: false, message: "User ID is required" });
       }
       
-      await storage.updateUserBanStatus(userId, banned, reason);
+      // Get admin user ID for logging
+      const adminUserId = req.user?.telegramUser?.id?.toString() || 'admin';
+      
+      await storage.updateUserBanStatus(userId, banned, reason, adminUserId);
       
       res.json({ 
         success: true,
@@ -2404,6 +2407,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating user ban status:", error);
       res.status(500).json({ success: false, message: "Failed to update user status" });
+    }
+  });
+
+  // Admin get ban logs endpoint
+  app.get('/api/admin/ban-logs', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { getBanLogs } = await import('./deviceTracking');
+      const limit = parseInt(req.query.limit as string) || 50;
+      const logs = await getBanLogs(limit);
+      
+      res.json({ success: true, logs });
+    } catch (error) {
+      console.error("Error fetching ban logs:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch ban logs" });
     }
   });
 

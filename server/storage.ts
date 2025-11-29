@@ -1190,8 +1190,20 @@ export class DatabaseStorage implements IStorage {
       return user.referralCode;
     }
     
-    // Generate a secure random referral code using crypto
-    const code = crypto.randomBytes(6).toString('hex'); // 12-character hex code
+    // Generate a 5-character alphanumeric UID (uppercase letters and numbers)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    const randomBytes = crypto.randomBytes(5);
+    for (let i = 0; i < 5; i++) {
+      code += chars[randomBytes[i] % chars.length];
+    }
+    
+    // Ensure uniqueness by checking if code already exists
+    const existingUser = await db.select().from(users).where(eq(users.referralCode, code));
+    if (existingUser.length > 0) {
+      // Recursive call to generate a new code if collision occurs
+      return this.generateReferralCode(userId);
+    }
     
     await db
       .update(users)
@@ -1212,7 +1224,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(users.createdAt));
   }
 
-  async updateUserBanStatus(userId: string, banned: boolean, reason?: string): Promise<void> {
+  async updateUserBanStatus(userId: string, banned: boolean, reason?: string, bannedBy?: string): Promise<void> {
+    // Get user info for logging
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
     await db
       .update(users)
       .set({
@@ -1222,6 +1237,26 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
+    
+    // Create ban log for manual bans (only when banning, not unbanning)
+    if (banned && user) {
+      try {
+        const { createBanLog } = await import('./deviceTracking');
+        await createBanLog({
+          bannedUserId: userId,
+          bannedUserUid: user.personalCode || undefined,
+          ip: user.lastLoginIp || undefined,
+          deviceId: user.deviceId || undefined,
+          userAgent: user.lastLoginUserAgent || undefined,
+          fingerprint: user.deviceFingerprint || undefined,
+          reason: reason || 'Banned by admin',
+          banType: 'manual',
+          bannedBy: bannedBy,
+        });
+      } catch (error) {
+        console.error('Failed to create ban log:', error);
+      }
+    }
   }
 
   // Promo code operations

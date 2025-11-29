@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db, pool } from "./db";
-import { users } from "../shared/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { users, banLogs } from "../shared/schema";
+import { eq, and, ne, or, sql } from "drizzle-orm";
 
 export interface DeviceInfo {
   deviceId: string;
@@ -12,6 +12,41 @@ export interface DeviceInfo {
     screenResolution?: string;
     timezone?: string;
   };
+  ip?: string;
+  userAgent?: string;
+}
+
+export interface BanLogData {
+  bannedUserId: string;
+  bannedUserUid?: string;
+  ip?: string;
+  deviceId?: string;
+  userAgent?: string;
+  fingerprint?: any;
+  reason: string;
+  banType: 'auto' | 'manual';
+  bannedBy?: string;
+  relatedAccountIds?: string[];
+}
+
+export async function createBanLog(data: BanLogData): Promise<void> {
+  try {
+    await db.insert(banLogs).values({
+      bannedUserId: data.bannedUserId,
+      bannedUserUid: data.bannedUserUid,
+      ip: data.ip,
+      deviceId: data.deviceId,
+      userAgent: data.userAgent,
+      fingerprint: data.fingerprint,
+      reason: data.reason,
+      banType: data.banType,
+      bannedBy: data.bannedBy,
+      relatedAccountIds: data.relatedAccountIds as any,
+    });
+    console.log(`📝 Ban log created for user ${data.bannedUserId}: ${data.reason}`);
+  } catch (error) {
+    console.error("Error creating ban log:", error);
+  }
 }
 
 export async function validateDeviceAndDetectDuplicate(
@@ -26,7 +61,7 @@ export async function validateDeviceAndDetectDuplicate(
   reason?: string;
 }> {
   try {
-    const { deviceId, fingerprint } = deviceInfo;
+    const { deviceId, fingerprint, ip, userAgent } = deviceInfo;
 
     if (!deviceId) {
       return {
@@ -36,19 +71,37 @@ export async function validateDeviceAndDetectDuplicate(
       };
     }
 
+    // Check for existing accounts with same device ID
     const existingUsersWithDevice = await db
       .select()
       .from(users)
       .where(eq(users.deviceId, deviceId));
 
-    if (existingUsersWithDevice.length === 0) {
+    // Also check for accounts with same IP if provided
+    let existingUsersWithIP: any[] = [];
+    if (ip) {
+      existingUsersWithIP = await db
+        .select()
+        .from(users)
+        .where(eq(users.lastLoginIp, ip));
+    }
+
+    // Combine and deduplicate
+    const allRelatedUsers = [...existingUsersWithDevice];
+    for (const ipUser of existingUsersWithIP) {
+      if (!allRelatedUsers.find(u => u.id === ipUser.id)) {
+        allRelatedUsers.push(ipUser);
+      }
+    }
+
+    if (allRelatedUsers.length === 0) {
       return {
         isValid: true,
         shouldBan: false
       };
     }
 
-    const currentUserAccount = existingUsersWithDevice.find(
+    const currentUserAccount = allRelatedUsers.find(
       u => u.telegram_id === telegramId
     );
 
@@ -61,11 +114,14 @@ export async function validateDeviceAndDetectDuplicate(
         };
       }
 
+      // Update device info and login tracking
       await db
         .update(users)
         .set({
           deviceFingerprint: fingerprint as any,
           lastLoginAt: new Date(),
+          lastLoginIp: ip || currentUserAccount.lastLoginIp,
+          lastLoginUserAgent: userAgent || currentUserAccount.lastLoginUserAgent,
         })
         .where(eq(users.id, currentUserAccount.id));
 
@@ -75,11 +131,12 @@ export async function validateDeviceAndDetectDuplicate(
       };
     }
 
-    const primaryAccount = existingUsersWithDevice.find(
+    // New account on existing device/IP - this is multi-account abuse
+    const primaryAccount = allRelatedUsers.find(
       u => u.isPrimaryAccount === true
-    ) || existingUsersWithDevice[0];
+    ) || allRelatedUsers[0];
 
-    const duplicateAccountIds = existingUsersWithDevice
+    const duplicateAccountIds = allRelatedUsers
       .filter(u => u.telegram_id !== telegramId && !u.banned)
       .map(u => u.id);
 
@@ -88,7 +145,7 @@ export async function validateDeviceAndDetectDuplicate(
       shouldBan: true,
       primaryAccountId: primaryAccount.id,
       duplicateAccountIds,
-      reason: "Multiple accounts detected on the same device - only one account per device is allowed"
+      reason: "Multiple accounts detected on the same device/network - only one account per device is allowed"
     };
   } catch (error) {
     console.error("Device validation error:", error);
@@ -100,11 +157,54 @@ export async function validateDeviceAndDetectDuplicate(
   }
 }
 
+export async function checkIPForDuplicates(
+  ip: string,
+  telegramId: string
+): Promise<{
+  hasDuplicates: boolean;
+  duplicateCount: number;
+  primaryAccountId?: string;
+}> {
+  try {
+    if (!ip) {
+      return { hasDuplicates: false, duplicateCount: 0 };
+    }
+
+    const usersWithSameIP = await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.lastLoginIp, ip),
+        ne(users.telegram_id, telegramId)
+      ));
+
+    if (usersWithSameIP.length === 0) {
+      return { hasDuplicates: false, duplicateCount: 0 };
+    }
+
+    const primaryAccount = usersWithSameIP.find(u => u.isPrimaryAccount === true) || usersWithSameIP[0];
+
+    return {
+      hasDuplicates: true,
+      duplicateCount: usersWithSameIP.length,
+      primaryAccountId: primaryAccount.id
+    };
+  } catch (error) {
+    console.error("IP duplicate check error:", error);
+    return { hasDuplicates: false, duplicateCount: 0 };
+  }
+}
+
 export async function banUserForMultipleAccounts(
   userId: string,
-  reason: string
+  reason: string,
+  deviceInfo?: DeviceInfo,
+  relatedAccountIds?: string[]
 ): Promise<void> {
   try {
+    // Get user info for logging
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
     await db
       .update(users)
       .set({
@@ -115,6 +215,19 @@ export async function banUserForMultipleAccounts(
       })
       .where(eq(users.id, userId));
 
+    // Create ban log
+    await createBanLog({
+      bannedUserId: userId,
+      bannedUserUid: user?.personalCode || undefined,
+      ip: deviceInfo?.ip,
+      deviceId: deviceInfo?.deviceId,
+      userAgent: deviceInfo?.userAgent,
+      fingerprint: deviceInfo?.fingerprint,
+      reason,
+      banType: 'auto',
+      relatedAccountIds,
+    });
+
     console.log(`✅ User ${userId} banned for: ${reason}`);
   } catch (error) {
     console.error("Error banning user:", error);
@@ -124,26 +237,62 @@ export async function banUserForMultipleAccounts(
 
 export async function banMultipleUsers(
   userIds: string[],
-  reason: string
+  reason: string,
+  deviceInfo?: DeviceInfo
 ): Promise<void> {
   try {
     if (userIds.length === 0) return;
 
     for (const userId of userIds) {
-      await db
-        .update(users)
-        .set({
-          banned: true,
-          bannedReason: reason,
-          bannedAt: new Date(),
-          isPrimaryAccount: false,
-        })
-        .where(eq(users.id, userId));
+      await banUserForMultipleAccounts(userId, reason, deviceInfo, userIds);
     }
 
     console.log(`✅ Banned ${userIds.length} accounts for: ${reason}`);
   } catch (error) {
     console.error("Error banning multiple users:", error);
+    throw error;
+  }
+}
+
+export async function manualBanUser(
+  userId: string,
+  reason: string,
+  bannedBy: string,
+  deviceInfo?: DeviceInfo
+): Promise<void> {
+  try {
+    // Get user info for logging
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await db
+      .update(users)
+      .set({
+        banned: true,
+        bannedReason: reason,
+        bannedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    // Create ban log for manual ban
+    await createBanLog({
+      bannedUserId: userId,
+      bannedUserUid: user.personalCode || undefined,
+      ip: user.lastLoginIp || deviceInfo?.ip,
+      deviceId: user.deviceId || deviceInfo?.deviceId,
+      userAgent: user.lastLoginUserAgent || deviceInfo?.userAgent,
+      fingerprint: user.deviceFingerprint || deviceInfo?.fingerprint,
+      reason,
+      banType: 'manual',
+      bannedBy,
+    });
+
+    console.log(`✅ User ${userId} manually banned by ${bannedBy} for: ${reason}`);
+  } catch (error) {
+    console.error("Error manually banning user:", error);
     throw error;
   }
 }
@@ -182,11 +331,13 @@ export async function sendWarningToMainAccount(
 
 export async function detectSelfReferral(
   userId: string,
-  referrerCode: string
+  referrerCode: string,
+  deviceInfo?: DeviceInfo
 ): Promise<{
   isSelfReferral: boolean;
   shouldBan: boolean;
   referrerId?: string;
+  reason?: string;
 }> {
   try {
     const currentUser = await db
@@ -211,22 +362,82 @@ export async function detectSelfReferral(
 
     const currentDeviceId = currentUser[0].deviceId;
     const referrerDeviceId = referrer[0].deviceId;
+    const currentIP = deviceInfo?.ip || currentUser[0].lastLoginIp;
+    const referrerIP = referrer[0].lastLoginIp;
 
-    if (!currentDeviceId || !referrerDeviceId) {
-      return { isSelfReferral: false, shouldBan: false };
-    }
-
-    if (currentDeviceId === referrerDeviceId) {
+    // Check device ID match
+    if (currentDeviceId && referrerDeviceId && currentDeviceId === referrerDeviceId) {
       return {
         isSelfReferral: true,
         shouldBan: true,
-        referrerId: referrer[0].id
+        referrerId: referrer[0].id,
+        reason: "Self-referral detected: Same device ID as referrer"
       };
+    }
+
+    // Check IP match
+    if (currentIP && referrerIP && currentIP === referrerIP) {
+      return {
+        isSelfReferral: true,
+        shouldBan: true,
+        referrerId: referrer[0].id,
+        reason: "Self-referral detected: Same IP address as referrer"
+      };
+    }
+
+    // Check browser fingerprint similarity
+    const currentFingerprint = deviceInfo?.fingerprint || currentUser[0].deviceFingerprint;
+    const referrerFingerprint = referrer[0].deviceFingerprint;
+
+    if (currentFingerprint && referrerFingerprint) {
+      const similarity = calculateFingerprintSimilarity(currentFingerprint, referrerFingerprint);
+      if (similarity > 0.8) {
+        return {
+          isSelfReferral: true,
+          shouldBan: true,
+          referrerId: referrer[0].id,
+          reason: `Self-referral detected: Similar browser fingerprint (${Math.round(similarity * 100)}% match)`
+        };
+      }
     }
 
     return { isSelfReferral: false, shouldBan: false };
   } catch (error) {
     console.error("Self-referral detection error:", error);
     return { isSelfReferral: false, shouldBan: false };
+  }
+}
+
+function calculateFingerprintSimilarity(fp1: any, fp2: any): number {
+  if (!fp1 || !fp2) return 0;
+  
+  const keys = ['userAgent', 'platform', 'language', 'screenResolution', 'timezone'];
+  let matches = 0;
+  let total = 0;
+
+  for (const key of keys) {
+    if (fp1[key] !== undefined && fp2[key] !== undefined) {
+      total++;
+      if (fp1[key] === fp2[key]) {
+        matches++;
+      }
+    }
+  }
+
+  return total > 0 ? matches / total : 0;
+}
+
+export async function getBanLogs(limit: number = 50): Promise<any[]> {
+  try {
+    const logs = await db
+      .select()
+      .from(banLogs)
+      .orderBy(sql`${banLogs.createdAt} DESC`)
+      .limit(limit);
+    
+    return logs;
+  } catch (error) {
+    console.error("Error fetching ban logs:", error);
+    return [];
   }
 }
