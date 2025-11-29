@@ -888,28 +888,111 @@ function PayoutLogsSection({ data }: { data: any }) {
   );
 }
 
+type BanViewTab = 'logs' | 'users';
+
 function BanLogsSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeView, setActiveView] = useState<BanViewTab>('users');
+  const [filterType, setFilterType] = useState<'all' | 'auto' | 'manual'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [unbanningId, setUnbanningId] = useState<string | null>(null);
   const itemsPerPage = 8;
 
-  const { data: banLogsData, isLoading } = useQuery({
+  const { data: banLogsData, isLoading: logsLoading } = useQuery({
     queryKey: ["/api/admin/ban-logs"],
-    queryFn: () => apiRequest("GET", "/api/admin/ban-logs").then(res => res.json()),
+    queryFn: () => apiRequest("GET", "/api/admin/ban-logs?limit=200").then(res => res.json()),
+    refetchInterval: 30000,
+  });
+
+  const { data: bannedUsersData, isLoading: usersLoading } = useQuery({
+    queryKey: ["/api/admin/banned-users-details"],
+    queryFn: () => apiRequest("GET", "/api/admin/banned-users-details").then(res => res.json()),
     refetchInterval: 30000,
   });
 
   const logs = banLogsData?.logs || [];
-  const totalPages = Math.ceil(logs.length / itemsPerPage);
-  const paginatedLogs = logs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const bannedUsers = bannedUsersData?.bannedUsers || [];
+
+  const filteredLogs = logs.filter((log: any) => {
+    if (filterType !== 'all' && log.banType !== filterType) return false;
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        log.bannedUserUid?.toLowerCase().includes(search) ||
+        log.deviceId?.toLowerCase().includes(search) ||
+        log.ip?.toLowerCase().includes(search) ||
+        log.reason?.toLowerCase().includes(search)
+      );
+    }
+    return true;
+  });
+
+  const filteredUsers = bannedUsers.filter((user: any) => {
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        user.referralCode?.toLowerCase().includes(search) ||
+        user.personalCode?.toLowerCase().includes(search) ||
+        user.firstName?.toLowerCase().includes(search) ||
+        user.deviceId?.toLowerCase().includes(search) ||
+        user.lastLoginIp?.toLowerCase().includes(search) ||
+        user.bannedReason?.toLowerCase().includes(search)
+      );
+    }
+    return true;
+  });
+
+  const totalPages = activeView === 'logs' 
+    ? Math.ceil(filteredLogs.length / itemsPerPage)
+    : Math.ceil(filteredUsers.length / itemsPerPage);
+  
+  const paginatedLogs = filteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const autoBanCount = logs.filter((l: any) => l.banType === 'auto').length;
   const manualBanCount = logs.filter((l: any) => l.banType === 'manual').length;
 
+  const handleUnban = async (userId: string) => {
+    setUnbanningId(userId);
+    try {
+      const response = await apiRequest('POST', `/api/admin/users/${userId}/unban`);
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "User Unbanned",
+          description: "The user has been successfully unbanned",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/banned-users-details"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/ban-logs"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      } else {
+        throw new Error(result.message || 'Failed to unban user');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to unban user",
+        variant: "destructive",
+      });
+    } finally {
+      setUnbanningId(null);
+    }
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeView, filterType, searchTerm]);
+
+  const isLoading = activeView === 'logs' ? logsLoading : usersLoading;
+
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          {[...Array(2)].map((_, i) => (
+        <div className="grid grid-cols-3 gap-2">
+          {[...Array(3)].map((_, i) => (
             <div key={i} className="bg-muted h-16 rounded-lg animate-pulse" />
           ))}
         </div>
@@ -922,8 +1005,8 @@ function BanLogsSection() {
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-gradient-to-br from-red-500/20 to-red-500/5 p-3 rounded text-center border border-red-500/30">
-          <p className="text-2xl font-bold text-red-400">{logs.length}</p>
-          <p className="text-xs text-muted-foreground">Total Bans</p>
+          <p className="text-2xl font-bold text-red-400">{bannedUsers.length}</p>
+          <p className="text-xs text-muted-foreground">Banned Users</p>
         </div>
         <div className="bg-gradient-to-br from-orange-500/20 to-orange-500/5 p-3 rounded text-center border border-orange-500/30">
           <p className="text-2xl font-bold text-orange-400">{autoBanCount}</p>
@@ -935,49 +1018,175 @@ function BanLogsSection() {
         </div>
       </div>
 
-      {logs.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          <i className="fas fa-shield-alt text-2xl mb-2"></i>
-          <p>No ban logs yet</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-white/10 rounded-lg">
-          <Table>
-            <TableHeader className="sticky top-0 bg-background">
-              <TableRow>
-                <TableHead className="text-xs">UID</TableHead>
-                <TableHead className="text-xs">Type</TableHead>
-                <TableHead className="text-xs">Reason</TableHead>
-                <TableHead className="text-xs">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedLogs.map((log: any) => (
-                <TableRow key={log.id} className="hover:bg-muted/50">
-                  <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">
-                    {log.bannedUserUid || log.bannedUserId?.slice(0, 8) || 'N/A'}
-                  </TableCell>
-                  <TableCell className="py-2">
-                    <Badge className={`text-[10px] ${log.banType === 'auto' ? 'bg-orange-600' : 'bg-purple-600'}`}>
-                      {log.banType === 'auto' ? '🤖 Auto' : '👤 Manual'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs py-2 max-w-[150px] truncate" title={log.reason}>
-                    {log.reason}
-                  </TableCell>
-                  <TableCell className="text-[10px] text-muted-foreground py-2">
-                    {log.createdAt ? new Date(log.createdAt).toLocaleDateString() : 'N/A'}
-                  </TableCell>
+      <div className="flex gap-2 flex-wrap items-center">
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => setActiveView('users')} 
+          className={`text-xs h-7 ${activeView === 'users' ? 'bg-gradient-to-r from-red-500/20 to-red-500/10 border-red-500 text-red-400' : 'border-white/20 text-muted-foreground hover:border-red-500/50'}`}
+        >
+          <i className="fas fa-user-slash mr-1"></i>Banned Users ({bannedUsers.length})
+        </Button>
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => setActiveView('logs')} 
+          className={`text-xs h-7 ${activeView === 'logs' ? 'bg-gradient-to-r from-orange-500/20 to-orange-500/10 border-orange-500 text-orange-400' : 'border-white/20 text-muted-foreground hover:border-orange-500/50'}`}
+        >
+          <i className="fas fa-history mr-1"></i>Ban History ({logs.length})
+        </Button>
+      </div>
+
+      <div className="flex gap-2 flex-wrap items-center">
+        <Input
+          placeholder={activeView === 'logs' ? "Search by UID, IP, Device ID..." : "Search banned users..."}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="h-8 text-sm flex-1 min-w-[150px]"
+        />
+        {activeView === 'logs' && (
+          <div className="flex gap-1">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setFilterType('all')} 
+              className={`text-xs h-8 px-2 ${filterType === 'all' ? 'bg-white/10 border-white/30' : 'border-white/10'}`}
+            >
+              All
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setFilterType('auto')} 
+              className={`text-xs h-8 px-2 ${filterType === 'auto' ? 'bg-orange-500/20 border-orange-500' : 'border-white/10'}`}
+            >
+              Auto
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setFilterType('manual')} 
+              className={`text-xs h-8 px-2 ${filterType === 'manual' ? 'bg-purple-500/20 border-purple-500' : 'border-white/10'}`}
+            >
+              Manual
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {activeView === 'users' ? (
+        filteredUsers.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            <i className="fas fa-check-circle text-2xl mb-2 text-green-500"></i>
+            <p>No banned users</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-white/10 rounded-lg">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background">
+                <TableRow>
+                  <TableHead className="text-xs">UID</TableHead>
+                  <TableHead className="text-xs">Reason</TableHead>
+                  <TableHead className="text-xs">Device ID</TableHead>
+                  <TableHead className="text-xs">IP</TableHead>
+                  <TableHead className="text-xs">Date</TableHead>
+                  <TableHead className="text-xs">Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {paginatedUsers.map((user: any) => (
+                  <TableRow key={user.id} className="hover:bg-muted/50">
+                    <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">
+                      {user.referralCode || user.personalCode || user.id?.slice(0, 8) || 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-xs py-2 max-w-[120px] truncate" title={user.bannedReason}>
+                      {user.bannedReason || 'No reason provided'}
+                    </TableCell>
+                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground max-w-[80px] truncate" title={user.deviceId}>
+                      {user.deviceId?.slice(0, 12) || 'N/A'}
+                    </TableCell>
+                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground">
+                      {user.lastLoginIp || 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground py-2">
+                      {user.bannedAt ? new Date(user.bannedAt).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleUnban(user.id)}
+                        disabled={unbanningId === user.id}
+                        className="h-6 text-xs px-2 border-green-500 text-green-400 hover:bg-green-500/20"
+                      >
+                        {unbanningId === user.id ? (
+                          <i className="fas fa-spinner fa-spin"></i>
+                        ) : (
+                          <><i className="fas fa-unlock mr-1"></i>Unban</>
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )
+      ) : (
+        filteredLogs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            <i className="fas fa-shield-alt text-2xl mb-2"></i>
+            <p>No ban logs found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-white/10 rounded-lg">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background">
+                <TableRow>
+                  <TableHead className="text-xs">UID</TableHead>
+                  <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Reason</TableHead>
+                  <TableHead className="text-xs">Device ID</TableHead>
+                  <TableHead className="text-xs">IP</TableHead>
+                  <TableHead className="text-xs">Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedLogs.map((log: any) => (
+                  <TableRow key={log.id} className="hover:bg-muted/50">
+                    <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">
+                      {log.bannedUserUid || log.bannedUserId?.slice(0, 8) || 'N/A'}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Badge className={`text-[10px] ${log.banType === 'auto' ? 'bg-orange-600' : 'bg-purple-600'}`}>
+                        {log.banType === 'auto' ? 'Auto' : 'Manual'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs py-2 max-w-[100px] truncate" title={log.reason}>
+                      {log.reason}
+                    </TableCell>
+                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground max-w-[60px] truncate" title={log.deviceId}>
+                      {log.deviceId?.slice(0, 10) || 'N/A'}
+                    </TableCell>
+                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground">
+                      {log.ip || 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground py-2">
+                      {log.createdAt ? new Date(log.createdAt).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )
       )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">{logs.length} ban logs</span>
+          <span className="text-muted-foreground">
+            {activeView === 'logs' ? `${filteredLogs.length} ban logs` : `${filteredUsers.length} banned users`}
+          </span>
           <div className="flex items-center gap-1">
             <Button size="sm" variant="ghost" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-6 w-6 p-0">
               <i className="fas fa-chevron-left text-xs"></i>
