@@ -58,6 +58,21 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Development Workflow**: Vite dev server integrates with Express backend on port 5000. Replit PostgreSQL (`helium`) is used for the database.
 - **Security**: Zero hardcoded secrets, private keys are server-side only, and API keys are used exclusively in the backend.
 
+### Auto-Ban System (November 2025)
+- **Detection Triggers**: 
+  - Multiple accounts on same device ID
+  - Same IP + device fingerprint correlation
+  - Self-referral (same device/IP/fingerprint as referrer)
+  - Multi-account ad watching patterns
+- **Ban History Logging**: Complete ban logs stored with UID, device ID, IP, telegram ID, app version, browser fingerprint, reason, date/time, referrer UID
+- **Admin Panel Features**:
+  - "Bans" tab with banned users list and ban history
+  - Filtering by date, device ID, IP, and reason
+  - Manual unban button with confirmation
+  - Search functionality for ban records
+- **Ban Screen**: Banned users see "Your account has been banned due to suspicious multi-account activity" message with all features disabled
+- **Key Tables**: `ban_logs` (stores all ban events), enhanced `users` table with `app_version`, `browser_fingerprint`, `registered_at`, `referrer_uid` columns
+
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data, managed via Drizzle ORM.
 - **Telegram WebApp Auth**: Used for user authentication.
