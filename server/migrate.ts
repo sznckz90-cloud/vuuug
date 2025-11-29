@@ -103,6 +103,12 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS task_community_completed_today BOOLEAN DEFAULT false`);
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS task_checkin_completed_today BOOLEAN DEFAULT false`);
       
+      // Add auto-ban system columns
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_version TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS browser_fingerprint TEXT`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS registered_at TIMESTAMP DEFAULT NOW()`);
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_uid TEXT`);
+      
       // Alter existing balance columns to new precision (safely handle existing data)
       await db.execute(sql`ALTER TABLE users ALTER COLUMN balance TYPE DECIMAL(20, 0) USING ROUND(balance)`);
       await db.execute(sql`ALTER TABLE users ALTER COLUMN usd_balance TYPE DECIMAL(30, 10)`);
@@ -450,6 +456,47 @@ export async function ensureDatabaseSchema(): Promise<void> {
       )
     `);
     console.log('✅ [MIGRATION] task_clicks table created');
+    
+    // Ban logs table for auto-ban system
+    console.log('🔄 [MIGRATION] Creating ban_logs table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ban_logs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        banned_user_id VARCHAR NOT NULL REFERENCES users(id),
+        banned_user_uid TEXT,
+        ip TEXT,
+        device_id TEXT,
+        user_agent TEXT,
+        fingerprint JSONB,
+        reason TEXT NOT NULL,
+        ban_type VARCHAR NOT NULL,
+        banned_by VARCHAR,
+        related_account_ids JSONB,
+        referrer_uid TEXT,
+        telegram_id TEXT,
+        app_version TEXT,
+        browser_fingerprint TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ [MIGRATION] ban_logs table created');
+    
+    // Add missing columns to ban_logs if table already exists
+    try {
+      await db.execute(sql`ALTER TABLE ban_logs ADD COLUMN IF NOT EXISTS referrer_uid TEXT`);
+      await db.execute(sql`ALTER TABLE ban_logs ADD COLUMN IF NOT EXISTS telegram_id TEXT`);
+      await db.execute(sql`ALTER TABLE ban_logs ADD COLUMN IF NOT EXISTS app_version TEXT`);
+      await db.execute(sql`ALTER TABLE ban_logs ADD COLUMN IF NOT EXISTS browser_fingerprint TEXT`);
+      console.log('✅ [MIGRATION] ban_logs columns updated');
+    } catch (error) {
+      console.log('ℹ️ [MIGRATION] ban_logs columns already exist');
+    }
+    
+    // Create index for ban logs performance
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ban_logs_user_id ON ban_logs(banned_user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ban_logs_device_id ON ban_logs(device_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ban_logs_ip ON ban_logs(ip)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ban_logs_created_at ON ban_logs(created_at)`);
     
     // Promotion claims table
     await db.execute(sql`

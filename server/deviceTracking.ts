@@ -27,6 +27,10 @@ export interface BanLogData {
   banType: 'auto' | 'manual';
   bannedBy?: string;
   relatedAccountIds?: string[];
+  referrerUid?: string;
+  telegramId?: string;
+  appVersion?: string;
+  browserFingerprint?: string;
 }
 
 export async function createBanLog(data: BanLogData): Promise<void> {
@@ -42,6 +46,10 @@ export async function createBanLog(data: BanLogData): Promise<void> {
       banType: data.banType,
       bannedBy: data.bannedBy,
       relatedAccountIds: data.relatedAccountIds as any,
+      referrerUid: data.referrerUid,
+      telegramId: data.telegramId,
+      appVersion: data.appVersion,
+      browserFingerprint: data.browserFingerprint,
     });
     console.log(`📝 Ban log created for user ${data.bannedUserId}: ${data.reason}`);
   } catch (error) {
@@ -91,6 +99,19 @@ export async function validateDeviceAndDetectDuplicate(
     for (const ipUser of existingUsersWithIP) {
       if (!allRelatedUsers.find(u => u.id === ipUser.id)) {
         allRelatedUsers.push(ipUser);
+      }
+    }
+
+    // Enhanced check: IP + browser fingerprint correlation
+    // If same IP and similar fingerprint, likely same person with multiple accounts
+    if (ip && fingerprint && allRelatedUsers.length > 0) {
+      for (const existingUser of allRelatedUsers) {
+        if (existingUser.telegram_id !== telegramId && existingUser.deviceFingerprint) {
+          const similarity = calculateFingerprintSimilarity(fingerprint, existingUser.deviceFingerprint);
+          if (similarity > 0.75) {
+            console.log(`🔍 High fingerprint similarity detected (${Math.round(similarity * 100)}%) for IP ${ip}`);
+          }
+        }
       }
     }
 
@@ -215,17 +236,21 @@ export async function banUserForMultipleAccounts(
       })
       .where(eq(users.id, userId));
 
-    // Create ban log
+    // Create comprehensive ban log with all tracking data
     await createBanLog({
       bannedUserId: userId,
-      bannedUserUid: user?.personalCode || undefined,
-      ip: deviceInfo?.ip,
-      deviceId: deviceInfo?.deviceId,
-      userAgent: deviceInfo?.userAgent,
-      fingerprint: deviceInfo?.fingerprint,
+      bannedUserUid: user?.personalCode || user?.referralCode || undefined,
+      ip: deviceInfo?.ip || user?.lastLoginIp || undefined,
+      deviceId: deviceInfo?.deviceId || user?.deviceId || undefined,
+      userAgent: deviceInfo?.userAgent || user?.lastLoginUserAgent || undefined,
+      fingerprint: deviceInfo?.fingerprint || user?.deviceFingerprint || undefined,
       reason,
       banType: 'auto',
       relatedAccountIds,
+      telegramId: user?.telegram_id || undefined,
+      appVersion: (user as any)?.appVersion || undefined,
+      browserFingerprint: (user as any)?.browserFingerprint || undefined,
+      referrerUid: (user as any)?.referrerUid || undefined,
     });
 
     console.log(`✅ User ${userId} banned for: ${reason}`);
@@ -277,17 +302,21 @@ export async function manualBanUser(
       })
       .where(eq(users.id, userId));
 
-    // Create ban log for manual ban
+    // Create comprehensive ban log for manual ban with all tracking data
     await createBanLog({
       bannedUserId: userId,
-      bannedUserUid: user.personalCode || undefined,
-      ip: user.lastLoginIp || deviceInfo?.ip,
-      deviceId: user.deviceId || deviceInfo?.deviceId,
-      userAgent: user.lastLoginUserAgent || deviceInfo?.userAgent,
-      fingerprint: user.deviceFingerprint || deviceInfo?.fingerprint,
+      bannedUserUid: user.personalCode || user.referralCode || undefined,
+      ip: user.lastLoginIp || deviceInfo?.ip || undefined,
+      deviceId: user.deviceId || deviceInfo?.deviceId || undefined,
+      userAgent: user.lastLoginUserAgent || deviceInfo?.userAgent || undefined,
+      fingerprint: user.deviceFingerprint || deviceInfo?.fingerprint || undefined,
       reason,
       banType: 'manual',
       bannedBy,
+      telegramId: user.telegram_id || undefined,
+      appVersion: (user as any)?.appVersion || undefined,
+      browserFingerprint: (user as any)?.browserFingerprint || undefined,
+      referrerUid: (user as any)?.referrerUid || undefined,
     });
 
     console.log(`✅ User ${userId} manually banned by ${bannedBy} for: ${reason}`);
@@ -427,17 +456,173 @@ function calculateFingerprintSimilarity(fp1: any, fp2: any): number {
   return total > 0 ? matches / total : 0;
 }
 
-export async function getBanLogs(limit: number = 50): Promise<any[]> {
+export async function getBanLogs(limit: number = 50, filters?: {
+  deviceId?: string;
+  ip?: string;
+  reason?: string;
+  startDate?: Date;
+  endDate?: Date;
+  banType?: 'auto' | 'manual';
+}): Promise<any[]> {
   try {
-    const logs = await db
+    let query = db
       .select()
       .from(banLogs)
       .orderBy(sql`${banLogs.createdAt} DESC`)
       .limit(limit);
     
-    return logs;
+    // Note: For now, filtering is done in-memory for simplicity
+    // Production should use proper Drizzle where clauses
+    const logs = await query;
+    
+    if (!filters) return logs;
+    
+    return logs.filter(log => {
+      if (filters.deviceId && log.deviceId !== filters.deviceId) return false;
+      if (filters.ip && log.ip !== filters.ip) return false;
+      if (filters.reason && !log.reason?.toLowerCase().includes(filters.reason.toLowerCase())) return false;
+      if (filters.banType && log.banType !== filters.banType) return false;
+      if (filters.startDate && log.createdAt && new Date(log.createdAt) < filters.startDate) return false;
+      if (filters.endDate && log.createdAt && new Date(log.createdAt) > filters.endDate) return false;
+      return true;
+    });
   } catch (error) {
     console.error("Error fetching ban logs:", error);
     return [];
+  }
+}
+
+// Detect multi-account ad watching abuse
+export async function detectAdWatchingAbuse(
+  userId: string,
+  deviceId: string,
+  adId?: string
+): Promise<{
+  isAbuse: boolean;
+  shouldBan: boolean;
+  reason?: string;
+  relatedAccountIds?: string[];
+}> {
+  try {
+    if (!deviceId) {
+      return { isAbuse: false, shouldBan: false };
+    }
+
+    // Find all users with the same device ID
+    const usersWithSameDevice = await db
+      .select()
+      .from(users)
+      .where(eq(users.deviceId, deviceId));
+
+    if (usersWithSameDevice.length <= 1) {
+      return { isAbuse: false, shouldBan: false };
+    }
+
+    // Check if multiple accounts are watching ads from the same device
+    const activeAccountsWatchingAds = usersWithSameDevice.filter(
+      u => (u.adsWatched || 0) > 0 && !u.banned
+    );
+
+    if (activeAccountsWatchingAds.length > 1) {
+      // Multiple accounts on same device watching ads - this is abuse
+      const currentUser = usersWithSameDevice.find(u => u.id === userId);
+      const otherActiveAccounts = activeAccountsWatchingAds.filter(u => u.id !== userId);
+      
+      // Find the primary account (oldest or marked as primary)
+      const primaryAccount = usersWithSameDevice.find(u => u.isPrimaryAccount === true) ||
+        usersWithSameDevice.reduce((oldest, current) => {
+          const oldestDate = oldest.createdAt ? new Date(oldest.createdAt) : new Date();
+          const currentDate = current.createdAt ? new Date(current.createdAt) : new Date();
+          return currentDate < oldestDate ? current : oldest;
+        });
+
+      // If current user is not the primary, they should be banned
+      if (currentUser && currentUser.id !== primaryAccount.id) {
+        return {
+          isAbuse: true,
+          shouldBan: true,
+          reason: "Multiple accounts detected watching ads from the same device. Only one account per device is allowed.",
+          relatedAccountIds: usersWithSameDevice.map(u => u.id)
+        };
+      }
+    }
+
+    return { isAbuse: false, shouldBan: false };
+  } catch (error) {
+    console.error("Ad watching abuse detection error:", error);
+    return { isAbuse: false, shouldBan: false };
+  }
+}
+
+// Get all banned users with full details for admin panel
+export async function getBannedUsersWithDetails(): Promise<any[]> {
+  try {
+    const bannedUsers = await db
+      .select()
+      .from(users)
+      .where(eq(users.banned, true))
+      .orderBy(sql`${users.bannedAt} DESC`);
+    
+    // Enrich with ban log data
+    const enrichedUsers = await Promise.all(
+      bannedUsers.map(async (user) => {
+        const banLog = await db
+          .select()
+          .from(banLogs)
+          .where(eq(banLogs.bannedUserId, user.id))
+          .orderBy(sql`${banLogs.createdAt} DESC`)
+          .limit(1);
+        
+        return {
+          ...user,
+          banLog: banLog[0] || null
+        };
+      })
+    );
+    
+    return enrichedUsers;
+  } catch (error) {
+    console.error("Error fetching banned users with details:", error);
+    return [];
+  }
+}
+
+// Unban a user and create an unban log entry
+export async function unbanUser(userId: string, unbannedBy: string): Promise<boolean> {
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      console.error("User not found for unban:", userId);
+      return false;
+    }
+    
+    await db
+      .update(users)
+      .set({
+        banned: false,
+        bannedReason: null,
+        bannedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+    
+    // Create an unban log entry
+    await createBanLog({
+      bannedUserId: userId,
+      bannedUserUid: user.personalCode || user.referralCode || undefined,
+      ip: user.lastLoginIp || undefined,
+      deviceId: user.deviceId || undefined,
+      reason: `Unbanned by admin`,
+      banType: 'manual',
+      bannedBy: unbannedBy,
+      telegramId: user.telegram_id || undefined,
+    });
+    
+    console.log(`✅ User ${userId} unbanned by ${unbannedBy}`);
+    return true;
+  } catch (error) {
+    console.error("Error unbanning user:", error);
+    return false;
   }
 }

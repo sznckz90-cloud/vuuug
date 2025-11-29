@@ -737,6 +737,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
+      // Check if user is banned
+      if (user.banned) {
+        return res.status(403).json({ 
+          banned: true,
+          message: "Your account has been banned due to suspicious multi-account activity",
+          reason: user.bannedReason
+        });
+      }
+      
+      // Check for multi-account ad watching abuse (before processing reward)
+      if (user.deviceId) {
+        try {
+          const { detectAdWatchingAbuse, banUserForMultipleAccounts } = await import('./deviceTracking');
+          const abuseCheck = await detectAdWatchingAbuse(userId, user.deviceId);
+          
+          if (abuseCheck.isAbuse && abuseCheck.shouldBan) {
+            // Ban the user for multi-account ad watching
+            const deviceInfo = {
+              deviceId: user.deviceId,
+              ip: user.lastLoginIp || undefined,
+              userAgent: user.lastLoginUserAgent || undefined,
+              fingerprint: user.deviceFingerprint || undefined,
+            };
+            
+            await banUserForMultipleAccounts(
+              userId,
+              abuseCheck.reason || "Multiple accounts detected watching ads from the same device",
+              deviceInfo,
+              abuseCheck.relatedAccountIds
+            );
+            
+            return res.status(403).json({
+              banned: true,
+              message: "Your account has been banned due to suspicious multi-account activity",
+              reason: abuseCheck.reason
+            });
+          }
+        } catch (abuseError) {
+          console.error("⚠️ Ad watching abuse detection failed (non-critical):", abuseError);
+        }
+      }
+      
       // Fetch admin settings for daily limit and reward amount
       const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
       const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
@@ -2410,12 +2452,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin get ban logs endpoint
+  // Admin get ban logs endpoint with filtering
   app.get('/api/admin/ban-logs', authenticateAdmin, async (req: any, res) => {
     try {
       const { getBanLogs } = await import('./deviceTracking');
-      const limit = parseInt(req.query.limit as string) || 50;
-      const logs = await getBanLogs(limit);
+      const limit = parseInt(req.query.limit as string) || 100;
+      const filters: any = {};
+      
+      if (req.query.deviceId) filters.deviceId = req.query.deviceId;
+      if (req.query.ip) filters.ip = req.query.ip;
+      if (req.query.reason) filters.reason = req.query.reason;
+      if (req.query.banType) filters.banType = req.query.banType;
+      if (req.query.startDate) filters.startDate = new Date(req.query.startDate);
+      if (req.query.endDate) filters.endDate = new Date(req.query.endDate);
+      
+      const logs = await getBanLogs(limit, Object.keys(filters).length > 0 ? filters : undefined);
       
       res.json({ success: true, logs });
     } catch (error) {
@@ -2424,6 +2475,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin get banned users with full details for admin panel
+  app.get('/api/admin/banned-users-details', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { getBannedUsersWithDetails } = await import('./deviceTracking');
+      const bannedUsers = await getBannedUsersWithDetails();
+      
+      res.json({ success: true, bannedUsers });
+    } catch (error) {
+      console.error("Error fetching banned users details:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch banned users" });
+    }
+  });
+
+  // Admin unban user endpoint
+  app.post('/api/admin/users/:id/unban', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const adminUserId = req.user?.telegramUser?.id?.toString() || 'admin';
+      
+      const { unbanUser } = await import('./deviceTracking');
+      const success = await unbanUser(id, adminUserId);
+      
+      if (success) {
+        res.json({ 
+          success: true,
+          message: 'User unbanned successfully'
+        });
+      } else {
+        res.status(400).json({ success: false, message: "Failed to unban user" });
+      }
+    } catch (error) {
+      console.error("Error unbanning user:", error);
+      res.status(500).json({ success: false, message: "Failed to unban user" });
+    }
+  });
 
   // Database setup endpoint for free plan deployments (call once after deployment)
   app.post('/api/setup-database', async (req: any, res) => {
