@@ -44,19 +44,14 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       }
       return response.json();
     },
-    onSuccess: async (data) => {
-      // Sync actual balance from server (notification already shown instantly)
-      queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
-        ...old,
-        balance: data.newBalance,
-        adsWatchedToday: data.adsWatchedToday
-      }));
-      
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
-      // Notification already shown instantly from ad callback - no duplicate needed
     },
     onError: (error: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      
       if (error.status === 429) {
         const limit = error.limit || appSettings?.dailyAdLimit || 50;
         showNotification(`Daily ad limit reached (${limit} ads/day)`, "error");
