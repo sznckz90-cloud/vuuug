@@ -571,12 +571,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Ensure friendsInvited is properly calculated from COMPLETED referrals only
       // Pending referrals (where friend hasn't watched their first ad) don't count
+      // Also exclude banned users from referral count
       const actualReferralsCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(referrals)
+        .innerJoin(users, eq(referrals.refereeId, users.id))
         .where(and(
           eq(referrals.referrerId, userId),
-          eq(referrals.status, 'completed')
+          eq(referrals.status, 'completed'),
+          eq(users.banned, false)
         ));
       
       const friendsInvited = actualReferralsCount[0]?.count || 0;

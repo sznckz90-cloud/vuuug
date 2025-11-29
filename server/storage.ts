@@ -1006,7 +1006,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(referrals.createdAt));
   }
 
-  // Get count of valid referrals (friends who watched at least 1 ad)
+  // Get count of valid referrals (friends who watched at least 1 ad, excluding banned users)
   async getValidReferralCount(userId: string): Promise<number> {
     try {
       // Get all referrals for this user
@@ -1021,16 +1021,17 @@ export class DatabaseStorage implements IStorage {
         return 0;
       }
 
-      // Count how many referred users have watched at least 1 ad
+      // Count how many referred users have watched at least 1 ad AND are not banned
       let validCount = 0;
       for (const ref of userReferrals) {
         const [referee] = await db
-          .select({ adsWatched: users.adsWatched })
+          .select({ adsWatched: users.adsWatched, banned: users.banned })
           .from(users)
           .where(eq(users.id, ref.refereeId))
           .limit(1);
         
-        if (referee && (referee.adsWatched || 0) >= 1) {
+        // Only count if user watched at least 1 ad AND is not banned
+        if (referee && (referee.adsWatched || 0) >= 1 && !referee.banned) {
           validCount++;
         }
       }

@@ -226,34 +226,41 @@ export async function banUserForMultipleAccounts(
     // Get user info for logging
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
+    // Check if user is already banned - track to prevent duplicate ban logs
+    const wasAlreadyBanned = user?.banned === true;
+    
+    // Always update ban metadata (even if already banned, in case of new reason/info)
     await db
       .update(users)
       .set({
         banned: true,
         bannedReason: reason,
-        bannedAt: new Date(),
+        bannedAt: user?.bannedAt || new Date(), // Keep original ban date if exists
         isPrimaryAccount: false,
       })
       .where(eq(users.id, userId));
 
-    // Create comprehensive ban log with all tracking data
-    await createBanLog({
-      bannedUserId: userId,
-      bannedUserUid: user?.personalCode || user?.referralCode || undefined,
-      ip: deviceInfo?.ip || user?.lastLoginIp || undefined,
-      deviceId: deviceInfo?.deviceId || user?.deviceId || undefined,
-      userAgent: deviceInfo?.userAgent || user?.lastLoginUserAgent || undefined,
-      fingerprint: deviceInfo?.fingerprint || user?.deviceFingerprint || undefined,
-      reason,
-      banType: 'auto',
-      relatedAccountIds,
-      telegramId: user?.telegram_id || undefined,
-      appVersion: (user as any)?.appVersion || undefined,
-      browserFingerprint: (user as any)?.browserFingerprint || undefined,
-      referrerUid: (user as any)?.referrerUid || undefined,
-    });
-
-    console.log(`✅ User ${userId} banned for: ${reason}`);
+    // Only create ban log if this is a NEW ban (prevents duplicate entries)
+    if (!wasAlreadyBanned) {
+      await createBanLog({
+        bannedUserId: userId,
+        bannedUserUid: user?.personalCode || user?.referralCode || undefined,
+        ip: deviceInfo?.ip || user?.lastLoginIp || undefined,
+        deviceId: deviceInfo?.deviceId || user?.deviceId || undefined,
+        userAgent: deviceInfo?.userAgent || user?.lastLoginUserAgent || undefined,
+        fingerprint: deviceInfo?.fingerprint || user?.deviceFingerprint || undefined,
+        reason,
+        banType: 'auto',
+        relatedAccountIds,
+        telegramId: user?.telegram_id || undefined,
+        appVersion: (user as any)?.appVersion || undefined,
+        browserFingerprint: (user as any)?.browserFingerprint || undefined,
+        referrerUid: (user as any)?.referrerUid || undefined,
+      });
+      console.log(`✅ User ${userId} banned for: ${reason}`);
+    } else {
+      console.log(`⚠️ User ${userId} already banned, skipping duplicate ban log`);
+    }
   } catch (error) {
     console.error("Error banning user:", error);
     throw error;
