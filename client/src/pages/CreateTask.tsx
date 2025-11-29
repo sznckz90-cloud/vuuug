@@ -40,6 +40,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 
 interface Task {
   id: string;
@@ -758,25 +766,27 @@ export default function CreateTask() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Verification Info Dialog */}
-        <AlertDialog open={showVerifyInfo} onOpenChange={setShowVerifyInfo}>
-          <AlertDialogContent className="frosted-glass border border-white/10">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Channel Verification</AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3 text-sm">
-                <p>
-                  Please add <a href="https://t.me/Paid_Adzbot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@Paid_Adzbot</a> as an administrator to your channel.
-                </p>
-                <p>
-                  This integration allows our system to automatically validate member activity, providing real-time verification, authentic engagement, and superior campaign performance.
-                </p>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogAction>Got it</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Verification Info Drawer - slides up from bottom */}
+        <Drawer open={showVerifyInfo} onOpenChange={setShowVerifyInfo}>
+          <DrawerContent className="frosted-glass border border-white/10">
+            <DrawerHeader className="text-left">
+              <DrawerTitle className="text-lg font-bold text-white">Channel Verification</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-2 space-y-3">
+              <p className="text-sm font-semibold text-white">
+                Subscription verification is available for Telegram channels and chats.
+              </p>
+              <p className="text-sm font-semibold text-white">
+                In order for verification to work, <a href="https://t.me/Paid_Adzbot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">add our bot to your group/channel.</a>
+              </p>
+            </div>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button variant="outline" className="w-full">Got it</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
       </main>
     </Layout>
   );
