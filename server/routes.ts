@@ -2514,6 +2514,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin self-unban endpoint (for emergency recovery when admin is accidentally banned)
+  app.post('/api/admin/self-unban', async (req: any, res) => {
+    try {
+      const { initData } = req.body;
+      
+      if (!initData) {
+        return res.status(400).json({ success: false, message: "Missing Telegram initData" });
+      }
+      
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const adminTelegramId = process.env.TELEGRAM_ADMIN_ID;
+      
+      if (!botToken || !adminTelegramId) {
+        console.error('❌ Self-unban failed: Missing bot token or admin ID config');
+        return res.status(500).json({ success: false, message: "Server configuration error" });
+      }
+      
+      // Verify Telegram initData signature
+      const { verifyTelegramWebAppData } = await import('./auth');
+      const { isValid, user: telegramUser } = verifyTelegramWebAppData(initData, botToken);
+      
+      if (!isValid || !telegramUser) {
+        console.log('❌ Self-unban failed: Invalid Telegram data signature');
+        return res.status(401).json({ success: false, message: "Invalid authentication" });
+      }
+      
+      // Verify the user is the admin
+      if (telegramUser.id.toString() !== adminTelegramId) {
+        console.log(`❌ Self-unban denied: User ${telegramUser.id} is not admin ${adminTelegramId}`);
+        return res.status(403).json({ success: false, message: "Only admin can use this feature" });
+      }
+      
+      // Find admin user by telegram_id
+      const [adminUser] = await db
+        .select({ id: users.id, banned: users.banned })
+        .from(users)
+        .where(eq(users.telegram_id, adminTelegramId));
+      
+      if (!adminUser) {
+        return res.status(404).json({ success: false, message: "Admin user not found" });
+      }
+      
+      if (!adminUser.banned) {
+        return res.json({ success: true, message: "Admin is not banned" });
+      }
+      
+      // Unban the admin
+      const { unbanUser } = await import('./deviceTracking');
+      const success = await unbanUser(adminUser.id, 'self-unban');
+      
+      if (success) {
+        console.log(`✅ Admin ${adminTelegramId} successfully self-unbanned`);
+        res.json({ 
+          success: true,
+          message: 'Admin successfully unbanned'
+        });
+      } else {
+        res.status(400).json({ success: false, message: "Failed to unban admin" });
+      }
+    } catch (error) {
+      console.error("Error in admin self-unban:", error);
+      res.status(500).json({ success: false, message: "Failed to process self-unban" });
+    }
+  });
+
   // Database setup endpoint for free plan deployments (call once after deployment)
   app.post('/api/setup-database', async (req: any, res) => {
     try {

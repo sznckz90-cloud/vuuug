@@ -2855,10 +2855,11 @@ export class DatabaseStorage implements IStorage {
       // Fetch dynamic task reward from admin settings based on task type
       const channelRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'channel_task_reward')).limit(1);
       const botRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bot_task_reward')).limit(1);
+      const partnerRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'partner_task_reward')).limit(1);
       
       const channelRewardPAD = parseInt(channelRewardSetting[0]?.settingValue || "30"); // 30 PAD
       const botRewardPAD = parseInt(botRewardSetting[0]?.settingValue || "20"); // 20 PAD
-      const partnerRewardPAD = 5; // Partner tasks always reward 5 PAD
+      const partnerRewardPAD = parseInt(partnerRewardSetting[0]?.settingValue || "5"); // Partner task reward from admin settings
       
       // Use the correct reward based on task type (in PAD)
       let rewardPAD: number;
