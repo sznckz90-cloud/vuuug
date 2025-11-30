@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
-import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign } from 'lucide-react';
+import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { getPaymentSystems, STAR_PACKAGES } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
 import { shortenAddress, canonicalizeTelegramUsername, formatTelegramUsername } from '@/lib/utils';
@@ -21,6 +22,8 @@ interface User {
   cwalletId?: string;
   usdtWalletAddress?: string;
   telegramStarsUsername?: string;
+  adsWatched?: number;
+  adsWatchedSinceLastWithdrawal?: number;
 }
 
 interface WalletDetails {
@@ -90,6 +93,18 @@ export default function Withdraw() {
   const usdBalance = parseFloat(user?.usdBalance || "0");
   const validReferralCount = validReferralData?.validReferralCount || 0;
   const MINIMUM_VALID_REFERRALS_REQUIRED = 3;
+  const MINIMUM_ADS_FOR_WITHDRAWAL = 100;
+  
+  // Fetch ads watched since last withdrawal
+  const { data: withdrawalEligibility } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
+    queryKey: ['/api/withdrawal-eligibility'],
+    retry: false,
+    refetchOnMount: true,
+  });
+  
+  const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal || (user as any)?.adsWatchedSinceLastWithdrawal || 0;
+  const hasWatchedEnoughAds = adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
+  const hasEnoughReferrals = validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
 
   const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
@@ -358,8 +373,13 @@ export default function Withdraw() {
   };
 
   const handleWithdraw = () => {
-    if (validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED) {
+    if (!hasEnoughReferrals) {
       showNotification("You need 3 friends who watched at least 1 ad to unlock withdrawals.", "error");
+      return;
+    }
+    
+    if (!hasWatchedEnoughAds) {
+      showNotification(`You need to watch ${MINIMUM_ADS_FOR_WITHDRAWAL} ads to unlock this withdrawal.`, "error");
       return;
     }
 
@@ -406,7 +426,7 @@ export default function Withdraw() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-3">
-        {/* Balance Card - Fixed at Top */}
+        {/* Balance Card */}
         <div className="mb-3 p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
           <div className="text-xs text-muted-foreground mb-1">Available USD Balance</div>
           <div className="text-2xl font-bold text-[#4cd3ff]">${usdBalance.toFixed(2)} USD</div>
@@ -448,15 +468,92 @@ export default function Withdraw() {
         {/* Withdraw Section */}
         {activeTab === 'withdraw' && (
           <div className="space-y-4">
-              {validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <p className="text-xs text-red-500 font-medium">
-                    Invite 3 friends to unlock withdrawal access.
-                  </p>
-                  <p className="text-xs text-red-400 mt-1">
-                    Valid referrals: {validReferralCount}/3 (friends who watched at least 1 ad)
-                  </p>
-                </div>
+              {/* Referral Requirement - One-time unlock */}
+              {!hasEnoughReferrals && (
+                <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
+                  <CardContent className="p-0">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                          <Lock className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-semibold text-sm">Unlock Withdrawals</h3>
+                          <p className="text-[11px] text-gray-500">One-time requirement</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
+                        Locked
+                      </span>
+                    </div>
+                    
+                    {/* Progress Section */}
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Invite friends who watch 1+ ad</span>
+                        <span className="text-white font-bold">{validReferralCount} / {MINIMUM_VALID_REFERRALS_REQUIRED}</span>
+                      </div>
+                      <Progress 
+                        value={(validReferralCount / MINIMUM_VALID_REFERRALS_REQUIRED) * 100} 
+                        className="h-2 bg-[#2a2a2a]"
+                      />
+                      
+                      {/* CTA Button */}
+                      <Button
+                        onClick={() => setLocation('/affiliates')}
+                        className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
+                      >
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        Invite Friends
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Ads Requirement - Per withdrawal */}
+              {hasEnoughReferrals && !hasWatchedEnoughAds && (
+                <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
+                  <CardContent className="p-0">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                          <PlayCircle className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-semibold text-sm">Watch Ads</h3>
+                          <p className="text-[11px] text-gray-500">Resets after each withdrawal</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
+                        {MINIMUM_ADS_FOR_WITHDRAWAL - adsWatchedSinceLastWithdrawal} left
+                      </span>
+                    </div>
+                    
+                    {/* Progress Section */}
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Progress to unlock withdrawal</span>
+                        <span className="text-white font-bold">{adsWatchedSinceLastWithdrawal} / {MINIMUM_ADS_FOR_WITHDRAWAL}</span>
+                      </div>
+                      <Progress 
+                        value={(adsWatchedSinceLastWithdrawal / MINIMUM_ADS_FOR_WITHDRAWAL) * 100} 
+                        className="h-2 bg-[#2a2a2a]"
+                      />
+                      
+                      {/* CTA Button */}
+                      <Button
+                        onClick={() => setLocation('/adlist')}
+                        className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
+                      >
+                        <PlayCircle className="w-4 h-4 mr-2" />
+                        Watch Ads
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {hasPendingWithdrawal && (
@@ -467,7 +564,7 @@ export default function Withdraw() {
                 </div>
               )}
 
-              {validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED && (
+              {hasEnoughReferrals && hasWatchedEnoughAds && (
               <>
               <div className="space-y-3">
                 <Label className="text-sm text-white">Withdrawal Method</Label>

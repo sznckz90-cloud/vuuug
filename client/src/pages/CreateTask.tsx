@@ -691,14 +691,14 @@ export default function CreateTask() {
           </div>
         )}
 
-        {/* Add More Clicks Dialog */}
-        <Dialog open={isAddClicksDialogOpen} onOpenChange={setIsAddClicksDialogOpen}>
-          <DialogContent className="sm:max-w-md frosted-glass border border-white/10 rounded-2xl">
-            <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-              <DialogTitle>Add More Clicks</DialogTitle>
-            </DialogHeader>
+        {/* Add More Clicks Bottom Sheet */}
+        <Drawer open={isAddClicksDialogOpen} onOpenChange={setIsAddClicksDialogOpen}>
+          <DrawerContent className="frosted-glass border border-white/10">
+            <DrawerHeader className="text-left">
+              <DrawerTitle className="text-lg font-bold text-white">Add More Clicks</DrawerTitle>
+            </DrawerHeader>
             {selectedTask && (
-              <div className="space-y-4 overflow-y-auto px-6 flex-1">
+              <div className="space-y-4 px-4 pb-2">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">
                     Task: <span className="text-white font-semibold">{selectedTask.title}</span>
@@ -725,7 +725,7 @@ export default function CreateTask() {
                 </div>
               </div>
             )}
-            <div className="px-6 pb-6 pt-3 border-t border-border shrink-0 space-y-2">
+            <DrawerFooter className="pt-2">
               <Button
                 className="w-full btn-primary"
                 onClick={handleIncreaseClicks}
@@ -733,21 +733,22 @@ export default function CreateTask() {
               >
                 {increaseClicksMutation.isPending ? "Processing..." : `Pay & Add`}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-9 text-sm"
-                onClick={() => {
-                  setIsAddClicksDialogOpen(false);
-                  setSelectedTask(null);
-                  setAdditionalClicks(appSettings?.minimumClicks?.toString() || "500");
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+              <DrawerClose asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setSelectedTask(null);
+                    setAdditionalClicks(appSettings?.minimumClicks?.toString() || "500");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!taskToDelete} onOpenChange={(open) => !open && setTaskToDelete(null)}>
