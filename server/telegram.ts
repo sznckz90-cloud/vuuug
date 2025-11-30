@@ -312,7 +312,7 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
       [
         {
           text: "⁉️ FAQ",
-          url: "https://t.me/szxzyz"
+          url: "https://telegra.ph/What-is-PAD-11-30"
         }
       ]
     ]
