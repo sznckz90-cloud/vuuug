@@ -8,7 +8,11 @@ import { Flame, Loader } from "lucide-react";
 
 declare global {
   interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
   }
 }
 
@@ -58,6 +62,9 @@ export default function StreakCard({ user }: StreakCardProps) {
           localStorage.setItem(`streak_claimed_${user.id}`, new Date().toISOString());
         }
       }
+    },
+    onSettled: () => {
+      setIsClaiming(false);
     },
   });
 
@@ -109,14 +116,18 @@ export default function StreakCard({ user }: StreakCardProps) {
     return () => clearInterval(interval);
   }, [user?.lastStreakDate, user?.id]);
 
-  const showMonetag = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (typeof window.show_10013974 === 'function') {
-        window.show_10013974('pop')
-          .then(() => resolve(true))
-          .catch(() => resolve(true));
+  const showAdsgramAd = (): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      if (window.Adsgram) {
+        try {
+          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          resolve(true);
+        } catch (error) {
+          console.error('Adsgram ad error:', error);
+          resolve(false);
+        }
       } else {
-        resolve(true);
+        resolve(false);
       }
     });
   };
@@ -127,13 +138,19 @@ export default function StreakCard({ user }: StreakCardProps) {
     setIsClaiming(true);
     
     try {
-      await showMonetag();
+      const adSuccess = await showAdsgramAd();
+      
+      if (!adSuccess) {
+        showNotification("Please watch the ad completely to claim your bonus.", "error");
+        setIsClaiming(false);
+        return;
+      }
+      
       claimStreakMutation.mutate();
     } catch (error) {
       console.error('Streak claim failed:', error);
-      claimStreakMutation.mutate();
-    } finally {
-      setTimeout(() => setIsClaiming(false), 1000);
+      showNotification("Failed to claim streak. Please try again.", "error");
+      setIsClaiming(false);
     }
   };
 
