@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, ClipboardList, Send, Bot as BotIcon, Sparkles, ChevronRight, Handshake, Zap } from "lucide-react";
+import { CheckCircle, ClipboardList, Send, Bot as BotIcon, Sparkles, ChevronRight, Handshake } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -348,10 +348,7 @@ export default function Tasks() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-white font-semibold text-sm truncate">{task.title}</h3>
-                          <div className="flex items-center gap-1">
-                            <Zap className={`w-3 h-3 ${getRewardColor(task.taskType)}`} />
-                            <p className={`text-xs font-bold ${getRewardColor(task.taskType)}`}>+{padReward.toLocaleString()} PAD</p>
-                          </div>
+                          <p className={`text-xs font-bold ${getRewardColor(task.taskType)}`}>+{padReward.toLocaleString()} PAD</p>
                         </div>
                       </div>
                       <Button

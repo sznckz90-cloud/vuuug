@@ -17,6 +17,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Crown } from "lucide-react";
 
+function formatLargeNumber(num: number): string {
+  if (num >= 1000000000) {
+    return (num / 1000000000).toFixed(1) + 'B';
+  }
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toLocaleString();
+}
+
 interface AdminStats {
   totalUsers: number;
   totalEarnings: string;
@@ -31,29 +44,20 @@ interface AdminStats {
   activePromos: number;
 }
 
-// Compact Pill Stat Component
-function StatPill({ icon, label, value, color }: {
+// Clean Minimal Stat Card Component
+function StatCard({ icon, label, value, iconColor }: {
   icon: string;
   label: string;
   value: string;
-  color: 'blue' | 'green' | 'purple' | 'orange' | 'cyan' | 'indigo';
+  iconColor: string;
 }) {
-  const colorClasses = {
-    blue: 'bg-blue-50 text-blue-600 border-blue-200',
-    green: 'bg-green-50 text-green-600 border-green-200',
-    purple: 'bg-purple-50 text-purple-600 border-purple-200',
-    orange: 'bg-orange-50 text-orange-600 border-orange-200',
-    cyan: 'bg-cyan-50 text-cyan-600 border-cyan-200',
-    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200'
-  };
-  
   return (
-    <div className={`${colorClasses[color]} border rounded-lg p-2.5 flex items-center gap-2`}>
-      <i className={`fas fa-${icon} text-sm`}></i>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] opacity-70 truncate">{label}</p>
-        <p className="text-sm font-bold truncate">{value}</p>
+    <div className="bg-[#121212] border border-white/10 rounded-xl p-4 hover:border-[#4cd3ff]/40 transition-all">
+      <div className={`w-9 h-9 rounded-lg bg-[#1a1a1a] flex items-center justify-center mb-3`}>
+        <i className={`fas fa-${icon} ${iconColor}`}></i>
       </div>
+      <p className="text-xs uppercase text-gray-500 tracking-wide mb-1">{label}</p>
+      <p className="text-xl font-semibold text-white">{value}</p>
     </div>
   );
 }
@@ -165,56 +169,75 @@ export default function AdminPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Summary Tab - Ultra Compact */}
-          <TabsContent value="summary" className="mt-0 space-y-3">
+          {/* Summary Tab - Clean Minimal Design */}
+          <TabsContent value="summary" className="mt-0 space-y-4">
             {statsLoading ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-muted h-16 rounded-lg animate-pulse" />
+                  <div key={i} className="bg-[#121212] h-28 rounded-xl animate-pulse border border-white/5" />
                 ))}
               </div>
             ) : (
               <>
-                {/* Compact Pill Stats - 2 rows max */}
-                <div className="grid grid-cols-3 gap-2">
-                  <StatPill icon="users" label="Users" value={stats?.totalUsers?.toLocaleString() || '0'} color="blue" />
-                  <StatPill icon="user-check" label="Active" value={stats?.dailyActiveUsers?.toLocaleString() || '0'} color="green" />
-                  <StatPill icon="play-circle" label="Total Ads" value={stats?.totalAdsWatched?.toLocaleString() || '0'} color="purple" />
-                  <StatPill icon="calendar-day" label="Today" value={stats?.todayAdsWatched?.toLocaleString() || '0'} color="orange" />
-                  <StatPill icon="gem" label="TON Earned" value={formatCurrency(stats?.totalEarnings || '0', false)} color="cyan" />
-                  <StatPill icon="wallet" label="Withdrawn" value={formatCurrency(stats?.tonWithdrawn || '0', false)} color="indigo" />
+                {/* Clean Stat Cards Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard 
+                    icon="users" 
+                    label="Total Users" 
+                    value={stats?.totalUsers?.toLocaleString() || '0'} 
+                    iconColor="text-[#4cd3ff]"
+                  />
+                  <StatCard 
+                    icon="user-check" 
+                    label="Active Today" 
+                    value={stats?.dailyActiveUsers?.toLocaleString() || '0'} 
+                    iconColor="text-emerald-400"
+                  />
+                  <StatCard 
+                    icon="play-circle" 
+                    label="Total Ads" 
+                    value={stats?.totalAdsWatched?.toLocaleString() || '0'} 
+                    iconColor="text-purple-400"
+                  />
+                  <StatCard 
+                    icon="bolt" 
+                    label="Ads Today" 
+                    value={stats?.todayAdsWatched?.toLocaleString() || '0'} 
+                    iconColor="text-amber-400"
+                  />
+                  <StatCard 
+                    icon="gem" 
+                    label="PAD Earned" 
+                    value={formatLargeNumber(parseFloat(stats?.totalEarnings || '0'))} 
+                    iconColor="text-[#4cd3ff]"
+                  />
+                  <StatCard 
+                    icon="dollar-sign" 
+                    label="Withdrawn" 
+                    value={'$' + parseFloat(stats?.totalWithdrawals || '0').toFixed(2)} 
+                    iconColor="text-green-400"
+                  />
                 </div>
 
-                {/* Withdrawal Status - One Row */}
-                <Card>
-                  <CardContent className="p-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Withdrawal Requests</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center">
-                        <p className="text-xl font-bold text-yellow-600">{stats?.pendingWithdrawals || 0}</p>
-                        <p className="text-[10px] text-muted-foreground">Pending</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xl font-bold text-green-600">{stats?.successfulWithdrawals || 0}</p>
-                        <p className="text-[10px] text-muted-foreground">Approved</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xl font-bold text-red-600">{stats?.rejectedWithdrawals || 0}</p>
-                        <p className="text-[10px] text-muted-foreground">Rejected</p>
-                      </div>
+                {/* Withdrawal Status - Clean Card */}
+                <div className="bg-[#121212] border border-white/10 rounded-xl p-4">
+                  <p className="text-sm font-medium text-white mb-4">Withdrawal Requests</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center p-3 rounded-lg bg-[#1a1a1a]">
+                      <p className="text-2xl font-bold text-amber-400">{stats?.pendingWithdrawals || 0}</p>
+                      <p className="text-xs text-gray-500 mt-1">Pending</p>
                     </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick Actions */}
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={() => document.querySelector('[value="users"]')?.click()} variant="outline" className="h-10 text-xs">
-                    <i className="fas fa-users mr-2"></i>Manage Users
-                  </Button>
-                  <Button onClick={() => document.querySelector('[value="settings"]')?.click()} variant="outline" className="h-10 text-xs">
-                    <i className="fas fa-cog mr-2"></i>Settings
-                  </Button>
+                    <div className="text-center p-3 rounded-lg bg-[#1a1a1a]">
+                      <p className="text-2xl font-bold text-emerald-400">{stats?.successfulWithdrawals || 0}</p>
+                      <p className="text-xs text-gray-500 mt-1">Approved</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-[#1a1a1a]">
+                      <p className="text-2xl font-bold text-rose-400">{stats?.rejectedWithdrawals || 0}</p>
+                      <p className="text-xs text-gray-500 mt-1">Rejected</p>
+                    </div>
+                  </div>
                 </div>
+
               </>
             )}
           </TabsContent>
@@ -1087,8 +1110,7 @@ function BanLogsSection() {
                 <TableRow>
                   <TableHead className="text-xs">UID</TableHead>
                   <TableHead className="text-xs">Reason</TableHead>
-                  <TableHead className="text-xs">Device ID</TableHead>
-                  <TableHead className="text-xs">IP</TableHead>
+                  <TableHead className="text-xs">Referrer UID</TableHead>
                   <TableHead className="text-xs">Date</TableHead>
                   <TableHead className="text-xs">Action</TableHead>
                 </TableRow>
@@ -1099,14 +1121,11 @@ function BanLogsSection() {
                     <TableCell className="font-mono text-xs text-[#4cd3ff] py-2">
                       {user.referralCode || user.personalCode || user.id?.slice(0, 8) || 'N/A'}
                     </TableCell>
-                    <TableCell className="text-xs py-2 max-w-[120px] truncate" title={user.bannedReason}>
+                    <TableCell className="text-xs py-2 max-w-[150px] truncate" title={user.bannedReason}>
                       {user.bannedReason || 'No reason provided'}
                     </TableCell>
-                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground max-w-[80px] truncate" title={user.deviceId}>
-                      {user.deviceId?.slice(0, 12) || 'N/A'}
-                    </TableCell>
-                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground">
-                      {user.lastLoginIp || 'N/A'}
+                    <TableCell className="font-mono text-xs py-2 text-orange-400" title={user.referrerUid}>
+                      {user.referrerUid || 'Direct'}
                     </TableCell>
                     <TableCell className="text-[10px] text-muted-foreground py-2">
                       {user.bannedAt ? new Date(user.bannedAt).toLocaleDateString() : 'N/A'}
@@ -1146,8 +1165,7 @@ function BanLogsSection() {
                   <TableHead className="text-xs">UID</TableHead>
                   <TableHead className="text-xs">Type</TableHead>
                   <TableHead className="text-xs">Reason</TableHead>
-                  <TableHead className="text-xs">Device ID</TableHead>
-                  <TableHead className="text-xs">IP</TableHead>
+                  <TableHead className="text-xs">Referrer UID</TableHead>
                   <TableHead className="text-xs">Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1162,14 +1180,11 @@ function BanLogsSection() {
                         {log.banType === 'auto' ? 'Auto' : 'Manual'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs py-2 max-w-[100px] truncate" title={log.reason}>
+                    <TableCell className="text-xs py-2 max-w-[120px] truncate" title={log.reason}>
                       {log.reason}
                     </TableCell>
-                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground max-w-[60px] truncate" title={log.deviceId}>
-                      {log.deviceId?.slice(0, 10) || 'N/A'}
-                    </TableCell>
-                    <TableCell className="font-mono text-[10px] py-2 text-muted-foreground">
-                      {log.ip || 'N/A'}
+                    <TableCell className="font-mono text-xs py-2 text-orange-400" title={log.referrerUid}>
+                      {log.referrerUid || 'Direct'}
                     </TableCell>
                     <TableCell className="text-[10px] text-muted-foreground py-2">
                       {log.createdAt ? new Date(log.createdAt).toLocaleDateString() : 'N/A'}

@@ -598,7 +598,7 @@ export default function CreateTask() {
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                   {task.taskType === "channel" ? (
-                                    <Radio className="w-4 h-4 text-primary" />
+                                    <Send className="w-4 h-4 text-primary" />
                                   ) : (
                                     <BotIcon className="w-4 h-4 text-primary" />
                                   )}
@@ -667,7 +667,7 @@ export default function CreateTask() {
                           <CardContent className="pt-3 pb-3">
                             <div className="flex items-center gap-2 mb-1">
                               {task.taskType === "channel" ? (
-                                <Radio className="w-4 h-4 text-muted-foreground" />
+                                <Send className="w-4 h-4 text-muted-foreground" />
                               ) : (
                                 <BotIcon className="w-4 h-4 text-muted-foreground" />
                               )}
