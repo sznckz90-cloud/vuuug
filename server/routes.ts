@@ -1110,6 +1110,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Withdrawal eligibility - check if user has watched enough ads for this withdrawal
+  app.get('/api/withdrawal-eligibility', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ adsWatchedSinceLastWithdrawal: 0, canWithdraw: false });
+      }
+      
+      // Get user's total ads watched
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.json({ adsWatchedSinceLastWithdrawal: 0, canWithdraw: false });
+      }
+      
+      // Get user's last completed/approved withdrawal timestamp
+      const lastWithdrawal = await db
+        .select({ createdAt: withdrawals.createdAt })
+        .from(withdrawals)
+        .where(and(
+          eq(withdrawals.userId, userId),
+          sql`${withdrawals.status} IN ('completed', 'approved')`
+        ))
+        .orderBy(desc(withdrawals.createdAt))
+        .limit(1);
+      
+      let adsWatchedSinceLastWithdrawal = 0;
+      const MINIMUM_ADS_FOR_WITHDRAWAL = 100;
+      
+      if (lastWithdrawal.length === 0) {
+        // No previous withdrawal - count all ads watched
+        adsWatchedSinceLastWithdrawal = user.adsWatched || 0;
+      } else {
+        // Count ads watched since last withdrawal
+        // We use the earnings table to count ads since the last withdrawal
+        const lastWithdrawalDate = lastWithdrawal[0].createdAt;
+        
+        const adsCountResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(earnings)
+          .where(and(
+            eq(earnings.userId, userId),
+            eq(earnings.source, 'ad_watch'),
+            gte(earnings.createdAt, lastWithdrawalDate)
+          ));
+        
+        adsWatchedSinceLastWithdrawal = adsCountResult[0]?.count || 0;
+      }
+      
+      const canWithdraw = adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
+      
+      res.json({ 
+        adsWatchedSinceLastWithdrawal,
+        canWithdraw,
+        requiredAds: MINIMUM_ADS_FOR_WITHDRAWAL
+      });
+    } catch (error) {
+      console.error("Error checking withdrawal eligibility:", error);
+      res.status(500).json({ message: "Failed to check withdrawal eligibility" });
+    }
+  });
+
   // Search referral by code endpoint - auth removed to prevent popup spam on affiliates page
   app.get('/api/referrals/search/:code', async (req: any, res) => {
     try {
@@ -5500,13 +5562,44 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       const result = await storage.usePromoCode(code.trim().toUpperCase(), userId);
       
       if (result.success) {
-        // Add reward based on type - only PAD, TON, USD supported (PDZ is deprecated, treated as TON)
-        let rewardType = promoCode.rewardType || 'TON';
+        // Add reward based on type - PAD, TON, USD supported (PDZ is deprecated, treated as TON)
+        let rewardType = promoCode.rewardType || 'PAD';
         // Convert any legacy PDZ to TON
         if (rewardType === 'PDZ') rewardType = 'TON';
         const rewardAmount = result.reward;
         
-        if (rewardType === 'TON') {
+        if (rewardType === 'PAD') {
+          // Add PAD balance (stored as integer in balance column)
+          const [currentUser] = await db
+            .select({ balance: users.balance })
+            .from(users)
+            .where(eq(users.id, userId));
+          
+          const currentPadBalance = parseInt(currentUser?.balance || '0');
+          const rewardPad = parseInt(rewardAmount);
+          const newPadBalance = currentPadBalance + rewardPad;
+          
+          await db
+            .update(users)
+            .set({ balance: newPadBalance.toString(), updatedAt: new Date() })
+            .where(eq(users.id, userId));
+          
+          await storage.logTransaction({
+            userId,
+            amount: rewardAmount,
+            type: "credit",
+            source: "promo_code",
+            description: `Redeemed promo code: ${code}`,
+            metadata: { code, rewardType: 'PAD' }
+          });
+          
+          res.json({ 
+            success: true, 
+            message: `${rewardPad} PAD added to your balance!`,
+            reward: rewardAmount,
+            rewardType: 'PAD'
+          });
+        } else if (rewardType === 'TON') {
           // Add TON balance
           const [currentUser] = await db
             .select({ tonBalance: users.tonBalance })
@@ -5547,18 +5640,19 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
             rewardType: 'USD'
           });
         } else {
-          // Default: Add TON balance
+          // Default: Add PAD balance (not TON)
           const [currentUser] = await db
-            .select({ tonBalance: users.tonBalance })
+            .select({ balance: users.balance })
             .from(users)
             .where(eq(users.id, userId));
           
-          const currentTonBalance = parseFloat(currentUser?.tonBalance || '0');
-          const newTonBalance = (currentTonBalance + parseFloat(rewardAmount)).toFixed(8);
+          const currentPadBalance = parseInt(currentUser?.balance || '0');
+          const rewardPad = parseInt(rewardAmount);
+          const newPadBalance = currentPadBalance + rewardPad;
           
           await db
             .update(users)
-            .set({ tonBalance: newTonBalance, updatedAt: new Date() })
+            .set({ balance: newPadBalance.toString(), updatedAt: new Date() })
             .where(eq(users.id, userId));
           
           await storage.logTransaction({
@@ -5567,14 +5661,14 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
             type: "credit",
             source: "promo_code",
             description: `Promo code reward: ${code}`,
-            metadata: { code, rewardType: 'TON' }
+            metadata: { code, rewardType: 'PAD' }
           });
           
           res.json({ 
             success: true, 
-            message: `${rewardAmount} TON added to your balance!`,
+            message: `${rewardPad} PAD added to your balance!`,
             reward: rewardAmount,
-            rewardType: 'TON'
+            rewardType: 'PAD'
           });
         }
       } else {
