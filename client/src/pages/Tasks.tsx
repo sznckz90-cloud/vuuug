@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Target, Radio, Bot as BotIcon, Sparkles, ChevronRight, Handshake } from "lucide-react";
+import { CheckCircle, ClipboardList, Send, Bot as BotIcon, Sparkles, ChevronRight, Handshake, Zap } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -27,7 +27,9 @@ interface AppSettings {
   taskCostPerClick?: number;
   taskRewardPerClick?: number;
   taskRewardPAD?: number;
-  partnerTaskRewardPAD?: number;
+  channelTaskReward?: number;
+  botTaskReward?: number;
+  partnerTaskReward?: number;
   [key: string]: any;
 }
 
@@ -35,6 +37,8 @@ export default function Tasks() {
   const { user, isLoading, authenticateWithTelegramWebApp } = useAuth();
   const queryClient = useQueryClient();
   const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
+  const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<"channel" | "bot" | "partner" | null>(null);
 
@@ -44,10 +48,9 @@ export default function Tasks() {
     refetchOnMount: true,
   });
 
-  const costPerClick = appSettings?.taskCostPerClick || 0.0003;
-  const rewardPerClick = appSettings?.taskRewardPerClick || 0.000175;
-  const rewardPAD = appSettings?.taskRewardPAD || 1750;
-  const partnerRewardPAD = 5;
+  const channelRewardPAD = appSettings?.channelTaskReward || 30;
+  const botRewardPAD = appSettings?.botTaskReward || 20;
+  const partnerRewardPAD = appSettings?.partnerTaskReward || 5;
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<{
     success: boolean;
@@ -76,6 +79,7 @@ export default function Tasks() {
 
   const clickTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
+      setLoadingTaskId(taskId);
       const response = await fetch(`/api/advertiser-tasks/${taskId}/click`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -88,15 +92,16 @@ export default function Tasks() {
       return data;
     },
     onSuccess: (data, taskId) => {
-      const padReward = Math.floor(parseFloat(data.reward) * 10000000);
+      const padReward = parseInt(data.reward) || 0;
       showNotification(`You earned ${padReward.toLocaleString()} PAD!`, "success");
-      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setCompletedTaskIds(prev => new Set(prev).add(taskId));
       setClickedTasks(prev => {
         const newSet = new Set(prev);
         newSet.delete(taskId);
         return newSet;
       });
+      setLoadingTaskId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
     },
     onError: (error: Error, taskId) => {
       showNotification(error.message || "Failed to complete task", "error");
@@ -105,6 +110,7 @@ export default function Tasks() {
         newSet.delete(taskId);
         return newSet;
       });
+      setLoadingTaskId(null);
     },
   });
 
@@ -204,20 +210,23 @@ export default function Tasks() {
   const getTaskReward = (task: Task) => {
     if (task.taskType === 'partner') {
       return partnerRewardPAD;
+    } else if (task.taskType === 'channel') {
+      return channelRewardPAD;
+    } else {
+      return botRewardPAD;
     }
-    return rewardPAD;
   };
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
       case 'channel':
-        return <Radio className="w-4 h-4" />;
+        return <Send className="w-4 h-4" />;
       case 'bot':
         return <BotIcon className="w-4 h-4" />;
       case 'partner':
         return <Handshake className="w-4 h-4" />;
       default:
-        return <Radio className="w-4 h-4" />;
+        return <Send className="w-4 h-4" />;
     }
   };
 
@@ -255,30 +264,30 @@ export default function Tasks() {
         <div className="grid grid-cols-3 gap-2 mb-6">
           <button
             onClick={() => setSelectedCategory(selectedCategory === 'channel' ? null : 'channel')}
-            className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+            className={`flex items-center justify-center p-2.5 rounded-xl border transition-all ${
               selectedCategory === 'channel'
-                ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500 shadow-lg shadow-blue-500/20'
-                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-blue-500/50'
+                ? 'bg-gradient-to-br from-blue-500/30 to-cyan-500/30 border-blue-400 shadow-lg shadow-blue-500/30'
+                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-blue-500/50 hover:bg-[#1A1A1A]/80'
             }`}
           >
-            <Radio className={`w-4 h-4 ${selectedCategory === 'channel' ? 'text-blue-400' : 'text-gray-400'}`} />
+            <Send className={`w-4 h-4 ${selectedCategory === 'channel' ? 'text-blue-400' : 'text-gray-400'}`} />
           </button>
           <button
             onClick={() => setSelectedCategory(selectedCategory === 'bot' ? null : 'bot')}
-            className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+            className={`flex items-center justify-center p-2.5 rounded-xl border transition-all ${
               selectedCategory === 'bot'
-                ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-500 shadow-lg shadow-purple-500/20'
-                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-purple-500/50'
+                ? 'bg-gradient-to-br from-purple-500/30 to-pink-500/30 border-purple-400 shadow-lg shadow-purple-500/30'
+                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-purple-500/50 hover:bg-[#1A1A1A]/80'
             }`}
           >
             <BotIcon className={`w-4 h-4 ${selectedCategory === 'bot' ? 'text-purple-400' : 'text-gray-400'}`} />
           </button>
           <button
             onClick={() => setSelectedCategory(selectedCategory === 'partner' ? null : 'partner')}
-            className={`flex items-center justify-center p-2.5 rounded-lg border transition-all ${
+            className={`flex items-center justify-center p-2.5 rounded-xl border transition-all ${
               selectedCategory === 'partner'
-                ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-500 shadow-lg shadow-green-500/20'
-                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-green-500/50'
+                ? 'bg-gradient-to-br from-green-500/30 to-emerald-500/30 border-green-400 shadow-lg shadow-green-500/30'
+                : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-green-500/50 hover:bg-[#1A1A1A]/80'
             }`}
           >
             <Handshake className={`w-4 h-4 ${selectedCategory === 'partner' ? 'text-green-400' : 'text-gray-400'}`} />
@@ -295,7 +304,7 @@ export default function Tasks() {
         ) : filteredTasks.length === 0 ? (
           <Card className="minimal-card">
             <CardContent className="pt-6 pb-6 text-center">
-              <Target className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <ClipboardList className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
               <p className="text-muted-foreground">
                 {selectedCategory 
                   ? `No ${selectedCategory} tasks available` 
@@ -306,33 +315,57 @@ export default function Tasks() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredTasks.map((task) => {
+            {filteredTasks.filter(task => !completedTaskIds.has(task.id)).map((task) => {
               const padReward = getTaskReward(task);
               const hasClicked = clickedTasks.has(task.id);
+              const isLoading = loadingTaskId === task.id;
+
+              const getIconBg = (type: string) => {
+                switch(type) {
+                  case 'channel': return 'bg-gradient-to-br from-blue-500 to-cyan-500';
+                  case 'bot': return 'bg-gradient-to-br from-purple-500 to-pink-500';
+                  case 'partner': return 'bg-gradient-to-br from-green-500 to-emerald-500';
+                  default: return 'bg-gradient-to-br from-blue-500 to-cyan-500';
+                }
+              };
+
+              const getRewardColor = (type: string) => {
+                switch(type) {
+                  case 'channel': return 'text-cyan-400';
+                  case 'bot': return 'text-purple-400';
+                  case 'partner': return 'text-green-400';
+                  default: return 'text-cyan-400';
+                }
+              };
 
               return (
-                <Card key={task.id} className="minimal-card">
+                <Card key={task.id} className="minimal-card hover:bg-[#1A1A1A]/50 transition-all">
                   <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className={`w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center flex-shrink-0 ${
-                          task.taskType === 'channel' ? 'text-blue-500' :
-                          task.taskType === 'bot' ? 'text-purple-500' :
-                          'text-green-500'
-                        }`}>
-                          {getTaskIcon(task.taskType)}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl ${getIconBg(task.taskType)} flex items-center justify-center flex-shrink-0 shadow-lg`}>
+                          <span className="text-white">{getTaskIcon(task.taskType)}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-medium text-xs truncate">{task.title}</h3>
-                          <p className="text-[#007BFF] text-xs font-bold">+{padReward.toLocaleString()} PAD</p>
+                          <h3 className="text-white font-semibold text-sm truncate">{task.title}</h3>
+                          <div className="flex items-center gap-1">
+                            <Zap className={`w-3 h-3 ${getRewardColor(task.taskType)}`} />
+                            <p className={`text-xs font-bold ${getRewardColor(task.taskType)}`}>+{padReward.toLocaleString()} PAD</p>
+                          </div>
                         </div>
                       </div>
                       <Button
                         onClick={() => handleTaskClick(task)}
-                        disabled={clickTaskMutation.isPending}
-                        className="h-8 px-3 text-xs flex-shrink-0 min-w-[70px] btn-primary"
+                        disabled={isLoading}
+                        className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl ${
+                          hasClicked 
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600' 
+                            : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600'
+                        } text-white border-0 shadow-md`}
                       >
-                        {clickTaskMutation.isPending ? "Processing..." : (hasClicked ? "Check" : "Start")}
+                        {isLoading ? (
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        ) : (hasClicked ? "Claim" : "Start")}
                       </Button>
                     </div>
                   </CardContent>

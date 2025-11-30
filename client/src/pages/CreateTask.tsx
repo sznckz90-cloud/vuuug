@@ -12,7 +12,7 @@ import {
   FileText, 
   Clock, 
   TrendingUp, 
-  Radio, 
+  Send, 
   Bot as BotIcon, 
   ArrowLeft, 
   Trash2,
@@ -421,7 +421,7 @@ export default function CreateTask() {
                     setIsVerified(false);
                   }}
                 >
-                  <Radio className={`w-4 h-4 ${taskType === "channel" ? "text-blue-400" : "text-gray-400"}`} />
+                  <Send className={`w-4 h-4 ${taskType === "channel" ? "text-blue-400" : "text-gray-400"}`} />
                 </button>
                 <button
                   type="button"
