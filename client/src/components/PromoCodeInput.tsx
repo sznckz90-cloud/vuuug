@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
-import { Ticket } from "lucide-react";
+import { Ticket, Clock, Shield } from "lucide-react";
 
 declare global {
   interface Window {
@@ -20,6 +20,7 @@ declare global {
 export default function PromoCodeInput() {
   const [promoCode, setPromoCode] = useState("");
   const [isShowingAd, setIsShowingAd] = useState(false);
+  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram' | 'verifying'>('idle');
   const monetagStartTimeRef = useRef<number>(0);
   const queryClient = useQueryClient();
 
@@ -48,22 +49,24 @@ export default function PromoCodeInput() {
     },
   });
 
-  const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean }> => {
+  const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
       if (typeof window.show_10013974 === 'function') {
         monetagStartTimeRef.current = Date.now();
         window.show_10013974()
           .then(() => {
             const watchDuration = Date.now() - monetagStartTimeRef.current;
-            resolve({ success: true, watchedFully: watchDuration >= 3000 });
+            const watchedAtLeast3Seconds = watchDuration >= 3000;
+            resolve({ success: true, watchedFully: watchedAtLeast3Seconds, unavailable: false });
           })
           .catch((error) => {
             console.error('Monetag ad error:', error);
             const watchDuration = Date.now() - monetagStartTimeRef.current;
-            resolve({ success: false, watchedFully: watchDuration >= 3000 });
+            const watchedAtLeast3Seconds = watchDuration >= 3000;
+            resolve({ success: false, watchedFully: watchedAtLeast3Seconds, unavailable: false });
           });
       } else {
-        resolve({ success: false, watchedFully: false });
+        resolve({ success: false, watchedFully: false, unavailable: true });
       }
     });
   };
@@ -94,26 +97,48 @@ export default function PromoCodeInput() {
     setIsShowingAd(true);
 
     try {
+      setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
+      
+      if (monetagResult.unavailable) {
+        showNotification("Monetag ads not available. Please try again later.", "error");
+        return;
+      }
       
       if (!monetagResult.watchedFully) {
         showNotification("Claimed too fast!", "error");
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const adsgramSuccess = await showAdsgramAd();
-      
-      if (!monetagResult.success || !adsgramSuccess) {
-        showNotification("Both ads must be watched to claim promo.", "error");
+      if (!monetagResult.success) {
+        showNotification("Monetag ad failed. Please try again.", "error");
         return;
       }
 
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setCurrentAdStep('adsgram');
+      const adsgramSuccess = await showAdsgramAd();
+      
+      if (!adsgramSuccess) {
+        showNotification("Both ads must be watched completely to claim promo.", "error");
+        return;
+      }
+
+      setCurrentAdStep('verifying');
       redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
     } finally {
+      setCurrentAdStep('idle');
       setIsShowingAd(false);
     }
+  };
+
+  const getButtonText = () => {
+    if (currentAdStep === 'monetag') return "Monetag...";
+    if (currentAdStep === 'adsgram') return "AdGram...";
+    if (currentAdStep === 'verifying') return "Verifying...";
+    if (redeemPromoMutation.isPending) return "Applying...";
+    return "Apply";
   };
 
   return (
@@ -124,16 +149,23 @@ export default function PromoCodeInput() {
           placeholder="PROMO CODE"
           value={promoCode}
           onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-          disabled={redeemPromoMutation.isPending}
+          disabled={redeemPromoMutation.isPending || isShowingAd}
           className="bg-[#0d0d0d] border-[#4cd3ff] text-white placeholder:text-gray-500 pl-10 h-10"
         />
       </div>
       <Button
         onClick={handleSubmit}
         disabled={redeemPromoMutation.isPending || isShowingAd || !promoCode.trim()}
-        className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
+        className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold flex items-center gap-2"
       >
-        {isShowingAd ? "Watching..." : redeemPromoMutation.isPending ? "..." : "Apply"}
+        {isShowingAd && currentAdStep !== 'idle' && (
+          currentAdStep === 'verifying' ? (
+            <Shield size={14} className="animate-pulse text-green-600" />
+          ) : (
+            <Clock size={14} className="animate-spin" />
+          )
+        )}
+        {getButtonText()}
       </Button>
     </div>
   );
