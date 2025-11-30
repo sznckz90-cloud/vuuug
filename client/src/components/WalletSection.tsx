@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Clock, Shield } from "lucide-react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { DiamondIcon } from "@/components/DiamondIcon";
@@ -9,6 +10,11 @@ import { TonCoinIcon } from "@/components/TonCoinIcon";
 declare global {
   interface Window {
     show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
   }
 }
 
@@ -23,6 +29,8 @@ interface WalletSectionProps {
 
 export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, onAdminClick, onWithdraw }: WalletSectionProps) {
   const queryClient = useQueryClient();
+  const [isShowingAds, setIsShowingAds] = useState(false);
+  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram' | 'converting'>('idle');
 
   const { data: appSettings } = useQuery<any>({
     queryKey: ['/api/app-settings'],
@@ -47,12 +55,10 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
     onSuccess: async (data) => {
       showNotification("Convert successful.", "success");
       
-      // Invalidate all balance-related queries
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/withdrawals"] });
       
-      // Force immediate refetch for live balance update
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["/api/auth/user"] }),
         queryClient.refetchQueries({ queryKey: ["/api/user/stats"] }),
@@ -64,6 +70,39 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
     },
   });
 
+  const showMonetagAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+    return new Promise((resolve) => {
+      if (typeof window.show_10013974 === 'function') {
+        window.show_10013974()
+          .then(() => {
+            resolve({ success: true, unavailable: false });
+          })
+          .catch((error) => {
+            console.error('Monetag ad error:', error);
+            resolve({ success: false, unavailable: false });
+          });
+      } else {
+        resolve({ success: false, unavailable: true });
+      }
+    });
+  };
+
+  const showAdsgramAd = (): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      if (window.Adsgram) {
+        try {
+          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          resolve(true);
+        } catch (error) {
+          console.error('Adsgram ad error:', error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
   const handleConvert = async () => {
     const minimumConvertPAD = appSettings?.minimumConvertPAD || 10000;
     
@@ -72,16 +111,50 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
       return;
     }
 
-    // Show ad before conversion
-    if (typeof window.show_10013974 === 'function') {
-      try {
-        await window.show_10013974('pop');
-      } catch (error) {
-        console.error('Ad error:', error);
+    if (isShowingAds || convertMutation.isPending) return;
+    
+    setIsShowingAds(true);
+    
+    try {
+      setCurrentAdStep('monetag');
+      const monetagResult = await showMonetagAd();
+      
+      if (monetagResult.unavailable) {
+        showNotification("Ads not available. Please try again later.", "error");
+        setCurrentAdStep('idle');
+        setIsShowingAds(false);
+        return;
       }
+      
+      if (!monetagResult.success) {
+        showNotification("Ad failed. Please try again.", "error");
+        setCurrentAdStep('idle');
+        setIsShowingAds(false);
+        return;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setCurrentAdStep('adsgram');
+      const adsgramSuccess = await showAdsgramAd();
+      
+      if (!adsgramSuccess) {
+        showNotification("Please complete all ads to convert.", "error");
+        setCurrentAdStep('idle');
+        setIsShowingAds(false);
+        return;
+      }
+      
+      setCurrentAdStep('converting');
+      convertMutation.mutate(padBalance);
+      
+    } catch (error) {
+      console.error('Convert error:', error);
+      showNotification("Something went wrong. Please try again.", "error");
+    } finally {
+      setCurrentAdStep('idle');
+      setIsShowingAds(false);
     }
-
-    convertMutation.mutate(padBalance);
   };
 
   return (
@@ -110,10 +183,30 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
           <Button
             className="w-full h-11 btn-primary"
             onClick={handleConvert}
-            disabled={convertMutation.isPending}
+            disabled={isShowingAds || convertMutation.isPending}
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            {convertMutation.isPending ? "Converting..." : "Convert"}
+            {isShowingAds ? (
+              <>
+                {currentAdStep === 'converting' ? (
+                  <Shield className="w-4 h-4 mr-2 animate-pulse text-green-400" />
+                ) : (
+                  <Clock className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                {currentAdStep === 'monetag' ? 'Showing Monetag...' : 
+                 currentAdStep === 'adsgram' ? 'Showing AdGram...' : 
+                 currentAdStep === 'converting' ? 'Converting...' : 'Loading...'}
+              </>
+            ) : convertMutation.isPending ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Converting...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Convert
+              </>
+            )}
           </Button>
         </div>
       </CardContent>

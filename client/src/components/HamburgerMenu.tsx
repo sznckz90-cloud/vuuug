@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-  Gift, 
+  Menu, 
   Ticket,
   Receipt,
   Clock,
@@ -126,8 +126,10 @@ export default function HamburgerMenu() {
   return (
     <Drawer open={menuOpen} onOpenChange={setMenuOpen}>
       <DrawerTrigger asChild>
-        <button className="cursor-pointer">
-          <Gift className="w-5 h-5 text-yellow-400" strokeWidth={2} />
+        <button className="cursor-pointer flex flex-col gap-[3px] p-2 rounded-xl bg-[#1a1a1a] border border-[#333] hover:border-cyan-500/50 transition-all">
+          <span className="w-4 h-[2px] bg-cyan-400 rounded-full"></span>
+          <span className="w-3 h-[2px] bg-cyan-400 rounded-full"></span>
+          <span className="w-4 h-[2px] bg-cyan-400 rounded-full"></span>
         </button>
       </DrawerTrigger>
       <DrawerContent className="bg-black/95 backdrop-blur-xl border-t-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(76,211,255,0.15)] max-h-[85vh]">
