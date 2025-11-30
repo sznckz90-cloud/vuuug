@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { showNotification } from '@/components/AppNotification';
-import { PlayCircle, Share2, Megaphone, Users, Play, Check, Flame } from 'lucide-react';
+import { PlayCircle, Share2, Send, Users, Play, Check, Flame, Zap, Gift } from 'lucide-react';
 
 interface User {
   referralCode?: string;
@@ -217,8 +217,10 @@ export default function TaskSection() {
   const renderTask = (
     id: string,
     icon: React.ReactNode,
+    iconBg: string,
     title: string,
     reward: string,
+    rewardColor: string,
     buttonText: string,
     onClick: () => void,
     isLoading: boolean
@@ -226,22 +228,29 @@ export default function TaskSection() {
     const isCompleted = completedTasks.has(id);
     
     return (
-      <Card className="minimal-card mb-4">
+      <Card className="minimal-card mb-3 hover:bg-[#1A1A1A]/50 transition-all">
         <CardContent className="p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-[#007BFF] flex-shrink-0">
-                {icon}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center flex-shrink-0 shadow-lg`}>
+                <span className="text-white">{icon}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-medium text-xs truncate">{title}</h3>
-                <p className="text-[#007BFF] text-xs font-bold">{reward}</p>
+                <h3 className="text-white font-semibold text-sm truncate">{title}</h3>
+                <div className="flex items-center gap-1">
+                  <Zap className={`w-3 h-3 ${rewardColor}`} />
+                  <p className={`text-xs font-bold ${rewardColor}`}>{reward}</p>
+                </div>
               </div>
             </div>
             <Button
               onClick={onClick}
               disabled={isCompleted || isLoading}
-              className={`h-8 px-3 text-xs flex-shrink-0 min-w-[70px] ${isCompleted ? 'bg-green-600' : 'btn-primary'}`}
+              className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl border-0 shadow-md ${
+                isCompleted 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600'
+              } text-white`}
             >
               {isCompleted ? (
                 <span className="flex items-center gap-1">
@@ -249,7 +258,7 @@ export default function TaskSection() {
                   Done
                 </span>
               ) : isLoading ? (
-                'Processing...'
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
               ) : (
                 buttonText
               )}
@@ -278,8 +287,10 @@ export default function TaskSection() {
           {renderTask(
             'claim-streak',
             <Flame className="w-5 h-5" />,
+            'bg-gradient-to-br from-orange-500 to-red-500',
             'Claim Streak',
             '+100 PAD',
+            'text-orange-400',
             'Claim',
             handleClaimStreak,
             claimStreakMutation.isPending
@@ -287,9 +298,11 @@ export default function TaskSection() {
           
           {renderTask(
             'share-friends',
-            <Share2 className="w-5 h-5" />,
+            <Gift className="w-5 h-5" />,
+            'bg-gradient-to-br from-pink-500 to-rose-500',
             'Share with Friends',
             '+1,000 PAD',
+            'text-pink-400',
             'Share',
             handleShareTask,
             shareTaskMutation.isPending
@@ -297,9 +310,11 @@ export default function TaskSection() {
           
           {renderTask(
             'check-updates',
-            <Megaphone className="w-5 h-5" />,
+            <Send className="w-5 h-5" />,
+            'bg-gradient-to-br from-blue-500 to-cyan-500',
             'Check for Updates',
             '+1,000 PAD',
+            'text-cyan-400',
             'Start',
             handleChannelTask,
             channelTaskMutation.isPending
@@ -308,8 +323,10 @@ export default function TaskSection() {
           {renderTask(
             'join-community',
             <Users className="w-5 h-5" />,
+            'bg-gradient-to-br from-purple-500 to-violet-500',
             'Join community',
             '+1,000 PAD',
+            'text-purple-400',
             'Join',
             handleCommunityTask,
             communityTaskMutation.isPending
