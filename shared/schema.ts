@@ -41,13 +41,13 @@ export const users = pgTable("users", {
   usdBalance: decimal("usd_balance", { precision: 30, scale: 10 }).default("0"), // USD with high precision to prevent overflow
   tonBalance: decimal("ton_balance", { precision: 30, scale: 10 }).default("0"),
   pdzBalance: decimal("pdz_balance", { precision: 30, scale: 10 }).default("0"),
-  withdrawBalance: decimal("withdraw_balance", { precision: 12, scale: 8 }),
-  totalEarnings: decimal("total_earnings", { precision: 12, scale: 8 }),
-  totalEarned: decimal("total_earned", { precision: 12, scale: 8 }).default("0"),
+  withdrawBalance: decimal("withdraw_balance", { precision: 30, scale: 10 }),
+  totalEarnings: decimal("total_earnings", { precision: 30, scale: 10 }),
+  totalEarned: decimal("total_earned", { precision: 30, scale: 10 }).default("0"),
   adsWatched: integer("ads_watched").default(0),
   dailyAdsWatched: integer("daily_ads_watched").default(0),
   adsWatchedToday: integer("ads_watched_today").default(0),
-  dailyEarnings: decimal("daily_earnings", { precision: 12, scale: 8 }),
+  dailyEarnings: decimal("daily_earnings", { precision: 30, scale: 10 }),
   lastAdWatch: timestamp("last_ad_watch"),
   lastAdDate: timestamp("last_ad_date"),
   currentStreak: integer("current_streak").default(0),
@@ -86,8 +86,8 @@ export const users = pgTable("users", {
   telegramUsername: text("telegram_username_wallet"),
   cwalletId: text("cwallet_id"),
   walletUpdatedAt: timestamp("wallet_updated_at"),
-  pendingReferralBonus: decimal("pending_referral_bonus", { precision: 12, scale: 8 }).default("0"),
-  totalClaimedReferralBonus: decimal("total_claimed_referral_bonus", { precision: 12, scale: 8 }).default("0"),
+  pendingReferralBonus: decimal("pending_referral_bonus", { precision: 30, scale: 10 }).default("0"),
+  totalClaimedReferralBonus: decimal("total_claimed_referral_bonus", { precision: 30, scale: 10 }).default("0"),
   // Enhanced tracking for auto-ban system
   appVersion: text("app_version"),
   browserFingerprint: text("browser_fingerprint"), // Full fingerprint hash for WebApp detection
@@ -101,7 +101,7 @@ export const users = pgTable("users", {
 export const earnings = pgTable("earnings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 12, scale: 8 }).notNull(),
+  amount: decimal("amount", { precision: 30, scale: 10 }).notNull(),
   source: varchar("source").notNull(),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -111,7 +111,7 @@ export const earnings = pgTable("earnings", {
 export const transactions = pgTable("transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 12, scale: 8 }).notNull(),
+  amount: decimal("amount", { precision: 30, scale: 10 }).notNull(),
   type: varchar("type").notNull(), // "deduction" or "addition"
   source: varchar("source").notNull(), // "task_creation", "task_completion", "withdrawal", "ad_reward", etc.
   description: text("description"),
@@ -123,7 +123,7 @@ export const transactions = pgTable("transactions", {
 export const withdrawals = pgTable("withdrawals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 12, scale: 8 }).notNull(),
+  amount: decimal("amount", { precision: 30, scale: 10 }).notNull(),
   status: varchar("status").default('pending'),
   method: varchar("method").notNull(),
   details: jsonb("details"),
@@ -142,7 +142,7 @@ export const referrals = pgTable("referrals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   referrerId: varchar("referrer_id").references(() => users.id).notNull(),
   refereeId: varchar("referee_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 5 }).default("0.50"),
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).default("0.50"),
   status: varchar("status").default('pending'),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -151,7 +151,7 @@ export const referrals = pgTable("referrals", {
 export const promoCodes = pgTable("promo_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   code: varchar("code").notNull().unique(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).notNull(),
   rewardType: varchar("reward_type").default('PAD').notNull(), // 'PAD' or 'PDZ'
   rewardCurrency: varchar("reward_currency").default('USDT'),
   usageLimit: integer("usage_limit"),
@@ -168,7 +168,7 @@ export const promoCodeUsage = pgTable("promo_code_usage", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   promoCodeId: varchar("promo_code_id").references(() => promoCodes.id).notNull(),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 10, scale: 8 }).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).notNull(),
   usedAt: timestamp("used_at").defaultNow(),
 });
 
@@ -178,7 +178,7 @@ export const referralCommissions = pgTable("referral_commissions", {
   referrerId: varchar("referrer_id").references(() => users.id).notNull(),
   referredUserId: varchar("referred_user_id").references(() => users.id).notNull(),
   originalEarningId: integer("original_earning_id").references(() => earnings.id).notNull(),
-  commissionAmount: decimal("commission_amount", { precision: 10, scale: 8 }).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 30, scale: 10 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -201,7 +201,7 @@ export const dailyTasks = pgTable("daily_tasks", {
   required: integer("required").notNull(), // ads required for this task
   completed: boolean("completed").default(false),
   claimed: boolean("claimed").default(false),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).notNull(),
   completedAt: timestamp("completed_at"),
   claimedAt: timestamp("claimed_at"),
   resetDate: varchar("reset_date").notNull(), // YYYY-MM-DD format for daily reset
@@ -231,8 +231,8 @@ export const advertiserTasks = pgTable("advertiser_tasks", {
   link: text("link").notNull(),
   totalClicksRequired: integer("total_clicks_required").notNull(),
   currentClicks: integer("current_clicks").default(0).notNull(),
-  costPerClick: decimal("cost_per_click", { precision: 12, scale: 8 }).default("0.0003").notNull(), // 0.0003 TON per click (500 clicks = 0.15 TON)
-  totalCost: decimal("total_cost", { precision: 12, scale: 8 }).notNull(),
+  costPerClick: decimal("cost_per_click", { precision: 30, scale: 10 }).default("0.0003").notNull(), // 0.0003 TON per click (500 clicks = 0.15 TON)
+  totalCost: decimal("total_cost", { precision: 30, scale: 10 }).notNull(),
   status: varchar("status").default("active").notNull(), // active, completed, paused
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -244,7 +244,7 @@ export const taskClicks = pgTable("task_clicks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   taskId: varchar("task_id").references(() => advertiserTasks.id, { onDelete: 'cascade' }).notNull(),
   publisherId: varchar("publisher_id").references(() => users.id).notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 12, scale: 8 }).default("0.0001750").notNull(), // 1750 PAD = 0.000175 TON
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).default("0.0001750").notNull(), // 1750 PAD = 0.000175 TON
   clickedAt: timestamp("clicked_at").defaultNow(),
 }, (table) => [
   unique("task_clicks_unique").on(table.taskId, table.publisherId),
