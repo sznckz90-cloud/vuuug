@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,11 +9,18 @@ import { Ticket } from "lucide-react";
 declare global {
   interface Window {
     show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
   }
 }
 
 export default function PromoCodeInput() {
   const [promoCode, setPromoCode] = useState("");
+  const [isShowingAd, setIsShowingAd] = useState(false);
+  const monetagStartTimeRef = useRef<number>(0);
   const queryClient = useQueryClient();
 
   const redeemPromoMutation = useMutation({
@@ -31,7 +38,6 @@ export default function PromoCodeInput() {
     onError: (error: any) => {
       const message = error.message || "Invalid code.";
       
-      // Simplify error messages
       if (message.includes("expired")) {
         showNotification("Promo expired.", "error");
       } else if (message.includes("already")) {
@@ -42,22 +48,72 @@ export default function PromoCodeInput() {
     },
   });
 
+  const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean }> => {
+    return new Promise((resolve) => {
+      if (typeof window.show_10013974 === 'function') {
+        monetagStartTimeRef.current = Date.now();
+        window.show_10013974()
+          .then(() => {
+            const watchDuration = Date.now() - monetagStartTimeRef.current;
+            resolve({ success: true, watchedFully: watchDuration >= 3000 });
+          })
+          .catch((error) => {
+            console.error('Monetag ad error:', error);
+            const watchDuration = Date.now() - monetagStartTimeRef.current;
+            resolve({ success: false, watchedFully: watchDuration >= 3000 });
+          });
+      } else {
+        resolve({ success: false, watchedFully: false });
+      }
+    });
+  };
+
+  const showAdsgramAd = (): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      if (window.Adsgram) {
+        try {
+          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          resolve(true);
+        } catch (error) {
+          console.error('Adsgram ad error:', error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
   const handleSubmit = async () => {
     if (!promoCode.trim()) {
       showNotification("Please enter a promo code", "error");
       return;
     }
 
-    // Show ad before redeeming promo code
-    if (typeof window.show_10013974 === 'function') {
-      try {
-        await window.show_10013974('pop');
-      } catch (error) {
-        console.error('Ad error:', error);
-      }
-    }
+    if (isShowingAd) return;
+    setIsShowingAd(true);
 
-    redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+    try {
+      const monetagResult = await showMonetagAd();
+      
+      if (!monetagResult.watchedFully) {
+        showNotification("Claimed too fast!", "error");
+        return;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const adsgramSuccess = await showAdsgramAd();
+      
+      if (!monetagResult.success || !adsgramSuccess) {
+        showNotification("Both ads must be watched to claim promo.", "error");
+        return;
+      }
+
+      redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+    } finally {
+      setIsShowingAd(false);
+    }
   };
 
   return (
@@ -74,10 +130,10 @@ export default function PromoCodeInput() {
       </div>
       <Button
         onClick={handleSubmit}
-        disabled={redeemPromoMutation.isPending || !promoCode.trim()}
+        disabled={redeemPromoMutation.isPending || isShowingAd || !promoCode.trim()}
         className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold"
       >
-        {redeemPromoMutation.isPending ? "..." : "Apply"}
+        {isShowingAd ? "Watching..." : redeemPromoMutation.isPending ? "..." : "Apply"}
       </Button>
     </div>
   );
