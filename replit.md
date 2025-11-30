@@ -58,6 +58,23 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Development Workflow**: Vite dev server integrates with Express backend on port 5000. Replit PostgreSQL (`helium`) is used for the database.
 - **Security**: Zero hardcoded secrets, private keys are server-side only, and API keys are used exclusively in the backend.
 
+### Data Persistence System (November 2025)
+- **Dual Storage Strategy**: Uses IndexedDB as primary storage with localStorage fallback for maximum persistence
+- **PersistentStorage Class**: Custom wrapper that handles IndexedDB initialization, error recovery, and graceful degradation
+- **Write Strategy**: All writes go to localStorage synchronously first (for reliability), then to IndexedDB asynchronously
+- **Read Strategy**: Reads from both storage layers and returns the most recent data based on timestamps
+- **Event Handlers**: beforeunload uses synchronous saves; visibilitychange uses both sync and async saves
+- **Auto-Sync**: User data automatically synced to persistent storage every 30 seconds and on page hide/unload
+- **Fallback Handling**: Timeout-based fallback (3 seconds) if IndexedDB fails to initialize
+
+### Responsive UI System (November 2025)
+- **Fixed Base Font Size**: 16px on all screen sizes to prevent scaling inconsistencies
+- **Viewport Meta**: `viewport-fit=cover` with `user-scalable=no` for consistent mobile rendering
+- **Media Queries**: Device-specific padding for small (320px), standard (375px), larger (428px+) screens
+- **Fixed Sizing Classes**: Custom utility classes for fixed text, button, and icon sizes
+- **Safe Area Support**: Proper padding for notched devices using `env(safe-area-inset-*)
+- **Touch Optimization**: Disabled tap highlight and prevented accidental zooming
+
 ### Auto-Ban System (November 2025)
 - **Detection Triggers**: 
   - Multiple accounts on same device ID
