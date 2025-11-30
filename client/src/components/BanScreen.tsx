@@ -1,12 +1,63 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Unlock } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface BanScreenProps {
   reason?: string;
 }
 
 export default function BanScreen({ reason }: BanScreenProps) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState(false);
+  const [unbanError, setUnbanError] = useState<string | null>(null);
+  const [unbanSuccess, setUnbanSuccess] = useState(false);
+
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.initData && tg?.initDataUnsafe?.user?.id) {
+      const userId = tg.initDataUnsafe.user.id.toString();
+      const adminId = import.meta.env.VITE_TELEGRAM_ADMIN_ID;
+      setIsAdmin(userId === adminId);
+    }
+  }, []);
+
   const handleContactSupport = () => {
     window.open('https://t.me/PaidAdsCommunity', '_blank');
+  };
+
+  const handleSelfUnban = async () => {
+    setIsUnbanning(true);
+    setUnbanError(null);
+    
+    try {
+      const tg = window.Telegram?.WebApp;
+      const initData = tg?.initData;
+      
+      if (!initData) {
+        setUnbanError("Telegram WebApp not available");
+        return;
+      }
+      
+      const response = await fetch('/api/admin/self-unban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setUnbanSuccess(true);
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setUnbanError(data.message || "Failed to unban");
+      }
+    } catch (error) {
+      setUnbanError("Network error. Please try again.");
+    } finally {
+      setIsUnbanning(false);
+    }
   };
 
   return (
@@ -38,6 +89,37 @@ export default function BanScreen({ reason }: BanScreenProps) {
                 All features are disabled. If you believe this is a mistake, please contact our support team.
               </p>
             </div>
+
+            {unbanSuccess && (
+              <div className="w-full p-3 bg-green-950/30 border border-green-500/30 rounded-lg">
+                <p className="text-green-400 text-sm font-semibold">
+                  Successfully unbanned! Reloading...
+                </p>
+              </div>
+            )}
+
+            {unbanError && (
+              <div className="w-full p-3 bg-red-950/30 border border-red-500/30 rounded-lg">
+                <p className="text-red-400 text-sm">{unbanError}</p>
+              </div>
+            )}
+
+            {isAdmin && !unbanSuccess && (
+              <button
+                onClick={handleSelfUnban}
+                disabled={isUnbanning}
+                className="w-full py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isUnbanning ? (
+                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  <>
+                    <Unlock className="w-5 h-5" />
+                    Admin Self-Unban
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               onClick={handleContactSupport}
