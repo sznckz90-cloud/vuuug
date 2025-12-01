@@ -2,6 +2,50 @@ import crypto from "crypto";
 import { db, pool } from "./db";
 import { users, banLogs } from "../shared/schema";
 import { eq, and, ne, or, sql } from "drizzle-orm";
+import { config } from "./config";
+
+const ADMIN_TELEGRAM_ID = config.bot.adminId || process.env.TELEGRAM_ADMIN_ID || '';
+
+async function isAdminUser(userId: string): Promise<boolean> {
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return false;
+    
+    if (user.role === 'admin') return true;
+    
+    if (ADMIN_TELEGRAM_ID && user.telegram_id === ADMIN_TELEGRAM_ID) return true;
+    
+    return false;
+  } catch (error) {
+    console.error("Error checking admin status:", error);
+    return false;
+  }
+}
+
+async function isAdminTelegramId(telegramId: string): Promise<boolean> {
+  if (!telegramId) return false;
+  
+  if (ADMIN_TELEGRAM_ID && telegramId === ADMIN_TELEGRAM_ID) return true;
+  
+  try {
+    const [user] = await db.select().from(users).where(eq(users.telegram_id, telegramId));
+    if (user && user.role === 'admin') return true;
+  } catch (error) {
+    console.error("Error checking admin telegram ID:", error);
+  }
+  
+  return false;
+}
+
+async function filterOutAdminIds(userIds: string[]): Promise<string[]> {
+  const nonAdminIds: string[] = [];
+  for (const userId of userIds) {
+    if (!(await isAdminUser(userId))) {
+      nonAdminIds.push(userId);
+    }
+  }
+  return nonAdminIds;
+}
 
 export interface DeviceInfo {
   deviceId: string;
@@ -69,6 +113,23 @@ export async function validateDeviceAndDetectDuplicate(
   reason?: string;
 }> {
   try {
+    // Check both telegramId and userId for admin status
+    if (await isAdminTelegramId(telegramId)) {
+      console.log(`✅ Admin account detected (telegram_id: ${telegramId}) - skipping multi-account detection`);
+      return {
+        isValid: true,
+        shouldBan: false
+      };
+    }
+
+    if (userId && await isAdminUser(userId)) {
+      console.log(`✅ Admin account detected (userId: ${userId}) - skipping multi-account detection`);
+      return {
+        isValid: true,
+        shouldBan: false
+      };
+    }
+
     const { deviceId, fingerprint, ip, userAgent } = deviceInfo;
 
     if (!deviceId) {
@@ -153,12 +214,27 @@ export async function validateDeviceAndDetectDuplicate(
     }
 
     // New account on existing device/IP - this is multi-account abuse
+    // But first, check if any of the related accounts are admins - if so, don't flag as abuse
+    const adminRelatedAccount = allRelatedUsers.find(
+      u => u.role === 'admin' || (ADMIN_TELEGRAM_ID && u.telegram_id === ADMIN_TELEGRAM_ID)
+    );
+    
+    if (adminRelatedAccount) {
+      console.log(`🛡️ Admin account found in related accounts - not flagging as multi-account abuse`);
+      return {
+        isValid: true,
+        shouldBan: false
+      };
+    }
+
     const primaryAccount = allRelatedUsers.find(
       u => u.isPrimaryAccount === true
     ) || allRelatedUsers[0];
 
+    // Filter out admin accounts from duplicate list
     const duplicateAccountIds = allRelatedUsers
-      .filter(u => u.telegram_id !== telegramId && !u.banned)
+      .filter(u => u.telegram_id !== telegramId && !u.banned && 
+        u.role !== 'admin' && !(ADMIN_TELEGRAM_ID && u.telegram_id === ADMIN_TELEGRAM_ID))
       .map(u => u.id);
 
     return {
@@ -223,13 +299,27 @@ export async function banUserForMultipleAccounts(
   relatedAccountIds?: string[]
 ): Promise<void> {
   try {
+    if (await isAdminUser(userId)) {
+      console.log(`🛡️ PROTECTED: Admin account ${userId} cannot be auto-banned - skipping ban`);
+      return;
+    }
+
     // Get user info for logging
     const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (user && await isAdminTelegramId(user.telegram_id || '')) {
+      console.log(`🛡️ PROTECTED: Admin telegram_id ${user.telegram_id} cannot be banned - skipping ban`);
+      return;
+    }
+    
+    // Filter out admin IDs from relatedAccountIds to prevent any secondary operations on admins
+    const filteredRelatedIds = relatedAccountIds ? await filterOutAdminIds(relatedAccountIds) : undefined;
     
     // Check if user is already banned - track to prevent duplicate ban logs
     const wasAlreadyBanned = user?.banned === true;
     
     // Always update ban metadata (even if already banned, in case of new reason/info)
+    // Note: We never modify isPrimaryAccount for admin users (already checked above)
     await db
       .update(users)
       .set({
@@ -251,7 +341,7 @@ export async function banUserForMultipleAccounts(
         fingerprint: deviceInfo?.fingerprint || user?.deviceFingerprint || undefined,
         reason,
         banType: 'auto',
-        relatedAccountIds,
+        relatedAccountIds: filteredRelatedIds, // Use filtered list without admin IDs
         telegramId: user?.telegram_id || undefined,
         appVersion: (user as any)?.appVersion || undefined,
         browserFingerprint: (user as any)?.browserFingerprint || undefined,
@@ -275,11 +365,20 @@ export async function banMultipleUsers(
   try {
     if (userIds.length === 0) return;
 
+    const nonAdminUserIds: string[] = [];
     for (const userId of userIds) {
-      await banUserForMultipleAccounts(userId, reason, deviceInfo, userIds);
+      if (!(await isAdminUser(userId))) {
+        nonAdminUserIds.push(userId);
+      } else {
+        console.log(`🛡️ PROTECTED: Skipping admin user ${userId} from multi-ban`);
+      }
     }
 
-    console.log(`✅ Banned ${userIds.length} accounts for: ${reason}`);
+    for (const userId of nonAdminUserIds) {
+      await banUserForMultipleAccounts(userId, reason, deviceInfo, nonAdminUserIds);
+    }
+
+    console.log(`✅ Banned ${nonAdminUserIds.length} accounts for: ${reason} (${userIds.length - nonAdminUserIds.length} admin accounts protected)`);
   } catch (error) {
     console.error("Error banning multiple users:", error);
     throw error;
@@ -298,6 +397,11 @@ export async function manualBanUser(
     
     if (!user) {
       throw new Error("User not found");
+    }
+
+    if (user.role === 'admin' || (ADMIN_TELEGRAM_ID && user.telegram_id === ADMIN_TELEGRAM_ID)) {
+      console.log(`🛡️ PROTECTED: Cannot manually ban admin user ${userId}`);
+      throw new Error("Cannot ban admin accounts");
     }
 
     await db
@@ -485,6 +589,11 @@ export async function detectAdWatchingAbuse(
   relatedAccountIds?: string[];
 }> {
   try {
+    if (await isAdminUser(userId)) {
+      console.log(`✅ Admin account ${userId} - skipping ad watching abuse detection`);
+      return { isAbuse: false, shouldBan: false };
+    }
+
     if (!deviceId) {
       return { isAbuse: false, shouldBan: false };
     }
@@ -510,20 +619,34 @@ export async function detectAdWatchingAbuse(
       const otherActiveAccounts = activeAccountsWatchingAds.filter(u => u.id !== userId);
       
       // Find the primary account (oldest or marked as primary)
-      const primaryAccount = usersWithSameDevice.find(u => u.isPrimaryAccount === true) ||
+      // Admin accounts are always considered primary and protected
+      const adminAccount = usersWithSameDevice.find(u => 
+        u.role === 'admin' || (ADMIN_TELEGRAM_ID && u.telegram_id === ADMIN_TELEGRAM_ID)
+      );
+      const primaryAccount = adminAccount || usersWithSameDevice.find(u => u.isPrimaryAccount === true) ||
         usersWithSameDevice.reduce((oldest, current) => {
           const oldestDate = oldest.createdAt ? new Date(oldest.createdAt) : new Date();
           const currentDate = current.createdAt ? new Date(current.createdAt) : new Date();
           return currentDate < oldestDate ? current : oldest;
         });
 
-      // If current user is not the primary, they should be banned
+      // If current user is not the primary and not an admin, they should be banned
       if (currentUser && currentUser.id !== primaryAccount.id) {
+        const isCurrentAdmin = currentUser.role === 'admin' || 
+          (ADMIN_TELEGRAM_ID && currentUser.telegram_id === ADMIN_TELEGRAM_ID);
+        
+        if (isCurrentAdmin) {
+          console.log(`🛡️ PROTECTED: Current user ${userId} is admin - not banning for multi-account`);
+          return { isAbuse: false, shouldBan: false };
+        }
+        
         return {
           isAbuse: true,
           shouldBan: true,
           reason: "Multiple accounts detected watching ads from the same device. Only one account per device is allowed.",
-          relatedAccountIds: usersWithSameDevice.map(u => u.id)
+          relatedAccountIds: usersWithSameDevice.filter(u => 
+            u.role !== 'admin' && !(ADMIN_TELEGRAM_ID && u.telegram_id === ADMIN_TELEGRAM_ID)
+          ).map(u => u.id)
         };
       }
     }
