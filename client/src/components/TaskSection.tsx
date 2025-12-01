@@ -11,6 +11,14 @@ interface User {
   referralCode?: string;
 }
 
+interface AppSettings {
+  streakReward?: number;
+  shareTaskReward?: number;
+  channelTaskRewardPAD?: number;
+  communityTaskReward?: number;
+  [key: string]: any;
+}
+
 export default function TaskSection() {
   const queryClient = useQueryClient();
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
@@ -19,6 +27,16 @@ export default function TaskSection() {
     queryKey: ['/api/auth/user'],
     retry: false,
   });
+
+  const { data: appSettings } = useQuery<AppSettings>({
+    queryKey: ['/api/app-settings'],
+    retry: false,
+  });
+
+  const streakRewardPAD = appSettings?.streakReward || 100;
+  const shareTaskRewardPAD = appSettings?.shareTaskReward || 1000;
+  const channelTaskRewardPAD = appSettings?.channelTaskRewardPAD || 1000;
+  const communityTaskRewardPAD = appSettings?.communityTaskReward || 1000;
 
   // Fetch daily task completion status from backend
   const { data: taskStatus } = useQuery({
@@ -99,7 +117,8 @@ export default function TaskSection() {
         queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
       ]);
       setCompletedTasks(prev => new Set([...prev, 'share-friends']));
-      showNotification('You received 1,000 PAD on your balance', 'success');
+      const rewardAmount = Number(data.reward ?? shareTaskRewardPAD);
+      showNotification(`You received ${rewardAmount.toLocaleString()} PAD on your balance`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
@@ -125,7 +144,8 @@ export default function TaskSection() {
         queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
       ]);
       setCompletedTasks(prev => new Set([...prev, 'check-updates']));
-      showNotification('You received 1,000 PAD on your balance', 'success');
+      const rewardAmount = Number(data.reward ?? channelTaskRewardPAD);
+      showNotification(`You received ${rewardAmount.toLocaleString()} PAD on your balance`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
@@ -151,7 +171,8 @@ export default function TaskSection() {
         queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
       ]);
       setCompletedTasks(prev => new Set([...prev, 'join-community']));
-      showNotification('You received 1,000 PAD on your balance', 'success');
+      const rewardAmount = Number(data.reward ?? communityTaskRewardPAD);
+      showNotification(`You received ${rewardAmount.toLocaleString()} PAD on your balance`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
@@ -289,7 +310,7 @@ export default function TaskSection() {
             <Flame className="w-5 h-5" />,
             'bg-gradient-to-br from-orange-500 to-red-500',
             'Claim Streak',
-            '+100 PAD',
+            `+${streakRewardPAD.toLocaleString()} PAD`,
             'text-orange-400',
             'Claim',
             handleClaimStreak,
@@ -301,7 +322,7 @@ export default function TaskSection() {
             <Gift className="w-5 h-5" />,
             'bg-gradient-to-br from-pink-500 to-rose-500',
             'Share with Friends',
-            '+1,000 PAD',
+            `+${shareTaskRewardPAD.toLocaleString()} PAD`,
             'text-pink-400',
             'Share',
             handleShareTask,
@@ -313,7 +334,7 @@ export default function TaskSection() {
             <Send className="w-5 h-5" />,
             'bg-gradient-to-br from-blue-500 to-cyan-500',
             'Check for Updates',
-            '+1,000 PAD',
+            `+${channelTaskRewardPAD.toLocaleString()} PAD`,
             'text-cyan-400',
             'Start',
             handleChannelTask,
@@ -325,7 +346,7 @@ export default function TaskSection() {
             <Users className="w-5 h-5" />,
             'bg-gradient-to-br from-purple-500 to-violet-500',
             'Join community',
-            '+1,000 PAD',
+            `+${communityTaskRewardPAD.toLocaleString()} PAD`,
             'text-purple-400',
             'Join',
             handleCommunityTask,
