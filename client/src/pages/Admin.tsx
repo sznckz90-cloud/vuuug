@@ -1447,7 +1447,14 @@ function SettingsSection() {
     seasonBroadcastActive: false,
     referralRewardEnabled: false,
     referralRewardUSD: '0.0005',
-    referralRewardPAD: '50'
+    referralRewardPAD: '50',
+    // Withdrawal ad requirement
+    withdrawalAdRequirementEnabled: true,
+    minimumAdsForWithdrawal: '100',
+    // Daily task rewards
+    streakReward: '100',
+    shareTaskReward: '1000',
+    communityTaskReward: '1000'
   });
   
   useEffect(() => {
@@ -1471,7 +1478,14 @@ function SettingsSection() {
         seasonBroadcastActive: settingsData.seasonBroadcastActive || false,
         referralRewardEnabled: settingsData.referralRewardEnabled || false,
         referralRewardUSD: settingsData.referralRewardUSD?.toString() || '0.0005',
-        referralRewardPAD: settingsData.referralRewardPAD?.toString() || '50'
+        referralRewardPAD: settingsData.referralRewardPAD?.toString() || '50',
+        // Withdrawal ad requirement
+        withdrawalAdRequirementEnabled: settingsData.withdrawalAdRequirementEnabled !== false,
+        minimumAdsForWithdrawal: settingsData.minimumAdsForWithdrawal?.toString() || '100',
+        // Daily task rewards
+        streakReward: settingsData.streakReward?.toString() || '100',
+        shareTaskReward: settingsData.shareTaskReward?.toString() || '1000',
+        communityTaskReward: settingsData.communityTaskReward?.toString() || '1000'
       });
     }
   }, [settingsData]);
@@ -1542,7 +1556,12 @@ function SettingsSection() {
         seasonBroadcastActive: settings.seasonBroadcastActive,
         referralRewardEnabled: settings.referralRewardEnabled,
         referralRewardUSD: refRewardUSD,
-        referralRewardPAD: refRewardPAD
+        referralRewardPAD: refRewardPAD,
+        withdrawalAdRequirementEnabled: settings.withdrawalAdRequirementEnabled,
+        minimumAdsForWithdrawal: parseInt(settings.minimumAdsForWithdrawal) || 100,
+        streakReward: parseInt(settings.streakReward) || 100,
+        shareTaskReward: parseInt(settings.shareTaskReward) || 1000,
+        communityTaskReward: parseInt(settings.communityTaskReward) || 1000
       });
       
       const result = await response.json();
@@ -1785,6 +1804,48 @@ function SettingsSection() {
               <p className="text-xs text-muted-foreground">
                 Current: {settingsData?.withdrawalFeeUSD || 3}%
               </p>
+            </div>
+
+            <div className="space-y-2 p-3 border rounded-lg bg-emerald-50/5 border-emerald-500/20 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  <i className="fas fa-play-circle mr-2 text-emerald-500"></i>
+                  Withdrawal Ad Requirement
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, withdrawalAdRequirementEnabled: !settings.withdrawalAdRequirementEnabled })}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    settings.withdrawalAdRequirementEnabled ? 'bg-emerald-500' : 'bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      settings.withdrawalAdRequirementEnabled ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {settings.withdrawalAdRequirementEnabled 
+                  ? 'Users must watch ads before each withdrawal' 
+                  : 'Ad requirement disabled - users can withdraw immediately'}
+              </p>
+              <div className="mt-2">
+                <Label className="text-xs">Minimum Ads Required</Label>
+                <Input
+                  type="number"
+                  value={settings.minimumAdsForWithdrawal}
+                  onChange={(e) => setSettings({ ...settings, minimumAdsForWithdrawal: e.target.value })}
+                  placeholder="100"
+                  min="0"
+                  disabled={!settings.withdrawalAdRequirementEnabled}
+                  className={`h-8 mt-1 ${!settings.withdrawalAdRequirementEnabled ? 'opacity-50' : ''}`}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Current: {settingsData?.minimumAdsForWithdrawal || 100} ads (resets after each withdrawal)
+                </p>
+              </div>
             </div>
           </div>
         )}

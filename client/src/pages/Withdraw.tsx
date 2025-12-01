@@ -94,7 +94,10 @@ export default function Withdraw() {
   const usdBalance = parseFloat(user?.usdBalance || "0");
   const validReferralCount = validReferralData?.validReferralCount || 0;
   const MINIMUM_VALID_REFERRALS_REQUIRED = 3;
-  const MINIMUM_ADS_FOR_WITHDRAWAL = 100;
+  
+  // Dynamic withdrawal ad requirement from backend
+  const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled !== false;
+  const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal || 100;
   
   // Fetch ads watched since last withdrawal
   const { data: withdrawalEligibility } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
@@ -104,7 +107,8 @@ export default function Withdraw() {
   });
   
   const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal || (user as any)?.adsWatchedSinceLastWithdrawal || 0;
-  const hasWatchedEnoughAds = adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
+  // If ad requirement is disabled, user always passes; otherwise check if they watched enough ads
+  const hasWatchedEnoughAds = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
   const hasEnoughReferrals = validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
@@ -542,8 +546,8 @@ export default function Withdraw() {
                 </Card>
               )}
               
-              {/* Ads Requirement - Per withdrawal */}
-              {hasEnoughReferrals && !hasWatchedEnoughAds && (
+              {/* Ads Requirement - Per withdrawal (only if enabled) */}
+              {withdrawalAdRequirementEnabled && hasEnoughReferrals && !hasWatchedEnoughAds && (
                 <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
                   <CardContent className="p-0">
                     {/* Header */}
