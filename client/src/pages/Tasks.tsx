@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, ClipboardList, Send, Bot as BotIcon, Sparkles, ChevronRight, Handshake } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 interface Task {
@@ -41,6 +41,8 @@ export default function Tasks() {
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<"channel" | "bot" | "partner" | null>(null);
+  const [claimReadyTasks, setClaimReadyTasks] = useState<Set<string>>(new Set());
+  const [countdownTasks, setCountdownTasks] = useState<Map<string, number>>(new Map());
 
   const { data: appSettings } = useQuery<AppSettings>({
     queryKey: ['/api/app-settings'],
@@ -100,6 +102,16 @@ export default function Tasks() {
         newSet.delete(taskId);
         return newSet;
       });
+      setClaimReadyTasks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
+      setCountdownTasks(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(taskId);
+        return newMap;
+      });
       setLoadingTaskId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
     },
@@ -109,6 +121,16 @@ export default function Tasks() {
         const newSet = new Set(prev);
         newSet.delete(taskId);
         return newSet;
+      });
+      setClaimReadyTasks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
+      setCountdownTasks(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(taskId);
+        return newMap;
       });
       setLoadingTaskId(null);
     },
@@ -120,8 +142,14 @@ export default function Tasks() {
       return;
     }
 
+    // If task is already in claimReadyTasks, don't proceed with handleTaskClick
+    // The claim should be handled by the button's onClick directly
+    if (claimReadyTasks.has(task.id)) {
+      return;
+    }
+
+    // If already clicked but not ready to claim, don't do anything
     if (clickedTasks.has(task.id)) {
-      clickTaskMutation.mutate(task.id);
       return;
     }
 
@@ -183,7 +211,40 @@ export default function Tasks() {
     }
 
     setClickedTasks(prev => new Set(prev).add(task.id));
+    
+    setCountdownTasks(prev => {
+      const newMap = new Map(prev);
+      newMap.set(task.id, 3);
+      return newMap;
+    });
   };
+
+  useEffect(() => {
+    const timers: NodeJS.Timeout[] = [];
+    
+    countdownTasks.forEach((seconds, taskId) => {
+      if (seconds > 0) {
+        const timer = setTimeout(() => {
+          setCountdownTasks(prev => {
+            const newMap = new Map(prev);
+            const currentSeconds = newMap.get(taskId) || 0;
+            if (currentSeconds <= 1) {
+              newMap.delete(taskId);
+              setClaimReadyTasks(prevReady => new Set(prevReady).add(taskId));
+            } else {
+              newMap.set(taskId, currentSeconds - 1);
+            }
+            return newMap;
+          });
+        }, 1000);
+        timers.push(timer);
+      }
+    });
+
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
+    };
+  }, [countdownTasks]);
 
   if (isLoading) {
     return (
@@ -319,6 +380,9 @@ export default function Tasks() {
               const padReward = getTaskReward(task);
               const hasClicked = clickedTasks.has(task.id);
               const isLoading = loadingTaskId === task.id;
+              const isClaimReady = claimReadyTasks.has(task.id);
+              const countdown = countdownTasks.get(task.id);
+              const isCountingDown = countdown !== undefined && countdown > 0;
 
               const getIconBg = (type: string) => {
                 switch(type) {
@@ -338,6 +402,37 @@ export default function Tasks() {
                 }
               };
 
+              const getButtonState = () => {
+                if (isLoading) {
+                  return {
+                    disabled: true,
+                    className: 'bg-gradient-to-r from-blue-500 to-cyan-500',
+                    content: <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  };
+                }
+                if (isCountingDown) {
+                  return {
+                    disabled: true,
+                    className: 'bg-gradient-to-r from-gray-500 to-gray-600',
+                    content: `${countdown}s`
+                  };
+                }
+                if (isClaimReady) {
+                  return {
+                    disabled: false,
+                    className: 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600',
+                    content: 'Claim'
+                  };
+                }
+                return {
+                  disabled: false,
+                  className: 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600',
+                  content: 'Start'
+                };
+              };
+
+              const buttonState = getButtonState();
+
               return (
                 <Card key={task.id} className="minimal-card hover:bg-[#1A1A1A]/50 transition-all">
                   <CardContent className="p-3">
@@ -352,17 +447,27 @@ export default function Tasks() {
                         </div>
                       </div>
                       <Button
-                        onClick={() => handleTaskClick(task)}
-                        disabled={isLoading}
-                        className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl ${
-                          hasClicked 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600' 
-                            : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600'
-                        } text-white border-0 shadow-md`}
+                        onClick={() => {
+                          if (isClaimReady) {
+                            setClaimReadyTasks(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(task.id);
+                              return newSet;
+                            });
+                            setClickedTasks(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(task.id);
+                              return newSet;
+                            });
+                            clickTaskMutation.mutate(task.id);
+                          } else if (!hasClicked && !isCountingDown) {
+                            handleTaskClick(task);
+                          }
+                        }}
+                        disabled={buttonState.disabled}
+                        className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl ${buttonState.className} text-white border-0 shadow-md`}
                       >
-                        {isLoading ? (
-                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        ) : (hasClicked ? "Claim" : "Start")}
+                        {buttonState.content}
                       </Button>
                     </div>
                   </CardContent>

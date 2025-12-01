@@ -573,13 +573,13 @@ export default function Withdraw() {
                         className="h-2 bg-[#2a2a2a]"
                       />
                       
-                      {/* CTA Button */}
+                      {/* CTA Button - Get Access redirects to Home page Ad section */}
                       <Button
-                        onClick={() => setLocation('/adlist')}
-                        className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
+                        onClick={() => setLocation('/')}
+                        className="w-full h-11 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold rounded-lg mt-2"
                       >
-                        <PlayCircle className="w-4 h-4 mr-2" />
-                        Watch Ads
+                        <Lock className="w-4 h-4 mr-2" />
+                        Get Access
                       </Button>
                     </div>
                   </CardContent>
