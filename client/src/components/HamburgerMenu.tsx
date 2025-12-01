@@ -84,14 +84,6 @@ export default function HamburgerMenu() {
       return;
     }
 
-    if (typeof window.show_10013974 === 'function') {
-      try {
-        await window.show_10013974('pop');
-      } catch (error) {
-        console.error('Ad error:', error);
-      }
-    }
-
     redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
   };
 
