@@ -688,6 +688,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const referralRewardUSD = parseFloat(getSetting('referral_reward_usd', '0.0005'));
       const referralRewardPAD = parseInt(getSetting('referral_reward_pad', '50'));
       
+      // Daily task rewards (for TaskSection.tsx)
+      const streakReward = parseInt(getSetting('streak_reward', '100')); // Daily streak claim reward in PAD
+      const shareTaskReward = parseInt(getSetting('share_task_reward', '1000')); // Share with friends reward in PAD
+      const communityTaskReward = parseInt(getSetting('community_task_reward', '1000')); // Join community reward in PAD
+      
+      // Partner task reward
+      const partnerTaskReward = parseInt(getSetting('partner_task_reward', '5')); // Partner task reward in PAD
+      
+      // Withdrawal ad requirement settings
+      const withdrawalAdRequirementEnabled = getSetting('withdrawal_ad_requirement_enabled', 'true') === 'true';
+      const minimumAdsForWithdrawal = parseInt(getSetting('minimum_ads_for_withdrawal', '100'));
+      
       // Legacy compatibility - keep old values for backwards compatibility
       const taskCostPerClick = channelTaskCostUSD; // Use channel cost as default
       const taskRewardPerClick = channelTaskRewardPAD / 10000000; // Legacy TON format for compatibility
@@ -722,6 +734,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralRewardEnabled,
         referralRewardUSD,
         referralRewardPAD,
+        // Daily task rewards
+        streakReward,
+        shareTaskReward,
+        communityTaskReward,
+        partnerTaskReward,
+        channelTaskReward: channelTaskRewardPAD,
+        botTaskReward: botTaskRewardPAD,
+        // Withdrawal ad requirement settings
+        withdrawalAdRequirementEnabled,
+        minimumAdsForWithdrawal,
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -2158,6 +2180,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralRewardEnabled: getSetting('referral_reward_enabled', 'false') === 'true',
         referralRewardUSD: parseFloat(getSetting('referral_reward_usd', '0.0005')),
         referralRewardPAD: parseInt(getSetting('referral_reward_pad', '50')),
+        // Daily task rewards
+        streakReward: parseInt(getSetting('streak_reward', '100')),
+        shareTaskReward: parseInt(getSetting('share_task_reward', '1000')),
+        communityTaskReward: parseInt(getSetting('community_task_reward', '1000')),
+        // Withdrawal ad requirement
+        withdrawalAdRequirementEnabled: getSetting('withdrawal_ad_requirement_enabled', 'true') === 'true',
+        minimumAdsForWithdrawal: parseInt(getSetting('minimum_ads_for_withdrawal', '100')),
         // Legacy fields for backwards compatibility
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
         taskPerClickReward: parseInt(getSetting('channel_task_reward', '30')),
@@ -2192,7 +2221,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         seasonBroadcastActive,
         referralRewardEnabled,
         referralRewardUSD,
-        referralRewardPAD
+        referralRewardPAD,
+        // Daily task rewards
+        streakReward,
+        shareTaskReward,
+        communityTaskReward,
+        // Withdrawal ad requirement
+        withdrawalAdRequirementEnabled,
+        minimumAdsForWithdrawal
       } = req.body;
       
       // Helper function to update a setting
@@ -2227,6 +2263,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('referral_reward_enabled', referralRewardEnabled);
       await updateSetting('referral_reward_usd', referralRewardUSD);
       await updateSetting('referral_reward_pad', referralRewardPAD);
+      
+      // Daily task rewards
+      await updateSetting('streak_reward', streakReward);
+      await updateSetting('share_task_reward', shareTaskReward);
+      await updateSetting('community_task_reward', communityTaskReward);
+      
+      // Withdrawal ad requirement
+      await updateSetting('withdrawal_ad_requirement_enabled', withdrawalAdRequirementEnabled);
+      await updateSetting('minimum_ads_for_withdrawal', minimumAdsForWithdrawal);
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
