@@ -18,16 +18,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Crown } from "lucide-react";
 
 function formatLargeNumber(num: number): string {
-  if (num >= 1000000000) {
-    return (num / 1000000000).toFixed(1) + 'B';
+  if (isNaN(num) || !isFinite(num)) {
+    return '0';
   }
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
+  const absNum = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (absNum >= 1000000000000) {
+    return sign + (absNum / 1000000000000).toFixed(1) + 'T';
   }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
+  if (absNum >= 1000000000) {
+    return sign + (absNum / 1000000000).toFixed(1) + 'B';
   }
-  return num.toLocaleString();
+  if (absNum >= 1000000) {
+    return sign + (absNum / 1000000).toFixed(1) + 'M';
+  }
+  if (absNum >= 1000) {
+    return sign + (absNum / 1000).toFixed(1) + 'K';
+  }
+  return sign + Math.round(absNum).toLocaleString();
 }
 
 interface AdminStats {
@@ -138,7 +146,7 @@ export default function AdminPage() {
             variant="outline"
             onClick={() => {
               queryClient.invalidateQueries();
-              toast({ title: "✅ Refreshed" });
+              toast({ title: "Refreshed" });
             }}
             className="h-8 px-3 text-xs"
           >
@@ -346,7 +354,7 @@ function AnalyticsSection({ stats }: { stats: AdminStats | undefined }) {
                 dataKey="earnings" 
                 stroke="#10b981" 
                 strokeWidth={2}
-                name="📈 TON Earned"
+                name="TON Earned"
                 dot={{ fill: '#10b981', r: 3 }}
                 activeDot={{ r: 5 }}
               />
@@ -388,7 +396,7 @@ function BanUserButton({ user, onSuccess }: { user: any; onSuccess: () => void }
       
       if (result.success) {
         toast({
-          title: user.banned ? "✅ User Unbanned" : "🚫 User Banned",
+          title: user.banned ? "User Unbanned" : "User Banned",
           description: result.message,
         });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -398,7 +406,7 @@ function BanUserButton({ user, onSuccess }: { user: any; onSuccess: () => void }
       }
     } catch (error: any) {
       toast({
-        title: "❌ Error",
+        title: "Error",
         description: error.message || "Failed to update user status",
         variant: "destructive",
       });
@@ -475,6 +483,256 @@ function BanUserButton({ user, onSuccess }: { user: any; onSuccess: () => void }
   );
 }
 
+type UserProfileTab = 'overview' | 'tasks' | 'ads' | 'referrals' | 'withdrawals' | 'bans';
+
+function UserProfileTabs({ user, onClose }: { user: any; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<UserProfileTab>('overview');
+  const { data: userTasks } = useQuery({
+    queryKey: ["/api/admin/user-tasks", user.id],
+    queryFn: () => apiRequest("GET", `/api/admin/user-tasks/${user.id}`).then(res => res.json()),
+    enabled: activeTab === 'tasks',
+  });
+  const { data: userAds } = useQuery({
+    queryKey: ["/api/admin/user-ads", user.id],
+    queryFn: () => apiRequest("GET", `/api/admin/user-ads/${user.id}`).then(res => res.json()),
+    enabled: activeTab === 'ads',
+  });
+  const { data: userReferrals } = useQuery({
+    queryKey: ["/api/admin/user-referrals", user.id],
+    queryFn: () => apiRequest("GET", `/api/admin/user-referrals/${user.id}`).then(res => res.json()),
+    enabled: activeTab === 'referrals',
+  });
+  const { data: userWithdrawals } = useQuery({
+    queryKey: ["/api/admin/user-withdrawals", user.id],
+    queryFn: () => apiRequest("GET", `/api/admin/user-withdrawals/${user.id}`).then(res => res.json()),
+    enabled: activeTab === 'withdrawals',
+  });
+  const { data: userBanHistory } = useQuery({
+    queryKey: ["/api/admin/user-ban-history", user.id],
+    queryFn: () => apiRequest("GET", `/api/admin/user-ban-history/${user.id}`).then(res => res.json()),
+    enabled: activeTab === 'bans',
+  });
+
+  const tabs = [
+    { id: 'overview' as const, label: 'Overview' },
+    { id: 'tasks' as const, label: 'Tasks' },
+    { id: 'ads' as const, label: 'Ads' },
+    { id: 'referrals' as const, label: 'Referrals' },
+    { id: 'withdrawals' as const, label: 'Withdrawals' },
+    { id: 'bans' as const, label: 'Ban History' },
+  ];
+
+  const formatPAD = (value: any) => {
+    const num = parseFloat(value || '0');
+    if (isNaN(num) || !isFinite(num)) return '0';
+    return Math.round(num).toLocaleString();
+  };
+
+  return (
+    <div className="space-y-3 max-h-[70vh] overflow-y-auto text-sm">
+      <div className="flex gap-1 flex-wrap border-b border-white/10 pb-2">
+        {tabs.map((tab) => (
+          <Button
+            key={tab.id}
+            size="sm"
+            variant="ghost"
+            onClick={() => setActiveTab(tab.id)}
+            className={`text-xs h-7 ${activeTab === tab.id ? 'bg-[#4cd3ff]/20 text-[#4cd3ff]' : 'text-muted-foreground'}`}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white/5 p-2 rounded">
+              <p className="text-xs text-muted-foreground">UID</p>
+              <p className="font-mono font-bold text-[#4cd3ff]">{user.referralCode || user.personalCode || 'N/A'}</p>
+            </div>
+            <div className="bg-white/5 p-2 rounded">
+              <p className="text-xs text-muted-foreground">Join Date</p>
+              <p className="text-sm">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</p>
+            </div>
+            <div className="bg-white/5 p-2 rounded">
+              <p className="text-xs text-muted-foreground">Name</p>
+              <p className="text-sm">{user.firstName || 'N/A'} {user.lastName || ''}</p>
+            </div>
+            <div className="bg-white/5 p-2 rounded">
+              <p className="text-xs text-muted-foreground">Username</p>
+              <p className="text-sm">{user.username ? `@${user.username}` : 'N/A'}</p>
+            </div>
+          </div>
+          
+          <div className="bg-white/5 border border-white/10 p-3 rounded">
+            <p className="text-xs text-muted-foreground mb-2">Balances</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div><p className="text-xs text-muted-foreground">PAD</p><p className="font-bold text-[#4cd3ff]">{formatPAD(user.balance)}</p></div>
+              <div><p className="text-xs text-muted-foreground">TON</p><p className="font-bold text-purple-400">{parseFloat(user.tonBalance || '0').toFixed(4)}</p></div>
+              <div><p className="text-xs text-muted-foreground">USD</p><p className="font-bold text-green-400">${parseFloat(user.usdBalance || '0').toFixed(2)}</p></div>
+            </div>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 p-3 rounded">
+            <p className="text-xs text-muted-foreground mb-2">Earnings</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><p className="text-xs text-muted-foreground">Total Earned</p><p className="font-bold text-emerald-400">{formatPAD(user.totalEarned)} PAD</p></div>
+              <div><p className="text-xs text-muted-foreground">Total Withdrawn</p><p className="font-bold text-amber-400">${parseFloat(user.totalWithdrawn || '0').toFixed(2)} USD</p></div>
+            </div>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 p-3 rounded">
+            <p className="text-xs text-muted-foreground mb-2">Activity</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div><p className="text-xs text-muted-foreground">Friends</p><p className="font-bold">{user.friendsInvited || 0}</p></div>
+              <div><p className="text-xs text-muted-foreground">Ads Watched</p><p className="font-bold">{user.adsWatched || 0}</p></div>
+              <div><p className="text-xs text-muted-foreground">Tasks Done</p><p className="font-bold">{user.tasksCompleted || 0}</p></div>
+            </div>
+          </div>
+
+          {user.referrerUid && (
+            <div className="bg-white/5 border border-white/10 p-2 rounded">
+              <p className="text-xs text-muted-foreground mb-1">Referred By</p>
+              <p className="font-mono text-xs text-orange-400">{user.referrerUid}</p>
+            </div>
+          )}
+
+          {(user.cwalletId || user.usdtWalletAddress || user.telegramStarsUsername) && (
+            <div className="bg-white/5 border border-white/10 p-2 rounded">
+              <p className="text-xs text-muted-foreground mb-1">Wallet Addresses</p>
+              {user.cwalletId && <p className="font-mono text-xs text-[#4cd3ff] break-all">TON: {user.cwalletId}</p>}
+              {user.usdtWalletAddress && <p className="font-mono text-xs text-green-400 break-all">USDT: {user.usdtWalletAddress}</p>}
+              {user.telegramStarsUsername && <p className="font-mono text-xs text-yellow-400">Stars: @{user.telegramStarsUsername}</p>}
+            </div>
+          )}
+
+          <div className="flex gap-2 items-center pt-2 border-t border-white/10">
+            {user.banned ? (
+              <Badge className="bg-red-600 text-xs">Banned</Badge>
+            ) : (
+              <Badge className="bg-green-600 text-xs">Active</Badge>
+            )}
+            {user.bannedReason && (
+              <span className="text-xs text-muted-foreground">({user.bannedReason})</span>
+            )}
+            <div className="ml-auto">
+              <BanUserButton user={user} onSuccess={onClose} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'tasks' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground mb-2">Completed Tasks: {userTasks?.tasks?.length || 0}</div>
+          {userTasks?.tasks?.length > 0 ? (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {userTasks.tasks.map((task: any) => (
+                <div key={task.id} className="bg-white/5 p-2 rounded border border-white/10">
+                  <p className="text-sm font-medium">{task.title || 'Task'}</p>
+                  <p className="text-xs text-muted-foreground">Completed: {task.completedAt ? new Date(task.completedAt).toLocaleDateString() : 'N/A'}</p>
+                  <p className="text-xs text-green-400">Reward: {formatPAD(task.reward)} PAD</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No tasks completed</p>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'ads' && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="bg-white/5 p-2 rounded text-center">
+              <p className="text-xs text-muted-foreground">Total Ads</p>
+              <p className="font-bold text-xl">{user.adsWatched || 0}</p>
+            </div>
+            <div className="bg-white/5 p-2 rounded text-center">
+              <p className="text-xs text-muted-foreground">Today</p>
+              <p className="font-bold text-xl">{user.dailyAdsWatched || 0}</p>
+            </div>
+          </div>
+          <div className="bg-white/5 p-2 rounded">
+            <p className="text-xs text-muted-foreground">Since Last Withdrawal</p>
+            <p className="font-bold">{user.adsWatchedSinceLastWithdrawal || 0}</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'referrals' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground mb-2">Total Referrals: {userReferrals?.referrals?.length || user.friendsInvited || 0}</div>
+          {userReferrals?.referrals?.length > 0 ? (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {userReferrals.referrals.map((ref: any) => (
+                <div key={ref.id} className="bg-white/5 p-2 rounded border border-white/10">
+                  <p className="text-sm font-mono text-[#4cd3ff]">{ref.refereeCode || ref.refereeId?.slice(0, 8) || 'N/A'}</p>
+                  <p className="text-xs text-muted-foreground">Status: {ref.status}</p>
+                  <p className="text-xs text-muted-foreground">Joined: {ref.createdAt ? new Date(ref.createdAt).toLocaleDateString() : 'N/A'}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No referrals</p>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'withdrawals' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground mb-2">Total Withdrawals: {userWithdrawals?.withdrawals?.length || 0}</div>
+          {userWithdrawals?.withdrawals?.length > 0 ? (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {userWithdrawals.withdrawals.map((w: any) => (
+                <div key={w.id} className="bg-white/5 p-2 rounded border border-white/10">
+                  <div className="flex justify-between items-center">
+                    <p className="font-bold text-green-400">${parseFloat(w.amount || '0').toFixed(2)}</p>
+                    <Badge className={w.status === 'success' || w.status === 'paid' ? 'bg-green-600' : w.status === 'rejected' ? 'bg-red-600' : 'bg-yellow-600'}>
+                      {w.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Method: {w.method || 'N/A'}</p>
+                  <p className="text-xs text-muted-foreground">Date: {w.createdAt ? new Date(w.createdAt).toLocaleDateString() : 'N/A'}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No withdrawals</p>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'bans' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground mb-2">
+            Current Status: {user.banned ? <span className="text-red-400">Banned</span> : <span className="text-green-400">Active</span>}
+          </div>
+          {userBanHistory?.banLogs?.length > 0 ? (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {userBanHistory.banLogs.map((log: any) => (
+                <div key={log.id} className="bg-white/5 p-2 rounded border border-white/10">
+                  <div className="flex justify-between items-center">
+                    <Badge className={log.banType === 'auto' ? 'bg-orange-600' : 'bg-purple-600'}>
+                      {log.banType === 'auto' ? 'Auto' : 'Manual'}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">{log.createdAt ? new Date(log.createdAt).toLocaleDateString() : 'N/A'}</p>
+                  </div>
+                  <p className="text-sm mt-1">{log.reason || 'No reason provided'}</p>
+                  {log.deviceId && <p className="text-xs text-muted-foreground">Device: {log.deviceId.slice(0, 12)}...</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No ban history</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type UserViewTab = 'list' | 'stats';
 
 function UserManagementSection({ usersData }: { usersData: any }) {
@@ -522,7 +780,7 @@ function UserManagementSection({ usersData }: { usersData: any }) {
         
         {activeView === 'list' && (
           <Input
-            placeholder="🔍 Search by UID or name..."
+            placeholder="Search by UID or name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="h-8 text-sm"
@@ -604,67 +862,7 @@ function UserManagementSection({ usersData }: { usersData: any }) {
               UID: {selectedUser?.referralCode || selectedUser?.personalCode || 'N/A'}
             </DialogTitle>
           </DialogHeader>
-          {selectedUser && (
-            <div className="space-y-3 max-h-[70vh] overflow-y-auto text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-white/5 p-2 rounded">
-                  <p className="text-xs text-muted-foreground">UID</p>
-                  <p className="font-mono font-bold text-[#4cd3ff]">{selectedUser.personalCode || 'N/A'}</p>
-                </div>
-                <div className="bg-white/5 p-2 rounded">
-                  <p className="text-xs text-muted-foreground">Join Date</p>
-                  <p className="text-sm">{selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'N/A'}</p>
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-r from-[#4cd3ff]/10 to-[#4cd3ff]/5 border border-[#4cd3ff]/30 p-3 rounded">
-                <p className="text-xs text-muted-foreground mb-2">💰 Balances</p>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div><p className="text-xs text-muted-foreground">PAD</p><p className="font-bold text-[#4cd3ff]">{Math.round(parseFloat(selectedUser.balance || '0') * 100000)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">TON</p><p className="font-bold text-purple-400">{parseFloat(selectedUser.tonBalance || '0').toFixed(4)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">USD</p><p className="font-bold text-green-400">${parseFloat(selectedUser.usdBalance || '0').toFixed(2)}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 p-3 rounded">
-                <p className="text-xs text-muted-foreground mb-2">📈 Earnings</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><p className="text-xs text-muted-foreground">Total Earned</p><p className="font-bold text-emerald-400">{formatCurrency(selectedUser.totalEarned || '0')}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Total Withdrawn</p><p className="font-bold text-amber-400">{formatCurrency(selectedUser.totalWithdrawn || '0')}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-blue-500/10 to-blue-500/5 border border-blue-500/30 p-3 rounded">
-                <p className="text-xs text-muted-foreground mb-2">📊 Activity</p>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div><p className="text-xs text-muted-foreground">Friends</p><p className="font-bold">{selectedUser.friendsInvited || 0}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Ads Watched</p><p className="font-bold">{selectedUser.adsWatched || 0}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Tasks Done</p><p className="font-bold">{selectedUser.tasksCompleted || 0}</p></div>
-                </div>
-              </div>
-
-              {selectedUser.walletAddress && (
-                <div className="bg-white/5 border border-white/10 p-2 rounded">
-                  <p className="text-xs text-muted-foreground mb-1">Wallet Address</p>
-                  <p className="font-mono text-xs text-[#4cd3ff] break-all">{selectedUser.walletAddress}</p>
-                </div>
-              )}
-
-              <div className="flex gap-2 items-center pt-2 border-t border-white/10">
-                {selectedUser.banned ? (
-                  <Badge className="bg-red-600 text-xs">🚫 Banned</Badge>
-                ) : (
-                  <Badge className="bg-green-600 text-xs">✓ Active</Badge>
-                )}
-                {selectedUser.bannedReason && (
-                  <span className="text-xs text-muted-foreground">({selectedUser.bannedReason})</span>
-                )}
-                <div className="ml-auto">
-                  <BanUserButton user={selectedUser} onSuccess={() => setSelectedUser(null)} />
-                </div>
-              </div>
-            </div>
-          )}
+          {selectedUser && <UserProfileTabs user={selectedUser} onClose={() => setSelectedUser(null)} />}
         </DialogContent>
       </Dialog>
     </>
@@ -690,7 +888,7 @@ function PromoCreatorSection() {
   const handleGenerateCode = () => {
     const randomCode = 'PROMO' + Math.random().toString(36).substring(2, 10).toUpperCase();
     setFormData({ ...formData, code: randomCode });
-    toast({ title: "✨ Code Generated!", description: randomCode });
+    toast({ title: "Code Generated", description: randomCode });
   };
 
   const { data: promoCodesData } = useQuery({
@@ -701,12 +899,12 @@ function PromoCreatorSection() {
 
   const handleCreate = async () => {
     if (!formData.code.trim() || !formData.rewardAmount) {
-      toast({ title: "⚠️ Error", description: "Code and amount required", variant: "destructive" });
+      toast({ title: "Error", description: "Code and amount required", variant: "destructive" });
       return;
     }
     const rewardAmount = parseFloat(formData.rewardAmount);
     if (isNaN(rewardAmount) || rewardAmount <= 0) {
-      toast({ title: "⚠️ Error", description: "Amount must be positive", variant: "destructive" });
+      toast({ title: "Error", description: "Amount must be positive", variant: "destructive" });
       return;
     }
 
@@ -722,7 +920,7 @@ function PromoCreatorSection() {
       });
       const result = await response.json();
       if (result.success) {
-        toast({ title: "✅ Created!", description: `${rewardAmount} ${formData.rewardType}` });
+        toast({ title: "Created", description: `${rewardAmount} ${formData.rewardType}` });
         setFormData({ code: '', rewardAmount: '', rewardType: 'TON', usageLimit: '', perUserLimit: '1', expiresAt: '' });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/promo-codes"] });
         setActiveTab('manage');
@@ -730,7 +928,7 @@ function PromoCreatorSection() {
         throw new Error(result.message);
       }
     } catch (error: any) {
-      toast({ title: "❌ Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
@@ -748,7 +946,7 @@ function PromoCreatorSection() {
 
   const copyToClipboard = (code: string) => {
     navigator.clipboard.writeText(code);
-    toast({ title: "✅ Copied!", description: code });
+    toast({ title: "Copied", description: code });
   };
 
   return (
@@ -840,9 +1038,9 @@ function PayoutLogsSection({ data }: { data: any }) {
   useEffect(() => { setCurrentPage(1); }, [statusFilter, searchQuery]);
 
   const getStatusBadge = (status: string) => {
-    if (['success', 'paid', 'Approved'].includes(status)) return <Badge className="bg-green-600 text-[10px] h-4">✓</Badge>;
-    if (status === 'rejected') return <Badge className="bg-red-600 text-[10px] h-4">✗</Badge>;
-    return <Badge className="bg-yellow-600 text-[10px] h-4">⏳</Badge>;
+    if (['success', 'paid', 'Approved'].includes(status)) return <Badge className="bg-green-600 text-[10px] h-4">Done</Badge>;
+    if (status === 'rejected') return <Badge className="bg-red-600 text-[10px] h-4">Fail</Badge>;
+    return <Badge className="bg-yellow-600 text-[10px] h-4">Wait</Badge>;
   };
 
   const tabButtons: { key: PayoutTab; label: string; count: number; color: string }[] = [
@@ -868,7 +1066,7 @@ function PayoutLogsSection({ data }: { data: any }) {
           );
         })}
       </div>
-      <Input placeholder="🔍 Search user, UID, wallet..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
+      <Input placeholder="Search user, UID, wallet..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
       
       {paginatedPayouts.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-sm"><i className="fas fa-inbox text-2xl mb-2"></i><p>No payouts</p></div>
@@ -1307,7 +1505,7 @@ function SettingsSection() {
     
     if (isNaN(adLimit) || adLimit <= 0) {
       toast({
-        title: "⚠️ Validation Error",
+        title: "Validation Error",
         description: "Daily ad limit must be a positive number",
         variant: "destructive",
       });
@@ -1316,7 +1514,7 @@ function SettingsSection() {
     
     if (isNaN(reward) || reward <= 0) {
       toast({
-        title: "⚠️ Validation Error",
+        title: "Validation Error",
         description: "Reward per ad must be a positive number",
         variant: "destructive",
       });
@@ -1351,7 +1549,7 @@ function SettingsSection() {
       
       if (result.success) {
         toast({
-          title: "✅ Settings Updated",
+          title: "Settings Updated",
           description: "App settings have been updated successfully",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
@@ -1361,7 +1559,7 @@ function SettingsSection() {
       }
     } catch (error: any) {
       toast({
-        title: "❌ Error",
+        title: "Error",
         description: error.message || "Failed to update settings",
         variant: "destructive",
       });

@@ -24,6 +24,7 @@ interface User {
   telegramStarsUsername?: string;
   adsWatched?: number;
   adsWatchedSinceLastWithdrawal?: number;
+  referralCode?: string;
 }
 
 interface WalletDetails {
@@ -105,6 +106,35 @@ export default function Withdraw() {
   const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal || (user as any)?.adsWatchedSinceLastWithdrawal || 0;
   const hasWatchedEnoughAds = adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
   const hasEnoughReferrals = validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
+
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+  const referralLink = user?.referralCode 
+    ? `https://t.me/${botUsername}?start=${user.referralCode}`
+    : '';
+
+  const openShareSheet = () => {
+    if (!referralLink) return;
+    
+    const shareText = `Earn PAD in Telegram!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+    
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(shareUrl);
+    } else if (window.Telegram?.WebApp?.switchInlineQuery) {
+      window.Telegram.WebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
+    } else if (navigator.share) {
+      navigator.share({
+        title: 'Join CashWatch',
+        text: shareText,
+        url: referralLink,
+      }).catch(() => {
+        navigator.clipboard.writeText(referralLink);
+        showNotification('Link copied!', 'success');
+      });
+    } else {
+      window.open(shareUrl, '_blank');
+    }
+  };
 
   const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({
     queryKey: ['/api/withdrawals'],
@@ -501,7 +531,7 @@ export default function Withdraw() {
                       
                       {/* CTA Button */}
                       <Button
-                        onClick={() => setLocation('/affiliates')}
+                        onClick={openShareSheet}
                         className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
                       >
                         <UserPlus className="w-4 h-4 mr-2" />
