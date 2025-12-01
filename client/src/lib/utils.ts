@@ -7,40 +7,70 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format currency values - displays PAD amount
- * Handles both integer PAD values and legacy decimal values
- * Examples: 1000 → "1,000 PAD", 0.0001 → "1,000 PAD" (legacy TON format)
+ * Format currency values - displays PAD amount in pure numeric format
+ * No TON-style formatting - PAD is always an integer value
+ * Examples: 1000 → "1,000 PAD", 500000 → "500,000 PAD"
  */
 export function formatCurrency(value: string | number, includeSymbol: boolean = true): string {
   const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
   
-  if (isNaN(numValue)) {
+  if (isNaN(numValue) || !isFinite(numValue)) {
     return includeSymbol ? '0 PAD' : '0';
   }
   
-  // If value is very small (< 1), it might be legacy TON format - convert to PAD
-  // Otherwise, treat as PAD integer
-  const padValue = numValue < 1 ? Math.round(numValue * 10000000) : Math.round(numValue);
+  // PAD is always an integer - no TON conversion
+  const padValue = Math.round(numValue);
   
   const symbol = includeSymbol ? ' PAD' : '';
   return `${padValue.toLocaleString()}${symbol}`;
 }
 
 /**
- * Format task rewards - displays PAD amount
- * Handles both integer PAD values and legacy decimal values
- * Examples: 1000 → "1,000 PAD", 0.0001 → "1,000 PAD" (legacy TON format)
+ * Format large PAD numbers with compact notation (K, M, B, T)
+ * Handles overflow and prevents NaN/Infinity display
+ * Examples: 1000 → "1K", 1000000 → "1M", 1000000000 → "1B"
+ */
+export function formatLargePAD(value: string | number, includeSymbol: boolean = true): string {
+  const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
+  
+  if (isNaN(numValue) || !isFinite(numValue)) {
+    return includeSymbol ? '0 PAD' : '0';
+  }
+  
+  const absValue = Math.abs(numValue);
+  const symbol = includeSymbol ? ' PAD' : '';
+  const sign = numValue < 0 ? '-' : '';
+  
+  if (absValue >= 1000000000000) {
+    return `${sign}${(absValue / 1000000000000).toFixed(1)}T${symbol}`;
+  }
+  if (absValue >= 1000000000) {
+    return `${sign}${(absValue / 1000000000).toFixed(1)}B${symbol}`;
+  }
+  if (absValue >= 1000000) {
+    return `${sign}${(absValue / 1000000).toFixed(1)}M${symbol}`;
+  }
+  if (absValue >= 1000) {
+    return `${sign}${(absValue / 1000).toFixed(1)}K${symbol}`;
+  }
+  
+  return `${sign}${Math.round(absValue).toLocaleString()}${symbol}`;
+}
+
+/**
+ * Format task rewards - displays PAD amount in pure numeric format
+ * No TON-style formatting - PAD is always an integer value
+ * Examples: 1000 → "1,000 PAD", 500 → "500 PAD"
  */
 export function formatTaskReward(value: string | number, includeSymbol: boolean = true): string {
   const numValue = parseFloat(typeof value === 'string' ? value : value.toString());
   
-  if (isNaN(numValue)) {
+  if (isNaN(numValue) || !isFinite(numValue)) {
     return includeSymbol ? '0 PAD' : '0';
   }
   
-  // If value is very small (< 1), it might be legacy TON format - convert to PAD
-  // Otherwise, treat as PAD integer
-  const padValue = numValue < 1 ? Math.round(numValue * 10000000) : Math.round(numValue);
+  // PAD is always an integer - no TON conversion
+  const padValue = Math.round(numValue);
   
   const symbol = includeSymbol ? ' PAD' : '';
   return `${padValue.toLocaleString()}${symbol}`;
