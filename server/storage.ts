@@ -12,6 +12,7 @@ import {
   advertiserTasks,
   taskClicks,
   adminSettings,
+  spinData,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -978,7 +979,10 @@ export class DatabaseStorage implements IStorage {
               description: `Referral bonus: Friend watched first ad (+${referralRewardPAD} PAD, +$${referralRewardUSD} USD)`,
             });
             
-            console.log(`✅ Activated pending referral with bonus: ${referral.referrerId} -> ${userId}. Awarded ${referralRewardPAD} PAD + $${referralRewardUSD} USD`);
+            // Grant 1 spin to the referrer for verified invite
+            await this.grantInviteSpin(referral.referrerId);
+            
+            console.log(`✅ Activated pending referral with bonus: ${referral.referrerId} -> ${userId}. Awarded ${referralRewardPAD} PAD + $${referralRewardUSD} USD + 1 Spin`);
           } else {
             // Just increment friendsInvited without bonus
             await db
@@ -989,12 +993,50 @@ export class DatabaseStorage implements IStorage {
               })
               .where(eq(users.id, referral.referrerId));
             
-            console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId}. friendsInvited incremented (bonus disabled).`);
+            // Still grant 1 spin to the referrer for verified invite (even without PAD/USD bonus)
+            await this.grantInviteSpin(referral.referrerId);
+            
+            console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId}. friendsInvited incremented + 1 Spin (bonus disabled).`);
           }
         }
       }
     } catch (error) {
       console.error('Error checking referral bonus activation:', error);
+    }
+  }
+
+  // Grant 1 spin to a user for verified invite
+  async grantInviteSpin(userId: string): Promise<void> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Get or create spin data
+      const existingSpinData = await db.query.spinData.findFirst({
+        where: eq(spinData.userId, userId),
+      }) as any;
+
+      if (!existingSpinData) {
+        // Create new spin data with 1 bonus spin
+        await db.insert(spinData).values({
+          userId,
+          freeSpinUsed: false,
+          extraSpins: 1,
+          spinAdsWatched: 0,
+          inviteSpinsEarned: 1,
+          lastSpinDate: today,
+        });
+        console.log(`✅ Created spin data for ${userId} with 1 invite spin`);
+      } else {
+        // Update existing spin data
+        await db.update(spinData).set({
+          extraSpins: (existingSpinData.extraSpins || 0) + 1,
+          inviteSpinsEarned: (existingSpinData.inviteSpinsEarned || 0) + 1,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+        console.log(`✅ Granted 1 invite spin to ${userId} (total: ${(existingSpinData.inviteSpinsEarned || 0) + 1})`);
+      }
+    } catch (error) {
+      console.error(`❌ Error granting invite spin to ${userId}:`, error);
     }
   }
 
