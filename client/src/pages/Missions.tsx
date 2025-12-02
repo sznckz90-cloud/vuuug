@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
-  Target, 
+  ListTodo,
   Share2, 
   CalendarCheck, 
   Gift, 
@@ -13,10 +13,15 @@ import {
   ChevronRight,
   Sparkles,
   Loader2,
-  Check
+  Check,
+  Bot,
+  MessageCircle,
+  Link2,
+  Megaphone,
+  Globe
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 
 interface Task {
@@ -55,8 +60,11 @@ export default function Missions() {
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [claimReadyTasks, setClaimReadyTasks] = useState<Set<string>>(new Set());
   const [countdownTasks, setCountdownTasks] = useState<Map<string, number>>(new Map());
+  
+  const [shareStoryStep, setShareStoryStep] = useState<'idle' | 'shared' | 'claiming'>('idle');
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'visited' | 'claiming'>('idle');
 
-  const { data: missionStatus } = useQuery<{ success: boolean } & MissionStatus>({
+  const { data: missionStatus, refetch: refetchMissions } = useQuery<{ success: boolean } & MissionStatus>({
     queryKey: ['/api/missions/status'],
     retry: false,
   });
@@ -66,7 +74,7 @@ export default function Missions() {
     retry: false,
   });
 
-  const { data: tasksData } = useQuery<{ success: boolean; tasks: Task[] }>({
+  const { data: tasksData, refetch: refetchTasks } = useQuery<{ success: boolean; tasks: Task[] }>({
     queryKey: ["/api/advertiser-tasks"],
     retry: false,
   });
@@ -81,11 +89,15 @@ export default function Missions() {
       return response.json();
     },
     onSuccess: (data) => {
-      showNotification(`+${data.reward} PAD!`, 'success');
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setShareStoryStep('idle');
       queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     },
-    onError: (error: Error) => showNotification(error.message, 'error'),
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setShareStoryStep('idle');
+    },
   });
 
   const dailyCheckinMutation = useMutation({
@@ -98,11 +110,15 @@ export default function Missions() {
       return response.json();
     },
     onSuccess: (data) => {
-      showNotification(`+${data.reward} PAD!`, 'success');
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setDailyCheckinStep('idle');
       queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     },
-    onError: (error: Error) => showNotification(error.message, 'error'),
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setDailyCheckinStep('idle');
+    },
   });
 
   const clickTaskMutation = useMutation({
@@ -118,12 +134,13 @@ export default function Missions() {
       return data;
     },
     onSuccess: (data, taskId) => {
-      showNotification(`+${parseInt(data.reward).toLocaleString()} PAD!`, "success");
+      showNotification(`+${parseInt(data.reward).toLocaleString()} PAD claimed!`, "success");
       setCompletedTaskIds(prev => new Set(prev).add(taskId));
       setClickedTasks(prev => { const s = new Set(prev); s.delete(taskId); return s; });
       setClaimReadyTasks(prev => { const s = new Set(prev); s.delete(taskId); return s; });
       setLoadingTaskId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
     },
     onError: (error: Error) => {
       showNotification(error.message, "error");
@@ -131,27 +148,44 @@ export default function Missions() {
     },
   });
 
-  const handleShareStory = () => {
+  const handleShareStory = useCallback(() => {
+    if (missionStatus?.shareStory?.claimed) return;
+    
     const tg = window.Telegram?.WebApp as any;
     if (tg?.shareToStory) {
-      tg.shareToStory('https://t.me/CashWatchBot');
+      tg.shareToStory('https://t.me/CashWatchBot', {
+        widget_link: {
+          url: 'https://t.me/CashWatchBot',
+          name: 'Join CashWatch'
+        }
+      });
     }
-    if (!missionStatus?.shareStory?.claimed) {
-      shareStoryMutation.mutate();
-    }
-  };
+    setShareStoryStep('shared');
+  }, [missionStatus?.shareStory?.claimed]);
 
-  const handleDailyCheckin = () => {
+  const handleClaimShareStory = useCallback(() => {
+    if (shareStoryMutation.isPending) return;
+    setShareStoryStep('claiming');
+    shareStoryMutation.mutate();
+  }, [shareStoryMutation]);
+
+  const handleDailyCheckin = useCallback(() => {
+    if (missionStatus?.dailyCheckin?.claimed) return;
+    
     const channelUrl = 'https://t.me/PaidAdsNews';
     if (window.Telegram?.WebApp?.openTelegramLink) {
       window.Telegram.WebApp.openTelegramLink(channelUrl);
     } else {
       window.open(channelUrl, '_blank');
     }
-    if (!missionStatus?.dailyCheckin?.claimed) {
-      dailyCheckinMutation.mutate();
-    }
-  };
+    setDailyCheckinStep('visited');
+  }, [missionStatus?.dailyCheckin?.claimed]);
+
+  const handleClaimDailyCheckin = useCallback(() => {
+    if (dailyCheckinMutation.isPending) return;
+    setDailyCheckinStep('claiming');
+    dailyCheckinMutation.mutate();
+  }, [dailyCheckinMutation]);
 
   const handleTaskClick = async (task: Task) => {
     if (!task.link || claimReadyTasks.has(task.id) || clickedTasks.has(task.id)) return;
@@ -216,6 +250,32 @@ export default function Missions() {
 
   const getReward = (t: Task) => t.taskType === 'partner' ? partnerReward : t.taskType === 'channel' ? channelReward : botReward;
 
+  const getTaskBoxIcon = (taskType: string) => {
+    switch (taskType) {
+      case 'bot':
+        return <Bot className="w-4 h-4 text-white" />;
+      case 'channel':
+        return <MessageCircle className="w-4 h-4 text-white" />;
+      case 'partner':
+        return <Link2 className="w-4 h-4 text-white" />;
+      default:
+        return <Globe className="w-4 h-4 text-white" />;
+    }
+  };
+
+  const getTaskIconBg = (taskType: string) => {
+    switch (taskType) {
+      case 'bot':
+        return 'from-purple-500 to-purple-600';
+      case 'channel':
+        return 'from-blue-500 to-blue-600';
+      case 'partner':
+        return 'from-green-500 to-green-600';
+      default:
+        return 'from-gray-500 to-gray-600';
+    }
+  };
+
   const TaskItem = ({ task }: { task: Task }) => {
     const reward = getReward(task);
     const isLoading = loadingTaskId === task.id;
@@ -223,35 +283,58 @@ export default function Missions() {
     const countdown = countdownTasks.get(task.id);
 
     return (
-      <div className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
-        <div className="flex-1 min-w-0 pr-3">
+      <div className="flex items-center gap-3 py-3 border-b border-white/5 last:border-0">
+        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getTaskIconBg(task.taskType)} flex items-center justify-center flex-shrink-0`}>
+          {getTaskBoxIcon(task.taskType)}
+        </div>
+        <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-medium truncate">{task.title}</p>
           <p className="text-[#4cd3ff] text-xs font-bold">+{reward} PAD</p>
         </div>
         <Button
-          size="sm"
           onClick={() => isClaimReady ? clickTaskMutation.mutate(task.id) : handleTaskClick(task)}
           disabled={isLoading || (countdown !== undefined && countdown > 0)}
-          className={`h-7 px-3 text-xs font-semibold rounded-lg ${
+          className={`h-8 w-20 text-xs font-bold rounded-lg ${
             isLoading ? 'bg-[#4cd3ff]/50' :
             countdown ? 'bg-gray-600' :
-            isClaimReady ? 'bg-green-500 hover:bg-green-600' :
-            'bg-[#4cd3ff] hover:bg-[#3bc3ef]'
-          } text-black`}
+            isClaimReady ? 'bg-green-500 hover:bg-green-600 text-white' :
+            'bg-[#4cd3ff] hover:bg-[#3bc3ef] text-black'
+          }`}
         >
           {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> :
            countdown ? `${countdown}s` :
-           isClaimReady ? 'Claim' : 'Go'}
+           isClaimReady ? 'Claim' : 'Start'}
         </Button>
+      </div>
+    );
+  };
+
+  const TaskSection = ({ title, icon, iconColor, tasks }: { 
+    title: string; 
+    icon: React.ReactNode; 
+    iconColor: string;
+    tasks: Task[];
+  }) => {
+    if (tasks.length === 0) return null;
+    
+    return (
+      <div className="bg-[#111] rounded-xl p-3 mb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <div className={iconColor}>{icon}</div>
+          <span className="text-white text-sm font-semibold">{title}</span>
+        </div>
+        <div className="px-1">
+          {tasks.map(t => <TaskItem key={t.id} task={t} />)}
+        </div>
       </div>
     );
   };
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pt-3 pb-24">
+      <main className="max-w-md mx-auto px-4 pt-3 pb-16">
         <div className="flex items-center gap-2 mb-4">
-          <Target className="w-5 h-5 text-[#4cd3ff]" />
+          <ListTodo className="w-5 h-5 text-[#4cd3ff]" />
           <h1 className="text-lg font-bold text-white">Missions</h1>
         </div>
 
@@ -280,7 +363,7 @@ export default function Missions() {
           <div className="space-y-2">
             <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
                   <Share2 className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -288,22 +371,31 @@ export default function Missions() {
                   <p className="text-pink-400 text-xs font-bold">+5 PAD</p>
                 </div>
               </div>
-              <Button
-                size="sm"
-                onClick={handleShareStory}
-                disabled={shareStoryMutation.isPending || missionStatus?.shareStory?.claimed}
-                className={`h-7 px-3 text-xs font-semibold rounded-lg ${
-                  missionStatus?.shareStory?.claimed ? 'bg-green-500/20 text-green-400' : 'bg-pink-500 hover:bg-pink-600 text-white'
-                }`}
-              >
-                {shareStoryMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> :
-                 missionStatus?.shareStory?.claimed ? <Check className="w-3 h-3" /> : 'Share'}
-              </Button>
+              {missionStatus?.shareStory?.claimed ? (
+                <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <Check className="w-4 h-4 text-green-400" />
+                </div>
+              ) : shareStoryStep === 'shared' ? (
+                <Button
+                  onClick={handleClaimShareStory}
+                  disabled={shareStoryMutation.isPending}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                >
+                  {shareStoryMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleShareStory}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-pink-500 hover:bg-pink-600 text-white"
+                >
+                  Share
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
                   <CalendarCheck className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -311,17 +403,26 @@ export default function Missions() {
                   <p className="text-cyan-400 text-xs font-bold">+5 PAD</p>
                 </div>
               </div>
-              <Button
-                size="sm"
-                onClick={handleDailyCheckin}
-                disabled={dailyCheckinMutation.isPending || missionStatus?.dailyCheckin?.claimed}
-                className={`h-7 px-3 text-xs font-semibold rounded-lg ${
-                  missionStatus?.dailyCheckin?.claimed ? 'bg-green-500/20 text-green-400' : 'bg-cyan-500 hover:bg-cyan-600 text-black'
-                }`}
-              >
-                {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> :
-                 missionStatus?.dailyCheckin?.claimed ? <Check className="w-3 h-3" /> : 'Go'}
-              </Button>
+              {missionStatus?.dailyCheckin?.claimed ? (
+                <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <Check className="w-4 h-4 text-green-400" />
+                </div>
+              ) : dailyCheckinStep === 'visited' ? (
+                <Button
+                  onClick={handleClaimDailyCheckin}
+                  disabled={dailyCheckinMutation.isPending}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                >
+                  {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleDailyCheckin}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-cyan-500 hover:bg-cyan-600 text-black"
+                >
+                  Go
+                </Button>
+              )}
             </div>
 
             <div 
@@ -329,11 +430,11 @@ export default function Missions() {
               onClick={() => setLocation('/free-spin')}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
                   <Gift className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-white text-sm font-medium">Free Spin</p>
+                  <p className="text-white text-sm font-medium">Lucky Slots</p>
                   <p className="text-yellow-400 text-xs font-bold">Win up to 10K PAD!</p>
                 </div>
               </div>
@@ -342,50 +443,33 @@ export default function Missions() {
           </div>
         </div>
 
-        <div className="bg-[#111] rounded-xl p-3 mb-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Gamepad2 className="w-4 h-4 text-purple-400" />
-            <span className="text-white text-sm font-semibold">Game Tasks</span>
-            <span className="text-gray-500 text-xs ml-auto">+{botReward} PAD</span>
-          </div>
-          <div className="px-1">
-            {gameTasks.length > 0 ? (
-              gameTasks.map(t => <TaskItem key={t.id} task={t} />)
-            ) : (
-              <p className="text-gray-500 text-xs py-2 text-center">No tasks available</p>
-            )}
-          </div>
-        </div>
+        <TaskSection 
+          title="Game Tasks" 
+          icon={<Gamepad2 className="w-4 h-4" />}
+          iconColor="text-purple-400"
+          tasks={gameTasks}
+        />
 
-        <div className="bg-[#111] rounded-xl p-3 mb-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-4 h-4 text-blue-400" />
-            <span className="text-white text-sm font-semibold">Social Tasks</span>
-            <span className="text-gray-500 text-xs ml-auto">+{channelReward} PAD</span>
-          </div>
-          <div className="px-1">
-            {socialTasks.length > 0 ? (
-              socialTasks.map(t => <TaskItem key={t.id} task={t} />)
-            ) : (
-              <p className="text-gray-500 text-xs py-2 text-center">No tasks available</p>
-            )}
-          </div>
-        </div>
+        <TaskSection 
+          title="Social Tasks" 
+          icon={<Megaphone className="w-4 h-4" />}
+          iconColor="text-blue-400"
+          tasks={socialTasks}
+        />
 
-        <div className="bg-[#111] rounded-xl p-3 mb-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Handshake className="w-4 h-4 text-green-400" />
-            <span className="text-white text-sm font-semibold">Partner Tasks</span>
-            <span className="text-gray-500 text-xs ml-auto">+{partnerReward} PAD</span>
+        <TaskSection 
+          title="Partner Tasks" 
+          icon={<Handshake className="w-4 h-4" />}
+          iconColor="text-green-400"
+          tasks={partnerTasks}
+        />
+
+        {gameTasks.length === 0 && socialTasks.length === 0 && partnerTasks.length === 0 && (
+          <div className="bg-[#111] rounded-xl p-6 text-center">
+            <p className="text-gray-400 text-sm">No tasks available right now</p>
+            <p className="text-gray-500 text-xs mt-1">Check back later for new tasks!</p>
           </div>
-          <div className="px-1">
-            {partnerTasks.length > 0 ? (
-              partnerTasks.map(t => <TaskItem key={t.id} task={t} />)
-            ) : (
-              <p className="text-gray-500 text-xs py-2 text-center">No tasks available</p>
-            )}
-          </div>
-        </div>
+        )}
       </main>
     </Layout>
   );

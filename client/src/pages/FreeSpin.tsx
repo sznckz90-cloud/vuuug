@@ -2,9 +2,9 @@ import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Gift, Play, Users, ChevronLeft, Loader2 } from "lucide-react";
+import { Gift, Play, Users, ChevronLeft, Loader2, Sparkles, Zap } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 
 interface SpinStatus {
@@ -24,33 +24,114 @@ interface SpinReward {
   rarity: string;
 }
 
-const SEGMENTS = [
-  { label: '1', color: '#10b981' },
-  { label: '20', color: '#06b6d4' },
-  { label: '1', color: '#22c55e' },
-  { label: '200', color: '#8b5cf6' },
-  { label: '20', color: '#0ea5e9' },
-  { label: '0.01T', color: '#f97316' },
-  { label: '1', color: '#10b981' },
-  { label: '800', color: '#ec4899' },
-  { label: '20', color: '#06b6d4' },
-  { label: '1K', color: '#eab308' },
-  { label: '1', color: '#22c55e' },
-  { label: '0.1T', color: '#ef4444' },
+const SLOT_SYMBOLS = [
+  { id: 'pad1', label: '1', color: '#10b981', bgColor: 'from-emerald-600 to-emerald-700' },
+  { id: 'pad20', label: '20', color: '#06b6d4', bgColor: 'from-cyan-600 to-cyan-700' },
+  { id: 'pad200', label: '200', color: '#8b5cf6', bgColor: 'from-violet-600 to-violet-700' },
+  { id: 'pad800', label: '800', color: '#ec4899', bgColor: 'from-pink-600 to-pink-700' },
+  { id: 'pad1k', label: '1K', color: '#eab308', bgColor: 'from-yellow-600 to-yellow-700' },
+  { id: 'pad10k', label: '10K', color: '#f97316', bgColor: 'from-orange-600 to-orange-700' },
+  { id: 'ton001', label: '0.01T', color: '#3b82f6', bgColor: 'from-blue-600 to-blue-700' },
+  { id: 'ton01', label: '0.1T', color: '#ef4444', bgColor: 'from-red-600 to-red-700' },
 ];
 
+const getSymbolFromReward = (reward: SpinReward) => {
+  if (reward.type === 'TON') {
+    if (reward.amount === 0.01) return SLOT_SYMBOLS.find(s => s.id === 'ton001')!;
+    if (reward.amount === 0.1) return SLOT_SYMBOLS.find(s => s.id === 'ton01')!;
+  }
+  if (reward.amount === 1) return SLOT_SYMBOLS.find(s => s.id === 'pad1')!;
+  if (reward.amount === 20) return SLOT_SYMBOLS.find(s => s.id === 'pad20')!;
+  if (reward.amount === 200) return SLOT_SYMBOLS.find(s => s.id === 'pad200')!;
+  if (reward.amount === 800) return SLOT_SYMBOLS.find(s => s.id === 'pad800')!;
+  if (reward.amount === 1000) return SLOT_SYMBOLS.find(s => s.id === 'pad1k')!;
+  if (reward.amount === 10000) return SLOT_SYMBOLS.find(s => s.id === 'pad10k')!;
+  return SLOT_SYMBOLS[0];
+};
+
+const SlotReel = ({ 
+  spinning, 
+  finalSymbol, 
+  delay,
+  onStop
+}: { 
+  spinning: boolean; 
+  finalSymbol: typeof SLOT_SYMBOLS[0]; 
+  delay: number;
+  onStop?: () => void;
+}) => {
+  const [position, setPosition] = useState(0);
+  const [stopped, setStopped] = useState(true);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (spinning) {
+      setStopped(false);
+      let pos = 0;
+      intervalRef.current = setInterval(() => {
+        pos += 1;
+        setPosition(pos % SLOT_SYMBOLS.length);
+      }, 80);
+      
+      setTimeout(() => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        const finalIndex = SLOT_SYMBOLS.findIndex(s => s.id === finalSymbol.id);
+        setPosition(finalIndex);
+        setStopped(true);
+        onStop?.();
+      }, 2000 + delay);
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [spinning, finalSymbol, delay, onStop]);
+
+  const currentSymbol = SLOT_SYMBOLS[position];
+  
+  return (
+    <div className="relative w-20 h-24 bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] rounded-xl overflow-hidden border-2 border-yellow-500/30 shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)]">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div 
+          className={`w-16 h-20 rounded-lg bg-gradient-to-b ${currentSymbol.bgColor} flex items-center justify-center transition-all duration-100 ${
+            !stopped ? 'blur-[2px] scale-105' : 'blur-0 scale-100'
+          }`}
+        >
+          <span 
+            className="text-white font-black text-xl drop-shadow-lg"
+            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
+          >
+            {currentSymbol.label}
+          </span>
+        </div>
+      </div>
+      <div className="absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+    </div>
+  );
+};
+
 export default function FreeSpin() {
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [isSpinning, setIsSpinning] = useState(false);
-  const [rotation, setRotation] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [lastReward, setLastReward] = useState<SpinReward | null>(null);
+  const [reelsStopped, setReelsStopped] = useState([false, false, false]);
+  const [showCollect, setShowCollect] = useState(false);
+  const [isCollecting, setIsCollecting] = useState(false);
+  const [adWatchLoading, setAdWatchLoading] = useState(false);
 
-  const { data: spinStatus, isLoading: statusLoading } = useQuery<SpinStatus>({
+  const { data: spinStatus, isLoading: statusLoading, refetch: refetchSpinStatus } = useQuery<SpinStatus>({
     queryKey: ['/api/spin/status'],
-    retry: false,
+    retry: 2,
+    retryDelay: 1000,
+    enabled: !authLoading && isAuthenticated,
   });
 
   const spinMutation = useMutation({
@@ -61,12 +142,7 @@ export default function FreeSpin() {
     },
     onSuccess: (data) => {
       setLastReward(data.reward);
-      setTimeout(() => {
-        setIsSpinning(false);
-        setShowResult(true);
-        queryClient.invalidateQueries({ queryKey: ['/api/spin/status'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      }, 3000);
+      setReelsStopped([false, false, false]);
     },
     onError: (error: Error) => {
       setIsSpinning(false);
@@ -74,28 +150,143 @@ export default function FreeSpin() {
     },
   });
 
-  const adWatchMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/spin/adwatch', { method: 'POST', credentials: 'include' });
-      if (!response.ok) throw new Error((await response.json()).error);
-      return response.json();
-    },
-    onSuccess: (data) => {
+  const handleReelStop = useCallback((index: number) => {
+    setReelsStopped(prev => {
+      const newState = [...prev];
+      newState[index] = true;
+      if (newState.every(Boolean)) {
+        setTimeout(() => {
+          setIsSpinning(false);
+          setShowResult(true);
+          setShowCollect(true);
+        }, 300);
+      }
+      return newState;
+    });
+  }, []);
+
+  const handleCollectReward = async () => {
+    if (!lastReward) return;
+    
+    setIsCollecting(true);
+    
+    try {
+      const tg = window.Telegram?.WebApp as any;
+      
+      if (typeof (window as any).show_9594390 === 'function') {
+        await new Promise<void>((resolve) => {
+          (window as any).show_9594390('pop', {}, () => {
+            resolve();
+          });
+        });
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['/api/spin/status'] });
-      showNotification(data.spinEarned ? '+1 Spin!' : `${data.adsUntilNextSpin} more`, 'success');
-    },
-    onError: (error: Error) => showNotification(error.message, 'error'),
-  });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      
+      showNotification(`+${lastReward.amount} ${lastReward.type} collected!`, 'success');
+      setShowResult(false);
+      setShowCollect(false);
+      setLastReward(null);
+    } catch (error) {
+      queryClient.invalidateQueries({ queryKey: ['/api/spin/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      showNotification(`+${lastReward.amount} ${lastReward.type} collected!`, 'success');
+      setShowResult(false);
+      setShowCollect(false);
+      setLastReward(null);
+    } finally {
+      setIsCollecting(false);
+    }
+  };
+
+  const handleWatchAd = async () => {
+    if (adWatchLoading) return;
+    
+    setAdWatchLoading(true);
+    
+    try {
+      if (typeof (window as any).show_9594390 !== 'function') {
+        showNotification('Ad not available. Please try again later.', 'error');
+        setAdWatchLoading(false);
+        return;
+      }
+      
+      await new Promise<void>((resolve, reject) => {
+        (window as any).show_9594390('pop', {}, async (result: any) => {
+          if (result) {
+            try {
+              const response = await fetch('/api/spin/adwatch', { 
+                method: 'POST', 
+                credentials: 'include' 
+              });
+              
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to record ad watch');
+              }
+              
+              const data = await response.json();
+              queryClient.invalidateQueries({ queryKey: ['/api/spin/status'] });
+              
+              if (data.spinEarned) {
+                showNotification('+1 Spin earned!', 'success');
+              } else {
+                showNotification(`Ad watched! ${data.adsUntilNextSpin} more for spin`, 'success');
+              }
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          } else {
+            reject(new Error('Ad not completed'));
+          }
+        });
+      });
+    } catch (error: any) {
+      if (error.message !== 'Ad not completed') {
+        showNotification(error.message || 'Failed to watch ad', 'error');
+      }
+    } finally {
+      setAdWatchLoading(false);
+    }
+  };
 
   const handleSpin = () => {
     if (isSpinning || !spinStatus?.totalSpins) return;
     setIsSpinning(true);
     setShowResult(false);
-    setRotation(prev => prev + 360 * (4 + Math.random() * 2));
+    setShowCollect(false);
     spinMutation.mutate();
   };
 
-  if (authLoading || statusLoading) {
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="flex gap-1">
+            {[0, 150, 300].map(d => (
+              <div key={d} className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: `${d}ms` }} />
+            ))}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Layout>
+        <main className="max-w-md mx-auto px-4 pt-8 pb-16 flex flex-col items-center justify-center min-h-[60vh]">
+          <Gift className="w-16 h-16 text-yellow-500 mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Authentication Required</h2>
+          <p className="text-gray-400 text-center">Please open this app in Telegram to access Lucky Slots.</p>
+        </main>
+      </Layout>
+    );
+  }
+
+  if (statusLoading) {
     return (
       <Layout>
         <div className="min-h-screen bg-background flex items-center justify-center">
@@ -113,129 +304,200 @@ export default function FreeSpin() {
   const adsWatched = spinStatus?.spinAdsWatched || 0;
   const maxAds = spinStatus?.maxDailyAds || 50;
   const adsPerSpin = spinStatus?.adsPerSpin || 10;
-  const progress = (adsWatched % adsPerSpin) / adsPerSpin * 100;
+  const adsInCurrentCycle = adsWatched % adsPerSpin;
+  const progress = (adsInCurrentCycle / adsPerSpin) * 100;
+
+  const winningSymbol = lastReward ? getSymbolFromReward(lastReward) : SLOT_SYMBOLS[0];
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pt-2 pb-20">
+      <main className="max-w-md mx-auto px-4 pt-2 pb-16">
         <div className="flex items-center gap-2 mb-3">
           <button onClick={() => setLocation('/missions')} className="w-7 h-7 rounded-full bg-[#1a1a1a] flex items-center justify-center">
             <ChevronLeft className="w-4 h-4 text-white" />
           </button>
-          <Gift className="w-4 h-4 text-yellow-400" />
-          <span className="text-white text-base font-bold">Free Spin</span>
-          <div className="ml-auto px-2 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500/40">
-            <span className="text-yellow-400 text-xs font-bold">{spins}</span>
+          <Sparkles className="w-4 h-4 text-yellow-400" />
+          <span className="text-white text-base font-bold">Lucky Slots</span>
+          <div className="ml-auto px-3 py-1 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/40">
+            <span className="text-yellow-400 text-sm font-bold">{spins} Spins</span>
           </div>
         </div>
 
-        <div className="bg-gradient-to-b from-[#1a1a1a] to-[#111] rounded-2xl p-4 mb-3 border border-[#2a2a2a] shadow-[0_0_30px_rgba(234,179,8,0.1)]">
-          <div className="relative flex flex-col items-center">
-            <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20">
-              <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] border-t-yellow-400 drop-shadow-[0_0_4px_rgba(234,179,8,0.8)]" />
-            </div>
-            
-            <div 
-              className="w-40 h-40 rounded-full shadow-[0_0_20px_rgba(234,179,8,0.3),inset_0_0_20px_rgba(0,0,0,0.5)] overflow-hidden border-2 border-yellow-500/50"
-              style={{
-                transform: `rotate(${rotation}deg)`,
-                transition: isSpinning ? 'transform 3s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none',
-              }}
-            >
-              <svg viewBox="0 0 100 100" className="w-full h-full">
-                <defs>
-                  <radialGradient id="wheelBg" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#2a2a2a" />
-                    <stop offset="100%" stopColor="#111" />
-                  </radialGradient>
-                </defs>
-                <circle cx="50" cy="50" r="50" fill="url(#wheelBg)" />
-                {SEGMENTS.map((seg, i) => {
-                  const a = (360 / 12) * i - 90;
-                  const aEnd = a + 30;
-                  const r1 = (a * Math.PI) / 180;
-                  const r2 = (aEnd * Math.PI) / 180;
-                  const x1 = 50 + 48 * Math.cos(r1);
-                  const y1 = 50 + 48 * Math.sin(r1);
-                  const x2 = 50 + 48 * Math.cos(r2);
-                  const y2 = 50 + 48 * Math.sin(r2);
-                  const mid = a + 15;
-                  const mr = (mid * Math.PI) / 180;
-                  const tx = 50 + 32 * Math.cos(mr);
-                  const ty = 50 + 32 * Math.sin(mr);
-                  return (
-                    <g key={i}>
-                      <path d={`M 50 50 L ${x1} ${y1} A 48 48 0 0 1 ${x2} ${y2} Z`} fill={seg.color} opacity="0.9" />
-                      <text x={tx} y={ty} fill="white" fontSize="5" fontWeight="700" textAnchor="middle" dominantBaseline="middle"
-                        transform={`rotate(${mid + 90}, ${tx}, ${ty})`} style={{ textShadow: '0 1px 2px #000' }}>
-                        {seg.label}
-                      </text>
-                    </g>
-                  );
-                })}
-                <circle cx="50" cy="50" r="12" fill="#1a1a1a" stroke="#eab308" strokeWidth="2" />
-                <circle cx="50" cy="50" r="8" fill="linear-gradient(#333,#111)" />
-                <text x="50" y="51" fill="#eab308" fontSize="4" fontWeight="700" textAnchor="middle" dominantBaseline="middle">SPIN</text>
-              </svg>
+        <div className="bg-gradient-to-b from-[#1a1a1a] to-[#0d0d0d] rounded-2xl p-4 mb-3 border border-yellow-500/20 shadow-[0_0_40px_rgba(234,179,8,0.15)]">
+          <div className="text-center mb-3">
+            <h2 className="text-yellow-400 font-bold text-sm tracking-wider">SPIN TO WIN</h2>
+          </div>
+
+          <div className="relative bg-gradient-to-b from-[#2a2a2a] to-[#1a1a1a] rounded-xl p-4 border border-yellow-500/30">
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-10">
+              <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[12px] border-t-yellow-400 drop-shadow-[0_0_6px_rgba(234,179,8,0.8)]" />
             </div>
 
+            <div className="flex items-center justify-center gap-2 py-2">
+              <SlotReel 
+                spinning={isSpinning} 
+                finalSymbol={winningSymbol} 
+                delay={0}
+                onStop={() => handleReelStop(0)}
+              />
+              <SlotReel 
+                spinning={isSpinning} 
+                finalSymbol={winningSymbol} 
+                delay={300}
+                onStop={() => handleReelStop(1)}
+              />
+              <SlotReel 
+                spinning={isSpinning} 
+                finalSymbol={winningSymbol} 
+                delay={600}
+                onStop={() => handleReelStop(2)}
+              />
+            </div>
+
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-12 bg-gradient-to-r from-yellow-500/50 to-transparent rounded-r" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-12 bg-gradient-to-l from-yellow-500/50 to-transparent rounded-l" />
+          </div>
+
+          <div className="mt-4 flex justify-center">
             <Button
               onClick={handleSpin}
               disabled={isSpinning || spins === 0}
-              className={`mt-3 h-9 px-6 text-sm font-bold rounded-xl shadow-lg ${
-                isSpinning || spins === 0 ? 'bg-gray-700 text-gray-400' : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black'
+              className={`h-12 px-10 text-base font-black rounded-xl shadow-lg transition-all duration-200 ${
+                isSpinning || spins === 0 
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-yellow-500 via-orange-500 to-yellow-500 hover:from-yellow-400 hover:via-orange-400 hover:to-yellow-400 text-black hover:scale-105 active:scale-95'
               }`}
             >
-              {isSpinning ? <Loader2 className="w-4 h-4 animate-spin" /> : spins === 0 ? 'No Spins' : 'SPIN!'}
+              {isSpinning ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>SPINNING...</span>
+                </div>
+              ) : spins === 0 ? (
+                'NO SPINS'
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5" />
+                  <span>SPIN NOW!</span>
+                </div>
+              )}
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-[#111] rounded-xl p-2.5 border border-[#222]">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Play className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-white text-xs font-semibold">Watch Ads</span>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] rounded-xl p-3 border border-cyan-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                <Play className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-white text-sm font-bold">Watch Ads</span>
             </div>
-            <div className="h-1 bg-[#2a2a2a] rounded-full overflow-hidden mb-1">
-              <div className="h-full bg-cyan-500 transition-all" style={{ width: `${progress}%` }} />
+            
+            <div className="mb-2">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-gray-400">Progress</span>
+                <span className="text-cyan-400 font-bold">{adsInCurrentCycle}/{adsPerSpin}</span>
+              </div>
+              <div className="h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300 rounded-full" 
+                  style={{ width: `${progress}%` }} 
+                />
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-[10px]">{adsWatched % adsPerSpin}/{adsPerSpin}</span>
-              <Button
-                size="sm"
-                onClick={() => adWatchMutation.mutate()}
-                disabled={adWatchMutation.isPending || adsWatched >= maxAds}
-                className="h-5 px-2 text-[10px] font-semibold bg-cyan-500 hover:bg-cyan-600 text-black rounded"
-              >
-                {adWatchMutation.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Watch'}
-              </Button>
+
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-500 text-xs">Today: {adsWatched}/{maxAds}</span>
             </div>
+            
+            <Button
+              onClick={handleWatchAd}
+              disabled={adWatchLoading || adsWatched >= maxAds}
+              className="w-full h-9 text-sm font-bold bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-lg"
+            >
+              {adWatchLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : adsWatched >= maxAds ? (
+                'Daily Limit'
+              ) : (
+                'Watch Ad'
+              )}
+            </Button>
           </div>
 
-          <div className="bg-[#111] rounded-xl p-2.5 border border-[#222]">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Users className="w-3.5 h-3.5 text-green-400" />
-              <span className="text-white text-xs font-semibold">Invite</span>
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] rounded-xl p-3 border border-green-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                <Users className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-white text-sm font-bold">Invite Friends</span>
             </div>
-            <p className="text-gray-500 text-[10px] mb-1">1 friend = 1 spin</p>
-            <p className="text-green-400 text-xs font-bold">{spinStatus?.inviteSpinsEarned || 0} earned</p>
+            
+            <p className="text-gray-400 text-xs mb-2">
+              Invite a friend who watches 1+ ad = 1 free spin!
+            </p>
+            
+            <div className="bg-[#0a0a0a] rounded-lg p-2 text-center">
+              <span className="text-green-400 text-lg font-bold">{spinStatus?.inviteSpinsEarned || 0}</span>
+              <span className="text-gray-500 text-xs block">spins earned</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 bg-[#111] rounded-xl p-3 border border-[#222]">
+          <h3 className="text-white text-sm font-bold mb-2 text-center">Possible Rewards</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {SLOT_SYMBOLS.map((symbol) => (
+              <div 
+                key={symbol.id} 
+                className={`bg-gradient-to-b ${symbol.bgColor} rounded-lg p-2 text-center`}
+              >
+                <span className="text-white text-xs font-bold">{symbol.label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
         {showResult && lastReward && (
-          <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-4" onClick={() => setShowResult(false)}>
-            <div className="bg-gradient-to-b from-[#1f1f1f] to-[#111] rounded-2xl p-5 text-center border border-yellow-500/30 w-full max-w-[260px]" onClick={e => e.stopPropagation()}>
-              <div className="text-3xl mb-1">{lastReward.rarity === 'ultra_rare' ? '🌟' : lastReward.rarity === 'rare' ? '✨' : '🎉'}</div>
-              <p className="text-white text-sm font-bold mb-0.5">
-                {lastReward.rarity === 'ultra_rare' ? 'JACKPOT!' : lastReward.rarity === 'rare' ? 'Nice Win!' : 'You Won!'}
+          <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+            <div 
+              className="bg-gradient-to-b from-[#1f1f1f] to-[#111] rounded-2xl p-6 text-center border-2 border-yellow-500/50 w-full max-w-[300px] shadow-[0_0_60px_rgba(234,179,8,0.3)]"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-5xl mb-3 animate-bounce">
+                {lastReward.rarity === 'ultra_rare' ? '🌟' : lastReward.rarity === 'rare' ? '✨' : '🎉'}
+              </div>
+              
+              <p className="text-white text-xl font-black mb-1">
+                {lastReward.rarity === 'ultra_rare' ? 'JACKPOT!' : lastReward.rarity === 'rare' ? 'BIG WIN!' : 'YOU WON!'}
               </p>
-              <p className={`text-xl font-bold mb-3 ${lastReward.type === 'TON' ? 'text-orange-400' : 'text-cyan-400'}`}>
+              
+              <div className={`text-3xl font-black mb-4 ${
+                lastReward.type === 'TON' ? 'text-orange-400' : 'text-cyan-400'
+              }`}>
                 +{lastReward.amount} {lastReward.type}
-              </p>
-              <Button onClick={() => setShowResult(false)} className="h-8 px-5 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-lg text-sm">
-                Awesome!
-              </Button>
+              </div>
+
+              {showCollect && (
+                <Button 
+                  onClick={handleCollectReward}
+                  disabled={isCollecting}
+                  className="w-full h-12 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-black text-lg rounded-xl shadow-lg"
+                >
+                  {isCollecting ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Collecting...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2">
+                      <Gift className="w-5 h-5" />
+                      <span>Collect Reward</span>
+                    </div>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         )}
