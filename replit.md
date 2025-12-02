@@ -75,6 +75,12 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Safe Area Support**: Proper padding for notched devices using `env(safe-area-inset-*)
 - **Touch Optimization**: Disabled tap highlight and prevented accidental zooming
 
+### Bug Fixes (December 2025)
+- **Withdrawal UI Loading States**: Added `isLoadingRequirements` flag to prevent "locked" state flashing before data loads
+- **Ad Watch Updates**: Query invalidation for `/api/withdrawal-eligibility` and `/api/referrals/valid-count` after ad completion
+- **Referral Stats Consistency**: `/api/referrals/stats` now returns valid referral count (users who watched 1+ ads, not banned)
+- **Ad Watch Section**: Simplified to Monetag-only flow for faster ad loading and instant rewards
+
 ### Auto-Ban System (November 2025)
 - **Detection Triggers**: 
   - Multiple accounts on same device ID
