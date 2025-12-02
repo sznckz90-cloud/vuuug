@@ -49,7 +49,7 @@ export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEn
                   </
                 ) : (
                   <>
-                    Thank you for patient ! We're preparing exciting new features and rewards for Season 3. Stay tuned for announcements!
+                    Thank you for patient ! We're preparing exciting new features and rewards. Stay tuned for announcements!
                   </>
                 )}
               </p>
