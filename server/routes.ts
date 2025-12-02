@@ -15,7 +15,10 @@ import {
   transactions,
   adminSettings,
   advertiserTasks,
-  taskClicks
+  taskClicks,
+  spinData,
+  spinHistory,
+  dailyMissions
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
@@ -6018,6 +6021,545 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
     } catch (error) {
       console.error('❌ Webhook processing error:', error);
       res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
+  // ==================== FREE SPIN SYSTEM ====================
+
+  // Helper function to get today's date as YYYY-MM-DD
+  const getTodayDate = () => {
+    const now = new Date();
+    return now.toISOString().split('T')[0];
+  };
+
+  // Spin reward configuration - heavily biased toward low rewards
+  const SPIN_REWARDS = [
+    { type: 'PAD', amount: 1, rarity: 'common', weight: 400 },      // VERY HIGH CHANCE
+    { type: 'PAD', amount: 20, rarity: 'common', weight: 350 },     // VERY HIGH CHANCE
+    { type: 'PAD', amount: 200, rarity: 'rare', weight: 15 },       // VERY LOW CHANCE
+    { type: 'PAD', amount: 800, rarity: 'rare', weight: 8 },        // VERY LOW CHANCE
+    { type: 'PAD', amount: 1000, rarity: 'rare', weight: 3 },       // EXTREMELY LOW CHANCE
+    { type: 'PAD', amount: 10000, rarity: 'ultra_rare', weight: 1 }, // EXTREMELY LOW CHANCE
+    { type: 'TON', amount: 0.01, rarity: 'rare', weight: 5 },       // VERY LOW CHANCE
+    { type: 'TON', amount: 0.10, rarity: 'ultra_rare', weight: 1 }, // EXTREMELY LOW CHANCE
+  ];
+
+  // Weighted random selection
+  const selectSpinReward = () => {
+    const totalWeight = SPIN_REWARDS.reduce((sum, r) => sum + r.weight, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (const reward of SPIN_REWARDS) {
+      random -= reward.weight;
+      if (random <= 0) {
+        return reward;
+      }
+    }
+    return SPIN_REWARDS[0]; // Fallback to lowest reward
+  };
+
+  // GET /api/spin/status - Returns spin availability and counters
+  app.get('/api/spin/status', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+
+      // Get or create spin data for user
+      let spinDataResult = await db.query.spinData.findFirst({
+        where: eq(spinData.userId, userId),
+      }) as any;
+
+      // Check if we need to reset for new day
+      if (spinDataResult && spinDataResult.lastSpinDate !== today) {
+        // Reset daily values
+        await db.update(spinData).set({
+          freeSpinUsed: false,
+          spinAdsWatched: 0,
+          lastSpinDate: today,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+        
+        spinDataResult = {
+          ...spinDataResult,
+          freeSpinUsed: false,
+          spinAdsWatched: 0,
+          lastSpinDate: today,
+        };
+      }
+
+      if (!spinDataResult) {
+        // Create new spin data
+        await db.insert(spinData).values({
+          userId,
+          freeSpinUsed: false,
+          extraSpins: 0,
+          spinAdsWatched: 0,
+          inviteSpinsEarned: 0,
+          lastSpinDate: today,
+        });
+        spinDataResult = {
+          freeSpinUsed: false,
+          extraSpins: 0,
+          spinAdsWatched: 0,
+          inviteSpinsEarned: 0,
+          lastSpinDate: today,
+        };
+      }
+
+      // Calculate total available spins
+      const freeSpinAvailable = !spinDataResult.freeSpinUsed;
+      const extraSpins = spinDataResult.extraSpins || 0;
+      const totalSpins = (freeSpinAvailable ? 1 : 0) + extraSpins;
+
+      res.json({
+        success: true,
+        freeSpinAvailable,
+        extraSpins,
+        totalSpins,
+        spinAdsWatched: spinDataResult.spinAdsWatched || 0,
+        maxDailyAds: 50,
+        adsPerSpin: 10,
+        inviteSpinsEarned: spinDataResult.inviteSpinsEarned || 0,
+      });
+    } catch (error) {
+      console.error('❌ Error getting spin status:', error);
+      res.status(500).json({ error: 'Failed to get spin status' });
+    }
+  });
+
+  // POST /api/spin/use - Spin the wheel
+  app.post('/api/spin/use', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+
+      // Get spin data
+      let spinDataResult = await db.query.spinData.findFirst({
+        where: eq(spinData.userId, userId),
+      }) as any;
+
+      // Check daily reset
+      if (spinDataResult && spinDataResult.lastSpinDate !== today) {
+        await db.update(spinData).set({
+          freeSpinUsed: false,
+          spinAdsWatched: 0,
+          lastSpinDate: today,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+        
+        spinDataResult = {
+          ...spinDataResult,
+          freeSpinUsed: false,
+          spinAdsWatched: 0,
+          lastSpinDate: today,
+        };
+      }
+
+      if (!spinDataResult) {
+        return res.status(400).json({ error: 'No spin data found' });
+      }
+
+      const freeSpinAvailable = !spinDataResult.freeSpinUsed;
+      const extraSpins = spinDataResult.extraSpins || 0;
+
+      // Check if user has any spins available
+      if (!freeSpinAvailable && extraSpins <= 0) {
+        return res.status(400).json({ error: 'No spins available' });
+      }
+
+      // Select reward
+      const reward = selectSpinReward();
+      let spinType = 'free';
+
+      // Deduct spin
+      if (freeSpinAvailable) {
+        await db.update(spinData).set({
+          freeSpinUsed: true,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+        spinType = 'free';
+      } else {
+        await db.update(spinData).set({
+          extraSpins: extraSpins - 1,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+        spinType = 'extra';
+      }
+
+      // Credit reward to user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (reward.type === 'PAD') {
+        const currentBalance = parseFloat(user.balance?.toString() || '0');
+        const newBalance = currentBalance + reward.amount;
+        await db.update(users).set({
+          balance: newBalance.toString(),
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId));
+      } else if (reward.type === 'TON') {
+        const currentTon = parseFloat(user.tonBalance?.toString() || '0');
+        const newTon = currentTon + reward.amount;
+        await db.update(users).set({
+          tonBalance: newTon.toString(),
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId));
+      }
+
+      // Record spin history
+      await db.insert(spinHistory).values({
+        userId,
+        rewardType: reward.type,
+        rewardAmount: reward.amount.toString(),
+        spinType,
+      });
+
+      // Record transaction
+      await db.insert(transactions).values({
+        userId,
+        amount: reward.amount.toString(),
+        type: 'addition',
+        source: 'spin_reward',
+        description: `Free Spin Reward: ${reward.amount} ${reward.type}`,
+        metadata: { spinType, rarity: reward.rarity },
+      });
+
+      res.json({
+        success: true,
+        reward: {
+          type: reward.type,
+          amount: reward.amount,
+          rarity: reward.rarity,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error using spin:', error);
+      res.status(500).json({ error: 'Failed to use spin' });
+    }
+  });
+
+  // POST /api/spin/adwatch - Watch ad to earn spins
+  app.post('/api/spin/adwatch', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+
+      // Get or create spin data
+      let spinDataResult = await db.query.spinData.findFirst({
+        where: eq(spinData.userId, userId),
+      }) as any;
+
+      // Check daily reset
+      if (spinDataResult && spinDataResult.lastSpinDate !== today) {
+        await db.update(spinData).set({
+          freeSpinUsed: false,
+          spinAdsWatched: 0,
+          lastSpinDate: today,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+        
+        spinDataResult = {
+          ...spinDataResult,
+          freeSpinUsed: false,
+          spinAdsWatched: 0,
+          lastSpinDate: today,
+        };
+      }
+
+      if (!spinDataResult) {
+        await db.insert(spinData).values({
+          userId,
+          freeSpinUsed: false,
+          extraSpins: 0,
+          spinAdsWatched: 0,
+          inviteSpinsEarned: 0,
+          lastSpinDate: today,
+        });
+        spinDataResult = {
+          freeSpinUsed: false,
+          extraSpins: 0,
+          spinAdsWatched: 0,
+          inviteSpinsEarned: 0,
+          lastSpinDate: today,
+        };
+      }
+
+      const currentAdsWatched = spinDataResult.spinAdsWatched || 0;
+      const maxAds = 50;
+
+      // Check if max ads reached
+      if (currentAdsWatched >= maxAds) {
+        return res.status(400).json({ 
+          error: 'Maximum daily ads reached',
+          adsWatched: currentAdsWatched,
+          maxAds,
+        });
+      }
+
+      // Increment ad counter
+      const newAdsWatched = currentAdsWatched + 1;
+      let newExtraSpins = spinDataResult.extraSpins || 0;
+      let spinEarned = false;
+
+      // Check if 10 ads reached - grant extra spin
+      if (newAdsWatched % 10 === 0) {
+        newExtraSpins += 1;
+        spinEarned = true;
+      }
+
+      await db.update(spinData).set({
+        spinAdsWatched: newAdsWatched,
+        extraSpins: newExtraSpins,
+        updatedAt: new Date(),
+      }).where(eq(spinData.userId, userId));
+
+      res.json({
+        success: true,
+        adsWatched: newAdsWatched,
+        maxAds,
+        spinEarned,
+        extraSpins: newExtraSpins,
+        adsUntilNextSpin: 10 - (newAdsWatched % 10),
+      });
+    } catch (error) {
+      console.error('❌ Error recording spin ad watch:', error);
+      res.status(500).json({ error: 'Failed to record ad watch' });
+    }
+  });
+
+  // POST /api/spin/invite - Grant spin for verified invite (called when referral is verified)
+  app.post('/api/spin/invite', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+
+      // Get or create spin data
+      let spinDataResult = await db.query.spinData.findFirst({
+        where: eq(spinData.userId, userId),
+      }) as any;
+
+      if (!spinDataResult) {
+        await db.insert(spinData).values({
+          userId,
+          freeSpinUsed: false,
+          extraSpins: 1, // Start with the bonus spin
+          spinAdsWatched: 0,
+          inviteSpinsEarned: 1,
+          lastSpinDate: today,
+        });
+      } else {
+        await db.update(spinData).set({
+          extraSpins: (spinDataResult.extraSpins || 0) + 1,
+          inviteSpinsEarned: (spinDataResult.inviteSpinsEarned || 0) + 1,
+          updatedAt: new Date(),
+        }).where(eq(spinData.userId, userId));
+      }
+
+      res.json({
+        success: true,
+        message: 'Spin earned from verified invite!',
+      });
+    } catch (error) {
+      console.error('❌ Error granting invite spin:', error);
+      res.status(500).json({ error: 'Failed to grant invite spin' });
+    }
+  });
+
+  // ==================== DAILY MISSIONS ====================
+
+  // GET /api/missions/status - Get daily mission completion status
+  app.get('/api/missions/status', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+
+      // Get mission completion status
+      const missions = await db.query.dailyMissions.findMany({
+        where: and(
+          eq(dailyMissions.userId, userId),
+          eq(dailyMissions.resetDate, today)
+        ),
+      });
+
+      const shareStoryMission = missions.find(m => m.missionType === 'share_story');
+      const dailyCheckinMission = missions.find(m => m.missionType === 'daily_checkin');
+
+      res.json({
+        success: true,
+        shareStory: {
+          completed: shareStoryMission?.completed || false,
+          claimed: !!shareStoryMission?.claimedAt,
+        },
+        dailyCheckin: {
+          completed: dailyCheckinMission?.completed || false,
+          claimed: !!dailyCheckinMission?.claimedAt,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error getting mission status:', error);
+      res.status(500).json({ error: 'Failed to get mission status' });
+    }
+  });
+
+  // POST /api/missions/share-story/claim - Claim share story reward
+  app.post('/api/missions/share-story/claim', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+      const reward = 5; // 5 PAD
+
+      // Check if already claimed
+      const existingMission = await db.query.dailyMissions.findFirst({
+        where: and(
+          eq(dailyMissions.userId, userId),
+          eq(dailyMissions.missionType, 'share_story'),
+          eq(dailyMissions.resetDate, today)
+        ),
+      });
+
+      if (existingMission?.claimedAt) {
+        return res.status(400).json({ error: 'Already claimed today' });
+      }
+
+      // Create or update mission record
+      if (existingMission) {
+        await db.update(dailyMissions).set({
+          completed: true,
+          claimedAt: new Date(),
+        }).where(eq(dailyMissions.id, existingMission.id));
+      } else {
+        await db.insert(dailyMissions).values({
+          userId,
+          missionType: 'share_story',
+          completed: true,
+          claimedAt: new Date(),
+          resetDate: today,
+        });
+      }
+
+      // Add reward to user balance
+      const user = await storage.getUser(userId);
+      if (user) {
+        const currentBalance = parseFloat(user.balance?.toString() || '0');
+        await db.update(users).set({
+          balance: (currentBalance + reward).toString(),
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId));
+      }
+
+      // Record transaction
+      await db.insert(transactions).values({
+        userId,
+        amount: reward.toString(),
+        type: 'addition',
+        source: 'mission_share_story',
+        description: 'Share Story Mission Reward',
+      });
+
+      res.json({
+        success: true,
+        reward,
+        message: `You earned ${reward} PAD!`,
+      });
+    } catch (error) {
+      console.error('❌ Error claiming share story reward:', error);
+      res.status(500).json({ error: 'Failed to claim reward' });
+    }
+  });
+
+  // POST /api/missions/daily-checkin/claim - Claim daily check-in reward
+  app.post('/api/missions/daily-checkin/claim', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+      const reward = 5; // 5 PAD
+
+      // Check if already claimed
+      const existingMission = await db.query.dailyMissions.findFirst({
+        where: and(
+          eq(dailyMissions.userId, userId),
+          eq(dailyMissions.missionType, 'daily_checkin'),
+          eq(dailyMissions.resetDate, today)
+        ),
+      });
+
+      if (existingMission?.claimedAt) {
+        return res.status(400).json({ error: 'Already checked in today' });
+      }
+
+      // Create or update mission record
+      if (existingMission) {
+        await db.update(dailyMissions).set({
+          completed: true,
+          claimedAt: new Date(),
+        }).where(eq(dailyMissions.id, existingMission.id));
+      } else {
+        await db.insert(dailyMissions).values({
+          userId,
+          missionType: 'daily_checkin',
+          completed: true,
+          claimedAt: new Date(),
+          resetDate: today,
+        });
+      }
+
+      // Add reward to user balance
+      const user = await storage.getUser(userId);
+      if (user) {
+        const currentBalance = parseFloat(user.balance?.toString() || '0');
+        await db.update(users).set({
+          balance: (currentBalance + reward).toString(),
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId));
+      }
+
+      // Record transaction
+      await db.insert(transactions).values({
+        userId,
+        amount: reward.toString(),
+        type: 'addition',
+        source: 'mission_daily_checkin',
+        description: 'Daily Check-in Mission Reward',
+      });
+
+      res.json({
+        success: true,
+        reward,
+        message: `You earned ${reward} PAD!`,
+      });
+    } catch (error) {
+      console.error('❌ Error claiming daily check-in reward:', error);
+      res.status(500).json({ error: 'Failed to claim reward' });
     }
   });
 
