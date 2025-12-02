@@ -87,8 +87,8 @@ export default function Withdraw() {
   const { data: validReferralData, isLoading: isLoadingReferrals, isFetched: isReferralsFetched } = useQuery<{ validReferralCount: number }>({
     queryKey: ['/api/referrals/valid-count'],
     retry: false,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const walletChangeFee = appSettings?.walletChangeFee || 5000;
@@ -106,8 +106,8 @@ export default function Withdraw() {
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
     retry: false,
-    refetchOnMount: 'always',
-    staleTime: 0,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
   
   const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal ?? (user as any)?.adsWatchedSinceLastWithdrawal ?? 0;

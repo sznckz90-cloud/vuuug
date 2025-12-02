@@ -61,8 +61,9 @@ export default function Missions() {
   const [claimReadyTasks, setClaimReadyTasks] = useState<Set<string>>(new Set());
   const [countdownTasks, setCountdownTasks] = useState<Map<string, number>>(new Map());
   
-  const [shareStoryStep, setShareStoryStep] = useState<'idle' | 'shared' | 'claiming'>('idle');
-  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'visited' | 'claiming'>('idle');
+  const [shareWithFriendsStep, setShareWithFriendsStep] = useState<'idle' | 'sharing' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [shareCountdown, setShareCountdown] = useState(3);
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'loading' | 'ready' | 'claiming'>('idle');
 
   const { data: missionStatus, refetch: refetchMissions } = useQuery<{ success: boolean } & MissionStatus>({
     queryKey: ['/api/missions/status'],
@@ -79,7 +80,18 @@ export default function Missions() {
     retry: false,
   });
 
-  const shareStoryMutation = useMutation({
+  const { data: user } = useQuery<{ referralCode?: string }>({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+    staleTime: 30000,
+  });
+
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+  const referralLink = user?.referralCode 
+    ? `https://t.me/${botUsername}?start=${user.referralCode}`
+    : '';
+
+  const shareWithFriendsMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch('/api/missions/share-story/claim', {
         method: 'POST',
@@ -90,13 +102,13 @@ export default function Missions() {
     },
     onSuccess: (data) => {
       showNotification(`+${data.reward} PAD claimed!`, 'success');
-      setShareStoryStep('idle');
+      setShareWithFriendsStep('idle');
       queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     },
     onError: (error: Error) => {
       showNotification(error.message, 'error');
-      setShareStoryStep('idle');
+      setShareWithFriendsStep('idle');
     },
   });
 
@@ -148,37 +160,71 @@ export default function Missions() {
     },
   });
 
-  const handleShareStory = useCallback(() => {
-    if (missionStatus?.shareStory?.claimed) return;
+  const handleShareWithFriends = useCallback(() => {
+    if (missionStatus?.shareStory?.claimed || !referralLink) return;
     
-    const tg = window.Telegram?.WebApp as any;
-    if (tg?.shareToStory) {
-      tg.shareToStory('https://t.me/CashWatchBot', {
-        widget_link: {
-          url: 'https://t.me/CashWatchBot',
-          name: 'Join CashWatch'
-        }
-      });
+    setShareWithFriendsStep('sharing');
+    
+    const shareText = `Earn PAD in Telegram!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+    
+    const tgWebApp = window.Telegram?.WebApp as any;
+    if (tgWebApp?.openTelegramLink) {
+      tgWebApp.openTelegramLink(shareUrl);
+    } else if (tgWebApp?.switchInlineQuery) {
+      tgWebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
+    } else if (navigator.share) {
+      navigator.share({
+        title: 'Join CashWatch',
+        text: shareText,
+        url: referralLink,
+      }).catch(() => {});
+    } else {
+      window.open(shareUrl, '_blank');
     }
-    setShareStoryStep('shared');
-  }, [missionStatus?.shareStory?.claimed]);
+    
+    setShareWithFriendsStep('countdown');
+    setShareCountdown(3);
+    
+    const countdownInterval = setInterval(() => {
+      setShareCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setShareWithFriendsStep('ready');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [missionStatus?.shareStory?.claimed, referralLink]);
 
-  const handleClaimShareStory = useCallback(() => {
-    if (shareStoryMutation.isPending) return;
-    setShareStoryStep('claiming');
-    shareStoryMutation.mutate();
-  }, [shareStoryMutation]);
+  const handleClaimShareWithFriends = useCallback(() => {
+    if (shareWithFriendsMutation.isPending) return;
+    setShareWithFriendsStep('claiming');
+    shareWithFriendsMutation.mutate();
+  }, [shareWithFriendsMutation]);
 
-  const handleDailyCheckin = useCallback(() => {
+  const handleDailyCheckin = useCallback(async () => {
     if (missionStatus?.dailyCheckin?.claimed) return;
     
-    const channelUrl = 'https://t.me/PaidAdsNews';
-    if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(channelUrl);
-    } else {
-      window.open(channelUrl, '_blank');
+    setDailyCheckinStep('loading');
+    
+    try {
+      const response = await fetch('/api/missions/checkin', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        setDailyCheckinStep('ready');
+      } else {
+        setDailyCheckinStep('idle');
+        showNotification('Check-in failed. Try again.', 'error');
+      }
+    } catch (error) {
+      setDailyCheckinStep('idle');
+      showNotification('Check-in failed. Try again.', 'error');
     }
-    setDailyCheckinStep('visited');
   }, [missionStatus?.dailyCheckin?.claimed]);
 
   const handleClaimDailyCheckin = useCallback(() => {
@@ -363,30 +409,38 @@ export default function Missions() {
           <div className="space-y-2">
             <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
-                  <Share2 className="w-4 h-4 text-white" />
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-white text-sm font-medium">Share Story</p>
-                  <p className="text-pink-400 text-xs font-bold">+5 PAD</p>
+                  <p className="text-white text-sm font-medium">Share with Friends</p>
+                  <p className="text-green-400 text-xs font-bold">+5 PAD</p>
                 </div>
               </div>
               {missionStatus?.shareStory?.claimed ? (
                 <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                   <Check className="w-4 h-4 text-green-400" />
                 </div>
-              ) : shareStoryStep === 'shared' ? (
+              ) : shareWithFriendsStep === 'countdown' ? (
                 <Button
-                  onClick={handleClaimShareStory}
-                  disabled={shareStoryMutation.isPending}
+                  disabled={true}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                >
+                  {shareCountdown}s
+                </Button>
+              ) : shareWithFriendsStep === 'ready' || shareWithFriendsStep === 'claiming' ? (
+                <Button
+                  onClick={handleClaimShareWithFriends}
+                  disabled={shareWithFriendsMutation.isPending}
                   className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
                 >
-                  {shareStoryMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
                 </Button>
               ) : (
                 <Button
-                  onClick={handleShareStory}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-pink-500 hover:bg-pink-600 text-white"
+                  onClick={handleShareWithFriends}
+                  disabled={!referralLink}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
                 >
                   Share
                 </Button>
@@ -407,7 +461,14 @@ export default function Missions() {
                 <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                   <Check className="w-4 h-4 text-green-400" />
                 </div>
-              ) : dailyCheckinStep === 'visited' ? (
+              ) : dailyCheckinStep === 'loading' ? (
+                <Button
+                  disabled={true}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                >
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                </Button>
+              ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
                 <Button
                   onClick={handleClaimDailyCheckin}
                   disabled={dailyCheckinMutation.isPending}

@@ -33,16 +33,22 @@ export default function Affiliates() {
   const { data: user, isLoading: userLoading } = useQuery<User>({
     queryKey: ['/api/auth/user'],
     retry: false,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<ReferralStats>({
     queryKey: ['/api/referrals/stats'],
     retry: false,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: appSettings } = useQuery<AppSettings>({
     queryKey: ['/api/app-settings'],
     retry: false,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   const claimMutation = useMutation({
