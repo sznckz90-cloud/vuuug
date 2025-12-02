@@ -696,9 +696,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Partner task reward
       const partnerTaskReward = parseInt(getSetting('partner_task_reward', '5')); // Partner task reward in PAD
       
-      // Withdrawal ad requirement settings
+      // Withdrawal requirement settings
       const withdrawalAdRequirementEnabled = getSetting('withdrawal_ad_requirement_enabled', 'true') === 'true';
       const minimumAdsForWithdrawal = parseInt(getSetting('minimum_ads_for_withdrawal', '100'));
+      const withdrawalInviteRequirementEnabled = getSetting('withdrawal_invite_requirement_enabled', 'true') === 'true';
+      const minimumInvitesForWithdrawal = parseInt(getSetting('minimum_invites_for_withdrawal', '3'));
       
       // Legacy compatibility - keep old values for backwards compatibility
       const taskCostPerClick = channelTaskCostUSD; // Use channel cost as default
@@ -741,9 +743,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         partnerTaskReward,
         channelTaskReward: channelTaskRewardPAD,
         botTaskReward: botTaskRewardPAD,
-        // Withdrawal ad requirement settings
+        // Withdrawal requirement settings
         withdrawalAdRequirementEnabled,
         minimumAdsForWithdrawal,
+        withdrawalInviteRequirementEnabled,
+        minimumInvitesForWithdrawal,
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -1078,10 +1082,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       const user = await storage.getUser(userId);
-      const referrals = await storage.getUserReferrals(userId);
+      const allReferrals = await storage.getUserReferrals(userId);
+      const validReferralCount = await storage.getValidReferralCount(userId);
       
       res.json({
-        totalInvites: referrals.length,
+        totalInvites: validReferralCount,
+        allInvites: allReferrals.length,
         totalClaimed: user?.totalClaimedReferralBonus || '0',
         availableBonus: user?.pendingReferralBonus || '0',
         readyToClaim: user?.pendingReferralBonus || '0',
@@ -2184,9 +2190,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         streakReward: parseInt(getSetting('streak_reward', '100')),
         shareTaskReward: parseInt(getSetting('share_task_reward', '1000')),
         communityTaskReward: parseInt(getSetting('community_task_reward', '1000')),
-        // Withdrawal ad requirement
+        // Withdrawal requirements
         withdrawalAdRequirementEnabled: getSetting('withdrawal_ad_requirement_enabled', 'true') === 'true',
         minimumAdsForWithdrawal: parseInt(getSetting('minimum_ads_for_withdrawal', '100')),
+        withdrawalInviteRequirementEnabled: getSetting('withdrawal_invite_requirement_enabled', 'true') === 'true',
+        minimumInvitesForWithdrawal: parseInt(getSetting('minimum_invites_for_withdrawal', '3')),
         // Legacy fields for backwards compatibility
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
         taskPerClickReward: parseInt(getSetting('channel_task_reward', '30')),
@@ -2226,9 +2234,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         streakReward,
         shareTaskReward,
         communityTaskReward,
-        // Withdrawal ad requirement
+        // Withdrawal requirements
         withdrawalAdRequirementEnabled,
-        minimumAdsForWithdrawal
+        minimumAdsForWithdrawal,
+        withdrawalInviteRequirementEnabled,
+        minimumInvitesForWithdrawal
       } = req.body;
       
       // Helper function to update a setting
@@ -2269,9 +2279,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('share_task_reward', shareTaskReward);
       await updateSetting('community_task_reward', communityTaskReward);
       
-      // Withdrawal ad requirement
+      // Withdrawal requirements
       await updateSetting('withdrawal_ad_requirement_enabled', withdrawalAdRequirementEnabled);
       await updateSetting('minimum_ads_for_withdrawal', minimumAdsForWithdrawal);
+      await updateSetting('withdrawal_invite_requirement_enabled', withdrawalInviteRequirementEnabled);
+      await updateSetting('minimum_invites_for_withdrawal', minimumInvitesForWithdrawal);
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
