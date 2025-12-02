@@ -306,7 +306,7 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
         },
         {
           text: "💬 Group Chat",
-          url: "https://t.me/PaidADsChat"
+          url: "https://t.me/PaidAdsCommunity"
         }
       ],
       [
