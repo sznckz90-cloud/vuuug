@@ -52,6 +52,8 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/withdrawal-eligibility"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/referrals/valid-count"] });
     },
     onError: (error: any) => {
       sessionRewardedRef.current = false;
@@ -115,43 +117,29 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     sessionRewardedRef.current = false;
     
     try {
-      // STEP 1: Show Monetag ad first - User must watch at least 3 seconds
+      // STEP 1: Show Monetag ad only - User must watch at least 3 seconds
       setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
       // Handle Monetag unavailable
       if (monetagResult.unavailable) {
-        showNotification("Monetag ads not available. Please try again later.", "error");
+        showNotification("Ads not available. Please try again later.", "error");
         return;
       }
       
       // Check if Monetag was closed before 3 seconds
       if (!monetagResult.watchedFully) {
         showNotification("Claimed too fast!", "error");
-        // Do NOT show AdGram, do NOT give reward, end process
         return;
       }
       
-      // Monetag was watched fully (at least 3 seconds), continue to Step 2
+      // Monetag was watched fully (at least 3 seconds)
       if (!monetagResult.success) {
-        showNotification("Monetag ad failed. Please try again.", "error");
+        showNotification("Ad failed. Please try again.", "error");
         return;
       }
       
-      // Small delay between ads (500ms)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // STEP 2: Show AdGram ad - Must also be watched completely
-      setCurrentAdStep('adsgram');
-      const adsgramSuccess = await showAdsgramAd();
-      
-      // STEP 3: Reward Logic - ONLY if BOTH Monetag AND AdGram complete
-      if (!monetagResult.success || !adsgramSuccess) {
-        showNotification("Both ads must be watched completely to earn reward.", "error");
-        return;
-      }
-      
-      // STEP 4: Grant ONE reward only (progress increases one time only)
+      // STEP 2: Grant reward immediately after Monetag completion
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
@@ -201,8 +189,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
                   <Clock size={16} className="animate-spin" />
                 )}
                 <span className="text-sm font-semibold">
-                  {currentAdStep === 'monetag' ? 'Showing Monetag...' : 
-                   currentAdStep === 'adsgram' ? 'Showing AdGram...' : 
+                  {currentAdStep === 'monetag' ? 'Showing Ad...' : 
                    currentAdStep === 'verifying' ? 'Verifying...' : 'Loading...'}
                 </span>
               </>
