@@ -32,12 +32,12 @@ export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEn
         <div className="bg-gradient-to-br from-orange-500 to-yellow-500 rounded-3xl p-8 shadow-2xl">
           <div className="text-center">
             <div className="mb-6">
-              <div className="text-6xl mb-4">⚠️</div>
+              <div className="text-6xl mb-4">⚒️</div>
               <h1 className="text-3xl font-bold text-white mb-2">
-                Season 2 Airdrop Ended
+                Paid Adz under maintenance
               </h1>
               <p className="text-xl text-white/90 font-semibold">
-                Season 3 is Coming Soon!
+                We will Come back Soon!
               </p>
             </div>
 
@@ -45,11 +45,11 @@ export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEn
               <p className="text-white text-sm leading-relaxed">
                 {isLocked ? (
                   <>
-                    Season 2 has ended and the app is temporarily locked. Please wait for Season 3 announcement. The app will be available again once Season 3 begins.
-                  </>
+                    Paid Adz is under maintenance and the app is temporarily locked. Please wait for  announcement. The app will be available again once update complete.
+                  </
                 ) : (
                   <>
-                    Thank you for participating in Season 2! We're preparing exciting new features and rewards for Season 3. Stay tuned for announcements!
+                    Thank you for patient ! We're preparing exciting new features and rewards for Season 3. Stay tuned for announcements!
                   </>
                 )}
               </p>
