@@ -84,32 +84,43 @@ export default function Withdraw() {
   });
 
   // Fetch valid referral count (friends who watched at least 1 ad)
-  const { data: validReferralData } = useQuery<{ validReferralCount: number }>({
+  const { data: validReferralData, isLoading: isLoadingReferrals, isFetched: isReferralsFetched } = useQuery<{ validReferralCount: number }>({
     queryKey: ['/api/referrals/valid-count'],
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const walletChangeFee = appSettings?.walletChangeFee || 5000;
   const padBalance = parseFloat(user?.balance || "0");
   const usdBalance = parseFloat(user?.usdBalance || "0");
-  const validReferralCount = validReferralData?.validReferralCount || 0;
-  const MINIMUM_VALID_REFERRALS_REQUIRED = 3;
+  const validReferralCount = validReferralData?.validReferralCount ?? 0;
   
-  // Dynamic withdrawal ad requirement from backend
+  // Dynamic withdrawal requirements from admin settings
   const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled !== false;
   const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal || 100;
+  const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled !== false;
+  const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal || 3;
   
   // Fetch ads watched since last withdrawal
-  const { data: withdrawalEligibility } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
+  const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
     retry: false,
-    refetchOnMount: true,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
   
-  const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal || (user as any)?.adsWatchedSinceLastWithdrawal || 0;
+  const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal ?? (user as any)?.adsWatchedSinceLastWithdrawal ?? 0;
+  
+  // Check if requirement data is still loading (only check relevant queries based on enabled requirements)
+  const isLoadingAdRequirement = withdrawalAdRequirementEnabled && (!isEligibilityFetched || isLoadingEligibility);
+  const isLoadingInviteRequirement = withdrawalInviteRequirementEnabled && (!isReferralsFetched || isLoadingReferrals);
+  const isLoadingRequirements = isLoadingAdRequirement || isLoadingInviteRequirement;
+  
   // If ad requirement is disabled, user always passes; otherwise check if they watched enough ads
   const hasWatchedEnoughAds = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
-  const hasEnoughReferrals = validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
+  // If invite requirement is disabled, user always passes; otherwise check if they have enough referrals
+  const hasEnoughReferrals = !withdrawalInviteRequirementEnabled || validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
   const referralLink = user?.referralCode 
@@ -502,8 +513,20 @@ export default function Withdraw() {
         {/* Withdraw Section */}
         {activeTab === 'withdraw' && (
           <div className="space-y-4">
-              {/* Referral Requirement - One-time unlock */}
-              {!hasEnoughReferrals && (
+              {/* Loading state - Show while checking requirements */}
+              {isLoadingRequirements && (
+                <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
+                  <CardContent className="p-6 flex items-center justify-center">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                      <span className="text-gray-400 text-sm">Checking requirements...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Referral Requirement - One-time unlock - Only show if enabled and not met */}
+              {!isLoadingRequirements && withdrawalInviteRequirementEnabled && !hasEnoughReferrals && (
                 <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
                   <CardContent className="p-0">
                     {/* Header */}
@@ -546,8 +569,8 @@ export default function Withdraw() {
                 </Card>
               )}
               
-              {/* Ads Requirement - Per withdrawal (only if enabled) */}
-              {withdrawalAdRequirementEnabled && hasEnoughReferrals && !hasWatchedEnoughAds && (
+              {/* Ads Requirement - Per withdrawal (only if enabled) - Only show after data is loaded */}
+              {!isLoadingRequirements && withdrawalAdRequirementEnabled && hasEnoughReferrals && !hasWatchedEnoughAds && (
                 <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
                   <CardContent className="p-0">
                     {/* Header */}
@@ -598,7 +621,7 @@ export default function Withdraw() {
                 </div>
               )}
 
-              {hasEnoughReferrals && hasWatchedEnoughAds && (
+              {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && (
               <>
               <div className="space-y-3">
                 <Label className="text-sm text-white">Withdrawal Method</Label>

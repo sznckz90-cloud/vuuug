@@ -1448,9 +1448,11 @@ function SettingsSection() {
     referralRewardEnabled: false,
     referralRewardUSD: '0.0005',
     referralRewardPAD: '50',
-    // Withdrawal ad requirement
+    // Withdrawal requirements
     withdrawalAdRequirementEnabled: true,
     minimumAdsForWithdrawal: '100',
+    withdrawalInviteRequirementEnabled: true,
+    minimumInvitesForWithdrawal: '3',
     // Daily task rewards
     streakReward: '100',
     shareTaskReward: '1000',
@@ -1479,9 +1481,11 @@ function SettingsSection() {
         referralRewardEnabled: settingsData.referralRewardEnabled || false,
         referralRewardUSD: settingsData.referralRewardUSD?.toString() || '0.0005',
         referralRewardPAD: settingsData.referralRewardPAD?.toString() || '50',
-        // Withdrawal ad requirement
+        // Withdrawal requirements
         withdrawalAdRequirementEnabled: settingsData.withdrawalAdRequirementEnabled !== false,
         minimumAdsForWithdrawal: settingsData.minimumAdsForWithdrawal?.toString() || '100',
+        withdrawalInviteRequirementEnabled: settingsData.withdrawalInviteRequirementEnabled !== false,
+        minimumInvitesForWithdrawal: settingsData.minimumInvitesForWithdrawal?.toString() || '3',
         // Daily task rewards
         streakReward: settingsData.streakReward?.toString() || '100',
         shareTaskReward: settingsData.shareTaskReward?.toString() || '1000',
@@ -1559,6 +1563,8 @@ function SettingsSection() {
         referralRewardPAD: refRewardPAD,
         withdrawalAdRequirementEnabled: settings.withdrawalAdRequirementEnabled,
         minimumAdsForWithdrawal: parseInt(settings.minimumAdsForWithdrawal) || 100,
+        withdrawalInviteRequirementEnabled: settings.withdrawalInviteRequirementEnabled,
+        minimumInvitesForWithdrawal: parseInt(settings.minimumInvitesForWithdrawal) || 3,
         streakReward: parseInt(settings.streakReward) || 100,
         shareTaskReward: parseInt(settings.shareTaskReward) || 1000,
         communityTaskReward: parseInt(settings.communityTaskReward) || 1000
@@ -1844,6 +1850,48 @@ function SettingsSection() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Current: {settingsData?.minimumAdsForWithdrawal || 100} ads (resets after each withdrawal)
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 p-3 border rounded-lg bg-blue-50/5 border-blue-500/20 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  <i className="fas fa-user-plus mr-2 text-blue-500"></i>
+                  Withdrawal Invite Requirement
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, withdrawalInviteRequirementEnabled: !settings.withdrawalInviteRequirementEnabled })}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    settings.withdrawalInviteRequirementEnabled ? 'bg-blue-500' : 'bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      settings.withdrawalInviteRequirementEnabled ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {settings.withdrawalInviteRequirementEnabled 
+                  ? 'Users must invite friends before withdrawing' 
+                  : 'Invite requirement disabled - users can withdraw without invites'}
+              </p>
+              <div className="mt-2">
+                <Label className="text-xs">Minimum Invites Required</Label>
+                <Input
+                  type="number"
+                  value={settings.minimumInvitesForWithdrawal}
+                  onChange={(e) => setSettings({ ...settings, minimumInvitesForWithdrawal: e.target.value })}
+                  placeholder="3"
+                  min="0"
+                  disabled={!settings.withdrawalInviteRequirementEnabled}
+                  className={`h-8 mt-1 ${!settings.withdrawalInviteRequirementEnabled ? 'opacity-50' : ''}`}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Current: {settingsData?.minimumInvitesForWithdrawal || 3} valid invites (friends who watched 1+ ads)
                 </p>
               </div>
             </div>
