@@ -270,6 +270,42 @@ export const banLogs = pgTable("ban_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Spin data table - tracks user spin state for the Free Spin feature
+export const spinData = pgTable("spin_data", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  freeSpinUsed: boolean("free_spin_used").default(false), // Whether daily free spin was used
+  extraSpins: integer("extra_spins").default(0), // Extra spins earned from ads/invites
+  spinAdsWatched: integer("spin_ads_watched").default(0), // Ads watched for spins (0-50 per day)
+  inviteSpinsEarned: integer("invite_spins_earned").default(0), // Total spins from verified invites
+  lastSpinDate: varchar("last_spin_date"), // YYYY-MM-DD for daily reset tracking
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Spin history table - tracks all spin results
+export const spinHistory = pgTable("spin_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  rewardType: varchar("reward_type").notNull(), // 'PAD' or 'TON'
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).notNull(),
+  spinType: varchar("spin_type").notNull(), // 'free', 'ad', 'invite'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Daily mission completion tracking
+export const dailyMissions = pgTable("daily_missions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  missionType: varchar("mission_type").notNull(), // 'share_story', 'daily_checkin'
+  completed: boolean("completed").default(false),
+  claimedAt: timestamp("claimed_at"),
+  resetDate: varchar("reset_date").notNull(), // YYYY-MM-DD format for daily reset
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  unique("daily_missions_user_type_date_unique").on(table.userId, table.missionType, table.resetDate),
+]);
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
@@ -285,6 +321,9 @@ export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({
 export const insertAdvertiserTaskSchema = createInsertSchema(advertiserTasks).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export const insertTaskClickSchema = createInsertSchema(taskClicks).omit({ id: true, clickedAt: true });
 export const insertBanLogSchema = createInsertSchema(banLogs).omit({ id: true, createdAt: true });
+export const insertSpinDataSchema = createInsertSchema(spinData).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSpinHistorySchema = createInsertSchema(spinHistory).omit({ id: true, createdAt: true });
+export const insertDailyMissionSchema = createInsertSchema(dailyMissions).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -315,3 +354,9 @@ export type TaskClick = typeof taskClicks.$inferSelect;
 export type InsertTaskClick = z.infer<typeof insertTaskClickSchema>;
 export type BanLog = typeof banLogs.$inferSelect;
 export type InsertBanLog = z.infer<typeof insertBanLogSchema>;
+export type SpinData = typeof spinData.$inferSelect;
+export type InsertSpinData = z.infer<typeof insertSpinDataSchema>;
+export type SpinHistory = typeof spinHistory.$inferSelect;
+export type InsertSpinHistory = z.infer<typeof insertSpinHistorySchema>;
+export type DailyMission = typeof dailyMissions.$inferSelect;
+export type InsertDailyMission = z.infer<typeof insertDailyMissionSchema>;
