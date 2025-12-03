@@ -194,43 +194,21 @@ export default function Missions() {
     setShareWithFriendsStep('sharing');
     
     try {
-      // Call the API to send rich share message (photo + caption + inline button)
-      const response = await fetch('/api/share/send-rich-message', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const tgWebApp = window.Telegram?.WebApp as any;
       
-      const data = await response.json();
-      
-      if (data.success) {
-        showNotification('Share message sent to your Telegram! Forward it to friends.', 'success');
-        setShareWithFriendsStep('ready');
+      // Use switchInlineQuery for rich media sharing (image + caption + inline button)
+      if (tgWebApp?.switchInlineQuery) {
+        // Empty query string - bot will use user's referral code from database
+        tgWebApp.switchInlineQuery('', ['users', 'groups', 'channels']);
       } else {
-        // Fallback to basic share if API fails
-        const tgWebApp = window.Telegram?.WebApp as any;
+        // Fallback for non-Telegram environments
         const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-        
-        if (tgWebApp?.openTelegramLink) {
-          tgWebApp.openTelegramLink(shareUrl);
-        } else {
-          window.open(shareUrl, '_blank');
-        }
-        setShareWithFriendsStep('ready');
-      }
-    } catch (error) {
-      console.error('Share error:', error);
-      // Fallback to basic share
-      const tgWebApp = window.Telegram?.WebApp as any;
-      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-      
-      if (tgWebApp?.openTelegramLink) {
-        tgWebApp.openTelegramLink(shareUrl);
-      } else {
         window.open(shareUrl, '_blank');
       }
+      setShareWithFriendsStep('ready');
+    } catch (error) {
+      console.error('Share error:', error);
       setShareWithFriendsStep('ready');
     }
   }, [missionStatus?.shareStory?.claimed, referralLink]);
