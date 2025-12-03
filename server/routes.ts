@@ -6727,8 +6727,9 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
     }
   });
 
-  // POST /api/share/invite - Send invite message with image and inline button
-  app.post('/api/share/invite', requireAuth, async (req: any, res) => {
+  // POST /api/share/prepare-message - Prepare a share message for Telegram WebApp shareMessage()
+  // Uses Bot API 8.0 savePreparedInlineMessage for native Telegram share dialog
+  app.post('/api/share/prepare-message', requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.user?.id;
       if (!userId) {
@@ -6753,78 +6754,127 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
         return res.status(500).json({ error: 'Bot not configured' });
       }
 
-      const botUsername = process.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
-      const webAppName = process.env.WEBAPP_NAME || 'app';
+      const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'Paid_Adzbot';
+      const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
       const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
       
       const appUrl = process.env.RENDER_EXTERNAL_URL || 
-                    (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://vuuug.onrender.com');
+                    (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
+                    (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null) ||
+                    'https://vuuug.onrender.com';
 
-      const shareCaption = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
+      const webAppUrl = `${appUrl}?startapp=${user.referralCode}`;
 
-      const inlineKeyboard = {
-        inline_keyboard: [
-          [
-            {
-              text: '🚀 Start earning',
-              web_app: { url: `${appUrl}?ref=${user.referralCode}` }
-            }
+      console.log(`📤 Preparing share message for user ${userId}`);
+      console.log(`   Image URL: ${shareImageUrl}`);
+      console.log(`   WebApp URL: ${webAppUrl}`);
+      console.log(`   Referral Link: ${referralLink}`);
+
+      // Use savePreparedInlineMessage (Bot API 8.0+) to prepare the message
+      // This creates a prepared message that can be shared via WebApp.shareMessage()
+      const inlineResult = {
+        type: 'photo',
+        id: `share_${user.referralCode}_${Date.now()}`,
+        photo_url: shareImageUrl,
+        thumbnail_url: shareImageUrl,
+        title: '💸 Start Earning with Paid Adz!',
+        description: 'Complete tasks & watch ads to earn real money!',
+        caption: '💸 Start earning money just by completing tasks & watching ads!',
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🚀 Start Earning',
+                web_app: { url: webAppUrl }
+              }
+            ]
           ]
-        ]
+        }
       };
 
       try {
-        const imageUrl = `${appUrl}/images/share-banner.jpg`;
-        
-        const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+        const prepareResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/savePreparedInlineMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: user.telegram_id,
-            photo: imageUrl,
-            caption: shareCaption,
-            reply_markup: inlineKeyboard
+            user_id: parseInt(user.telegram_id),
+            result: inlineResult,
+            allow_user_chats: true,
+            allow_bot_chats: true,
+            allow_group_chats: true,
+            allow_channel_chats: true
           })
         });
 
-        const photoResult = await photoResponse.json() as { ok?: boolean; description?: string };
-        
-        if (photoResult.ok) {
-          console.log(`✅ Invite message with image sent to user ${userId}`);
-          return res.json({ 
-            success: true, 
-            message: 'Invite message sent! Forward it to your friends.',
-            referralLink 
+        const prepareResult = await prepareResponse.json() as { 
+          ok?: boolean; 
+          result?: { id: string }; 
+          description?: string;
+          error_code?: number;
+        };
+
+        if (prepareResult.ok && prepareResult.result?.id) {
+          console.log(`✅ Prepared share message with ID: ${prepareResult.result.id}`);
+          return res.json({
+            success: true,
+            messageId: prepareResult.result.id,
+            referralLink
           });
         } else {
-          console.log('⚠️ Photo send failed, sending text message instead:', photoResult.description);
-          const textResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: user.telegram_id,
-              text: shareCaption,
-              reply_markup: inlineKeyboard
-            })
+          console.error('❌ Failed to prepare share message:', prepareResult.description);
+          // Return a fallback with just the referral link for URL-based sharing
+          return res.json({
+            success: false,
+            error: prepareResult.description || 'Failed to prepare message',
+            referralLink,
+            fallbackUrl: `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('💸 Start earning money just by completing tasks & watching ads!')}`
           });
-
-          const textResult = await textResponse.json() as { ok?: boolean };
-          
-          if (textResult.ok) {
-            return res.json({ 
-              success: true, 
-              message: 'Invite message sent! Forward it to your friends.',
-              referralLink 
-            });
-          }
         }
-        
-        return res.status(500).json({ error: 'Failed to send invite message' });
-        
-      } catch (telegramError) {
+      } catch (telegramError: any) {
         console.error('❌ Telegram API error:', telegramError);
-        return res.status(500).json({ error: 'Failed to send invite message' });
+        return res.json({
+          success: false,
+          error: telegramError.message || 'Telegram API error',
+          referralLink,
+          fallbackUrl: `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('💸 Start earning money just by completing tasks & watching ads!')}`
+        });
       }
+
+    } catch (error: any) {
+      console.error('❌ Error preparing share message:', error);
+      res.status(500).json({ error: 'Failed to prepare share message' });
+    }
+  });
+
+  // POST /api/share/invite - Legacy endpoint (kept for backward compatibility)
+  app.post('/api/share/invite', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!user.referralCode) {
+        return res.status(400).json({ error: 'Referral code not found' });
+      }
+
+      const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'Paid_Adzbot';
+      const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
+      const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+
+      // Return just the referral link for the new share flow
+      return res.json({ 
+        success: true, 
+        message: 'Share link ready',
+        referralLink 
+      });
 
     } catch (error) {
       console.error('❌ Error sending invite:', error);
