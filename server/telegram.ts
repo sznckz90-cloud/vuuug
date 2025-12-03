@@ -281,6 +281,65 @@ export async function sendUserTelegramNotification(userId: string, message: stri
   }
 }
 
+export async function sendSharePhotoToChat(
+  chatId: string,
+  imageUrl: string,
+  caption: string,
+  webAppUrl: string,
+  buttonText: string = 'Start Earning'
+): Promise<{ success: boolean; messageId?: number; error?: string }> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('❌ Telegram bot token not configured for sendPhoto');
+    return { success: false, error: 'Bot token not configured' };
+  }
+
+  try {
+    console.log(`📷 Sending share photo to chat ${chatId}...`);
+    console.log(`   Image URL: ${imageUrl}`);
+    console.log(`   WebApp URL: ${webAppUrl}`);
+
+    const payload = {
+      chat_id: chatId,
+      photo: imageUrl,
+      caption: caption,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: buttonText,
+              web_app: { url: webAppUrl }
+            }
+          ]
+        ]
+      }
+    };
+
+    console.log('📡 sendPhoto payload:', JSON.stringify(payload, null, 2));
+
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok && responseData.ok) {
+      console.log('✅ Share photo sent successfully to', chatId);
+      return { success: true, messageId: responseData.result?.message_id };
+    } else {
+      console.error('❌ Failed to send share photo:', responseData);
+      return { success: false, error: responseData.description || 'Failed to send photo' };
+    }
+  } catch (error: any) {
+    console.error('❌ Error sending share photo:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
   const message = `👋 Welcome to Paid Adz
 

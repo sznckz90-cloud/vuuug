@@ -23,7 +23,7 @@ import {
 import { db } from "./db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
-import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership } from "./telegram";
+import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership, sendSharePhotoToChat } from "./telegram";
 import { authenticateTelegram, requireAuth, optionalAuth } from "./auth";
 import { isAuthenticated } from "./replitAuth";
 import { config, getChannelConfig } from "./config";
@@ -1583,6 +1583,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({
         success: false,
         message: 'Failed to complete task'
+      });
+    }
+  });
+
+  // Send rich share message with photo + caption + inline WebApp button
+  app.post('/api/share/send-rich-message', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+      
+      // Get user data to find telegram ID and referral code
+      const [user] = await db
+        .select({
+          telegramId: users.telegram_id,
+          referralCode: users.referralCode
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (!user || !user.telegramId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Telegram ID not found for user'
+        });
+      }
+      
+      if (!user.referralCode) {
+        return res.status(400).json({
+          success: false,
+          message: 'Referral code not found for user'
+        });
+      }
+      
+      // Get app URL for WebApp button
+      const appUrl = process.env.RENDER_EXTERNAL_URL || 
+                    (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
+                    (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null) ||
+                    'https://vuuug.onrender.com';
+      
+      // Build the WebApp URL with referral code
+      const webAppUrl = `${appUrl}?startapp=${user.referralCode}`;
+      
+      // Get share banner image URL
+      const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
+      
+      // Caption for the share message
+      const caption = '💸 Start earning money just by completing tasks & watching ads!';
+      
+      // Send the photo message with inline button
+      const result = await sendSharePhotoToChat(
+        user.telegramId,
+        shareImageUrl,
+        caption,
+        webAppUrl,
+        '🚀 Start Earning'
+      );
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: 'Share message sent! You can now forward it to friends.',
+          messageId: result.messageId
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: result.error || 'Failed to send share message'
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('Error sending rich share message:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to send share message'
       });
     }
   });
