@@ -131,32 +131,47 @@ export default function Withdraw() {
     ? `https://t.me/${botUsername}?start=${user.referralCode}`
     : '';
 
-  const openShareSheet = () => {
-    if (!referralLink) return;
+  const [isSharing, setIsSharing] = useState(false);
+
+  const openShareSheet = async () => {
+    if (!referralLink || isSharing) return;
     
-    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+    setIsSharing(true);
     
-    const tgWebApp = window.Telegram?.WebApp as any;
-    
-    if (tgWebApp?.switchInlineQuery) {
-      tgWebApp.switchInlineQuery(shareTitle, ['users']);
-    } else {
+    try {
+      const response = await fetch('/api/share/invite', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        showNotification('Invite message sent! Forward it to your friends.', 'success');
+      } else {
+        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+        const tgWebApp = window.Telegram?.WebApp as any;
+        
+        if (tgWebApp?.openTelegramLink) {
+          tgWebApp.openTelegramLink(shareUrl);
+        } else {
+          window.open(shareUrl, '_blank');
+        }
+      }
+    } catch (error) {
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      const tgWebApp = window.Telegram?.WebApp as any;
       
       if (tgWebApp?.openTelegramLink) {
         tgWebApp.openTelegramLink(shareUrl);
-      } else if (navigator.share) {
-        navigator.share({
-          title: '🚀 Start earning',
-          text: shareTitle,
-          url: referralLink,
-        }).catch(() => {
-          navigator.clipboard.writeText(referralLink);
-          showNotification('Link copied!', 'success');
-        });
       } else {
         window.open(shareUrl, '_blank');
       }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -568,10 +583,11 @@ export default function Withdraw() {
                       {/* CTA Button */}
                       <Button
                         onClick={openShareSheet}
+                        disabled={isSharing}
                         className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
                       >
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Invite Friends
+                        {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                        {isSharing ? 'Sending...' : 'Invite Friends'}
                       </Button>
                     </div>
                   </CardContent>

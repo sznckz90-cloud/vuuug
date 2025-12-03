@@ -187,47 +187,47 @@ export default function Missions() {
     },
   });
 
-  const handleShareWithFriends = useCallback(() => {
+  const handleShareWithFriends = useCallback(async () => {
     if (missionStatus?.shareStory?.claimed || !referralLink) return;
     
     setShareWithFriendsStep('sharing');
     
-    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-    const shareMessage = `${shareTitle}\n\n🚀 Start earning: ${referralLink}`;
-    
-    const tgWebApp = window.Telegram?.WebApp as any;
-    
-    if (tgWebApp?.switchInlineQuery) {
-      tgWebApp.switchInlineQuery(shareTitle, ['users']);
-    } else {
+    try {
+      const response = await fetch('/api/share/invite', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        showNotification('Invite message sent! Forward it to your friends.', 'success');
+        setShareWithFriendsStep('ready');
+      } else {
+        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+        const tgWebApp = window.Telegram?.WebApp as any;
+        
+        if (tgWebApp?.openTelegramLink) {
+          tgWebApp.openTelegramLink(shareUrl);
+        } else {
+          window.open(shareUrl, '_blank');
+        }
+        setShareWithFriendsStep('ready');
+      }
+    } catch (error) {
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      const tgWebApp = window.Telegram?.WebApp as any;
       
       if (tgWebApp?.openTelegramLink) {
         tgWebApp.openTelegramLink(shareUrl);
-      } else if (navigator.share) {
-        navigator.share({
-          title: '🚀 Start earning',
-          text: shareTitle,
-          url: referralLink,
-        }).catch(() => {});
       } else {
         window.open(shareUrl, '_blank');
       }
+      setShareWithFriendsStep('ready');
     }
-    
-    setShareWithFriendsStep('countdown');
-    setShareCountdown(3);
-    
-    const countdownInterval = setInterval(() => {
-      setShareCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          setShareWithFriendsStep('ready');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
   }, [missionStatus?.shareStory?.claimed, referralLink]);
 
   const handleClaimShareWithFriends = useCallback(() => {
@@ -255,19 +255,7 @@ export default function Missions() {
       return;
     }
     
-    setDailyCheckinStep('countdown');
-    setDailyCheckinCountdown(3);
-    
-    const countdownInterval = setInterval(() => {
-      setDailyCheckinCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          setDailyCheckinStep('ready');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    setDailyCheckinStep('ready');
   }, [missionStatus?.dailyCheckin?.claimed, dailyCheckinStep, runAdFlow]);
 
   const handleCheckForUpdates = useCallback(() => {

@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
-import { Share2, Users, Coins, Copy } from 'lucide-react';
+import { Share2, Users, Coins, Copy, Loader2 } from 'lucide-react';
 
 interface User {
   id: string;
@@ -91,32 +92,47 @@ export default function Affiliates() {
     }
   };
 
-  const shareReferralLink = () => {
-    if (!referralLink) return;
+  const [isSharing, setIsSharing] = useState(false);
+
+  const shareReferralLink = async () => {
+    if (!referralLink || isSharing) return;
     
-    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-    const buttonText = `🚀 Start earning`;
+    setIsSharing(true);
     
-    const tgWebApp = window.Telegram?.WebApp as any;
-    
-    if (tgWebApp?.switchInlineQuery) {
-      tgWebApp.switchInlineQuery(shareTitle, ['users']);
-    } else {
+    try {
+      const response = await fetch('/api/share/invite', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        showNotification('Invite message sent! Forward it to your friends.', 'success');
+      } else {
+        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+        const tgWebApp = window.Telegram?.WebApp as any;
+        
+        if (tgWebApp?.openTelegramLink) {
+          tgWebApp.openTelegramLink(shareUrl);
+        } else {
+          window.open(shareUrl, '_blank');
+        }
+      }
+    } catch (error) {
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      const tgWebApp = window.Telegram?.WebApp as any;
       
       if (tgWebApp?.openTelegramLink) {
         tgWebApp.openTelegramLink(shareUrl);
-      } else if (navigator.share) {
-        navigator.share({
-          title: buttonText,
-          text: shareTitle,
-          url: referralLink,
-        }).catch(() => {
-          copyReferralLink();
-        });
       } else {
         window.open(shareUrl, '_blank');
       }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -189,10 +205,10 @@ export default function Affiliates() {
               <Button
                 className="h-12 btn-primary"
                 onClick={shareReferralLink}
-                disabled={!referralLink}
+                disabled={!referralLink || isSharing}
               >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
+                {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
+                {isSharing ? 'Sending...' : 'Share'}
               </Button>
             </div>
           </CardContent>
