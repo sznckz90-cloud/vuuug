@@ -4,9 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   ListTodo,
-  Share2, 
   CalendarCheck, 
-  Gift, 
   Gamepad2, 
   Users, 
   Handshake, 
@@ -63,7 +61,8 @@ export default function Missions() {
   
   const [shareWithFriendsStep, setShareWithFriendsStep] = useState<'idle' | 'sharing' | 'countdown' | 'ready' | 'claiming'>('idle');
   const [shareCountdown, setShareCountdown] = useState(3);
-  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'loading' | 'ready' | 'claiming'>('idle');
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [dailyCheckinCountdown, setDailyCheckinCountdown] = useState(3);
 
   const { data: missionStatus, refetch: refetchMissions } = useQuery<{ success: boolean } & MissionStatus>({
     queryKey: ['/api/missions/status'],
@@ -204,27 +203,22 @@ export default function Missions() {
     shareWithFriendsMutation.mutate();
   }, [shareWithFriendsMutation]);
 
-  const handleDailyCheckin = useCallback(async () => {
+  const handleDailyCheckin = useCallback(() => {
     if (missionStatus?.dailyCheckin?.claimed) return;
     
-    setDailyCheckinStep('loading');
+    setDailyCheckinStep('countdown');
+    setDailyCheckinCountdown(3);
     
-    try {
-      const response = await fetch('/api/missions/checkin', {
-        method: 'POST',
-        credentials: 'include',
+    const countdownInterval = setInterval(() => {
+      setDailyCheckinCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setDailyCheckinStep('ready');
+          return 0;
+        }
+        return prev - 1;
       });
-      
-      if (response.ok) {
-        setDailyCheckinStep('ready');
-      } else {
-        setDailyCheckinStep('idle');
-        showNotification('Check-in failed. Try again.', 'error');
-      }
-    } catch (error) {
-      setDailyCheckinStep('idle');
-      showNotification('Check-in failed. Try again.', 'error');
-    }
+    }, 1000);
   }, [missionStatus?.dailyCheckin?.claimed]);
 
   const handleClaimDailyCheckin = useCallback(() => {
@@ -461,12 +455,12 @@ export default function Missions() {
                 <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                   <Check className="w-4 h-4 text-green-400" />
                 </div>
-              ) : dailyCheckinStep === 'loading' ? (
+              ) : dailyCheckinStep === 'countdown' ? (
                 <Button
                   disabled={true}
                   className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
                 >
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {dailyCheckinCountdown}s
                 </Button>
               ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
                 <Button
@@ -486,21 +480,6 @@ export default function Missions() {
               )}
             </div>
 
-            <div 
-              className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5 cursor-pointer active:scale-[0.98] transition-transform"
-              onClick={() => setLocation('/free-spin')}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
-                  <Gift className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <p className="text-white text-sm font-medium">Lucky Slots</p>
-                  <p className="text-yellow-400 text-xs font-bold">Win up to 10K PAD!</p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
-            </div>
           </div>
         </div>
 

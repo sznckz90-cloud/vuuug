@@ -135,8 +135,8 @@ export default function Withdraw() {
     
     if (window.Telegram?.WebApp?.openTelegramLink) {
       window.Telegram.WebApp.openTelegramLink(shareUrl);
-    } else if (window.Telegram?.WebApp?.switchInlineQuery) {
-      window.Telegram.WebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
+    } else if ((window.Telegram?.WebApp as any)?.switchInlineQuery) {
+      (window.Telegram.WebApp as any).switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
     } else if (navigator.share) {
       navigator.share({
         title: 'Join CashWatch',
