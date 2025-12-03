@@ -87,8 +87,10 @@ export default function Withdraw() {
   const { data: validReferralData, isLoading: isLoadingReferrals, isFetched: isReferralsFetched } = useQuery<{ validReferralCount: number }>({
     queryKey: ['/api/referrals/valid-count'],
     retry: false,
-    staleTime: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const walletChangeFee = appSettings?.walletChangeFee || 5000;
@@ -106,8 +108,10 @@ export default function Withdraw() {
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
     retry: false,
-    staleTime: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
   
   const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal ?? (user as any)?.adsWatchedSinceLastWithdrawal ?? 0;
@@ -130,24 +134,29 @@ export default function Withdraw() {
   const openShareSheet = () => {
     if (!referralLink) return;
     
-    const shareText = `Earn PAD in Telegram!`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
     
-    if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(shareUrl);
-    } else if ((window.Telegram?.WebApp as any)?.switchInlineQuery) {
-      (window.Telegram.WebApp as any).switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
-    } else if (navigator.share) {
-      navigator.share({
-        title: 'Join CashWatch',
-        text: shareText,
-        url: referralLink,
-      }).catch(() => {
-        navigator.clipboard.writeText(referralLink);
-        showNotification('Link copied!', 'success');
-      });
+    const tgWebApp = window.Telegram?.WebApp as any;
+    
+    if (tgWebApp?.switchInlineQuery) {
+      tgWebApp.switchInlineQuery(shareTitle, ['users']);
     } else {
-      window.open(shareUrl, '_blank');
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else if (navigator.share) {
+        navigator.share({
+          title: '🚀 Start earning',
+          text: shareTitle,
+          url: referralLink,
+        }).catch(() => {
+          navigator.clipboard.writeText(referralLink);
+          showNotification('Link copied!', 'success');
+        });
+      } else {
+        window.open(shareUrl, '_blank');
+      }
     }
   };
 

@@ -33,22 +33,28 @@ export default function Affiliates() {
   const { data: user, isLoading: userLoading } = useQuery<User>({
     queryKey: ['/api/auth/user'],
     retry: false,
-    staleTime: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<ReferralStats>({
     queryKey: ['/api/referrals/stats'],
     retry: false,
-    staleTime: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const { data: appSettings } = useQuery<AppSettings>({
     queryKey: ['/api/app-settings'],
     retry: false,
-    staleTime: 60000,
+    staleTime: 120000,
+    gcTime: 600000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const claimMutation = useMutation({
@@ -88,25 +94,29 @@ export default function Affiliates() {
   const shareReferralLink = () => {
     if (!referralLink) return;
     
-    const shareText = `Earn PAD in Telegram!`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+    const buttonText = `🚀 Start earning`;
     
-    // Try Telegram Web App methods first
-    if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(shareUrl);
-    } else if ((window.Telegram?.WebApp as any)?.switchInlineQuery) {
-      (window.Telegram.WebApp as any).switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
-    } else if (navigator.share) {
-      navigator.share({
-        title: 'Join CashWatch',
-        text: shareText,
-        url: referralLink,
-      }).catch(() => {
-        copyReferralLink();
-      });
+    const tgWebApp = window.Telegram?.WebApp as any;
+    
+    if (tgWebApp?.switchInlineQuery) {
+      tgWebApp.switchInlineQuery(shareTitle, ['users']);
     } else {
-      // Fallback: open in new window or copy
-      window.open(shareUrl, '_blank');
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else if (navigator.share) {
+        navigator.share({
+          title: buttonText,
+          text: shareTitle,
+          url: referralLink,
+        }).catch(() => {
+          copyReferralLink();
+        });
+      } else {
+        window.open(shareUrl, '_blank');
+      }
     }
   };
 

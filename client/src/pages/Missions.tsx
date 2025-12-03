@@ -16,11 +16,13 @@ import {
   MessageCircle,
   Link2,
   Megaphone,
-  Globe
+  Globe,
+  Bell
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
+import { useAdFlow } from "@/hooks/useAdFlow";
 
 interface Task {
   id: string;
@@ -40,6 +42,7 @@ interface Task {
 interface MissionStatus {
   shareStory: { completed: boolean; claimed: boolean };
   dailyCheckin: { completed: boolean; claimed: boolean };
+  checkForUpdates: { completed: boolean; claimed: boolean };
 }
 
 interface AppSettings {
@@ -61,8 +64,12 @@ export default function Missions() {
   
   const [shareWithFriendsStep, setShareWithFriendsStep] = useState<'idle' | 'sharing' | 'countdown' | 'ready' | 'claiming'>('idle');
   const [shareCountdown, setShareCountdown] = useState(3);
-  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'ads' | 'countdown' | 'ready' | 'claiming'>('idle');
   const [dailyCheckinCountdown, setDailyCheckinCountdown] = useState(3);
+  const [checkForUpdatesStep, setCheckForUpdatesStep] = useState<'idle' | 'opened' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [checkForUpdatesCountdown, setCheckForUpdatesCountdown] = useState(3);
+  
+  const { isShowingAds, adStep, runAdFlow } = useAdFlow();
 
   const { data: missionStatus, refetch: refetchMissions } = useQuery<{ success: boolean } & MissionStatus>({
     queryKey: ['/api/missions/status'],
@@ -132,6 +139,27 @@ export default function Missions() {
     },
   });
 
+  const checkForUpdatesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/check-for-updates/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setCheckForUpdatesStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setCheckForUpdatesStep('idle');
+    },
+  });
+
   const clickTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
       setLoadingTaskId(taskId);
@@ -164,22 +192,27 @@ export default function Missions() {
     
     setShareWithFriendsStep('sharing');
     
-    const shareText = `Earn PAD in Telegram!`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+    const shareMessage = `${shareTitle}\n\n🚀 Start earning: ${referralLink}`;
     
     const tgWebApp = window.Telegram?.WebApp as any;
-    if (tgWebApp?.openTelegramLink) {
-      tgWebApp.openTelegramLink(shareUrl);
-    } else if (tgWebApp?.switchInlineQuery) {
-      tgWebApp.switchInlineQuery(`${shareText}\n${referralLink}`, ['users']);
-    } else if (navigator.share) {
-      navigator.share({
-        title: 'Join CashWatch',
-        text: shareText,
-        url: referralLink,
-      }).catch(() => {});
+    
+    if (tgWebApp?.switchInlineQuery) {
+      tgWebApp.switchInlineQuery(shareTitle, ['users']);
     } else {
-      window.open(shareUrl, '_blank');
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else if (navigator.share) {
+        navigator.share({
+          title: '🚀 Start earning',
+          text: shareTitle,
+          url: referralLink,
+        }).catch(() => {});
+      } else {
+        window.open(shareUrl, '_blank');
+      }
     }
     
     setShareWithFriendsStep('countdown');
@@ -203,8 +236,24 @@ export default function Missions() {
     shareWithFriendsMutation.mutate();
   }, [shareWithFriendsMutation]);
 
-  const handleDailyCheckin = useCallback(() => {
-    if (missionStatus?.dailyCheckin?.claimed) return;
+  const handleDailyCheckin = useCallback(async () => {
+    if (missionStatus?.dailyCheckin?.claimed || dailyCheckinStep !== 'idle') return;
+    
+    setDailyCheckinStep('ads');
+    
+    const adResult = await runAdFlow();
+    
+    if (!adResult.monetagWatched) {
+      showNotification("Please watch the ads completely to claim!", "error");
+      setDailyCheckinStep('idle');
+      return;
+    }
+    
+    if (!adResult.adsgramWatched) {
+      showNotification("Please complete all ads to claim your reward!", "error");
+      setDailyCheckinStep('idle');
+      return;
+    }
     
     setDailyCheckinStep('countdown');
     setDailyCheckinCountdown(3);
@@ -219,7 +268,40 @@ export default function Missions() {
         return prev - 1;
       });
     }, 1000);
-  }, [missionStatus?.dailyCheckin?.claimed]);
+  }, [missionStatus?.dailyCheckin?.claimed, dailyCheckinStep, runAdFlow]);
+
+  const handleCheckForUpdates = useCallback(() => {
+    if (missionStatus?.checkForUpdates?.claimed || checkForUpdatesStep !== 'idle') return;
+    
+    const tgWebApp = window.Telegram?.WebApp as any;
+    if (tgWebApp?.openTelegramLink) {
+      tgWebApp.openTelegramLink('https://t.me/PaidADsNews');
+    } else if (tgWebApp?.openLink) {
+      tgWebApp.openLink('https://t.me/PaidADsNews');
+    } else {
+      window.open('https://t.me/PaidADsNews', '_blank');
+    }
+    
+    setCheckForUpdatesStep('opened');
+    setCheckForUpdatesCountdown(3);
+    
+    const countdownInterval = setInterval(() => {
+      setCheckForUpdatesCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setCheckForUpdatesStep('ready');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [missionStatus?.checkForUpdates?.claimed, checkForUpdatesStep]);
+
+  const handleClaimCheckForUpdates = useCallback(() => {
+    if (checkForUpdatesMutation.isPending) return;
+    setCheckForUpdatesStep('claiming');
+    checkForUpdatesMutation.mutate();
+  }, [checkForUpdatesMutation]);
 
   const handleClaimDailyCheckin = useCallback(() => {
     if (dailyCheckinMutation.isPending) return;
@@ -455,6 +537,13 @@ export default function Missions() {
                 <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                   <Check className="w-4 h-4 text-green-400" />
                 </div>
+              ) : dailyCheckinStep === 'ads' ? (
+                <Button
+                  disabled={true}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
+                >
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                </Button>
               ) : dailyCheckinStep === 'countdown' ? (
                 <Button
                   disabled={true}
@@ -476,6 +565,45 @@ export default function Missions() {
                   className="h-8 w-20 text-xs font-bold rounded-lg bg-cyan-500 hover:bg-cyan-600 text-black"
                 >
                   Go
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                  <Bell className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-white text-sm font-medium">Check for Updates</p>
+                  <p className="text-orange-400 text-xs font-bold">+5 PAD</p>
+                </div>
+              </div>
+              {missionStatus?.checkForUpdates?.claimed ? (
+                <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <Check className="w-4 h-4 text-green-400" />
+                </div>
+              ) : checkForUpdatesStep === 'opened' ? (
+                <Button
+                  disabled={true}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                >
+                  {checkForUpdatesCountdown}s
+                </Button>
+              ) : checkForUpdatesStep === 'ready' || checkForUpdatesStep === 'claiming' ? (
+                <Button
+                  onClick={handleClaimCheckForUpdates}
+                  disabled={checkForUpdatesMutation.isPending}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                >
+                  {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleCheckForUpdates}
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Check
                 </Button>
               )}
             </div>
