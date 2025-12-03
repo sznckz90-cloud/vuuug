@@ -6412,6 +6412,7 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
 
       const shareStoryMission = missions.find(m => m.missionType === 'share_story');
       const dailyCheckinMission = missions.find(m => m.missionType === 'daily_checkin');
+      const checkForUpdatesMission = missions.find(m => m.missionType === 'check_for_updates');
 
       res.json({
         success: true,
@@ -6422,6 +6423,10 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
         dailyCheckin: {
           completed: dailyCheckinMission?.completed || false,
           claimed: !!dailyCheckinMission?.claimedAt,
+        },
+        checkForUpdates: {
+          completed: checkForUpdatesMission?.completed || false,
+          claimed: !!checkForUpdatesMission?.claimedAt,
         },
       });
     } catch (error) {
@@ -6566,6 +6571,76 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       });
     } catch (error) {
       console.error('❌ Error claiming daily check-in reward:', error);
+      res.status(500).json({ error: 'Failed to claim reward' });
+    }
+  });
+
+  // POST /api/missions/check-for-updates/claim - Claim check for updates reward
+  app.post('/api/missions/check-for-updates/claim', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const today = getTodayDate();
+      const reward = 5; // 5 PAD
+
+      // Check if already claimed
+      const existingMission = await db.query.dailyMissions.findFirst({
+        where: and(
+          eq(dailyMissions.userId, userId),
+          eq(dailyMissions.missionType, 'check_for_updates'),
+          eq(dailyMissions.resetDate, today)
+        ),
+      });
+
+      if (existingMission?.claimedAt) {
+        return res.status(400).json({ error: 'Already claimed today' });
+      }
+
+      // Create or update mission record
+      if (existingMission) {
+        await db.update(dailyMissions).set({
+          completed: true,
+          claimedAt: new Date(),
+        }).where(eq(dailyMissions.id, existingMission.id));
+      } else {
+        await db.insert(dailyMissions).values({
+          userId,
+          missionType: 'check_for_updates',
+          completed: true,
+          claimedAt: new Date(),
+          resetDate: today,
+        });
+      }
+
+      // Add reward to user balance
+      const user = await storage.getUser(userId);
+      if (user) {
+        const currentBalance = parseFloat(user.balance?.toString() || '0');
+        await db.update(users).set({
+          balance: (currentBalance + reward).toString(),
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId));
+      }
+
+      // Record transaction
+      await db.insert(transactions).values({
+        userId,
+        amount: reward.toString(),
+        type: 'addition',
+        source: 'mission_check_for_updates',
+        description: 'Check for Updates Mission Reward',
+      });
+
+      res.json({
+        success: true,
+        reward,
+        message: `You earned ${reward} PAD!`,
+      });
+    } catch (error) {
+      console.error('❌ Error claiming check for updates reward:', error);
       res.status(500).json({ error: 'Failed to claim reward' });
     }
   });
