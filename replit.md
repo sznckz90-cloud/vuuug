@@ -104,7 +104,9 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Updated Share Format**: Share With Friends now uses improved message format
   - Title: "💸 Start earning money just by completing tasks & watching ads!"
   - Button text: "🚀 Start earning"
-  - Uses Telegram's switchInlineQuery when available for better sharing experience
+  - Uses `openTelegramLink` with native Telegram share URL format (`https://t.me/share/url?...`)
+  - Referral links now use WebApp deep-link format: `https://t.me/{bot}/{webAppName}?startapp={code}`
+  - Opens webapp directly instead of bot chat when user clicks referral link
 - **Performance Optimizations**:
   - Affiliates page: Increased staleTime to 60s, gcTime to 300s, disabled refetchOnMount for faster loading
   - Withdraw page: Optimized referral count and withdrawal eligibility queries with better caching
