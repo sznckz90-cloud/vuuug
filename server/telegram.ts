@@ -375,10 +375,155 @@ export async function sendBroadcastMessage(message: string, adminTelegramId: str
   }
 }
 
+// Handle inline query for rich media sharing with image + WebApp button
+export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('❌ Telegram bot token not configured for inline query');
+    return false;
+  }
+
+  try {
+    const queryId = inlineQuery.id;
+    const fromUserId = inlineQuery.from.id.toString();
+    const query = inlineQuery.query || '';
+
+    console.log(`📝 Inline query received from ${fromUserId}: "${query}"`);
+
+    // Get user's referral code from the database
+    const user = await storage.getUserByTelegramId(fromUserId);
+    
+    if (!user || !user.referralCode) {
+      console.log(`⚠️ User ${fromUserId} not found or has no referral code`);
+      // Return empty results
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerInlineQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inline_query_id: queryId,
+          results: [],
+          cache_time: 0
+        })
+      });
+      return true;
+    }
+
+    // Build the referral link
+    const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'Paid_Adzbot';
+    const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
+    const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+    
+    // Get the app URL for the WebApp button
+    const appUrl = process.env.RENDER_EXTERNAL_URL || 
+                  (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
+                  (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null) ||
+                  'https://vuuug.onrender.com';
+
+    // Safety check for appUrl
+    if (!appUrl) {
+      console.error('❌ No app URL configured for share banner');
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerInlineQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inline_query_id: queryId,
+          results: [],
+          cache_time: 0
+        })
+      });
+      return true;
+    }
+
+    // Get the share banner image URL - use public URL
+    const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
+    
+    // Build WebApp URL with referral code (opens the Mini App directly)
+    const webAppUrl = `${appUrl}?startapp=${user.referralCode}`;
+    
+    console.log(`📷 Share image URL: ${shareImageUrl}`);
+    console.log(`🔗 WebApp URL: ${webAppUrl}`);
+    console.log(`🔗 Referral Link: ${referralLink}`);
+
+    // Create inline query result with photo + WebApp button
+    const results = [
+      {
+        type: 'photo',
+        id: `share_${user.referralCode}_${Date.now()}`,
+        photo_url: shareImageUrl,
+        thumbnail_url: shareImageUrl,
+        title: '💸 Start Earning with Paid Adz!',
+        description: 'Complete tasks & watch ads to earn real money!',
+        caption: '💸 Start earning money just by completing tasks & watching ads!',
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🚀 Start Earning',
+                web_app: { url: webAppUrl }
+              }
+            ]
+          ]
+        }
+      },
+      // Also add an article result as fallback with URL button (for cases where web_app isn't supported)
+      {
+        type: 'article',
+        id: `article_${user.referralCode}_${Date.now()}`,
+        title: '💸 Invite Friends to Paid Adz!',
+        description: 'Share and earn bonus PAD for every friend who joins!',
+        thumbnail_url: shareImageUrl,
+        input_message_content: {
+          message_text: '💸 <b>Start earning money just by completing tasks & watching ads!</b>\n\n🎯 Join Paid Adz and get rewarded for simple tasks!\n\n👇 Click the button below to start earning:',
+          parse_mode: 'HTML'
+        },
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🚀 Start Earning',
+                url: referralLink
+              }
+            ]
+          ]
+        }
+      }
+    ];
+
+    // Answer the inline query
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerInlineQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inline_query_id: queryId,
+        results: results,
+        cache_time: 10, // Cache for 10 seconds
+        is_personal: true // Results are specific to this user
+      })
+    });
+
+    if (response.ok) {
+      console.log(`✅ Inline query answered successfully for user ${fromUserId}`);
+      return true;
+    } else {
+      const errorData = await response.text();
+      console.error('❌ Failed to answer inline query:', errorData);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error handling inline query:', error);
+    return false;
+  }
+}
+
 // Handle incoming Telegram messages - simplified to only show welcome messages
 export async function handleTelegramMessage(update: any): Promise<boolean> {
   try {
     console.log('🔄 Processing Telegram update...');
+    
+    // Handle inline queries for rich media sharing
+    if (update.inline_query) {
+      return await handleInlineQuery(update.inline_query);
+    }
     
     // Handle callback queries (button presses)
     if (update.callback_query) {
