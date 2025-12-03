@@ -6645,5 +6645,109 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
     }
   });
 
+  // POST /api/share/invite - Send invite message with image and inline button
+  app.post('/api/share/invite', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!user.telegram_id) {
+        return res.status(400).json({ error: 'Telegram ID not found' });
+      }
+
+      if (!user.referralCode) {
+        return res.status(400).json({ error: 'Referral code not found' });
+      }
+
+      const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_BOT_TOKEN) {
+        return res.status(500).json({ error: 'Bot not configured' });
+      }
+
+      const botUsername = process.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+      
+      const appUrl = process.env.RENDER_EXTERNAL_URL || 
+                    (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://vuuug.onrender.com');
+
+      const shareCaption = `💸 Start earning money just by completing tasks & watching ads!`;
+
+      const inlineKeyboard = {
+        inline_keyboard: [
+          [
+            {
+              text: '🚀 Start earning',
+              url: referralLink
+            }
+          ]
+        ]
+      };
+
+      try {
+        const imageUrl = `${appUrl}/images/share-banner.jpg`;
+        
+        const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: user.telegram_id,
+            photo: imageUrl,
+            caption: shareCaption,
+            reply_markup: inlineKeyboard
+          })
+        });
+
+        const photoResult = await photoResponse.json() as { ok?: boolean; description?: string };
+        
+        if (photoResult.ok) {
+          console.log(`✅ Invite message with image sent to user ${userId}`);
+          return res.json({ 
+            success: true, 
+            message: 'Invite message sent! Forward it to your friends.',
+            referralLink 
+          });
+        } else {
+          console.log('⚠️ Photo send failed, sending text message instead:', photoResult.description);
+          const textResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: user.telegram_id,
+              text: shareCaption,
+              reply_markup: inlineKeyboard
+            })
+          });
+
+          const textResult = await textResponse.json() as { ok?: boolean };
+          
+          if (textResult.ok) {
+            return res.json({ 
+              success: true, 
+              message: 'Invite message sent! Forward it to your friends.',
+              referralLink 
+            });
+          }
+        }
+        
+        return res.status(500).json({ error: 'Failed to send invite message' });
+        
+      } catch (telegramError) {
+        console.error('❌ Telegram API error:', telegramError);
+        return res.status(500).json({ error: 'Failed to send invite message' });
+      }
+
+    } catch (error) {
+      console.error('❌ Error sending invite:', error);
+      res.status(500).json({ error: 'Failed to send invite' });
+    }
+  });
+
   return httpServer;
 }
