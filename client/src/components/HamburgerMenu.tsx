@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Drawer,
@@ -20,6 +20,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { format } from "date-fns";
+
+declare global {
+  interface Window {
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
+  }
+}
 
 interface Withdrawal {
   id: string;
@@ -45,6 +55,8 @@ declare global {
 export default function HamburgerMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [promoCode, setPromoCode] = useState("");
+  const [isShowingAds, setIsShowingAds] = useState(false);
+  const monetagStartTimeRef = useRef<number>(0);
   const queryClient = useQueryClient();
 
   const { data: withdrawalsData, isLoading: withdrawalsLoading } = useQuery<WithdrawalsResponse>({
@@ -78,13 +90,81 @@ export default function HamburgerMenu() {
     },
   });
 
+  const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
+    return new Promise((resolve) => {
+      if (typeof window.show_10013974 === 'function') {
+        monetagStartTimeRef.current = Date.now();
+        window.show_10013974()
+          .then(() => {
+            const watchDuration = Date.now() - monetagStartTimeRef.current;
+            const watchedAtLeast3Seconds = watchDuration >= 3000;
+            resolve({ success: true, watchedFully: watchedAtLeast3Seconds, unavailable: false });
+          })
+          .catch((error) => {
+            console.error('Monetag ad error:', error);
+            const watchDuration = Date.now() - monetagStartTimeRef.current;
+            const watchedAtLeast3Seconds = watchDuration >= 3000;
+            resolve({ success: false, watchedFully: watchedAtLeast3Seconds, unavailable: false });
+          });
+      } else {
+        resolve({ success: false, watchedFully: false, unavailable: true });
+      }
+    });
+  };
+
+  const showAdsgramAd = (): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      if (window.Adsgram) {
+        try {
+          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          resolve(true);
+        } catch (error) {
+          console.error('Adsgram ad error:', error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
   const handleSubmit = async () => {
     if (!promoCode.trim()) {
       showNotification("Please enter a promo code", "error");
       return;
     }
 
-    redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+    if (isShowingAds) return;
+    
+    setIsShowingAds(true);
+    
+    try {
+      const monetagResult = await showMonetagAd();
+      
+      if (monetagResult.unavailable) {
+        showNotification("Ads not available. Please try again later.", "error");
+        setIsShowingAds(false);
+        return;
+      }
+      
+      if (!monetagResult.watchedFully) {
+        showNotification("Please watch the ad completely to redeem!", "error");
+        setIsShowingAds(false);
+        return;
+      }
+      
+      const adsgramSuccess = await showAdsgramAd();
+      
+      if (!adsgramSuccess) {
+        showNotification("Please complete all ads to redeem your code!", "error");
+        setIsShowingAds(false);
+        return;
+      }
+      
+      redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+    } finally {
+      setIsShowingAds(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -144,10 +224,10 @@ export default function HamburgerMenu() {
                 </div>
                 <Button
                   onClick={handleSubmit}
-                  disabled={redeemPromoMutation.isPending || !promoCode.trim()}
+                  disabled={redeemPromoMutation.isPending || isShowingAds || !promoCode.trim()}
                   className="h-11 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] font-semibold rounded-xl"
                 >
-                  {redeemPromoMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                  {redeemPromoMutation.isPending || isShowingAds ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
                 </Button>
               </div>
             </div>
