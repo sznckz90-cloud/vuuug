@@ -127,52 +127,34 @@ export default function Withdraw() {
   const hasEnoughReferrals = !withdrawalInviteRequirementEnabled || validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+  const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
   const referralLink = user?.referralCode 
-    ? `https://t.me/${botUsername}?start=${user.referralCode}`
+    ? `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`
     : '';
 
   const [isSharing, setIsSharing] = useState(false);
 
-  const openShareSheet = async () => {
+  const openShareSheet = () => {
     if (!referralLink || isSharing) return;
     
     setIsSharing(true);
     
+    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+    const tgWebApp = window.Telegram?.WebApp as any;
+    
     try {
-      const response = await fetch('/api/share/invite', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        showNotification('Invite message sent! Forward it to your friends.', 'success');
-      } else {
-        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-        const tgWebApp = window.Telegram?.WebApp as any;
-        
-        if (tgWebApp?.openTelegramLink) {
-          tgWebApp.openTelegramLink(shareUrl);
-        } else {
-          window.open(shareUrl, '_blank');
-        }
-      }
-    } catch (error) {
-      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-      const tgWebApp = window.Telegram?.WebApp as any;
-      
       if (tgWebApp?.openTelegramLink) {
         tgWebApp.openTelegramLink(shareUrl);
       } else {
         window.open(shareUrl, '_blank');
       }
-    } finally {
-      setIsSharing(false);
+    } catch (error) {
+      console.error('Share error:', error);
+      window.open(shareUrl, '_blank');
     }
+    
+    setIsSharing(false);
   };
 
   const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({

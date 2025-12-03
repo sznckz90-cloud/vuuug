@@ -93,8 +93,9 @@ export default function Missions() {
   });
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+  const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
   const referralLink = user?.referralCode 
-    ? `https://t.me/${botUsername}?start=${user.referralCode}`
+    ? `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`
     : '';
 
   const shareWithFriendsMutation = useMutation({
@@ -187,47 +188,27 @@ export default function Missions() {
     },
   });
 
-  const handleShareWithFriends = useCallback(async () => {
+  const handleShareWithFriends = useCallback(() => {
     if (missionStatus?.shareStory?.claimed || !referralLink) return;
     
     setShareWithFriendsStep('sharing');
     
+    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+    const tgWebApp = window.Telegram?.WebApp as any;
+    
     try {
-      const response = await fetch('/api/share/invite', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        showNotification('Invite message sent! Forward it to your friends.', 'success');
-        setShareWithFriendsStep('ready');
-      } else {
-        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-        const tgWebApp = window.Telegram?.WebApp as any;
-        
-        if (tgWebApp?.openTelegramLink) {
-          tgWebApp.openTelegramLink(shareUrl);
-        } else {
-          window.open(shareUrl, '_blank');
-        }
-        setShareWithFriendsStep('ready');
-      }
-    } catch (error) {
-      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-      const tgWebApp = window.Telegram?.WebApp as any;
-      
       if (tgWebApp?.openTelegramLink) {
         tgWebApp.openTelegramLink(shareUrl);
       } else {
         window.open(shareUrl, '_blank');
       }
-      setShareWithFriendsStep('ready');
+    } catch (error) {
+      console.error('Share error:', error);
+      window.open(shareUrl, '_blank');
     }
+    
+    setShareWithFriendsStep('ready');
   }, [missionStatus?.shareStory?.claimed, referralLink]);
 
   const handleClaimShareWithFriends = useCallback(() => {
