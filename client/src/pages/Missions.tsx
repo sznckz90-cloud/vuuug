@@ -193,18 +193,25 @@ export default function Missions() {
     
     setShareWithFriendsStep('sharing');
     
-    const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
     const tgWebApp = window.Telegram?.WebApp as any;
     
     try {
-      if (tgWebApp?.openTelegramLink) {
-        tgWebApp.openTelegramLink(shareUrl);
+      // Use switchInlineQuery for rich media sharing with image + inline button
+      if (tgWebApp?.switchInlineQuery) {
+        // This opens the inline query picker, allowing user to select a chat
+        // The bot will respond with a photo + WebApp button
+        tgWebApp.switchInlineQuery('', ['users', 'groups', 'channels']);
       } else {
+        // Fallback for non-Telegram environments
+        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
         window.open(shareUrl, '_blank');
       }
     } catch (error) {
       console.error('Share error:', error);
+      // Fallback to basic share
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
       window.open(shareUrl, '_blank');
     }
     
