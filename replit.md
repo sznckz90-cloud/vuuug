@@ -88,6 +88,15 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Lucky Slots Removal**: Completely disabled Lucky Slots/FreeSpin feature - page deleted, API routes blocked, UI references removed
 - **Task Logic**: All task types (Channel, Bot, Partner) use 3-second countdown before claim is available
 - **TypeScript Fixes**: Resolved switchInlineQuery type errors in Affiliates and Withdraw pages using type assertions
+- **Share Button Fix (December 2025)**: Fixed share functionality to use Telegram's native inline query for rich media sharing
+  - Share button now uses `Telegram.WebApp.switchInlineQuery` for rich media sharing
+  - Opens Telegram's inline query interface with photo + caption + inline WebApp button
+  - User selects chat/group/channel directly from Telegram's interface
+  - Removed API call to `/api/share/send-rich-message` that was sending photo to bot chat
+  - No more "Forward this message" popup - direct share to selected contacts
+  - Backend `handleInlineQuery` in server/telegram.ts returns rich media with user's referral code
+  - **IMPORTANT**: Bot must have inline mode enabled via @BotFather (send `/setinline` to @BotFather)
+  - Applied to: Affiliates page, Withdraw page, Missions page
 
 ### New Features (December 2025)
 - **Daily Check-in Ads Requirement**: Users must watch Monetag + AdGram ads before claiming Daily Check-in reward
