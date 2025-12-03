@@ -89,6 +89,27 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Task Logic**: All task types (Channel, Bot, Partner) use 3-second countdown before claim is available
 - **TypeScript Fixes**: Resolved switchInlineQuery type errors in Affiliates and Withdraw pages using type assertions
 
+### New Features (December 2025)
+- **Daily Check-in Ads Requirement**: Users must watch Monetag + AdGram ads before claiming Daily Check-in reward
+  - Created reusable `useAdFlow` hook for ad flow management
+  - Ads shown sequentially: Monetag first (minimum 3 seconds), then AdGram
+  - Claim button only becomes active after both ads are completed
+- **Check for Updates Task**: New daily mission that rewards 5 PAD
+  - Opens https://t.me/PaidADsNews when clicked
+  - 3-second countdown after visiting, then claim becomes available
+  - Backend route: `/api/missions/check-for-updates/claim`
+- **Promo Code Ads Requirement**: Users must watch Monetag + AdGram ads before redeeming promo codes
+  - Applied to HamburgerMenu promo code redemption flow
+  - Same ad sequence as Daily Check-in
+- **Updated Share Format**: Share With Friends now uses improved message format
+  - Title: "💸 Start earning money just by completing tasks & watching ads!"
+  - Button text: "🚀 Start earning"
+  - Uses Telegram's switchInlineQuery when available for better sharing experience
+- **Performance Optimizations**:
+  - Affiliates page: Increased staleTime to 60s, gcTime to 300s, disabled refetchOnMount for faster loading
+  - Withdraw page: Optimized referral count and withdrawal eligibility queries with better caching
+  - Share banner image stored in `/client/public/images/share-banner.jpg`
+
 ### Auto-Ban System (November 2025)
 - **Detection Triggers**: 
   - Multiple accounts on same device ID
