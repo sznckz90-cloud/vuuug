@@ -6024,7 +6024,14 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
     }
   });
 
-  // ==================== FREE SPIN SYSTEM ====================
+  // ==================== FREE SPIN SYSTEM (DISABLED) ====================
+  // Middleware to block all spin-related API endpoints
+  app.use('/api/spin', (req, res, next) => {
+    res.status(403).json({
+      success: false,
+      message: 'Spin feature has been disabled'
+    });
+  });
 
   // Helper function to get today's date as YYYY-MM-DD
   const getTodayDate = () => {
@@ -6032,7 +6039,7 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
     return now.toISOString().split('T')[0];
   };
 
-  // Spin reward configuration - heavily biased toward low rewards
+  // Spin reward configuration - heavily biased toward low rewards (DISABLED)
   const SPIN_REWARDS = [
     { type: 'PAD', amount: 1, rarity: 'common', weight: 400 },      // VERY HIGH CHANCE
     { type: 'PAD', amount: 20, rarity: 'common', weight: 350 },     // VERY HIGH CHANCE

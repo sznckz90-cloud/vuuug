@@ -492,6 +492,25 @@ export async function ensureDatabaseSchema(): Promise<void> {
       console.log('ℹ️ [MIGRATION] ban_logs columns already exist');
     }
     
+    // Daily missions table for Share with Friends and Daily Check-in
+    console.log('🔄 [MIGRATION] Creating daily_missions table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS daily_missions (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        mission_type TEXT NOT NULL,
+        completed BOOLEAN DEFAULT FALSE,
+        claimed_at TIMESTAMP,
+        reset_date TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT daily_missions_user_type_date_unique UNIQUE (user_id, mission_type, reset_date)
+      )
+    `);
+    console.log('✅ [MIGRATION] daily_missions table created');
+    
+    // Create index for daily missions performance
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_daily_missions_user_date ON daily_missions(user_id, reset_date)`);
+    
     // Create index for ban logs performance
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ban_logs_user_id ON ban_logs(banned_user_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ban_logs_device_id ON ban_logs(device_id)`);

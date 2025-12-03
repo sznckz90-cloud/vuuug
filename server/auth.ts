@@ -364,8 +364,13 @@ export async function setupAuth(app: express.Express) {
   });
 }
 
-// Simple authentication check middleware
+// Simple authentication check middleware - also populates user from session
 export const requireAuth: RequestHandler = (req: any, res, next) => {
+  // Try to get user from req.user first, then from session
+  if (!req.user && req.session?.user) {
+    req.user = req.session.user;
+  }
+  
   if (!req.user || !req.user.user) {
     return res.status(401).json({ 
       message: "Authentication required. Please use Telegram WebApp.",
