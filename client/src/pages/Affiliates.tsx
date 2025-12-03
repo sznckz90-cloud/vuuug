@@ -103,14 +103,44 @@ export default function Affiliates() {
     try {
       const tgWebApp = window.Telegram?.WebApp as any;
       
-      // Use switchInlineQuery for rich media sharing (image + caption + inline button)
-      if (tgWebApp?.switchInlineQuery) {
-        // Empty query string - bot will use user's referral code from database
-        tgWebApp.switchInlineQuery('', ['users', 'groups', 'channels']);
+      // Native Telegram share: Use shareMessage() with prepared message from backend
+      if (tgWebApp?.shareMessage) {
+        try {
+          // First, prepare the message on the backend
+          const response = await fetch('/api/share/prepare-message', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const data = await response.json();
+          
+          if (data.success && data.messageId) {
+            // Use the native Telegram share dialog with prepared message
+            tgWebApp.shareMessage(data.messageId, (success: boolean) => {
+              if (success) {
+                showNotification('Message shared successfully!', 'success');
+              }
+              setIsSharing(false);
+            });
+            return;
+          } else if (data.fallbackUrl) {
+            // Backend returned fallback URL
+            tgWebApp.openTelegramLink(data.fallbackUrl);
+            setIsSharing(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Prepare message error:', error);
+        }
+      }
+      
+      // Fallback: Use Telegram's native share URL dialog
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
       } else {
-        // Fallback for non-Telegram environments
-        const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
-        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
         window.open(shareUrl, '_blank');
       }
     } catch (error) {
