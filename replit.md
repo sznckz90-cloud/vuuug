@@ -101,12 +101,14 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Promo Code Ads Requirement**: Users must watch Monetag + AdGram ads before redeeming promo codes
   - Applied to HamburgerMenu promo code redemption flow
   - Same ad sequence as Daily Check-in
-- **Updated Share Format**: Share With Friends now uses improved message format
-  - Title: "💸 Start earning money just by completing tasks & watching ads!"
-  - Button text: "🚀 Start earning"
-  - Uses `openTelegramLink` with native Telegram share URL format (`https://t.me/share/url?...`)
-  - Referral links now use WebApp deep-link format: `https://t.me/{bot}/{webAppName}?startapp={code}`
-  - Opens webapp directly instead of bot chat when user clicks referral link
+- **Rich Media Share Format** (December 2025 Update): Share With Friends now uses Telegram Inline Query for multimedia sharing
+  - Uses `switchInlineQuery` API for rich media sharing with image + inline WebApp button
+  - Share message includes: Image banner, caption, and "🚀 Start Earning" WebApp button
+  - Referral links use WebApp deep-link format: `https://t.me/{bot}/{webAppName}?startapp={code}`
+  - Backend handler in `server/telegram.ts` responds to inline queries with `InlineQueryResultPhoto`
+  - **IMPORTANT**: Requires inline mode to be enabled via @BotFather (send `/setinline` to @BotFather)
+  - Share banner image stored in `/client/public/images/share-banner.jpg`
+  - Fallback to plain text share URL for non-Telegram environments
 - **Performance Optimizations**:
   - Affiliates page: Increased staleTime to 60s, gcTime to 300s, disabled refetchOnMount for faster loading
   - Withdraw page: Optimized referral count and withdrawal eligibility queries with better caching
