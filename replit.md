@@ -88,14 +88,14 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Lucky Slots Removal**: Completely disabled Lucky Slots/FreeSpin feature - page deleted, API routes blocked, UI references removed
 - **Task Logic**: All task types (Channel, Bot, Partner) use 3-second countdown before claim is available
 - **TypeScript Fixes**: Resolved switchInlineQuery type errors in Affiliates and Withdraw pages using type assertions
-- **Share Button Fix (December 2025)**: Fixed share functionality to use Telegram's native inline query for rich media sharing
-  - Share button now uses `Telegram.WebApp.switchInlineQuery` for rich media sharing
-  - Opens Telegram's inline query interface with photo + caption + inline WebApp button
-  - User selects chat/group/channel directly from Telegram's interface
-  - Removed API call to `/api/share/send-rich-message` that was sending photo to bot chat
-  - No more "Forward this message" popup - direct share to selected contacts
-  - Backend `handleInlineQuery` in server/telegram.ts returns rich media with user's referral code
-  - **IMPORTANT**: Bot must have inline mode enabled via @BotFather (send `/setinline` to @BotFather)
+- **Native Share Dialog (December 2025)**: Implemented native Telegram share dialog using `shareMessage()` API
+  - Uses Bot API 8.0 `savePreparedInlineMessage` on backend to prepare share messages
+  - Frontend calls `Telegram.WebApp.shareMessage(messageId)` for native share dialog
+  - Shows message preview with image + caption + inline WebApp button
+  - User selects chat/group/channel directly from Telegram's native share interface
+  - NO message goes to bot, NO forwarding required - direct share to selected contacts
+  - Backend endpoint: `/api/share/prepare-message` prepares the share message
+  - Fallback chain: `shareMessage()` → `openTelegramLink(t.me/share/url)` → `window.open()`
   - Applied to: Affiliates page, Withdraw page, Missions page
 
 ### New Features (December 2025)
@@ -110,14 +110,13 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Promo Code Ads Requirement**: Users must watch Monetag + AdGram ads before redeeming promo codes
   - Applied to HamburgerMenu promo code redemption flow
   - Same ad sequence as Daily Check-in
-- **Rich Media Share Format** (December 2025 Update): Share With Friends now uses Telegram Inline Query for multimedia sharing
-  - Uses `switchInlineQuery` API for rich media sharing with image + inline WebApp button
+- **Native Share Dialog** (December 2025 Update): Share With Friends now uses Telegram's native `shareMessage()` API
+  - Uses `savePreparedInlineMessage` (Bot API 8.0) to prepare rich media share messages
   - Share message includes: Image banner, caption, and "🚀 Start Earning" WebApp button
   - Referral links use WebApp deep-link format: `https://t.me/{bot}/{webAppName}?startapp={code}`
-  - Backend handler in `server/telegram.ts` responds to inline queries with `InlineQueryResultPhoto`
-  - **IMPORTANT**: Requires inline mode to be enabled via @BotFather (send `/setinline` to @BotFather)
+  - Backend endpoint `/api/share/prepare-message` returns messageId for `shareMessage()`
   - Share banner image stored in `/client/public/images/share-banner.jpg`
-  - Fallback to plain text share URL for non-Telegram environments
+  - Fallback to `t.me/share/url` for older Telegram clients
 - **Performance Optimizations**:
   - Affiliates page: Increased staleTime to 60s, gcTime to 300s, disabled refetchOnMount for faster loading
   - Withdraw page: Optimized referral count and withdrawal eligibility queries with better caching
