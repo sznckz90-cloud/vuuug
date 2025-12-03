@@ -95,31 +95,47 @@ export default function Affiliates() {
 
   const [isSharing, setIsSharing] = useState(false);
 
-  const shareReferralLink = () => {
+  const shareReferralLink = async () => {
     if (!referralLink || isSharing) return;
     
     setIsSharing(true);
     
-    const tgWebApp = window.Telegram?.WebApp as any;
-    
     try {
-      // Use switchInlineQuery for rich media sharing with image + inline button
-      if (tgWebApp?.switchInlineQuery) {
-        // This opens the inline query picker, allowing user to select a chat
-        // The bot will respond with a photo + WebApp button
-        tgWebApp.switchInlineQuery('', ['users', 'groups', 'channels']);
+      // Call the API to send rich share message (photo + caption + inline button)
+      const response = await fetch('/api/share/send-rich-message', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        showNotification('Share message sent to your Telegram! Forward it to friends.', 'success');
       } else {
-        // Fallback for non-Telegram environments
+        // Fallback to basic share if API fails
+        const tgWebApp = window.Telegram?.WebApp as any;
         const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-        window.open(shareUrl, '_blank');
+        
+        if (tgWebApp?.openTelegramLink) {
+          tgWebApp.openTelegramLink(shareUrl);
+        } else {
+          window.open(shareUrl, '_blank');
+        }
       }
     } catch (error) {
       console.error('Share error:', error);
       // Fallback to basic share
+      const tgWebApp = window.Telegram?.WebApp as any;
       const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
-      window.open(shareUrl, '_blank');
+      
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
     }
     
     setIsSharing(false);
