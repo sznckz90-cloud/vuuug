@@ -391,7 +391,9 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const user = await storage.getUserByTelegramId(chatId);
           
           if (user && user.referralCode) {
-            const referralLink = `https://t.me/Paid_Adzbot?start=ref${user.referralCode}`;
+            const botUsername = process.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+            const webAppName = process.env.WEBAPP_NAME || 'app';
+            const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
             
             const inviteMessage = `👫🏼 <b>Invite Your Friends!</b>
 

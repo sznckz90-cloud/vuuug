@@ -595,9 +595,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(users.id, userId));
       }
       
-      // Add referral link with fallback bot username
-      const botUsername = process.env.BOT_USERNAME || "LightningSatsbot";
-      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+      // Add referral link with fallback bot username - use WebApp format for direct app opening
+      const botUsername = process.env.BOT_USERNAME || "Paid_Adzbot";
+      const webAppName = process.env.WEBAPP_NAME || "app";
+      const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
       
       res.json({
         ...user,
@@ -6672,7 +6673,8 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       }
 
       const botUsername = process.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
-      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+      const webAppName = process.env.WEBAPP_NAME || 'app';
+      const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
       
       const appUrl = process.env.RENDER_EXTERNAL_URL || 
                     (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://vuuug.onrender.com');
@@ -6684,7 +6686,7 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
           [
             {
               text: '🚀 Start earning',
-              url: referralLink
+              web_app: { url: `${appUrl}?ref=${user.referralCode}` }
             }
           ]
         ]
