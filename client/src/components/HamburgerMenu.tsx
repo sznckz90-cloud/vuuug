@@ -93,18 +93,13 @@ export default function HamburgerMenu() {
   const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
       if (typeof window.show_10013974 === 'function') {
-        monetagStartTimeRef.current = Date.now();
         window.show_10013974()
           .then(() => {
-            const watchDuration = Date.now() - monetagStartTimeRef.current;
-            const watchedAtLeast3Seconds = watchDuration >= 3000;
-            resolve({ success: true, watchedFully: watchedAtLeast3Seconds, unavailable: false });
+            resolve({ success: true, watchedFully: true, unavailable: false });
           })
           .catch((error) => {
             console.error('Monetag ad error:', error);
-            const watchDuration = Date.now() - monetagStartTimeRef.current;
-            const watchedAtLeast3Seconds = watchDuration >= 3000;
-            resolve({ success: false, watchedFully: watchedAtLeast3Seconds, unavailable: false });
+            resolve({ success: false, watchedFully: false, unavailable: false });
           });
       } else {
         resolve({ success: false, watchedFully: false, unavailable: true });
