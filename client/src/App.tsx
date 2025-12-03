@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppNotification from "@/components/AppNotification";
-import { useEffect, lazy, Suspense, useState, useCallback, memo } from "react";
+import { useEffect, lazy, Suspense, useState, memo } from "react";
 import { setupDeviceTracking } from "@/lib/deviceId";
 import BanScreen from "@/components/BanScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
@@ -14,9 +14,7 @@ const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
-const Tasks = lazy(() => import("@/pages/Tasks"));
 const Missions = lazy(() => import("@/pages/Missions"));
-const FreeSpin = lazy(() => import("@/pages/FreeSpin"));
 const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
 const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
@@ -43,7 +41,6 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/tasks" component={Missions} />
         <Route path="/missions" component={Missions} />
-        <Route path="/free-spin" component={FreeSpin} />
         <Route path="/task/create" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/wallet-activity" component={WalletActivity} />
