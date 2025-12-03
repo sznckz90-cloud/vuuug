@@ -80,6 +80,14 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Ad Watch Updates**: Query invalidation for `/api/withdrawal-eligibility` and `/api/referrals/valid-count` after ad completion
 - **Referral Stats Consistency**: `/api/referrals/stats` now returns valid referral count (users who watched 1+ ads, not banned)
 - **Ad Watch Section**: Simplified to Monetag-only flow for faster ad loading and instant rewards
+- **Daily Missions System**: 
+  - Fixed Share with Friends and Daily Check-in reward claims by updating requireAuth middleware to populate user from session
+  - Created `daily_missions` table for tracking mission completions and claims per day
+  - Daily Check-in now uses 3-second countdown flow matching Share with Friends pattern
+  - Added migration to ensure daily_missions table is auto-created on server startup
+- **Lucky Slots Removal**: Completely disabled Lucky Slots/FreeSpin feature - page deleted, API routes blocked, UI references removed
+- **Task Logic**: All task types (Channel, Bot, Partner) use 3-second countdown before claim is available
+- **TypeScript Fixes**: Resolved switchInlineQuery type errors in Affiliates and Withdraw pages using type assertions
 
 ### Auto-Ban System (November 2025)
 - **Detection Triggers**: 
