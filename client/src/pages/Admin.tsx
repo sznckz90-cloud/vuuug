@@ -1429,7 +1429,8 @@ function SettingsSection() {
   });
   
   const [settings, setSettings] = useState({
-    dailyAdLimit: '50',
+    dailyAdLimit: '500',
+    hourlyAdLimit: '60',
     rewardPerAd: '2',
     affiliateCommission: '10',
     walletChangeFee: '100',
@@ -1462,7 +1463,8 @@ function SettingsSection() {
   useEffect(() => {
     if (settingsData) {
       setSettings({
-        dailyAdLimit: settingsData.dailyAdLimit?.toString() || '50',
+        dailyAdLimit: settingsData.dailyAdLimit?.toString() || '500',
+        hourlyAdLimit: settingsData.hourlyAdLimit?.toString() || '60',
         rewardPerAd: settingsData.rewardPerAd?.toString() || '2',
         affiliateCommission: settingsData.affiliateCommission?.toString() || '10',
         walletChangeFee: settingsData.walletChangeFee?.toString() || '100',
@@ -1504,6 +1506,7 @@ function SettingsSection() {
   
   const handleSaveSettings = async () => {
     const adLimit = parseInt(settings.dailyAdLimit);
+    const hourlyLimit = parseInt(settings.hourlyAdLimit);
     const reward = parseInt(settings.rewardPerAd);
     const affiliate = parseFloat(settings.affiliateCommission);
     const walletFee = parseInt(settings.walletChangeFee);
@@ -1530,6 +1533,15 @@ function SettingsSection() {
       return;
     }
     
+    if (isNaN(hourlyLimit) || hourlyLimit <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Hourly ad limit must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (isNaN(reward) || reward <= 0) {
       toast({
         title: "Validation Error",
@@ -1543,6 +1555,7 @@ function SettingsSection() {
     try {
       const response = await apiRequest('PUT', '/api/admin/settings', {
         dailyAdLimit: adLimit,
+        hourlyAdLimit: hourlyLimit,
         rewardPerAd: reward,
         affiliateCommission: affiliate,
         walletChangeFee: walletFee,
@@ -1622,7 +1635,25 @@ function SettingsSection() {
 
       <div className="space-y-3">
         {activeCategory === 'ads' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="hourly-ad-limit" className="text-sm font-semibold">
+                <i className="fas fa-clock mr-2 text-blue-600"></i>
+                Hourly Ad Limit
+              </Label>
+              <Input
+                id="hourly-ad-limit"
+                type="number"
+                value={settings.hourlyAdLimit}
+                onChange={(e) => setSettings({ ...settings, hourlyAdLimit: e.target.value })}
+                placeholder="60"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.hourlyAdLimit || 60} ads/hour
+              </p>
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="daily-ad-limit" className="text-sm font-semibold">
                 <i className="fas fa-calendar-day mr-2 text-orange-600"></i>
@@ -1633,11 +1664,11 @@ function SettingsSection() {
                 type="number"
                 value={settings.dailyAdLimit}
                 onChange={(e) => setSettings({ ...settings, dailyAdLimit: e.target.value })}
-                placeholder="50"
+                placeholder="500"
                 min="1"
               />
               <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.dailyAdLimit || 50} ads/day
+                Current: {settingsData?.dailyAdLimit || 500} ads/day
               </p>
             </div>
             
@@ -1651,11 +1682,11 @@ function SettingsSection() {
                 type="number"
                 value={settings.rewardPerAd}
                 onChange={(e) => setSettings({ ...settings, rewardPerAd: e.target.value })}
-                placeholder="1000"
+                placeholder="2"
                 min="1"
               />
               <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.rewardPerAd || 1000} PAD
+                Current: {settingsData?.rewardPerAd || 2} PAD
               </p>
             </div>
           </div>
