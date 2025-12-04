@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, Users, ClipboardList, CircleDollarSign } from "lucide-react";
+import { Users, ClipboardList, CircleDollarSign, ShoppingBag } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
@@ -23,28 +23,27 @@ export default function Layout({ children }: LayoutProps) {
     retry: false,
   });
 
-  // Show ban screen if user is banned
   if (user?.banned) {
     return <BanScreen reason={user.bannedReason} />;
   }
 
-  const navItems = [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/tasks", icon: ClipboardList, label: "Tasks" },
+  const leftNavItems = [
+    { href: "/store", icon: ShoppingBag, label: "Store" },
+    { href: "/tasks", icon: ClipboardList, label: "Task" },
+  ];
+
+  const rightNavItems = [
     { href: "/affiliates", icon: Users, label: "Affiliates" },
     { href: "/withdraw", icon: CircleDollarSign, label: "Withdraw" },
   ];
 
-  const balancePAD = Math.round(parseFloat(user?.balance || "0") * 100000);
-  const balanceUSD = (balancePAD / 100000).toFixed(2);
+  const isWatchActive = location === "/";
 
   return (
     <div className="h-screen w-full flex flex-col bg-black overflow-hidden">
-      {/* Header - Fixed - Hidden when season end is shown */}
       {!showSeasonEnd && <Header />}
       
-      {/* Scrollable Content Area - Instant transitions */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '76px', paddingTop: '60px' }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '85px', paddingTop: '60px' }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location}
@@ -62,12 +61,12 @@ export default function Layout({ children }: LayoutProps) {
         </AnimatePresence>
       </div>
 
-      {/* Bottom Navigation - Fixed - Hidden when season end is shown */}
       {!showSeasonEnd && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A]">
           <div className="max-w-md mx-auto px-4">
-            <div className="flex justify-around items-center py-3">
-              {navItems.map((item) => {
+            <div className="flex justify-around items-center py-3 relative">
+              {/* Left Nav Items */}
+              {leftNavItems.map((item) => {
                 const isActive = location === item.href;
                 const Icon = item.icon;
                 
@@ -79,10 +78,55 @@ export default function Layout({ children }: LayoutProps) {
                           ? "text-[#007BFF]" 
                           : "text-[#AAAAAA] hover:text-[#FFFFFF]"
                       }`}
-                      data-testid={`link-${item.label.toLowerCase()}`}
                     >
                       <Icon 
-                        className={`w-6 h-6 transition-all`}
+                        className="w-6 h-6 transition-all"
+                        strokeWidth={isActive ? 2.5 : 2}
+                      />
+                      <span className={`text-xs font-medium ${isActive ? 'font-semibold' : ''}`}>
+                        {item.label}
+                      </span>
+                    </button>
+                  </Link>
+                );
+              })}
+
+              {/* Center Floating Watch Button */}
+              <Link href="/">
+                <button className="flex flex-col items-center justify-center min-w-[60px] -mt-8">
+                  <div className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-black ${
+                    isWatchActive ? "ring-2 ring-[#007BFF]" : ""
+                  }`}>
+                    <img 
+                      src="/images/p-logo.png" 
+                      alt="Watch" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className={`text-[10px] font-black tracking-wider mt-1 ${
+                    isWatchActive ? "text-[#007BFF]" : "text-[#AAAAAA]"
+                  }`}>
+                    WATCH
+                  </span>
+                </button>
+              </Link>
+
+              {/* Right Nav Items */}
+              {rightNavItems.map((item) => {
+                const isActive = location === item.href;
+                const Icon = item.icon;
+                
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <button
+                      className={`flex flex-col items-center justify-center gap-1 min-w-[60px] transition-all ${
+                        isActive 
+                          ? "text-[#007BFF]" 
+                          : "text-[#AAAAAA] hover:text-[#FFFFFF]"
+                      }`}
+                    >
+                      <Icon 
+                        className="w-6 h-6 transition-all"
                         strokeWidth={isActive ? 2.5 : 2}
                       />
                       <span className={`text-xs font-medium ${isActive ? 'font-semibold' : ''}`}>
