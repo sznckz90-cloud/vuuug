@@ -721,16 +721,37 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    console.log(`📊 ADS_COUNT_DEBUG: User ${userId}, Reset Date: ${currentResetDate}, New Count: ${adsCount}, Previous Count: ${user.adsWatchedToday || 0}`);
+    // Hourly tracking - check if hourly window has expired
+    let hourlyAdsCount = 1;
+    const hourlyWindowStart = user.hourlyWindowStart ? new Date(user.hourlyWindowStart) : null;
+    
+    if (hourlyWindowStart && (now.getTime() - hourlyWindowStart.getTime()) < 60 * 60 * 1000) {
+      // Still within the hour window, increment hourly count
+      hourlyAdsCount = (user.adsWatchedThisHour || 0) + 1;
+    } else {
+      // Window expired or first ad, start new hourly window
+      hourlyAdsCount = 1;
+    }
+
+    console.log(`📊 ADS_COUNT_DEBUG: User ${userId}, Reset Date: ${currentResetDate}, Daily Count: ${adsCount}, Hourly Count: ${hourlyAdsCount}`);
+
+    // Prepare update data
+    const updateData: any = {
+      adsWatchedToday: adsCount,
+      adsWatchedThisHour: hourlyAdsCount,
+      adsWatched: sql`COALESCE(${users.adsWatched}, 0) + 1`,
+      lastAdDate: now,
+      updatedAt: now,
+    };
+
+    // Start new hourly window if expired or not set
+    if (!hourlyWindowStart || (now.getTime() - hourlyWindowStart.getTime()) >= 60 * 60 * 1000) {
+      updateData.hourlyWindowStart = now;
+    }
 
     await db
       .update(users)
-      .set({
-        adsWatchedToday: adsCount,
-        adsWatched: sql`COALESCE(${users.adsWatched}, 0) + 1`, // Increment total ads watched
-        lastAdDate: now,
-        updatedAt: now,
-      })
+      .set(updateData)
       .where(eq(users.id, userId));
 
     // NEW: Update task progress for the new task system

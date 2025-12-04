@@ -660,7 +660,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Parse all settings with NEW defaults
-      const dailyAdLimit = parseInt(getSetting('daily_ad_limit', '50'));
+      const dailyAdLimit = parseInt(getSetting('daily_ad_limit', '500'));
+      const hourlyAdLimit = parseInt(getSetting('hourly_ad_limit', '60'));
       const rewardPerAd = parseInt(getSetting('reward_per_ad', '2')); // Default 2 PAD per ad
       const seasonBroadcastActive = getSetting('season_broadcast_active', 'false') === 'true';
       const affiliateCommission = parseFloat(getSetting('affiliate_commission', '10'));
@@ -713,6 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         dailyAdLimit,
+        hourlyAdLimit,
         rewardPerAd,
         rewardPerAdPAD: rewardPerAd,
         seasonBroadcastActive,
@@ -812,20 +814,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Fetch admin settings for daily limit and reward amount
+      // Fetch admin settings for daily limit, hourly limit, and reward amount
       const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
+      const hourlyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'hourly_ad_limit')).limit(1);
       const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
       
-      const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 50;
+      const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 500;
+      const hourlyAdLimit = hourlyAdLimitSetting[0]?.settingValue ? parseInt(hourlyAdLimitSetting[0].settingValue) : 60;
       const rewardPerAdPAD = rewardPerAdSetting[0]?.settingValue ? parseInt(rewardPerAdSetting[0].settingValue) : 1000;
       
-      // Enforce daily ad limit (configurable, default 50)
+      // Enforce daily ad limit (configurable, default 500)
       const adsWatchedToday = user.adsWatchedToday || 0;
       if (adsWatchedToday >= dailyAdLimit) {
         return res.status(429).json({ 
           message: `Daily ad limit reached. You can watch up to ${dailyAdLimit} ads per day.`,
+          limitType: 'daily',
           limit: dailyAdLimit,
           watched: adsWatchedToday
+        });
+      }
+      
+      // Check hourly limit with window management
+      const now = new Date();
+      const hourlyWindowStart = user.hourlyWindowStart ? new Date(user.hourlyWindowStart) : null;
+      let adsWatchedThisHour = user.adsWatchedThisHour || 0;
+      
+      // Check if hourly window has expired (more than 1 hour since start)
+      if (hourlyWindowStart && (now.getTime() - hourlyWindowStart.getTime()) >= 60 * 60 * 1000) {
+        // Window expired, reset hourly count
+        adsWatchedThisHour = 0;
+        await db.update(users).set({
+          adsWatchedThisHour: 0,
+          hourlyWindowStart: now,
+          updatedAt: now
+        }).where(eq(users.id, userId));
+      } else if (!hourlyWindowStart) {
+        // First ad watch, start the hourly window
+        await db.update(users).set({
+          hourlyWindowStart: now,
+          updatedAt: now
+        }).where(eq(users.id, userId));
+      }
+      
+      // Enforce hourly ad limit (configurable, default 60)
+      if (adsWatchedThisHour >= hourlyAdLimit) {
+        const timeRemaining = hourlyWindowStart ? 
+          Math.max(0, (60 * 60 * 1000) - (now.getTime() - hourlyWindowStart.getTime())) : 0;
+        
+        return res.status(429).json({ 
+          message: `Hourly ad limit reached. Please wait for the timer to reset.`,
+          limitType: 'hourly',
+          limit: hourlyAdLimit,
+          watched: adsWatchedThisHour,
+          timeRemaining: Math.ceil(timeRemaining / 1000),
+          resetAt: hourlyWindowStart ? new Date(hourlyWindowStart.getTime() + 60 * 60 * 1000).toISOString() : null
         });
       }
       
@@ -915,6 +957,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         adsWatchedToday: 0,
         warning: "Reward processing encountered an issue but was acknowledged"
       });
+    }
+  });
+
+  // Get current ad limits and timer info for user
+  app.get('/api/ads/limits', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Fetch admin settings for limits
+      const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
+      const hourlyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'hourly_ad_limit')).limit(1);
+      
+      const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 500;
+      const hourlyAdLimit = hourlyAdLimitSetting[0]?.settingValue ? parseInt(hourlyAdLimitSetting[0].settingValue) : 60;
+      
+      const now = new Date();
+      const hourlyWindowStart = user.hourlyWindowStart ? new Date(user.hourlyWindowStart) : null;
+      
+      // Calculate time remaining and current hourly count
+      let adsWatchedThisHour = user.adsWatchedThisHour || 0;
+      let timeRemaining = 0;
+      let hourlyWindowExpired = false;
+      
+      if (hourlyWindowStart) {
+        const timeSinceStart = now.getTime() - hourlyWindowStart.getTime();
+        if (timeSinceStart >= 60 * 60 * 1000) {
+          // Window expired
+          hourlyWindowExpired = true;
+          adsWatchedThisHour = 0;
+          timeRemaining = 0;
+        } else {
+          // Window still active
+          timeRemaining = Math.ceil((60 * 60 * 1000 - timeSinceStart) / 1000);
+        }
+      }
+      
+      const isHourlyLimitReached = adsWatchedThisHour >= hourlyAdLimit && !hourlyWindowExpired;
+      const isDailyLimitReached = (user.adsWatchedToday || 0) >= dailyAdLimit;
+      
+      res.json({
+        hourly: {
+          limit: hourlyAdLimit,
+          watched: adsWatchedThisHour,
+          remaining: Math.max(0, hourlyAdLimit - adsWatchedThisHour),
+          isLimitReached: isHourlyLimitReached,
+          timeRemaining: isHourlyLimitReached ? timeRemaining : 0,
+          resetAt: hourlyWindowStart && isHourlyLimitReached ? 
+            new Date(hourlyWindowStart.getTime() + 60 * 60 * 1000).toISOString() : null
+        },
+        daily: {
+          limit: dailyAdLimit,
+          watched: user.adsWatchedToday || 0,
+          remaining: Math.max(0, dailyAdLimit - (user.adsWatchedToday || 0)),
+          isLimitReached: isDailyLimitReached
+        },
+        canWatchAd: !isHourlyLimitReached && !isDailyLimitReached
+      });
+    } catch (error) {
+      console.error("Error fetching ad limits:", error);
+      res.status(500).json({ message: "Failed to fetch ad limits" });
     }
   });
 
@@ -2251,7 +2358,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return all settings in format expected by frontend with NEW defaults
       res.json({
-        dailyAdLimit: parseInt(getSetting('daily_ad_limit', '50')),
+        dailyAdLimit: parseInt(getSetting('daily_ad_limit', '500')),
+        hourlyAdLimit: parseInt(getSetting('hourly_ad_limit', '60')),
         rewardPerAd: parseInt(getSetting('reward_per_ad', '2')), // Default 2 PAD
         affiliateCommission: parseFloat(getSetting('affiliate_commission', '10')),
         walletChangeFee: parseInt(getSetting('wallet_change_fee', '100')), // Return as PAD, default 100
@@ -2296,7 +2404,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/admin/settings', authenticateAdmin, async (req: any, res) => {
     try {
       const { 
-        dailyAdLimit, 
+        dailyAdLimit,
+        hourlyAdLimit,
         rewardPerAd, 
         affiliateCommission,
         walletChangeFee,
@@ -2340,6 +2449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Update all provided settings (all values are already in correct format - PAD or USD)
       await updateSetting('daily_ad_limit', dailyAdLimit);
+      await updateSetting('hourly_ad_limit', hourlyAdLimit);
       await updateSetting('reward_per_ad', rewardPerAd); // PAD
       await updateSetting('affiliate_commission', affiliateCommission);
       await updateSetting('wallet_change_fee', walletChangeFee); // PAD
