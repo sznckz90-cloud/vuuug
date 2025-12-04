@@ -20,6 +20,7 @@ const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
 const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const AdList = lazy(() => import("@/pages/AdList"));
+const Store = lazy(() => import("@/pages/Store"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -39,6 +40,7 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/store" component={Store} />
         <Route path="/tasks" component={Missions} />
         <Route path="/missions" component={Missions} />
         <Route path="/task/create" component={CreateTask} />
