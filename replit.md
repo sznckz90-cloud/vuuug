@@ -99,6 +99,15 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
   - Applied to: Affiliates page, Withdraw page, Missions page
 
 ### New Features (December 2025)
+- **Ad Watch System with Hourly/Daily Limits** (December 2025):
+  - Hourly limit: 60 ads per hour (admin configurable)
+  - Daily limit: 500 ads per day (admin configurable)
+  - Timer lock: When hourly limit reached, countdown timer (HH:MM:SS) is displayed
+  - Auto-reset: After timer expires, 60 new ads become available
+  - UI shows progress bars for both hourly and daily limits
+  - Admin panel: Hourly Ad Limit and Daily Ad Limit controls in Ads & Rewards section
+  - New database fields: `adsWatchedThisHour`, `hourlyWindowStart` in users table
+  - New API endpoint: `/api/ads/limits` returns current limit status and timer info
 - **Daily Check-in Ads Requirement**: Users must watch Monetag + AdGram ads before claiming Daily Check-in reward
   - Created reusable `useAdFlow` hook for ad flow management
   - Ads shown sequentially: Monetag first (minimum 3 seconds), then AdGram
