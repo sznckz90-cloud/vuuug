@@ -11,7 +11,7 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 
 ### UI/UX Decisions
 - **Iconography**: Utilizes `lucide-react` for professional icons across the platform, replacing emojis for a more refined look (e.g., Sparkles for "Create Task", CircleDollarSign for "Withdraw", Gem for TON, DollarSign for USD, Star for Telegram Stars).
-- **Navigation**: Bottom navigation bar with "Withdraw" button.
+- **Navigation**: Bottom navigation bar with 5 items in order: Store, Task, Home, Affiliates, Withdraw.
 - **Component Design**: Consistent use of shadcn/ui components and Tailwind CSS for styling. Toggle systems (e.g., for Withdraw and Wallet Setup sections) match gradient styling (`from-cyan-500/20 to-blue-500/20`) and shadow effects.
 - **Input Handling**: Decimal support for financial inputs (e.g., 0.1, 0.5, 1.25), with 2-decimal formatting for display.
 - **Validation Feedback**: Real-time client-side validation and clear error messages for user inputs.
@@ -121,6 +121,12 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
   - Affiliates page: Increased staleTime to 60s, gcTime to 300s, disabled refetchOnMount for faster loading
   - Withdraw page: Optimized referral count and withdrawal eligibility queries with better caching
   - Share banner image stored in `/client/public/images/share-banner.jpg`
+- **Store Page** (December 2025): New booster shop UI at `/store` route
+  - Displays 8 income boosters with modern dark theme cards
+  - Booster types: +10%, +20%, +25%, +50% income boosts (1 day or 1 week durations)
+  - One-time 0% withdrawal fee booster option
+  - Premium card design with gradient backgrounds, icons, duration badges, and Buy buttons
+  - UI only - no backend logic implemented yet
 
 ### Auto-Ban System (November 2025)
 - **Detection Triggers**: 
