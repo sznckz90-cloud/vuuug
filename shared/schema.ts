@@ -224,36 +224,6 @@ export const adminSettings = pgTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Daily Ad Tasks Configuration - Admin configurable progressive tasks
-export const dailyAdTasksConfig = pgTable("daily_ad_tasks_config", {
-  id: serial("id").primaryKey(),
-  taskLevel: integer("task_level").notNull().unique(), // 1-5 for 5 tasks
-  requiredAds: integer("required_ads").notNull(), // Number of ads required
-  rewardType: varchar("reward_type").notNull(), // 'wiew' or 'usd'
-  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).notNull(),
-  displayOrder: integer("display_order").notNull(), // For reordering
-  isEnabled: boolean("is_enabled").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// User Daily Ad Tasks Progress - Tracks each user's daily progress
-export const userDailyAdTasks = pgTable("user_daily_ad_tasks", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  taskLevel: integer("task_level").notNull(),
-  progress: integer("progress").default(0), // Current ads watched for this task
-  completed: boolean("completed").default(false),
-  claimed: boolean("claimed").default(false),
-  completedAt: timestamp("completed_at"),
-  claimedAt: timestamp("claimed_at"),
-  resetDate: varchar("reset_date").notNull(), // YYYY-MM-DD format
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  unique("user_daily_ad_tasks_unique").on(table.userId, table.taskLevel, table.resetDate),
-]);
-
 // Advertiser tasks table
 export const advertiserTasks = pgTable("advertiser_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -356,8 +326,6 @@ export const insertBanLogSchema = createInsertSchema(banLogs).omit({ id: true, c
 export const insertSpinDataSchema = createInsertSchema(spinData).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSpinHistorySchema = createInsertSchema(spinHistory).omit({ id: true, createdAt: true });
 export const insertDailyMissionSchema = createInsertSchema(dailyMissions).omit({ id: true, createdAt: true });
-export const insertDailyAdTasksConfigSchema = createInsertSchema(dailyAdTasksConfig).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertUserDailyAdTasksSchema = createInsertSchema(userDailyAdTasks).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -394,7 +362,3 @@ export type SpinHistory = typeof spinHistory.$inferSelect;
 export type InsertSpinHistory = z.infer<typeof insertSpinHistorySchema>;
 export type DailyMission = typeof dailyMissions.$inferSelect;
 export type InsertDailyMission = z.infer<typeof insertDailyMissionSchema>;
-export type DailyAdTasksConfig = typeof dailyAdTasksConfig.$inferSelect;
-export type InsertDailyAdTasksConfig = z.infer<typeof insertDailyAdTasksConfigSchema>;
-export type UserDailyAdTask = typeof userDailyAdTasks.$inferSelect;
-export type InsertUserDailyAdTask = z.infer<typeof insertUserDailyAdTasksSchema>;
