@@ -1743,25 +1743,6 @@ function SettingsSection() {
         {activeCategory === 'withdrawals' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="minimum-withdrawal-usd" className="text-sm font-semibold">
-                <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
-                Min USD (USD/USDT/Stars)
-              </Label>
-              <Input
-                id="minimum-withdrawal-usd"
-                type="number"
-                value={settings.minimumWithdrawalUSD}
-                onChange={(e) => setSettings({ ...settings, minimumWithdrawalUSD: e.target.value })}
-                placeholder="1.00"
-                min="0"
-                step="0.01"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: ${settingsData?.minimumWithdrawalUSD || 1.00}
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="minimum-withdrawal-ton" className="text-sm font-semibold">
                 <i className="fas fa-gem mr-2 text-blue-600"></i>
                 Min USD (TON Method)
@@ -1797,26 +1778,6 @@ function SettingsSection() {
               />
               <p className="text-xs text-muted-foreground">
                 Current: {settingsData?.withdrawalFeeTON || 5}%
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="withdrawal-fee-usd" className="text-sm font-semibold">
-                <i className="fas fa-percent mr-2 text-green-600"></i>
-                USD/USDT Fee (%)
-              </Label>
-              <Input
-                id="withdrawal-fee-usd"
-                type="number"
-                value={settings.withdrawalFeeUSD}
-                onChange={(e) => setSettings({ ...settings, withdrawalFeeUSD: e.target.value })}
-                placeholder="3"
-                min="0"
-                max="100"
-                step="0.1"
-              />
-              <p className="text-xs text-muted-foreground">
-                Current: {settingsData?.withdrawalFeeUSD || 3}%
               </p>
             </div>
 

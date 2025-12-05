@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
-import { Loader2, Check, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle } from 'lucide-react';
+import { Loader2, Check, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle, Receipt, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { getPaymentSystems, STAR_PACKAGES } from '@/constants/paymentSystems';
+import { getPaymentSystems } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
-import { shortenAddress, canonicalizeTelegramUsername, formatTelegramUsername } from '@/lib/utils';
+import { shortenAddress } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface User {
   id: string;
@@ -20,47 +20,37 @@ interface User {
   usdBalance?: string;
   friendsInvited?: number;
   cwalletId?: string;
-  usdtWalletAddress?: string;
-  telegramStarsUsername?: string;
   adsWatched?: number;
   adsWatchedSinceLastWithdrawal?: number;
   referralCode?: string;
 }
 
-interface WalletDetails {
-  tonWalletAddress: string;
-  tonWalletComment: string;
-  telegramUsername: string;
-  usdtWalletAddress: string;
-  canWithdraw: boolean;
+interface Withdrawal {
+  id: string;
+  amount: string;
+  details: string;
+  status: string;
+  createdAt: string;
+  comment?: string;
+  method?: string;
 }
 
-type WalletType = 'TON' | 'USDT' | 'STARS';
-
+interface WithdrawalsResponse {
+  success: boolean;
+  withdrawals: Withdrawal[];
+}
 
 export default function Withdraw() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [, setLocation] = useLocation();
   
-  // Active tab state - 'withdraw' or 'wallet-setup'
-  const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup'>('withdraw');
+  const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup' | 'wallet-activity'>('withdraw');
   
-  // Withdraw section states
   const [selectedMethod, setSelectedMethod] = useState<string>('TON');
-  const [selectedStarPackage, setSelectedStarPackage] = useState<number | null>(null);
   
-  // Wallet Setup section states (for popup dialog style)
-  const [selectedWalletType, setSelectedWalletType] = useState<WalletType>('TON');
   const [tonWalletId, setTonWalletId] = useState('');
   const [newTonWalletId, setNewTonWalletId] = useState('');
   const [isChangingTonWallet, setIsChangingTonWallet] = useState(false);
-  const [usdtWalletAddress, setUsdtWalletAddress] = useState('');
-  const [newUsdtWalletAddress, setNewUsdtWalletAddress] = useState('');
-  const [isChangingUsdtWallet, setIsChangingUsdtWallet] = useState(false);
-  const [telegramUsername, setTelegramUsername] = useState('');
-  const [newTelegramUsername, setNewTelegramUsername] = useState('');
-  const [isChangingStarsUsername, setIsChangingStarsUsername] = useState(false);
 
   const { data: user, refetch: refetchUser } = useQuery<User>({
     queryKey: ['/api/auth/user'],
@@ -75,7 +65,6 @@ export default function Withdraw() {
     retry: false,
   });
 
-  // Fetch valid referral count (friends who watched at least 1 ad)
   const { data: validReferralData, isLoading: isLoadingReferrals, isFetched: isReferralsFetched } = useQuery<{ validReferralCount: number }>({
     queryKey: ['/api/referrals/valid-count'],
     retry: false,
@@ -85,18 +74,24 @@ export default function Withdraw() {
     refetchOnMount: false,
   });
 
+  const { data: withdrawalsResponse, refetch: refetchWithdrawals, isLoading: withdrawalsLoading } = useQuery<WithdrawalsResponse>({
+    queryKey: ['/api/withdrawals'],
+    retry: false,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
+
   const walletChangeFee = appSettings?.walletChangeFee || 5000;
   const padBalance = parseFloat(user?.balance || "0");
   const usdBalance = parseFloat(user?.usdBalance || "0");
   const validReferralCount = validReferralData?.validReferralCount ?? 0;
   
-  // Dynamic withdrawal requirements from admin settings
   const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled !== false;
   const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal || 100;
   const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled !== false;
   const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal || 3;
   
-  // Fetch ads watched since last withdrawal
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
     retry: false,
@@ -108,14 +103,11 @@ export default function Withdraw() {
   
   const adsWatchedSinceLastWithdrawal = withdrawalEligibility?.adsWatchedSinceLastWithdrawal ?? (user as any)?.adsWatchedSinceLastWithdrawal ?? 0;
   
-  // Check if requirement data is still loading (only check relevant queries based on enabled requirements)
   const isLoadingAdRequirement = withdrawalAdRequirementEnabled && (!isEligibilityFetched || isLoadingEligibility);
   const isLoadingInviteRequirement = withdrawalInviteRequirementEnabled && (!isReferralsFetched || isLoadingReferrals);
   const isLoadingRequirements = isLoadingAdRequirement || isLoadingInviteRequirement;
   
-  // If ad requirement is disabled, user always passes; otherwise check if they watched enough ads
   const hasWatchedEnoughAds = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
-  // If invite requirement is disabled, user always passes; otherwise check if they have enough referrals
   const hasEnoughReferrals = !withdrawalInviteRequirementEnabled || validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
@@ -134,7 +126,6 @@ export default function Withdraw() {
     try {
       const tgWebApp = window.Telegram?.WebApp as any;
       
-      // Native Telegram share dialog using shareMessage() with prepared message
       if (tgWebApp?.shareMessage) {
         try {
           const response = await fetch('/api/share/prepare-message', {
@@ -159,8 +150,7 @@ export default function Withdraw() {
         }
       }
       
-      // Fallback: Use Telegram's native share URL dialog
-      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareTitle = `Start earning money just by completing tasks & watching ads!`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
       
       if (tgWebApp?.openTelegramLink) {
@@ -175,19 +165,14 @@ export default function Withdraw() {
     setIsSharing(false);
   };
 
-  const { data: withdrawalsResponse, refetch: refetchWithdrawals } = useQuery<{ withdrawals?: any[] }>({
-    queryKey: ['/api/withdrawals'],
-    retry: false,
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-    staleTime: 0,
-  });
+  const withdrawalsData = withdrawalsResponse?.withdrawals || [];
+  const hasPendingWithdrawal = withdrawalsData.some(w => w.status === 'pending');
+
+  const isTonWalletSet = !!user?.cwalletId;
 
   useEffect(() => {
     if (user) {
       if (user.cwalletId) setTonWalletId(user.cwalletId);
-      if (user.usdtWalletAddress) setUsdtWalletAddress(user.usdtWalletAddress);
-      setTelegramUsername(canonicalizeTelegramUsername(user?.telegramStarsUsername ?? ''));
     }
   }, [user]);
 
@@ -196,14 +181,6 @@ export default function Withdraw() {
     refetchWithdrawals();
   }, [refetchUser, refetchWithdrawals]);
 
-  const withdrawalsData = withdrawalsResponse?.withdrawals || [];
-  const hasPendingWithdrawal = withdrawalsData.some(w => w.status === 'pending');
-
-  const isTonWalletSet = !!user?.cwalletId;
-  const isUsdtWalletSet = !!user?.usdtWalletAddress;
-  const isTelegramStarsSet = !!user?.telegramStarsUsername;
-
-  // TON wallet mutations
   const saveTonWalletMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/wallet/cwallet', {
@@ -240,99 +217,11 @@ export default function Withdraw() {
     },
   });
 
-  // USDT wallet mutations
-  const saveUsdtWalletMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/wallet/usdt', {
-        usdtAddress: usdtWalletAddress.trim()
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      showNotification("USDT wallet saved successfully.", "success");
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-    },
-    onError: (error: Error) => {
-      showNotification(error.message, "error");
-    },
-  });
-
-  const changeUsdtWalletMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/wallet/usdt', {
-        usdtAddress: newUsdtWalletAddress.trim()
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      showNotification("USDT wallet updated successfully", "success");
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-      setIsChangingUsdtWallet(false);
-      setNewUsdtWalletAddress('');
-    },
-    onError: (error: Error) => {
-      showNotification(error.message, "error");
-    },
-  });
-
-  // Telegram Stars mutations
-  const saveTelegramStarsMutation = useMutation({
-    mutationFn: async () => {
-      const payloadUsername = canonicalizeTelegramUsername(telegramUsername);
-      const response = await apiRequest('POST', '/api/wallet/telegram-stars', {
-        telegramUsername: payloadUsername
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      showNotification("Telegram username saved successfully.", "success");
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-    },
-    onError: (error: Error) => {
-      showNotification(error.message, "error");
-    },
-  });
-
-  const changeTelegramStarsMutation = useMutation({
-    mutationFn: async () => {
-      const payloadUsername = canonicalizeTelegramUsername(newTelegramUsername);
-      const response = await apiRequest('POST', '/api/wallet/telegram-stars', {
-        telegramUsername: payloadUsername
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      showNotification("Telegram username updated successfully", "success");
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-      setIsChangingStarsUsername(false);
-      setNewTelegramUsername('');
-    },
-    onError: (error: Error) => {
-      showNotification(error.message, "error");
-    },
-  });
-
   const withdrawMutation = useMutation({
     mutationFn: async () => {
       let withdrawalData: any = {
         method: selectedMethod
       };
-
-      if (selectedMethod === 'STARS') {
-        if (!selectedStarPackage) {
-          throw new Error('Please select a star package');
-        }
-        const starPkg = STAR_PACKAGES.find(p => p.stars === selectedStarPackage);
-        if (!starPkg) throw new Error('Invalid star package');
-        
-        const totalCost = starPkg.usdCost * 1.05;
-        withdrawalData.starPackage = selectedStarPackage;
-        withdrawalData.amount = totalCost;
-      }
 
       const response = await apiRequest('POST', '/api/withdrawals', withdrawalData);
       const data = await response.json();
@@ -357,7 +246,6 @@ export default function Withdraw() {
       ]);
       
       setSelectedMethod('TON');
-      setSelectedStarPackage(null);
     },
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to submit withdrawal request";
@@ -399,49 +287,13 @@ export default function Withdraw() {
     changeTonWalletMutation.mutate();
   };
 
-  const handleSaveUsdtWallet = () => {
-    if (!usdtWalletAddress.trim()) {
-      showNotification("Please enter your USDT wallet address", "error");
-      return;
-    }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(usdtWalletAddress.trim())) {
-      showNotification("Please enter a valid Optimism USDT address (0x...)", "error");
-      return;
-    }
-    saveUsdtWalletMutation.mutate();
-  };
-
-  const handleChangeUsdtWallet = () => {
-    if (!newUsdtWalletAddress.trim()) {
-      showNotification("Please enter a new USDT wallet address", "error");
-      return;
-    }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(newUsdtWalletAddress.trim())) {
-      showNotification("Please enter a valid Optimism USDT address (0x...)", "error");
-      return;
-    }
-    changeUsdtWalletMutation.mutate();
-  };
-
-  const handleSaveTelegramStars = () => {
-    const payloadUsername = canonicalizeTelegramUsername(telegramUsername);
-    if (!payloadUsername) {
-      showNotification("Please enter your Telegram username", "error");
-      return;
-    }
-    saveTelegramStarsMutation.mutate();
-  };
-
-  const handleChangeTelegramStars = () => {
-    const payloadUsername = canonicalizeTelegramUsername(newTelegramUsername);
-    if (!payloadUsername) {
-      showNotification("Please enter a new Telegram username", "error");
-      return;
-    }
-    changeTelegramStarsMutation.mutate();
-  };
-
   const handleWithdraw = () => {
+    if (!isTonWalletSet) {
+      showNotification("Please set up your TON wallet first", "error");
+      setActiveTab('wallet-setup');
+      return;
+    }
+    
     if (!hasEnoughReferrals) {
       showNotification("You need 3 friends who watched at least 1 ad to unlock withdrawals.", "error");
       return;
@@ -457,24 +309,9 @@ export default function Withdraw() {
       return;
     }
 
-    if (selectedMethod === 'STARS') {
-      if (!selectedStarPackage) {
-        showNotification("Please select a star package", "error");
-        return;
-      }
-      const starPkg = STAR_PACKAGES.find(p => p.stars === selectedStarPackage);
-      if (!starPkg) return;
-      
-      const totalCost = starPkg.usdCost * 1.05;
-      if (usdBalance < totalCost) {
-        showNotification(`Insufficient balance. You need $${totalCost.toFixed(2)} (including 5% fee)`, "error");
-        return;
-      }
-    } else {
-      if (usdBalance <= 0) {
-        showNotification("Insufficient balance for withdrawal", "error");
-        return;
-      }
+    if (usdBalance <= 0) {
+      showNotification("Insufficient balance for withdrawal", "error");
+      return;
     }
 
     withdrawMutation.mutate();
@@ -482,723 +319,452 @@ export default function Withdraw() {
 
   const paymentSystems = getPaymentSystems(appSettings);
   const selectedPaymentSystem = paymentSystems.find(p => p.id === selectedMethod);
+  
   const calculateWithdrawalAmount = () => {
-    if (selectedMethod === 'STARS' && selectedStarPackage) {
-      const starPkg = STAR_PACKAGES.find(p => p.stars === selectedStarPackage);
-      if (!starPkg) return 0;
-      return starPkg.usdCost * 1.05;
-    }
     const feePercent = selectedPaymentSystem?.fee || 5;
     return usdBalance * (1 - feePercent / 100);
+  };
+
+  const getStatusIcon = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('approved') || lowerStatus.includes('success') || lowerStatus.includes('paid')) {
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    } else if (lowerStatus.includes('reject')) {
+      return <XCircle className="w-4 h-4 text-red-500" />;
+    } else if (lowerStatus.includes('pending')) {
+      return <Clock className="w-4 h-4 text-yellow-500" />;
+    }
+    return <Loader2 className="w-4 h-4 text-gray-500" />;
+  };
+
+  const getStatusColor = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('approved') || lowerStatus.includes('success') || lowerStatus.includes('paid')) {
+      return 'text-green-500';
+    } else if (lowerStatus.includes('reject')) {
+      return 'text-red-500';
+    } else if (lowerStatus.includes('pending')) {
+      return 'text-yellow-500';
+    }
+    return 'text-gray-500';
+  };
+
+  const formatUSD = (amount: string) => {
+    return parseFloat(amount).toFixed(2);
   };
 
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-3">
-        {/* Toggle System - CreateTask Style */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <Button
             type="button"
             variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-sm ${
+            className={`h-auto py-3 transition-all font-bold text-xs ${
               activeTab === 'withdraw'
                 ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-500/20" 
                 : "hover:bg-cyan-500/10 hover:border-cyan-500/50 text-muted-foreground"
             }`}
             onClick={() => setActiveTab('withdraw')}
           >
-            <CircleDollarSign className="w-4 h-4 mr-2" />
+            <CircleDollarSign className="w-4 h-4 mr-1" />
             Withdraw
           </Button>
           <Button
             type="button"
             variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-sm ${
+            className={`h-auto py-3 transition-all font-bold text-xs ${
               activeTab === 'wallet-setup'
                 ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/20" 
                 : "hover:bg-blue-500/10 hover:border-blue-500/50 text-muted-foreground"
             }`}
             onClick={() => setActiveTab('wallet-setup')}
           >
-            <Wallet className="w-4 h-4 mr-2" />
+            <Wallet className="w-4 h-4 mr-1" />
             Wallet Setup
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className={`h-auto py-3 transition-all font-bold text-xs ${
+              activeTab === 'wallet-activity'
+                ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500 text-purple-300 shadow-lg shadow-purple-500/20" 
+                : "hover:bg-purple-500/10 hover:border-purple-500/50 text-muted-foreground"
+            }`}
+            onClick={() => setActiveTab('wallet-activity')}
+          >
+            <Receipt className="w-4 h-4 mr-1" />
+            Activity
           </Button>
         </div>
 
-        {/* Withdraw Section */}
         {activeTab === 'withdraw' && (
           <div className="space-y-4">
-              {/* Loading state - Show while checking requirements */}
-              {isLoadingRequirements && (
-                <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
-                  <CardContent className="p-6 flex items-center justify-center">
+            {isLoadingRequirements && (
+              <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
+                <CardContent className="p-6 flex items-center justify-center">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                    <span className="text-gray-400 text-sm">Checking requirements...</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {!isLoadingRequirements && withdrawalInviteRequirementEnabled && !hasEnoughReferrals && (
+              <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
                     <div className="flex items-center gap-3">
-                      <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-                      <span className="text-gray-400 text-sm">Checking requirements...</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {/* Referral Requirement - One-time unlock - Only show if enabled and not met */}
-              {!isLoadingRequirements && withdrawalInviteRequirementEnabled && !hasEnoughReferrals && (
-                <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
-                  <CardContent className="p-0">
-                    {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                          <Lock className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <h3 className="text-white font-semibold text-sm">Unlock Withdrawals</h3>
-                          <p className="text-[11px] text-gray-500">One-time requirement</p>
-                        </div>
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <Lock className="w-5 h-5 text-blue-400" />
                       </div>
-                      <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
-                        Locked
-                      </span>
-                    </div>
-                    
-                    {/* Progress Section */}
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-400">Invite friends who watch 1+ ad</span>
-                        <span className="text-white font-bold">{validReferralCount} / {MINIMUM_VALID_REFERRALS_REQUIRED}</span>
+                      <div>
+                        <h3 className="text-white font-semibold text-sm">Unlock Withdrawals</h3>
+                        <p className="text-[11px] text-gray-500">One-time requirement</p>
                       </div>
-                      <Progress 
-                        value={(validReferralCount / MINIMUM_VALID_REFERRALS_REQUIRED) * 100} 
-                        className="h-2 bg-[#2a2a2a]"
-                      />
-                      
-                      {/* CTA Button */}
-                      <Button
-                        onClick={openShareSheet}
-                        disabled={isSharing}
-                        className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
-                      >
-                        {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
-                        {isSharing ? 'Sending...' : 'Invite Friends'}
-                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {/* Ads Requirement - Per withdrawal (only if enabled) - Only show after data is loaded */}
-              {!isLoadingRequirements && withdrawalAdRequirementEnabled && hasEnoughReferrals && !hasWatchedEnoughAds && (
-                <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
-                  <CardContent className="p-0">
-                    {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                          <PlayCircle className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <h3 className="text-white font-semibold text-sm">Watch Ads</h3>
-                          <p className="text-[11px] text-gray-500">Resets after each withdrawal</p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
-                        {MINIMUM_ADS_FOR_WITHDRAWAL - adsWatchedSinceLastWithdrawal} left
-                      </span>
-                    </div>
-                    
-                    {/* Progress Section */}
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-400">Progress to unlock withdrawal</span>
-                        <span className="text-white font-bold">{adsWatchedSinceLastWithdrawal} / {MINIMUM_ADS_FOR_WITHDRAWAL}</span>
-                      </div>
-                      <Progress 
-                        value={(adsWatchedSinceLastWithdrawal / MINIMUM_ADS_FOR_WITHDRAWAL) * 100} 
-                        className="h-2 bg-[#2a2a2a]"
-                      />
-                      
-                      {/* CTA Button - Get Access redirects to Home page Ad section */}
-                      <Button
-                        onClick={() => setLocation('/')}
-                        className="w-full h-11 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold rounded-lg mt-2"
-                      >
-                        <Lock className="w-4 h-4 mr-2" />
-                        Get Access
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {hasPendingWithdrawal && (
-                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                  <p className="text-xs text-yellow-500">
-                    You have a pending withdrawal. Please wait for it to be processed.
-                  </p>
-                </div>
-              )}
-
-              {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && (
-              <>
-              <div className="space-y-3">
-                <Label className="text-sm text-white">Withdrawal Method</Label>
-                <div className="space-y-2">
-                  {paymentSystems.map((system) => (
-                    <button
-                      key={system.id}
-                      onClick={() => {
-                        setSelectedMethod(system.id);
-                        if (system.id !== 'STARS') {
-                          setSelectedStarPackage(null);
-                        }
-                      }}
-                      className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
-                        selectedMethod === system.id
-                          ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
-                          : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        selectedMethod === system.id ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
-                      }`}>
-                        {selectedMethod === system.id && <Check className="w-3 h-3 text-black" />}
-                      </div>
-                      <div className="flex-1 flex items-center gap-2">
-                        {system.id === 'TON' && (
-                          <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
-                            <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
-                          </div>
-                        )}
-                        {system.id === 'USD' && (
-                          <div className="w-6 h-6 rounded-full bg-black overflow-hidden flex items-center justify-center">
-                            <img src="/images/tether.png" alt="Tether" className="w-5 h-5 object-contain" />
-                          </div>
-                        )}
-                        {system.id === 'STARS' && (
-                          <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
-                            <img src="/images/telegram-star.png" alt="Telegram Star" className="w-6 h-6 object-cover" />
-                          </div>
-                        )}
-                        <span className="text-white">{system.name}</span>
-                        <span className="text-xs text-[#aaa] ml-auto">({system.fee}% fee)</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {selectedMethod === 'STARS' && (
-                  <div className="space-y-2">
-                    <Label className="text-sm text-white">Select Stars</Label>
-                    <div className="flex gap-2">
-                      {STAR_PACKAGES.map((pkg) => (
-                        <button
-                          key={pkg.stars}
-                          onClick={() => setSelectedStarPackage(pkg.stars)}
-                          className={`flex-1 p-2 rounded border text-sm flex items-center justify-center gap-1 ${
-                            selectedStarPackage === pkg.stars
-                              ? 'border-[#4cd3ff] bg-[#4cd3ff]/20 text-white'
-                              : 'border-[#3a3a3a] text-[#aaa] hover:border-[#4cd3ff]/50'
-                          }`}
-                        >
-                          {pkg.stars}
-                          <img src="/images/telegram-star.png" alt="Star" className="w-4 h-4 rounded-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                    {selectedStarPackage && (
-                      <div className="text-xs text-[#aaa] text-center">
-                        Cost: ${(STAR_PACKAGES.find(p => p.stars === selectedStarPackage)!.usdCost * 1.05).toFixed(2)}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selectedMethod !== 'STARS' && (
-                  <div className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
-                    <div className="text-xs text-[#aaa]">You will receive</div>
-                    <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
-                    <div className="text-xs text-[#aaa] mt-1">
-                      Full balance withdrawal ({selectedPaymentSystem?.fee}% fee deducted)
-                    </div>
-                    <div className="text-xs text-yellow-400/80 mt-1">
-                      Withdrawal method: {selectedMethod}
-                    </div>
-                    <div className="text-xs text-cyan-400/80 mt-1">
-                      Minimum: ${selectedPaymentSystem?.minWithdrawal?.toFixed(2) || '0.50'} USD
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6">
-                <Button
-                  onClick={handleWithdraw}
-                  disabled={withdrawMutation.isPending || hasPendingWithdrawal || validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED}
-                  className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {withdrawMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : selectedMethod === 'STARS' && selectedStarPackage ? (
-                    <span className="flex items-center gap-1">
-                      Withdraw {selectedStarPackage} <img src="/images/telegram-star.png" alt="Star" className="w-4 h-4 rounded-full object-cover" />
+                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
+                      Locked
                     </span>
-                  ) : `Withdraw via ${selectedMethod}`}
-                </Button>
-              </div>
-              </>
-              )}
-          </div>
-        )}
+                  </div>
+                  
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Invite friends who watch 1+ ad</span>
+                      <span className="text-white font-bold">{validReferralCount} / {MINIMUM_VALID_REFERRALS_REQUIRED}</span>
+                    </div>
+                    <Progress 
+                      value={(validReferralCount / MINIMUM_VALID_REFERRALS_REQUIRED) * 100} 
+                      className="h-2 bg-[#2a2a2a]"
+                    />
+                    
+                    <Button
+                      onClick={openShareSheet}
+                      disabled={isSharing}
+                      className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
+                    >
+                      {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                      {isSharing ? 'Sending...' : 'Invite Friends'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {!isLoadingRequirements && withdrawalAdRequirementEnabled && hasEnoughReferrals && !hasWatchedEnoughAds && (
+              <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <PlayCircle className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-white font-semibold text-sm">Watch Ads</h3>
+                        <p className="text-[11px] text-gray-500">Resets after each withdrawal</p>
+                      </div>
+                    </div>
+                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
+                      {MINIMUM_ADS_FOR_WITHDRAWAL - adsWatchedSinceLastWithdrawal} left
+                    </span>
+                  </div>
+                  
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Progress to unlock withdrawal</span>
+                      <span className="text-white font-bold">{adsWatchedSinceLastWithdrawal} / {MINIMUM_ADS_FOR_WITHDRAWAL}</span>
+                    </div>
+                    <Progress 
+                      value={(adsWatchedSinceLastWithdrawal / MINIMUM_ADS_FOR_WITHDRAWAL) * 100} 
+                      className="h-2 bg-[#2a2a2a]"
+                    />
+                    
+                    <Button
+                      onClick={() => setLocation('/')}
+                      className="w-full h-11 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold rounded-lg mt-2"
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      Get Access
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-        {/* Wallet Setup Section */}
-        {activeTab === 'wallet-setup' && (
-          <div className="space-y-4">
-              {/* Wallet Type Selector - List View */}
+            {hasPendingWithdrawal && (
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <p className="text-xs text-yellow-500">
+                  You have a pending withdrawal. Please wait for it to be processed.
+                </p>
+              </div>
+            )}
+
+            {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && (
+            <>
+            <div className="space-y-3">
+              <Label className="text-sm text-white">Withdrawal Method</Label>
               <div className="space-y-2">
-                <label className="text-xs text-[#c0c0c0]">Select Wallet Type</label>
-                <div className="space-y-2">
+                {paymentSystems.map((system) => (
                   <button
-                    onClick={() => setSelectedWalletType('TON')}
+                    key={system.id}
+                    onClick={() => setSelectedMethod(system.id)}
                     className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
-                      selectedWalletType === 'TON'
+                      selectedMethod === system.id
                         ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
                         : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
                     }`}
                   >
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedWalletType === 'TON' ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
+                      selectedMethod === system.id ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
                     }`}>
-                      {selectedWalletType === 'TON' && <Check className="w-3 h-3 text-black" />}
+                      {selectedMethod === system.id && <Check className="w-3 h-3 text-black" />}
                     </div>
                     <div className="flex-1 flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
                         <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
                       </div>
-                      <span className="text-white truncate">{isTonWalletSet ? shortenAddress(tonWalletId) : 'TON Wallet'}</span>
+                      <span className="text-white">{system.name}</span>
+                      <span className="text-xs text-[#aaa] ml-auto">({system.fee}% fee)</span>
                     </div>
                   </button>
-                  <button
-                    onClick={() => setSelectedWalletType('USDT')}
-                    className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
-                      selectedWalletType === 'USDT'
-                        ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
-                        : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedWalletType === 'USDT' ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
-                    }`}>
-                      {selectedWalletType === 'USDT' && <Check className="w-3 h-3 text-black" />}
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-black overflow-hidden flex items-center justify-center">
-                        <img src="/images/tether.png" alt="Tether" className="w-5 h-5 object-contain" />
-                      </div>
-                      <span className="text-white truncate">{isUsdtWalletSet ? shortenAddress(usdtWalletAddress) : 'USDT (Optimism)'}</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setSelectedWalletType('STARS')}
-                    className={`w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all ${
-                      selectedWalletType === 'STARS'
-                        ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
-                        : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedWalletType === 'STARS' ? 'border-[#4cd3ff] bg-[#4cd3ff]' : 'border-[#aaa]'
-                    }`}>
-                      {selectedWalletType === 'STARS' && <Check className="w-3 h-3 text-black" />}
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
-                        <img src="/images/telegram-star.png" alt="Telegram Star" className="w-6 h-6 object-cover" />
-                      </div>
-                      <span className="text-white truncate">{isTelegramStarsSet ? formatTelegramUsername(telegramUsername) : 'Telegram Stars'}</span>
-                    </div>
-                  </button>
+                ))}
+              </div>
+
+              <div className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
+                <div className="text-xs text-[#aaa]">You will receive</div>
+                <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
+                <div className="text-xs text-[#aaa] mt-1">
+                  Full balance withdrawal ({selectedPaymentSystem?.fee}% fee deducted)
+                </div>
+                <div className="text-xs text-yellow-400/80 mt-1">
+                  Withdrawal method: {selectedMethod}
+                </div>
+                <div className="text-xs text-cyan-400/80 mt-1">
+                  Minimum: ${selectedPaymentSystem?.minWithdrawal?.toFixed(2) || '0.50'} USD
                 </div>
               </div>
+            </div>
 
-              {/* TON Wallet Section */}
-              {selectedWalletType === 'TON' && (
-                <>
-                  {isTonWalletSet && !isChangingTonWallet ? (
-                    <>
-                      <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-                        <Check className="w-4 h-4 text-green-500" />
-                        <p className="text-xs text-green-500">TON wallet linked successfully</p>
-                      </div>
-                    </>
-                  ) : isChangingTonWallet ? (
-                    <>
-                      <div className="space-y-2">
-                        <label className="text-xs text-[#c0c0c0]">Current Wallet</label>
-                        <Input
-                          type="text"
-                          value={tonWalletId}
-                          disabled={true}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs text-[#c0c0c0]">New TON Wallet Address</label>
-                        <Input
-                          type="text"
-                          placeholder="Enter TON wallet address (UQ... or EQ...)"
-                          value={newTonWalletId}
-                          onChange={(e) => setNewTonWalletId(e.target.value)}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
-                        />
-                      </div>
-                      <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
-                        <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
-                        <div className="text-xs text-[#c0c0c0]">
-                          Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs text-[#c0c0c0]">
-                        Set up your <span className="text-[#4cd3ff] font-semibold">TON Network</span> wallet for withdrawals
-                      </p>
-                      <div className="space-y-2">
-                        <Input
-                          type="text"
-                          placeholder="Enter TON wallet address (UQ... or EQ...)"
-                          value={tonWalletId}
-                          onChange={(e) => setTonWalletId(e.target.value)}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
-                        />
-                        <p className="text-xs text-red-500 font-medium flex items-center gap-1">
-                          <Info className="w-3 h-3" />
-                          Must start with UQ or EQ – verify address before saving
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-2 p-3 bg-[#0d0d0d] rounded-lg border border-white/5">
-                        <HelpCircle className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
-                        <div className="text-xs text-[#c0c0c0]">
-                          Don't have a TON wallet?{' '}
-                          <a 
-                            href="https://ton.org/wallets" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-[#4cd3ff] hover:text-[#6ddeff] underline transition-colors"
-                          >
-                            Get one here
-                          </a>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* USDT Wallet Section */}
-              {selectedWalletType === 'USDT' && (
-                <>
-                  {isUsdtWalletSet && !isChangingUsdtWallet ? (
-                    <>
-                      <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-                        <Check className="w-4 h-4 text-green-500" />
-                        <p className="text-xs text-green-500">USDT wallet linked successfully</p>
-                      </div>
-                    </>
-                  ) : isChangingUsdtWallet ? (
-                    <>
-                      <div className="space-y-2">
-                        <label className="text-xs text-[#c0c0c0]">Current Wallet</label>
-                        <Input
-                          type="text"
-                          value={usdtWalletAddress}
-                          disabled={true}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs text-[#c0c0c0]">New USDT Wallet Address</label>
-                        <Input
-                          type="text"
-                          placeholder="Enter USDT wallet address (0x...)"
-                          value={newUsdtWalletAddress}
-                          onChange={(e) => setNewUsdtWalletAddress(e.target.value)}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
-                        />
-                      </div>
-                      <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
-                        <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
-                        <div className="text-xs text-[#c0c0c0]">
-                          Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs text-[#c0c0c0]">
-                        Set up your <span className="text-[#4cd3ff] font-semibold">Optimism Network</span> USDT wallet
-                      </p>
-                      <div className="space-y-2">
-                        <Input
-                          type="text"
-                          placeholder="Enter USDT wallet address (0x...)"
-                          value={usdtWalletAddress}
-                          onChange={(e) => setUsdtWalletAddress(e.target.value)}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
-                        />
-                        <p className="text-xs text-red-500 font-medium flex items-center gap-1">
-                          <Info className="w-3 h-3" />
-                          Optimism network only – not TRON, BNB, or Ethereum
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-2 p-3 bg-[#0d0d0d] rounded-lg border border-white/5">
-                        <HelpCircle className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
-                        <div className="text-xs text-[#c0c0c0]">
-                          Need an Optimism wallet?{' '}
-                          <a 
-                            href="https://www.optimism.io/apps/wallets" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-[#4cd3ff] hover:text-[#6ddeff] underline transition-colors"
-                          >
-                            Learn more
-                          </a>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Telegram Stars Section */}
-              {selectedWalletType === 'STARS' && (
-                <>
-                  {isTelegramStarsSet && !isChangingStarsUsername ? (
-                    <>
-                      <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-                        <Check className="w-4 h-4 text-green-500" />
-                        <p className="text-xs text-green-500">Telegram username set successfully</p>
-                      </div>
-                    </>
-                  ) : isChangingStarsUsername ? (
-                    <>
-                      <div className="space-y-2">
-                        <label className="text-xs text-[#c0c0c0]">Current Username</label>
-                        <Input
-                          type="text"
-                          value={formatTelegramUsername(telegramUsername)}
-                          disabled={true}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs text-[#c0c0c0]">New Telegram Username</label>
-                        <Input
-                          type="text"
-                          placeholder="Your Telegram username (e.g., szxzyz)"
-                          value={formatTelegramUsername(newTelegramUsername)}
-                          onChange={(e) => setNewTelegramUsername(canonicalizeTelegramUsername(e.target.value))}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
-                        />
-                      </div>
-                      <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
-                        <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
-                        <div className="text-xs text-[#c0c0c0]">
-                          Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs text-[#c0c0c0]">
-                        Enter your Telegram username for <span className="text-[#4cd3ff] font-semibold">Stars</span> withdrawals
-                      </p>
-                      <div className="space-y-2">
-                        <Input
-                          type="text"
-                          placeholder="Your Telegram username (e.g., szxzyz)"
-                          value={formatTelegramUsername(telegramUsername)}
-                          onChange={(e) => setTelegramUsername(canonicalizeTelegramUsername(e.target.value))}
-                          className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
-                        />
-                        <p className="text-xs text-[#c0c0c0] flex items-center gap-1">
-                          <Info className="w-3 h-3" />
-                          @ will be added automatically. Letters, numbers, and underscores only.
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex justify-center gap-3 mt-6">
-                {selectedWalletType === 'TON' && isTonWalletSet && !isChangingTonWallet ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsChangingTonWallet(true)}
-                      className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
-                    >
-                      Change Wallet
-                    </Button>
-                    <Button
-                      onClick={() => setActiveTab('withdraw')}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      Done
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'TON' && isChangingTonWallet ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setIsChangingTonWallet(false);
-                        setNewTonWalletId('');
-                      }}
-                      className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleChangeTonWallet}
-                      disabled={changeTonWalletMutation.isPending}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      {changeTonWalletMutation.isPending ? "Processing..." : `Pay ${walletChangeFee} PAD & Confirm`}
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'TON' && !isTonWalletSet ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setActiveTab('withdraw')}
-                      className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSaveTonWallet}
-                      disabled={saveTonWalletMutation.isPending}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      {saveTonWalletMutation.isPending ? "Saving..." : "Save TON Wallet"}
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'USDT' && isUsdtWalletSet && !isChangingUsdtWallet ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsChangingUsdtWallet(true)}
-                      className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
-                    >
-                      Change Wallet
-                    </Button>
-                    <Button
-                      onClick={() => setActiveTab('withdraw')}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      Done
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'USDT' && isChangingUsdtWallet ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setIsChangingUsdtWallet(false);
-                        setNewUsdtWalletAddress('');
-                      }}
-                      className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleChangeUsdtWallet}
-                      disabled={changeUsdtWalletMutation.isPending}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      {changeUsdtWalletMutation.isPending ? "Processing..." : "Update USDT Wallet"}
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'USDT' && !isUsdtWalletSet ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setActiveTab('withdraw')}
-                      className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSaveUsdtWallet}
-                      disabled={saveUsdtWalletMutation.isPending}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      {saveUsdtWalletMutation.isPending ? "Saving..." : "Save USDT Wallet"}
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'STARS' && isTelegramStarsSet && !isChangingStarsUsername ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setNewTelegramUsername(telegramUsername);
-                        setIsChangingStarsUsername(true);
-                      }}
-                      className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
-                    >
-                      Change Username
-                    </Button>
-                    <Button
-                      onClick={() => setActiveTab('withdraw')}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      Done
-                    </Button>
-                  </>
-                ) : selectedWalletType === 'STARS' && isChangingStarsUsername ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setIsChangingStarsUsername(false);
-                        setNewTelegramUsername('');
-                      }}
-                      className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleChangeTelegramStars}
-                      disabled={changeTelegramStarsMutation.isPending}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      {changeTelegramStarsMutation.isPending ? "Processing..." : "Update Username"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setActiveTab('withdraw')}
-                      className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSaveTelegramStars}
-                      disabled={saveTelegramStarsMutation.isPending}
-                      className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
-                    >
-                      {saveTelegramStarsMutation.isPending ? "Saving..." : "Save Username"}
-                    </Button>
-                  </>
-                )}
+            {!isTonWalletSet && (
+              <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg mb-4">
+                <p className="text-xs text-orange-400">
+                  Please set up your TON wallet before withdrawing.
+                </p>
               </div>
+            )}
+
+            <div className="mt-6">
+              <Button
+                onClick={handleWithdraw}
+                disabled={withdrawMutation.isPending || hasPendingWithdrawal || !isTonWalletSet || validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED}
+                className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {withdrawMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : !isTonWalletSet ? 'Set Up Wallet First' : `Withdraw via ${selectedMethod}`}
+              </Button>
+            </div>
+            </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'wallet-setup' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs text-[#c0c0c0]">TON Wallet Setup</label>
+              <div className="space-y-2">
+                <button
+                  className="w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all border-[#4cd3ff] bg-[#4cd3ff]/10"
+                >
+                  <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-[#4cd3ff] bg-[#4cd3ff]">
+                    <Check className="w-3 h-3 text-black" />
+                  </div>
+                  <div className="flex-1 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                      <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
+                    </div>
+                    <span className="text-white truncate">{isTonWalletSet ? shortenAddress(tonWalletId) : 'TON Wallet'}</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {isTonWalletSet && !isChangingTonWallet ? (
+              <>
+                <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                  <Check className="w-4 h-4 text-green-500" />
+                  <p className="text-xs text-green-500">TON wallet linked successfully</p>
+                </div>
+              </>
+            ) : isChangingTonWallet ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs text-[#c0c0c0]">Current Wallet</label>
+                  <Input
+                    type="text"
+                    value={tonWalletId}
+                    disabled={true}
+                    className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11 disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-[#c0c0c0]">New TON Wallet Address</label>
+                  <Input
+                    type="text"
+                    placeholder="Enter TON wallet address (UQ... or EQ...)"
+                    value={newTonWalletId}
+                    onChange={(e) => setNewTonWalletId(e.target.value)}
+                    className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
+                  />
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-[#4cd3ff]/10 rounded-lg border border-[#4cd3ff]/30">
+                  <Info className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-[#c0c0c0]">
+                    Fee: <span className="text-[#4cd3ff] font-semibold">{walletChangeFee} PAD</span> will be deducted
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-[#c0c0c0]">
+                  Set up your <span className="text-[#4cd3ff] font-semibold">TON Network</span> wallet for withdrawals
+                </p>
+                <div className="space-y-2">
+                  <Input
+                    type="text"
+                    placeholder="Enter TON wallet address (UQ... or EQ...)"
+                    value={tonWalletId}
+                    onChange={(e) => setTonWalletId(e.target.value)}
+                    className="bg-[#0d0d0d] border-white/20 text-white placeholder:text-[#808080] focus:border-[#4cd3ff] transition-colors rounded-lg h-11"
+                  />
+                  <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                    <Info className="w-3 h-3" />
+                    Must start with UQ or EQ - verify address before saving
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-[#0d0d0d] rounded-lg border border-white/5">
+                  <HelpCircle className="w-4 h-4 text-[#4cd3ff] mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-[#c0c0c0]">
+                    Don't have a TON wallet?{' '}
+                    <a 
+                      href="https://ton.org/wallets" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-[#4cd3ff] hover:text-[#6ddeff] underline transition-colors"
+                    >
+                      Get one here
+                    </a>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-center gap-3 mt-6">
+              {isTonWalletSet && !isChangingTonWallet ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsChangingTonWallet(true)}
+                    className="flex-1 bg-transparent border-[#4cd3ff]/50 text-[#4cd3ff] hover:bg-[#4cd3ff]/10"
+                  >
+                    Change Wallet
+                  </Button>
+                  <Button
+                    onClick={() => setActiveTab('withdraw')}
+                    className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+                  >
+                    Done
+                  </Button>
+                </>
+              ) : isChangingTonWallet ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsChangingTonWallet(false);
+                      setNewTonWalletId('');
+                    }}
+                    className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleChangeTonWallet}
+                    disabled={changeTonWalletMutation.isPending}
+                    className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+                  >
+                    {changeTonWalletMutation.isPending ? "Processing..." : `Pay ${walletChangeFee} PAD & Confirm`}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setActiveTab('withdraw')}
+                    className="flex-1 bg-transparent border-white/20 text-white hover:bg-white/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveTonWallet}
+                    disabled={saveTonWalletMutation.isPending}
+                    className="flex-1 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold"
+                  >
+                    {saveTonWalletMutation.isPending ? "Saving..." : "Save TON Wallet"}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'wallet-activity' && (
+          <div className="space-y-4">
+            {withdrawalsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-[#4cd3ff]" />
+              </div>
+            ) : withdrawalsData.length === 0 ? (
+              <div className="text-center py-6 bg-[#1a1a1a]/50 rounded-xl">
+                <Receipt className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">No transactions yet</p>
+                <p className="text-gray-600 text-xs mt-1">Your withdrawal history will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {withdrawalsData.map((withdrawal) => (
+                  <div 
+                    key={withdrawal.id}
+                    className="flex items-center justify-between p-3 bg-[#1a1a1a]/50 rounded-xl border border-white/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(withdrawal.status)}
+                      <div>
+                        <p className="text-sm text-white font-medium">
+                          ${formatUSD(withdrawal.amount)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
+                        {withdrawal.status}
+                      </span>
+                      <p className="text-xs text-gray-500">
+                        {withdrawal.method || 'TON'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>
