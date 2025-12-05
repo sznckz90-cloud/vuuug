@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Loader2, Gem, Clock, CreditCard } from "lucide-react";
+import { Plus, Loader2, Clock, CreditCard } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
 import { useQuery } from "@tanstack/react-query";
@@ -144,7 +144,9 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
         <div className="px-4 pb-5 pt-1 overflow-y-auto">
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2">
-              <Gem className="w-5 h-5 text-[#4cd3ff]" />
+              <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
+              </div>
               <span className="text-base font-semibold text-white">Top-Up TON</span>
             </div>
 

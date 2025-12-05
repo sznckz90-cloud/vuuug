@@ -172,10 +172,10 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
             </div>
             <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
               <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
-                <span className="text-green-400">$</span>
-                USD Balance
+                <span className="text-green-400 font-bold">$</span>
+                Balance
               </div>
-              <div className="text-white font-bold text-lg">${usdBalance.toFixed(2)}</div>
+              <div className="text-white font-bold text-lg">{usdBalance.toFixed(2)}</div>
             </div>
           </div>
 

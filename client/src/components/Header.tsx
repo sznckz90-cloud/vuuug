@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import HamburgerMenu from "./HamburgerMenu";
-import { DollarSign } from "lucide-react";
 
 export default function Header() {
   const { data: user } = useQuery<any>({
@@ -18,9 +17,9 @@ export default function Header() {
         
         {/* Right: USD Balance */}
         <div className="flex items-center gap-1.5 bg-gray-700/50 px-2 py-1.5 rounded-lg">
-          <DollarSign className="w-4 h-4 text-green-400" />
+          <span className="text-green-400 font-bold text-base">$</span>
           <div className="text-sm text-white font-bold">
-            ${usdBalance.toFixed(2)} USD
+            {usdBalance.toFixed(3)}
           </div>
         </div>
       </div>
