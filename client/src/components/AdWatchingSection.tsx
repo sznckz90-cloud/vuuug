@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Play, Clock, Shield, Timer } from "lucide-react";
+import { Play, Clock, Shield } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
-import { Progress } from "@/components/ui/progress";
 
 declare global {
   interface Window {
@@ -21,36 +20,10 @@ interface AdWatchingSectionProps {
   user: any;
 }
 
-interface AdLimits {
-  hourly: {
-    limit: number;
-    watched: number;
-    remaining: number;
-    isLimitReached: boolean;
-    timeRemaining: number;
-    resetAt: string | null;
-  };
-  daily: {
-    limit: number;
-    watched: number;
-    remaining: number;
-    isLimitReached: boolean;
-  };
-  canWatchAd: boolean;
-}
-
-function formatTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-
 export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
   const [isShowingAds, setIsShowingAds] = useState(false);
   const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram' | 'verifying'>('idle');
-  const [countdown, setCountdown] = useState(0);
   const sessionRewardedRef = useRef(false);
   const monetagStartTimeRef = useRef<number>(0);
 
@@ -63,37 +36,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     staleTime: 30000,
     refetchInterval: 60000,
   });
-
-  const { data: adLimits, refetch: refetchLimits } = useQuery<AdLimits>({
-    queryKey: ["/api/ads/limits"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/ads/limits");
-      return response.json();
-    },
-    staleTime: 5000,
-    refetchInterval: 10000,
-  });
-
-  useEffect(() => {
-    if (adLimits?.hourly?.isLimitReached && adLimits.hourly.timeRemaining > 0) {
-      setCountdown(adLimits.hourly.timeRemaining);
-      
-      const interval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            refetchLimits();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      
-      return () => clearInterval(interval);
-    } else {
-      setCountdown(0);
-    }
-  }, [adLimits?.hourly?.isLimitReached, adLimits?.hourly?.timeRemaining, refetchLimits]);
 
   const watchAdMutation = useMutation({
     mutationFn: async (adType: string) => {
@@ -112,20 +54,14 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/withdrawal-eligibility"] });
       queryClient.invalidateQueries({ queryKey: ["/api/referrals/valid-count"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/ads/limits"] });
     },
     onError: (error: any) => {
       sessionRewardedRef.current = false;
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/ads/limits"] });
       
       if (error.status === 429) {
-        if (error.limitType === 'hourly') {
-          showNotification(`Hourly limit reached. Please wait for timer to reset.`, "error");
-        } else {
-          const limit = error.limit || appSettings?.dailyAdLimit || 500;
-          showNotification(`Daily ad limit reached (${limit} ads/day)`, "error");
-        }
+        const limit = error.limit || appSettings?.dailyAdLimit || 50;
+        showNotification(`Daily ad limit reached (${limit} ads/day)`, "error");
       } else if (error.status === 401 || error.status === 403) {
         showNotification("Authentication error. Please refresh the page.", "error");
       } else if (error.message) {
@@ -158,6 +94,22 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     });
   };
 
+  const showAdsgramAd = (): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      if (window.Adsgram) {
+        try {
+          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          resolve(true);
+        } catch (error) {
+          console.error('Adsgram ad error:', error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
   const handleStartEarning = async () => {
     if (isShowingAds) return;
     
@@ -165,29 +117,35 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     sessionRewardedRef.current = false;
     
     try {
+      // STEP 1: Show Monetag ad only - User must watch at least 3 seconds
       setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
+      // Handle Monetag unavailable
       if (monetagResult.unavailable) {
         showNotification("Ads not available. Please try again later.", "error");
         return;
       }
       
+      // Check if Monetag was closed before 3 seconds
       if (!monetagResult.watchedFully) {
         showNotification("Claimed too fast!", "error");
         return;
       }
       
+      // Monetag was watched fully (at least 3 seconds)
       if (!monetagResult.success) {
         showNotification("Ad failed. Please try again.", "error");
         return;
       }
       
+      // STEP 2: Grant reward immediately after Monetag completion
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
         sessionRewardedRef.current = true;
         
+        // Optimistic UI update - only ONE increment to progress
         const rewardAmount = appSettings?.rewardPerAd || 2;
         queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
           ...old,
@@ -195,25 +153,18 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           adsWatchedToday: (old?.adsWatchedToday || 0) + 1
         }));
         
+        // Sync with backend - single reward call
         watchAdMutation.mutate('monetag');
       }
     } finally {
+      // Always reset state on completion or error
       setCurrentAdStep('idle');
       setIsShowingAds(false);
     }
   };
 
-  const hourlyLimit = adLimits?.hourly?.limit || appSettings?.hourlyAdLimit || 60;
-  const hourlyWatched = adLimits?.hourly?.watched || 0;
-  const dailyLimit = adLimits?.daily?.limit || appSettings?.dailyAdLimit || 500;
-  const dailyWatched = adLimits?.daily?.watched || user?.adsWatchedToday || 0;
-  
-  const isHourlyLimitReached = adLimits?.hourly?.isLimitReached || false;
-  const isDailyLimitReached = adLimits?.daily?.isLimitReached || false;
-  const canWatchAd = adLimits?.canWatchAd ?? (!isHourlyLimitReached && !isDailyLimitReached);
-
-  const hourlyProgress = Math.min((hourlyWatched / hourlyLimit) * 100, 100);
-  const dailyProgress = Math.min((dailyWatched / dailyLimit) * 100, 100);
+  const adsWatchedToday = user?.adsWatchedToday || 0;
+  const dailyLimit = appSettings?.dailyAdLimit || 50;
 
   return (
     <Card className="rounded-2xl minimal-card mb-3">
@@ -223,60 +174,39 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           <p className="text-[#AAAAAA] text-xs">Get PAD for watching commercials</p>
         </div>
         
-        <div className="flex justify-center mb-4">
-          {isHourlyLimitReached && countdown > 0 ? (
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-2 text-amber-400">
-                <Timer size={20} className="animate-pulse" />
-                <span className="text-lg font-bold font-mono">{formatTime(countdown)}</span>
-              </div>
-              <p className="text-xs text-[#AAAAAA]">Wait for timer to watch more ads</p>
-            </div>
-          ) : (
-            <button
-              onClick={handleStartEarning}
-              disabled={isShowingAds || !canWatchAd}
-              className="btn-primary px-6 py-3 flex items-center gap-2 min-w-[160px] justify-center text-base disabled:opacity-50"
-              data-testid="button-watch-ad"
-            >
-              {isShowingAds ? (
-                <>
-                  {currentAdStep === 'verifying' ? (
-                    <Shield size={16} className="animate-pulse text-green-400" />
-                  ) : (
-                    <Clock size={16} className="animate-spin" />
-                  )}
-                  <span className="text-sm font-semibold">
-                    {currentAdStep === 'monetag' ? 'Showing Ad...' : 
-                     currentAdStep === 'verifying' ? 'Verifying...' : 'Loading...'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Play size={16} className="group-hover:scale-110 transition-transform" />
-                  <span className="text-sm font-semibold">Start Earning</span>
-                </>
-              )}
-            </button>
-          )}
+        <div className="flex justify-center mb-3">
+          <button
+            onClick={handleStartEarning}
+            disabled={isShowingAds || adsWatchedToday >= dailyLimit}
+            className="btn-primary px-6 py-3 flex items-center gap-2 min-w-[160px] justify-center text-base disabled:opacity-50"
+            data-testid="button-watch-ad"
+          >
+            {isShowingAds ? (
+              <>
+                {currentAdStep === 'verifying' ? (
+                  <Shield size={16} className="animate-pulse text-green-400" />
+                ) : (
+                  <Clock size={16} className="animate-spin" />
+                )}
+                <span className="text-sm font-semibold">
+                  {currentAdStep === 'monetag' ? 'Showing Ad...' : 
+                   currentAdStep === 'verifying' ? 'Verifying...' : 'Loading...'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Play size={16} className="group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold">Start Earning</span>
+              </>
+            )}
+          </button>
         </div>
         
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-[#AAAAAA]">Per hour ads limit</span>
-              <span className="text-white font-medium">{hourlyWatched}/{hourlyLimit}</span>
-            </div>
-            <Progress value={hourlyProgress} className="h-2" />
-          </div>
-          
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-[#AAAAAA]">Daily ads limit</span>
-              <span className="text-white font-medium">{dailyWatched}/{dailyLimit}</span>
-            </div>
-            <Progress value={dailyProgress} className="h-2" />
-          </div>
+        {/* Watched counter - Always visible */}
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">
+            Watched: {adsWatchedToday}/{dailyLimit}
+          </p>
         </div>
       </CardContent>
     </Card>
