@@ -17,13 +17,7 @@ import {
   Link2,
   Megaphone,
   Globe,
-  Bell,
-  Play,
-  Gift,
-  Award,
-  Trophy,
-  Crown,
-  Lock
+  Bell
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useCallback } from "react";
@@ -56,32 +50,6 @@ interface AppSettings {
   botTaskReward?: number;
   partnerTaskReward?: number;
   [key: string]: any;
-}
-
-interface DailyAdTask {
-  id: number;
-  level: number;
-  title: string;
-  requiredAds: number;
-  rewardType: string;
-  rewardAmount: string;
-  progress: number;
-  completed: boolean;
-  claimed: boolean;
-  canClaim: boolean;
-  displayOrder: number;
-}
-
-interface DailyAdTasksResponse {
-  success: boolean;
-  tasks: DailyAdTask[];
-  adsWatchedToday: number;
-  allCompleted: boolean;
-  allClaimed: boolean;
-  resetInfo: {
-    nextReset: string;
-    resetDate: string;
-  };
 }
 
 export default function Missions() {
@@ -122,34 +90,6 @@ export default function Missions() {
     queryKey: ['/api/auth/user'],
     retry: false,
     staleTime: 30000,
-  });
-
-  const { data: dailyAdTasksData, refetch: refetchDailyAdTasks } = useQuery<DailyAdTasksResponse>({
-    queryKey: ['/api/daily-ad-tasks'],
-    retry: false,
-    refetchInterval: 10000,
-  });
-
-  const claimDailyAdTaskMutation = useMutation({
-    mutationFn: async (taskLevel: number) => {
-      const response = await fetch(`/api/daily-ad-tasks/claim/${taskLevel}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error((await response.json()).message);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      const rewardDisplay = data.rewardType === 'usd' 
-        ? `$${parseFloat(data.rewardAmount).toFixed(4)}` 
-        : `${parseFloat(data.rewardAmount).toLocaleString()} Wiew`;
-      showNotification(`+${rewardDisplay} claimed!`, 'success');
-      refetchDailyAdTasks();
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-    },
-    onError: (error: Error) => {
-      showNotification(error.message || 'Failed to claim reward', 'error');
-    },
   });
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
@@ -664,136 +604,6 @@ export default function Missions() {
             </div>
 
           </div>
-        </div>
-
-        <div className="bg-[#111] rounded-xl p-3 mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-[#4cd3ff]" />
-              <span className="text-white text-sm font-semibold">Daily Ad Tasks</span>
-            </div>
-            {dailyAdTasksData?.adsWatchedToday !== undefined && (
-              <span className="text-gray-400 text-xs">
-                {dailyAdTasksData.adsWatchedToday} ads watched
-              </span>
-            )}
-          </div>
-          
-          <p className="text-gray-400 text-xs mb-3">
-            Watch ads to earn rewards. Complete tasks in order. Resets at 00:00 UTC.
-          </p>
-
-          {dailyAdTasksData?.tasks && dailyAdTasksData.tasks.length > 0 ? (
-
-            <div className="space-y-2">
-              {dailyAdTasksData.tasks
-                .sort((a, b) => a.displayOrder - b.displayOrder)
-                .map((task, index) => {
-                  const previousTasks = dailyAdTasksData.tasks.filter(t => t.displayOrder < task.displayOrder);
-                  const allPreviousClaimed = previousTasks.every(t => t.claimed);
-                  const isLocked = !allPreviousClaimed;
-                  const progressPercent = Math.min(100, (task.progress / task.requiredAds) * 100);
-                  
-                  const rewardDisplay = task.rewardType === 'usd' 
-                    ? `$${parseFloat(task.rewardAmount).toFixed(4)}` 
-                    : `${parseFloat(task.rewardAmount).toLocaleString()} Wiew`;
-
-                  const taskIcons = [
-                    <Play className="w-4 h-4" />,
-                    <Gift className="w-4 h-4" />,
-                    <Award className="w-4 h-4" />,
-                    <Trophy className="w-4 h-4" />,
-                    <Crown className="w-4 h-4" />
-                  ];
-                  
-                  const taskGradients = [
-                    'from-blue-500 to-cyan-500',
-                    'from-purple-500 to-pink-500',
-                    'from-orange-500 to-yellow-500',
-                    'from-emerald-500 to-teal-500',
-                    'from-amber-500 to-orange-600'
-                  ];
-
-                  return (
-                    <div 
-                      key={task.id} 
-                      className={`bg-[#1a1a1a] rounded-lg p-2.5 ${isLocked ? 'opacity-50' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5 flex-1">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                            task.claimed ? 'bg-green-500/20' :
-                            task.completed ? 'bg-gradient-to-br from-green-500 to-emerald-600' :
-                            isLocked ? 'bg-gray-600' :
-                            `bg-gradient-to-br ${taskGradients[index] || taskGradients[0]}`
-                          }`}>
-                            {task.claimed ? (
-                              <Check className="w-4 h-4 text-green-400" />
-                            ) : isLocked ? (
-                              <Lock className="w-4 h-4 text-gray-400" />
-                            ) : (
-                              <span className="text-white">{taskIcons[index] || taskIcons[0]}</span>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-white text-sm font-medium">{task.title}</p>
-                            <div className="flex items-center gap-2">
-                              <p className={`text-xs font-bold ${
-                                task.rewardType === 'usd' ? 'text-green-400' : 'text-[#4cd3ff]'
-                              }`}>
-                                +{rewardDisplay}
-                              </p>
-                              {!task.claimed && !isLocked && (
-                                <span className="text-gray-400 text-xs">
-                                  {task.progress}/{task.requiredAds}
-                                </span>
-                              )}
-                            </div>
-                            {!task.claimed && !isLocked && (
-                              <div className="mt-1 h-1 bg-gray-700 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full transition-all duration-300 ${
-                                    task.completed ? 'bg-green-500' : 'bg-[#4cd3ff]'
-                                  }`}
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {task.claimed ? (
-                          <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
-                            <Check className="w-4 h-4 text-green-400" />
-                          </div>
-                        ) : task.canClaim && !isLocked ? (
-                          <Button
-                            onClick={() => claimDailyAdTaskMutation.mutate(task.level)}
-                            disabled={claimDailyAdTaskMutation.isPending}
-                            className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
-                          >
-                            {claimDailyAdTaskMutation.isPending ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : 'Claim'}
-                          </Button>
-                        ) : isLocked ? (
-                          <div className="h-8 w-20 rounded-lg bg-gray-600/50 flex items-center justify-center">
-                            <span className="text-gray-400 text-xs">Locked</span>
-                          </div>
-                        ) : (
-                          <div className="h-8 w-20 rounded-lg bg-gray-600/50 flex items-center justify-center">
-                            <span className="text-gray-400 text-xs">{Math.floor(progressPercent)}%</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-gray-500 text-xs">Loading tasks...</p>
-            </div>
-          )}
         </div>
 
         <TaskSection 
