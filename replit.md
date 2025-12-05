@@ -23,18 +23,20 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Authentication**: Telegram WebApp Authentication.
 - **PAD/USD Conversion**: Dedicated API endpoint (`/api/convert-to-usd`) to convert PAD to USD, deducting PAD and adding USD to user balances. Conversion rate: 10,000 PAD = 1 USD.
 - **Withdrawal System**:
-    - Supports multiple methods: TON (TON blockchain payment method), USD, Telegram Stars.
-    - Updated fee structure: TON (5% fee, $0.50 min), USD (3% fee, $0.50 min), STARS (5% fee).
-    - Minimum withdrawal amounts enforced server-side.
-    - Admin panel displays withdrawal requests with USD equivalents for all methods, including special handling for Stars (e.g., `Y ⭐ ($X.XX)`).
+    - Supports TON blockchain payment method only (USDT and Telegram Stars removed December 2025)
+    - Fee structure: TON (5% fee, $0.50 min)
+    - Minimum withdrawal amounts enforced server-side
+    - 3-tab layout: Withdraw • Wallet Setup • Wallet Activity
+    - TON wallet required before withdrawal submission
+    - Wallet activity moved from hamburger menu to withdraw page
 - **ArcPay Integration**:
     - Full integration for PDZ token top-ups.
     - Secure handling of ArcPay API credentials via environment variables.
     - Robust error handling, retry logic (3 attempts with exponential backoff), and development mode for mock checkouts.
     - Webhook endpoint for payment notifications.
 - **Wallet Management**:
-    - Wallet setup integrated into the Withdraw page with a toggle.
-    - Fees (5000 PAD) are charged for changing existing USDT and Telegram Stars wallet details; first-time setup is free.
+    - Wallet setup integrated into the Withdraw page as a tab.
+    - Fee (5000 PAD) charged for changing existing TON wallet details; first-time setup is free.
 - **Earning Mechanics**:
     - **Faucetpay**: Renamed from "Daily Streak", rewards +1 PAD.
     - **Referral System**: Commissions stored as PAD integers.
