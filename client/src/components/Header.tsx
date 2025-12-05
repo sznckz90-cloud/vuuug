@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import HamburgerMenu from "./HamburgerMenu";
-import TopUpSheet from "./TopUpSheet";
+import { DollarSign } from "lucide-react";
 
 export default function Header() {
   const { data: user } = useQuery<any>({
@@ -8,7 +8,7 @@ export default function Header() {
     retry: false,
   });
 
-  const tonBalance = parseFloat(user?.tonBalance || "0");
+  const usdBalance = parseFloat(user?.usdBalance || "0");
 
   return (
     <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background to-background/95 backdrop-blur-sm border-b border-white/5">
@@ -16,11 +16,11 @@ export default function Header() {
         {/* Left: Hamburger Menu */}
         <HamburgerMenu />
         
-        {/* Right: TON Balance with Top Up */}
-        <div className="flex items-center gap-2 bg-gray-700/50 px-3 py-2 rounded-lg">
-          <TopUpSheet />
-          <div className="text-xs text-white font-semibold">
-            TON {tonBalance.toFixed(3)}
+        {/* Right: USD Balance */}
+        <div className="flex items-center gap-1.5 bg-gray-700/50 px-2 py-1.5 rounded-lg">
+          <DollarSign className="w-4 h-4 text-green-400" />
+          <div className="text-sm text-white font-bold">
+            ${usdBalance.toFixed(2)} USD
           </div>
         </div>
       </div>
