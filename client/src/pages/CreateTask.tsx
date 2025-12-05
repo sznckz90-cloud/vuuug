@@ -158,13 +158,14 @@ export default function CreateTask() {
   const availableBalance = isAdmin ? usdBalance : tonBalance;
   const hasSufficientBalance = availableBalance >= totalCost;
 
-  const { data: myTasksData, isLoading: myTasksLoading, refetch: refetchMyTasks } = useQuery<{
+  const { data: myTasksData, isLoading: myTasksLoading, isError: myTasksError, refetch: refetchMyTasks } = useQuery<{
     success: boolean;
     tasks: Task[];
   }>({
     queryKey: ["/api/advertiser-tasks/my-tasks"],
-    retry: false,
+    retry: 1,
     refetchOnMount: true,
+    staleTime: 0,
   });
 
   const createTaskMutation = useMutation({
@@ -619,6 +620,17 @@ export default function CreateTask() {
                   <div className="w-8 h-8 border-2 border-[#4cd3ff] border-t-transparent rounded-full animate-spin"></div>
                 </div>
                 <p className="text-muted-foreground">Loading your tasks...</p>
+              </div>
+            ) : myTasksError ? (
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
+                <p className="text-muted-foreground mb-4">Failed to load tasks</p>
+                <Button
+                  className="btn-primary"
+                  onClick={() => refetchMyTasks()}
+                >
+                  Try Again
+                </Button>
               </div>
             ) : myTasks.length === 0 ? (
               <div className="text-center py-8">

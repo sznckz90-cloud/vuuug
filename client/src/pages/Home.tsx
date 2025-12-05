@@ -72,48 +72,38 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-1">
-        {/* User Profile Section - Like Hamburger Menu Style */}
-        <div className="flex flex-col items-center gap-1 mb-2">
+        {/* User Profile Section - Compact Layout */}
+        <div className="flex flex-col items-center mb-2">
           {/* Profile Photo - Clickable for admin */}
           {photoUrl ? (
-            <div className="flex flex-col items-center gap-2">
-              <img 
-                src={photoUrl} 
-                alt="Profile" 
-                className={`w-20 h-20 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)] ${isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                onClick={() => isAdmin && setLocation("/admin")}
-              />
-              {userRank && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
-                  <Award className="w-3.5 h-3.5 text-[#4cd3ff]" />
-                  <span className="text-[10px] font-bold text-[#4cd3ff]">#{userRank}</span>
-                </div>
-              )}
-            </div>
+            <img 
+              src={photoUrl} 
+              alt="Profile" 
+              className={`w-24 h-24 rounded-full border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)] ${isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+              onClick={() => isAdmin && setLocation("/admin")}
+            />
           ) : (
-            <div className="flex flex-col items-center gap-2">
-              <div 
-                className={`w-20 h-20 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)] ${isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                onClick={() => isAdmin && setLocation("/admin")}
-              >
-                <span className="text-black font-bold text-3xl">
-                  {displayName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              {userRank && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30">
-                  <Award className="w-3.5 h-3.5 text-[#4cd3ff]" />
-                  <span className="text-[10px] font-bold text-[#4cd3ff]">#{userRank}</span>
-                </div>
-              )}
+            <div 
+              className={`w-24 h-24 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#b8b8b8] flex items-center justify-center border-4 border-[#4cd3ff] shadow-[0_0_20px_rgba(76,211,255,0.5)] ${isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+              onClick={() => isAdmin && setLocation("/admin")}
+            >
+              <span className="text-black font-bold text-3xl">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
             </div>
           )}
           
-          {/* User Name and UID */}
-          <div className="text-center mt-2 mb-1">
-            <h1 className="text-lg font-bold text-white">{displayName}</h1>
-            <p className="text-xs text-gray-400">UID: {userUID}</p>
-          </div>
+          {/* Rank Badge - Close to photo */}
+          {userRank && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-[#4cd3ff]/20 to-[#b8b8b8]/20 border border-[#4cd3ff]/30 -mt-2">
+              <Award className="w-3 h-3 text-[#4cd3ff]" />
+              <span className="text-[10px] font-bold text-[#4cd3ff]">#{userRank}</span>
+            </div>
+          )}
+          
+          {/* User Name and UID - Compact */}
+          <h1 className="text-lg font-bold text-white mt-1">{displayName}</h1>
+          <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
         </div>
 
         {/* Daily Streak Section */}
