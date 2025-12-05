@@ -223,17 +223,18 @@ export const adminSettings = pgTable("admin_settings", {
 });
 
 // Advertiser tasks table
+// Status values: under_review (pending admin approval), running (active/approved), paused, completed, rejected
 export const advertiserTasks = pgTable("advertiser_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   advertiserId: varchar("advertiser_id").references(() => users.id).notNull(),
-  taskType: varchar("task_type").notNull(), // "channel" or "bot"
+  taskType: varchar("task_type").notNull(), // "channel" or "bot" or "partner"
   title: text("title").notNull(),
   link: text("link").notNull(),
   totalClicksRequired: integer("total_clicks_required").notNull(),
   currentClicks: integer("current_clicks").default(0).notNull(),
   costPerClick: decimal("cost_per_click", { precision: 30, scale: 10 }).default("0.0003").notNull(), // 0.0003 TON per click (500 clicks = 0.15 TON)
   totalCost: decimal("total_cost", { precision: 30, scale: 10 }).notNull(),
-  status: varchar("status").default("active").notNull(), // active, completed, paused
+  status: varchar("status").default("under_review").notNull(), // under_review, running, paused, completed, rejected
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   completedAt: timestamp("completed_at"),
