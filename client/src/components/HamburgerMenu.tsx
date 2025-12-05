@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Drawer,
   DrawerContent,
@@ -8,18 +7,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-  Menu, 
   Ticket,
-  Receipt,
-  Clock,
-  CheckCircle,
-  XCircle,
   Loader2
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { showNotification } from "@/components/AppNotification";
-import { format } from "date-fns";
 
 declare global {
   interface Window {
@@ -29,21 +22,6 @@ declare global {
       };
     };
   }
-}
-
-interface Withdrawal {
-  id: string;
-  amount: string;
-  details: string;
-  status: string;
-  createdAt: string;
-  comment?: string;
-  method?: string;
-}
-
-interface WithdrawalsResponse {
-  success: boolean;
-  withdrawals: Withdrawal[];
 }
 
 declare global {
@@ -58,13 +36,6 @@ export default function HamburgerMenu() {
   const [isShowingAds, setIsShowingAds] = useState(false);
   const monetagStartTimeRef = useRef<number>(0);
   const queryClient = useQueryClient();
-
-  const { data: withdrawalsData, isLoading: withdrawalsLoading } = useQuery<WithdrawalsResponse>({
-    queryKey: ['/api/withdrawals'],
-    retry: false,
-  });
-
-  const withdrawals = (withdrawalsData?.withdrawals || []).slice(0, 5);
 
   const redeemPromoMutation = useMutation({
     mutationFn: async (code: string) => {
@@ -162,34 +133,6 @@ export default function HamburgerMenu() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    const lowerStatus = status.toLowerCase();
-    if (lowerStatus.includes('approved') || lowerStatus.includes('success') || lowerStatus.includes('paid')) {
-      return <CheckCircle className="w-4 h-4 text-green-500" />;
-    } else if (lowerStatus.includes('reject')) {
-      return <XCircle className="w-4 h-4 text-red-500" />;
-    } else if (lowerStatus.includes('pending')) {
-      return <Clock className="w-4 h-4 text-yellow-500" />;
-    }
-    return <Loader2 className="w-4 h-4 text-gray-500" />;
-  };
-
-  const getStatusColor = (status: string) => {
-    const lowerStatus = status.toLowerCase();
-    if (lowerStatus.includes('approved') || lowerStatus.includes('success') || lowerStatus.includes('paid')) {
-      return 'text-green-500';
-    } else if (lowerStatus.includes('reject')) {
-      return 'text-red-500';
-    } else if (lowerStatus.includes('pending')) {
-      return 'text-yellow-500';
-    }
-    return 'text-gray-500';
-  };
-
-  const formatUSD = (amount: string) => {
-    return parseFloat(amount).toFixed(2);
-  };
-
   return (
     <Drawer open={menuOpen} onOpenChange={setMenuOpen}>
       <DrawerTrigger asChild>
@@ -225,54 +168,6 @@ export default function HamburgerMenu() {
                   {redeemPromoMutation.isPending || isShowingAds ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
                 </Button>
               </div>
-            </div>
-
-            <div className="h-px bg-white/10" />
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-[#4cd3ff]" />
-                <span className="text-sm font-semibold text-white">Wallet Activity</span>
-              </div>
-              
-              {withdrawalsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-[#4cd3ff]" />
-                </div>
-              ) : withdrawals.length === 0 ? (
-                <div className="text-center py-6 bg-[#1a1a1a]/50 rounded-xl">
-                  <p className="text-gray-500 text-sm">No transactions yet</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {withdrawals.map((withdrawal) => (
-                    <div 
-                      key={withdrawal.id}
-                      className="flex items-center justify-between p-3 bg-[#1a1a1a]/50 rounded-xl border border-white/5"
-                    >
-                      <div className="flex items-center gap-3">
-                        {getStatusIcon(withdrawal.status)}
-                        <div>
-                          <p className="text-sm text-white font-medium">
-                            ${formatUSD(withdrawal.amount)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-xs font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
-                          {withdrawal.status}
-                        </span>
-                        <p className="text-xs text-gray-500">
-                          {withdrawal.method || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
