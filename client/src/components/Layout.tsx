@@ -33,8 +33,8 @@ export default function Layout({ children }: LayoutProps) {
   ];
 
   const rightNavItems = [
-    { href: "/affiliates", icon: Users, label: "Affiliates" },
-    { href: "/withdraw", icon: CircleDollarSign, label: "Withdraw" },
+    { href: "/affiliates", icon: Users, label: "Referrals" },
+    { href: "/withdraw", icon: CircleDollarSign, label: "Payouts" },
   ];
 
   const isWatchActive = location === "/";
