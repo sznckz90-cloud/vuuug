@@ -5,7 +5,6 @@ import { RefreshCw, Clock, Shield } from "lucide-react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { showNotification } from "@/components/AppNotification";
 import { DiamondIcon } from "@/components/DiamondIcon";
-import { TonCoinIcon } from "@/components/TonCoinIcon";
 
 declare global {
   interface Window {
@@ -159,51 +158,38 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
 
   return (
     <Card className="minimal-card mb-3">
-      <CardContent className="pt-4 pb-4">
-        <div className="space-y-3">
-          {/* Balance Display */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
-              <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
-                <DiamondIcon size={12} withGlow />
-                PAD Balance
-              </div>
-              <div className="text-white font-bold text-lg">{Math.floor(padBalance).toLocaleString()}</div>
-            </div>
-            <div className="p-3 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A]">
-              <div className="text-xs text-[#AAAAAA] mb-1 flex items-center gap-1">
-                <span className="text-green-400 font-bold">$</span>
-                Balance
-              </div>
-              <div className="text-white font-bold text-lg">{usdBalance.toFixed(2)}</div>
+      <CardContent className="pt-3 pb-3">
+        <div className="flex items-center justify-between gap-3">
+          {/* PAD Balance */}
+          <div className="flex items-center gap-2">
+            <DiamondIcon size={18} withGlow />
+            <div>
+              <div className="text-[10px] text-[#AAAAAA] uppercase">PAD Balance</div>
+              <div className="text-white font-bold text-xl">{Math.floor(padBalance).toLocaleString()}</div>
             </div>
           </div>
 
           {/* Convert Button */}
           <Button
-            className="w-full h-11 btn-primary"
+            className="h-10 px-5 btn-primary"
             onClick={handleConvert}
             disabled={isShowingAds || convertMutation.isPending}
           >
             {isShowingAds ? (
               <>
-                {currentAdStep === 'converting' ? (
-                  <Shield className="w-4 h-4 mr-2 animate-pulse text-green-400" />
-                ) : (
-                  <Clock className="w-4 h-4 mr-2 animate-spin" />
-                )}
-                {currentAdStep === 'monetag' ? 'Showing Monetag...' : 
-                 currentAdStep === 'adsgram' ? 'Showing AdGram...' : 
-                 currentAdStep === 'converting' ? 'Converting...' : 'Loading...'}
+                <Clock className="w-4 h-4 mr-1.5 animate-spin" />
+                {currentAdStep === 'monetag' ? 'Ad...' : 
+                 currentAdStep === 'adsgram' ? 'Ad...' : 
+                 currentAdStep === 'converting' ? 'Converting...' : '...'}
               </>
             ) : convertMutation.isPending ? (
               <>
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
                 Converting...
               </>
             ) : (
               <>
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className="w-4 h-4 mr-1.5" />
                 Convert
               </>
             )}
