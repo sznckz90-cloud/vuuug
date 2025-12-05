@@ -163,36 +163,33 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
           {/* PAD Balance */}
           <div className="flex items-center gap-2">
             <DiamondIcon size={18} withGlow />
-            <div>
-              <div className="text-[10px] text-[#AAAAAA] uppercase">PAD Balance</div>
-              <div className="text-white font-bold text-xl">{Math.floor(padBalance).toLocaleString()}</div>
-            </div>
+            <div className="text-white font-bold text-xl">{Math.floor(padBalance).toLocaleString()} PAD</div>
           </div>
 
-          {/* Convert Button */}
+          {/* Convert Button - Same size as Streak Claim button */}
           <Button
-            className="h-10 px-5 btn-primary"
             onClick={handleConvert}
             disabled={isShowingAds || convertMutation.isPending}
+            className="h-10 w-[120px] btn-primary"
           >
-            {isShowingAds ? (
-              <>
-                <Clock className="w-4 h-4 mr-1.5 animate-spin" />
-                {currentAdStep === 'monetag' ? 'Ad...' : 
-                 currentAdStep === 'adsgram' ? 'Ad...' : 
-                 currentAdStep === 'converting' ? 'Converting...' : '...'}
-              </>
-            ) : convertMutation.isPending ? (
-              <>
-                <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
-                Converting...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-1.5" />
-                Convert
-              </>
-            )}
+            <div className="flex items-center justify-center gap-2 w-full">
+              {isShowingAds ? (
+                <>
+                  <Clock className="w-4 h-4 flex-shrink-0 animate-spin" />
+                  <span className="w-[60px] text-left">Ad...</span>
+                </>
+              ) : convertMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 flex-shrink-0 animate-spin" />
+                  <span className="w-[60px] text-left">Converting...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 flex-shrink-0" />
+                  <span className="w-[60px] text-left">Convert</span>
+                </>
+              )}
+            </div>
           </Button>
         </div>
       </CardContent>
