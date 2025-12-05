@@ -1592,6 +1592,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== DAILY AD TASKS API =====
+  
+  // Get user's daily ad tasks
+  app.get('/api/daily-ad-tasks', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      
+      // Update task progress based on current ads watched
+      await storage.updateDailyAdTaskProgress(userId);
+      
+      // Get task summary
+      const summary = await storage.getDailyAdTaskSummary(userId);
+      
+      res.json({
+        success: true,
+        tasks: summary.tasks.map(task => ({
+          id: task.id,
+          level: task.taskLevel,
+          title: `Watch ${task.config.requiredAds} Ads`,
+          requiredAds: task.config.requiredAds,
+          rewardType: task.config.rewardType,
+          rewardAmount: task.config.rewardAmount,
+          progress: task.progress,
+          completed: task.completed,
+          claimed: task.claimed,
+          canClaim: task.completed && !task.claimed,
+          displayOrder: task.config.displayOrder,
+        })),
+        adsWatchedToday: summary.adsWatchedToday,
+        allCompleted: summary.allCompleted,
+        allClaimed: summary.allClaimed,
+        resetInfo: {
+          nextReset: "00:00 UTC",
+          resetDate: new Date().toISOString().split('T')[0]
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error fetching daily ad tasks:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch daily ad tasks' 
+      });
+    }
+  });
+  
+  // Claim a daily ad task reward
+  app.post('/api/daily-ad-tasks/claim/:taskLevel', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const taskLevel = parseInt(req.params.taskLevel);
+      
+      if (!taskLevel || taskLevel < 1) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid task level' 
+        });
+      }
+      
+      const result = await storage.claimDailyAdTaskReward(userId, taskLevel);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+          rewardAmount: result.rewardAmount,
+          rewardType: result.rewardType
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error claiming daily ad task:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to claim task reward' 
+      });
+    }
+  });
+  
+  // Admin: Get daily ad tasks configuration
+  app.get('/api/admin/daily-ad-tasks/config', authenticateAdmin, async (req: any, res) => {
+    try {
+      const configs = await storage.getDailyAdTasksConfig();
+      res.json({
+        success: true,
+        tasks: configs
+      });
+    } catch (error) {
+      console.error('Error fetching daily ad task configs:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch configs' });
+    }
+  });
+  
+  // Admin: Update daily ad task configuration
+  app.put('/api/admin/daily-ad-tasks/config/:taskLevel', authenticateAdmin, async (req: any, res) => {
+    try {
+      const taskLevel = parseInt(req.params.taskLevel);
+      const { requiredAds, rewardType, rewardAmount, displayOrder, isEnabled } = req.body;
+      
+      const updated = await storage.updateDailyAdTaskConfig(taskLevel, {
+        requiredAds,
+        rewardType,
+        rewardAmount: rewardAmount?.toString(),
+        displayOrder,
+        isEnabled
+      });
+      
+      if (updated) {
+        res.json({ success: true, task: updated });
+      } else {
+        res.status(404).json({ success: false, message: 'Task not found' });
+      }
+    } catch (error) {
+      console.error('Error updating daily ad task config:', error);
+      res.status(500).json({ success: false, message: 'Failed to update config' });
+    }
+  });
+  
+  // Admin: Create new daily ad task
+  app.post('/api/admin/daily-ad-tasks/config', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { taskLevel, requiredAds, rewardType, rewardAmount, displayOrder, isEnabled } = req.body;
+      
+      const created = await storage.createDailyAdTask({
+        taskLevel,
+        requiredAds,
+        rewardType,
+        rewardAmount: rewardAmount.toString(),
+        displayOrder,
+        isEnabled: isEnabled ?? true
+      });
+      
+      res.json({ success: true, task: created });
+    } catch (error) {
+      console.error('Error creating daily ad task:', error);
+      res.status(500).json({ success: false, message: 'Failed to create task' });
+    }
+  });
+  
+  // Admin: Delete daily ad task
+  app.delete('/api/admin/daily-ad-tasks/config/:taskLevel', authenticateAdmin, async (req: any, res) => {
+    try {
+      const taskLevel = parseInt(req.params.taskLevel);
+      await storage.deleteDailyAdTask(taskLevel);
+      res.json({ success: true, message: 'Task deleted' });
+    } catch (error) {
+      console.error('Error deleting daily ad task:', error);
+      res.status(500).json({ success: false, message: 'Failed to delete task' });
+    }
+  });
+  
+  // Admin: Reset user's daily ad task progress
+  app.post('/api/admin/daily-ad-tasks/reset-user/:userId', authenticateAdmin, async (req: any, res) => {
+    try {
+      const userId = req.params.userId;
+      await storage.resetUserDailyAdTasks(userId);
+      res.json({ success: true, message: 'User task progress reset' });
+    } catch (error) {
+      console.error('Error resetting user tasks:', error);
+      res.status(500).json({ success: false, message: 'Failed to reset user tasks' });
+    }
+  });
+
   // Get daily task completion status
   app.get('/api/tasks/daily/status', async (req: any, res) => {
     try {
