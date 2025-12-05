@@ -855,13 +855,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Process 10% referral commission for referrer (if user was referred)
         if (user.referredBy) {
           try {
-            const referralCommissionPAD = Math.round(adRewardPAD * 0.1);
-            await storage.addEarning({
-              userId: user.referredBy,
-              amount: String(referralCommissionPAD),
-              source: 'referral_commission',
-              description: `10% commission from ${user.username || user.telegram_id}'s ad watch`,
-            });
+            // CRITICAL: Validate referrer exists before adding commission
+            const referrer = await storage.getUser(user.referredBy);
+            if (referrer) {
+              const referralCommissionPAD = Math.round(adRewardPAD * 0.1);
+              await storage.addEarning({
+                userId: user.referredBy,
+                amount: String(referralCommissionPAD),
+                source: 'referral_commission',
+                description: `10% commission from ${user.username || user.telegram_id}'s ad watch`,
+              });
+            } else {
+              // Referrer no longer exists - clean up orphaned reference
+              console.warn(`⚠️ Referrer ${user.referredBy} no longer exists, clearing orphaned referral for user ${userId}`);
+              await storage.clearOrphanedReferral(userId);
+            }
           } catch (commissionError) {
             // Log but don't fail the request if commission processing fails
             console.error("⚠️ Referral commission processing failed (non-critical):", commissionError);

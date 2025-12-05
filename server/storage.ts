@@ -161,6 +161,18 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async clearOrphanedReferral(userId: string): Promise<void> {
+    try {
+      await db
+        .update(users)
+        .set({ referredBy: null, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+      console.log(`✅ Cleared orphaned referral for user ${userId}`);
+    } catch (error) {
+      console.error(`❌ Failed to clear orphaned referral for user ${userId}:`, error);
+    }
+  }
+
   async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
     try {
       // Use raw SQL to avoid Drizzle ORM issues
