@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
-import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle } from 'lucide-react';
+import { Loader2, Check, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { getPaymentSystems, STAR_PACKAGES } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
@@ -37,14 +37,6 @@ interface WalletDetails {
 
 type WalletType = 'TON' | 'USDT' | 'STARS';
 
-const getIcon = (iconName: string) => {
-  const icons: Record<string, any> = {
-    'Gem': Gem,
-    'DollarSign': DollarSign,
-    'Star': Star
-  };
-  return icons[iconName] || DollarSign;
-};
 
 export default function Withdraw() {
   const queryClient = useQueryClient();
@@ -671,13 +663,21 @@ export default function Withdraw() {
                         {selectedMethod === system.id && <Check className="w-3 h-3 text-black" />}
                       </div>
                       <div className="flex-1 flex items-center gap-2">
-                        {(() => {
-                          const IconComponent = getIcon(system.icon);
-                          const iconColor = system.icon === 'DollarSign' ? 'text-green-500' : 
-                                          system.icon === 'Star' ? 'text-yellow-500' : 
-                                          'text-[#4cd3ff]';
-                          return <IconComponent className={`w-5 h-5 ${iconColor}`} />;
-                        })()}
+                        {system.id === 'TON' && (
+                          <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                            <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
+                          </div>
+                        )}
+                        {system.id === 'USD' && (
+                          <div className="w-6 h-6 rounded-full bg-black overflow-hidden flex items-center justify-center">
+                            <img src="/images/tether.png" alt="Tether" className="w-5 h-5 object-contain" />
+                          </div>
+                        )}
+                        {system.id === 'STARS' && (
+                          <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                            <img src="/images/telegram-star.png" alt="Telegram Star" className="w-6 h-6 object-cover" />
+                          </div>
+                        )}
                         <span className="text-white">{system.name}</span>
                         <span className="text-xs text-[#aaa] ml-auto">({system.fee}% fee)</span>
                       </div>
@@ -700,7 +700,7 @@ export default function Withdraw() {
                           }`}
                         >
                           {pkg.stars}
-                          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                          <img src="/images/telegram-star.png" alt="Star" className="w-4 h-4 rounded-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -742,7 +742,7 @@ export default function Withdraw() {
                     </>
                   ) : selectedMethod === 'STARS' && selectedStarPackage ? (
                     <span className="flex items-center gap-1">
-                      Withdraw {selectedStarPackage} <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                      Withdraw {selectedStarPackage} <img src="/images/telegram-star.png" alt="Star" className="w-4 h-4 rounded-full object-cover" />
                     </span>
                   ) : `Withdraw via ${selectedMethod}`}
                 </Button>
@@ -773,7 +773,9 @@ export default function Withdraw() {
                       {selectedWalletType === 'TON' && <Check className="w-3 h-3 text-black" />}
                     </div>
                     <div className="flex-1 flex items-center gap-2">
-                      <Gem className="w-5 h-5 text-[#4cd3ff]" />
+                      <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                        <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
+                      </div>
                       <span className="text-white truncate">{isTonWalletSet ? shortenAddress(tonWalletId) : 'TON Wallet'}</span>
                     </div>
                   </button>
@@ -791,7 +793,9 @@ export default function Withdraw() {
                       {selectedWalletType === 'USDT' && <Check className="w-3 h-3 text-black" />}
                     </div>
                     <div className="flex-1 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-green-500" />
+                      <div className="w-6 h-6 rounded-full bg-black overflow-hidden flex items-center justify-center">
+                        <img src="/images/tether.png" alt="Tether" className="w-5 h-5 object-contain" />
+                      </div>
                       <span className="text-white truncate">{isUsdtWalletSet ? shortenAddress(usdtWalletAddress) : 'USDT (Optimism)'}</span>
                     </div>
                   </button>
@@ -809,7 +813,9 @@ export default function Withdraw() {
                       {selectedWalletType === 'STARS' && <Check className="w-3 h-3 text-black" />}
                     </div>
                     <div className="flex-1 flex items-center gap-2">
-                      <Star className="w-5 h-5 text-yellow-500" />
+                      <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                        <img src="/images/telegram-star.png" alt="Telegram Star" className="w-6 h-6 object-cover" />
+                      </div>
                       <span className="text-white truncate">{isTelegramStarsSet ? formatTelegramUsername(telegramUsername) : 'Telegram Stars'}</span>
                     </div>
                   </button>
