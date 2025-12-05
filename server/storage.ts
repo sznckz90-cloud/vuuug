@@ -2752,7 +2752,7 @@ export class DatabaseStorage implements IStorage {
     return db
       .select()
       .from(advertiserTasks)
-      .where(eq(advertiserTasks.status, "active"))
+      .where(eq(advertiserTasks.status, "running"))
       .orderBy(desc(advertiserTasks.createdAt));
   }
 
@@ -2760,7 +2760,7 @@ export class DatabaseStorage implements IStorage {
     const allActiveTasks = await db
       .select()
       .from(advertiserTasks)
-      .where(eq(advertiserTasks.status, "active"))
+      .where(eq(advertiserTasks.status, "running"))
       .orderBy(desc(advertiserTasks.createdAt));
 
     const completedTaskIds = await db
@@ -2820,8 +2820,8 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: "Task not found" };
       }
 
-      // Check if task is active
-      if (task.status !== "active") {
+      // Check if task is running (only running tasks can receive clicks)
+      if (task.status !== "running") {
         return { success: false, message: "Task is not active" };
       }
 
@@ -2981,6 +2981,61 @@ export class DatabaseStorage implements IStorage {
       ));
     
     return !!click;
+  }
+
+  async updateTaskStatus(taskId: string, status: string): Promise<AdvertiserTask | null> {
+    const [updatedTask] = await db
+      .update(advertiserTasks)
+      .set({
+        status,
+        updatedAt: new Date(),
+        completedAt: status === "completed" ? new Date() : undefined,
+      })
+      .where(eq(advertiserTasks.id, taskId))
+      .returning();
+    
+    return updatedTask || null;
+  }
+
+  async approveTask(taskId: string): Promise<AdvertiserTask | null> {
+    return this.updateTaskStatus(taskId, "running");
+  }
+
+  async rejectTask(taskId: string): Promise<AdvertiserTask | null> {
+    return this.updateTaskStatus(taskId, "rejected");
+  }
+
+  async pauseTask(taskId: string): Promise<AdvertiserTask | null> {
+    return this.updateTaskStatus(taskId, "paused");
+  }
+
+  async resumeTask(taskId: string): Promise<AdvertiserTask | null> {
+    return this.updateTaskStatus(taskId, "running");
+  }
+
+  async deleteTask(taskId: string): Promise<boolean> {
+    try {
+      await db.delete(advertiserTasks).where(eq(advertiserTasks.id, taskId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      return false;
+    }
+  }
+
+  async getPendingTasks(): Promise<AdvertiserTask[]> {
+    return db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.status, "under_review"))
+      .orderBy(desc(advertiserTasks.createdAt));
+  }
+
+  async getAllTasks(): Promise<AdvertiserTask[]> {
+    return db
+      .select()
+      .from(advertiserTasks)
+      .orderBy(desc(advertiserTasks.createdAt));
   }
   
   async getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null> {

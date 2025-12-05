@@ -2783,6 +2783,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ Admin Task Management Endpoints ============
+
+  app.get('/api/admin/pending-tasks', authenticateAdmin, async (req: any, res) => {
+    try {
+      const pendingTasks = await storage.getPendingTasks();
+      
+      const tasksWithUserInfo = await Promise.all(
+        pendingTasks.map(async (task) => {
+          const advertiser = await storage.getUser(task.advertiserId);
+          return {
+            ...task,
+            advertiserUid: advertiser?.uid || 'Unknown',
+            advertiserName: advertiser?.firstName || advertiser?.username || 'Unknown',
+            advertiserTelegramUsername: advertiser?.username || '',
+          };
+        })
+      );
+      
+      res.json({ success: true, tasks: tasksWithUserInfo });
+    } catch (error) {
+      console.error("Error fetching pending tasks:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch pending tasks" });
+    }
+  });
+
+  app.get('/api/admin/all-tasks', authenticateAdmin, async (req: any, res) => {
+    try {
+      const allTasks = await storage.getAllTasks();
+      
+      const tasksWithUserInfo = await Promise.all(
+        allTasks.map(async (task) => {
+          const advertiser = await storage.getUser(task.advertiserId);
+          return {
+            ...task,
+            advertiserUid: advertiser?.uid || 'Unknown',
+            advertiserName: advertiser?.firstName || advertiser?.username || 'Unknown',
+            advertiserTelegramUsername: advertiser?.username || '',
+          };
+        })
+      );
+      
+      res.json({ success: true, tasks: tasksWithUserInfo });
+    } catch (error) {
+      console.error("Error fetching all tasks:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch tasks" });
+    }
+  });
+
+  app.post('/api/admin/tasks/:taskId/approve', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+      
+      if (task.status !== "under_review") {
+        return res.status(400).json({ success: false, message: "Task is not under review" });
+      }
+      
+      const updatedTask = await storage.approveTask(taskId);
+      console.log(`✅ Task ${taskId} approved by admin`);
+      
+      res.json({ success: true, task: updatedTask, message: "Task approved successfully" });
+    } catch (error) {
+      console.error("Error approving task:", error);
+      res.status(500).json({ success: false, message: "Failed to approve task" });
+    }
+  });
+
+  app.post('/api/admin/tasks/:taskId/reject', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+      
+      if (task.status !== "under_review") {
+        return res.status(400).json({ success: false, message: "Task is not under review" });
+      }
+      
+      const updatedTask = await storage.rejectTask(taskId);
+      console.log(`❌ Task ${taskId} rejected by admin`);
+      
+      res.json({ success: true, task: updatedTask, message: "Task rejected" });
+    } catch (error) {
+      console.error("Error rejecting task:", error);
+      res.status(500).json({ success: false, message: "Failed to reject task" });
+    }
+  });
+
+  app.post('/api/admin/tasks/:taskId/pause', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+      
+      if (task.status !== "running") {
+        return res.status(400).json({ success: false, message: "Only running tasks can be paused" });
+      }
+      
+      const updatedTask = await storage.pauseTask(taskId);
+      console.log(`⏸️ Task ${taskId} paused by admin`);
+      
+      res.json({ success: true, task: updatedTask, message: "Task paused" });
+    } catch (error) {
+      console.error("Error pausing task:", error);
+      res.status(500).json({ success: false, message: "Failed to pause task" });
+    }
+  });
+
+  app.post('/api/admin/tasks/:taskId/resume', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+      
+      if (task.status !== "paused") {
+        return res.status(400).json({ success: false, message: "Only paused tasks can be resumed" });
+      }
+      
+      const updatedTask = await storage.resumeTask(taskId);
+      console.log(`▶️ Task ${taskId} resumed by admin`);
+      
+      res.json({ success: true, task: updatedTask, message: "Task resumed" });
+    } catch (error) {
+      console.error("Error resuming task:", error);
+      res.status(500).json({ success: false, message: "Failed to resume task" });
+    }
+  });
+
+  app.delete('/api/admin/tasks/:taskId', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+      
+      const success = await storage.deleteTask(taskId);
+      
+      if (success) {
+        console.log(`🗑️ Task ${taskId} deleted by admin`);
+        res.json({ success: true, message: "Task deleted successfully" });
+      } else {
+        res.status(500).json({ success: false, message: "Failed to delete task" });
+      }
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({ success: false, message: "Failed to delete task" });
+    }
+  });
+
+  // ============ End Admin Task Management ============
+
   // Database setup endpoint for free plan deployments (call once after deployment)
   app.post('/api/setup-database', async (req: any, res) => {
     try {
@@ -4291,6 +4456,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         message: "Failed to check task click status" 
       });
+    }
+  });
+
+  // User pause their own task
+  app.post('/api/advertiser-tasks/:taskId/pause', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskId } = req.params;
+
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+
+      if (task.advertiserId !== userId) {
+        return res.status(403).json({ success: false, message: "You can only pause your own tasks" });
+      }
+
+      if (task.status !== "running") {
+        return res.status(400).json({ success: false, message: "Only running tasks can be paused" });
+      }
+
+      const updatedTask = await storage.pauseTask(taskId);
+      console.log(`⏸️ Task ${taskId} paused by owner ${userId}`);
+
+      res.json({ success: true, task: updatedTask, message: "Task paused" });
+    } catch (error) {
+      console.error("Error pausing task:", error);
+      res.status(500).json({ success: false, message: "Failed to pause task" });
+    }
+  });
+
+  // User resume their own task
+  app.post('/api/advertiser-tasks/:taskId/resume', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user.user.id;
+      const { taskId } = req.params;
+
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ success: false, message: "Task not found" });
+      }
+
+      if (task.advertiserId !== userId) {
+        return res.status(403).json({ success: false, message: "You can only resume your own tasks" });
+      }
+
+      if (task.status !== "paused") {
+        return res.status(400).json({ success: false, message: "Only paused tasks can be resumed" });
+      }
+
+      const updatedTask = await storage.resumeTask(taskId);
+      console.log(`▶️ Task ${taskId} resumed by owner ${userId}`);
+
+      res.json({ success: true, task: updatedTask, message: "Task resumed" });
+    } catch (error) {
+      console.error("Error resuming task:", error);
+      res.status(500).json({ success: false, message: "Failed to resume task" });
     }
   });
 
