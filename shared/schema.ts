@@ -47,8 +47,6 @@ export const users = pgTable("users", {
   adsWatched: integer("ads_watched").default(0),
   dailyAdsWatched: integer("daily_ads_watched").default(0),
   adsWatchedToday: integer("ads_watched_today").default(0),
-  adsWatchedThisHour: integer("ads_watched_this_hour").default(0),
-  hourlyWindowStart: timestamp("hourly_window_start"),
   dailyEarnings: decimal("daily_earnings", { precision: 30, scale: 10 }),
   lastAdWatch: timestamp("last_ad_watch"),
   lastAdDate: timestamp("last_ad_date"),
