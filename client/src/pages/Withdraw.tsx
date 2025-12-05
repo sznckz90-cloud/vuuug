@@ -503,15 +503,6 @@ export default function Withdraw() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-3">
-        {/* Balance Card */}
-        <div className="mb-3 p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
-          <div className="text-xs text-muted-foreground mb-1">Available USD Balance</div>
-          <div className="text-2xl font-bold text-[#4cd3ff]">${usdBalance.toFixed(2)} USD</div>
-          <div className="text-xs text-[#c0c0c0] mt-1">
-            Convert PAD to USD to withdraw
-          </div>
-        </div>
-
         {/* Toggle System - CreateTask Style */}
         <div className="grid grid-cols-2 gap-2 mb-3">
           <Button
