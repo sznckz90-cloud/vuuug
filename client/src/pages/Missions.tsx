@@ -666,21 +666,24 @@ export default function Missions() {
           </div>
         </div>
 
-        {dailyAdTasksData?.tasks && dailyAdTasksData.tasks.length > 0 && (
-          <div className="bg-[#111] rounded-xl p-3 mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-[#4cd3ff]" />
-                <span className="text-white text-sm font-semibold">Daily Ad Tasks</span>
-              </div>
+        <div className="bg-[#111] rounded-xl p-3 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-[#4cd3ff]" />
+              <span className="text-white text-sm font-semibold">Daily Ad Tasks</span>
+            </div>
+            {dailyAdTasksData?.adsWatchedToday !== undefined && (
               <span className="text-gray-400 text-xs">
                 {dailyAdTasksData.adsWatchedToday} ads watched
               </span>
-            </div>
-            
-            <p className="text-gray-400 text-xs mb-3">
-              Watch ads to earn rewards. Complete tasks in order. Resets at 00:00 UTC.
-            </p>
+            )}
+          </div>
+          
+          <p className="text-gray-400 text-xs mb-3">
+            Watch ads to earn rewards. Complete tasks in order. Resets at 00:00 UTC.
+          </p>
+
+          {dailyAdTasksData?.tasks && dailyAdTasksData.tasks.length > 0 ? (
 
             <div className="space-y-2">
               {dailyAdTasksData.tasks
@@ -786,8 +789,12 @@ export default function Missions() {
                   );
                 })}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-gray-500 text-xs">Loading tasks...</p>
+            </div>
+          )}
+        </div>
 
         <TaskSection 
           title="Game Tasks" 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
+import WalletSection from '@/components/WalletSection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -8,11 +9,12 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
-import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle } from 'lucide-react';
+import { Loader2, Check, Gem, DollarSign, Star, ArrowLeft, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle, Receipt } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { getPaymentSystems, STAR_PACKAGES } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
 import { shortenAddress, canonicalizeTelegramUsername, formatTelegramUsername } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface User {
   id: string;
@@ -51,8 +53,8 @@ export default function Withdraw() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   
-  // Active tab state - 'withdraw' or 'wallet-setup'
-  const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup'>('withdraw');
+  // Active tab state - 'withdraw', 'wallet-setup', or 'wallet-activity'
+  const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup' | 'wallet-activity'>('withdraw');
   
   // Withdraw section states
   const [selectedMethod, setSelectedMethod] = useState<string>('TON');
@@ -503,42 +505,54 @@ export default function Withdraw() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-3">
-        {/* Balance Card */}
-        <div className="mb-3 p-4 bg-[#0d0d0d] rounded-lg border border-[#4cd3ff]/20">
-          <div className="text-xs text-muted-foreground mb-1">Available USD Balance</div>
-          <div className="text-2xl font-bold text-[#4cd3ff]">${usdBalance.toFixed(2)} USD</div>
-          <div className="text-xs text-[#c0c0c0] mt-1">
-            Convert PAD to USD to withdraw
-          </div>
-        </div>
+        {/* Wallet Section (PAD = USD Converter) */}
+        <WalletSection
+          padBalance={padBalance}
+          usdBalance={usdBalance}
+          uid={user?.referralCode || "00000"}
+          onWithdraw={() => {}}
+        />
 
-        {/* Toggle System - CreateTask Style */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        {/* Toggle System - 3 Tabs */}
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <Button
             type="button"
             variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-sm ${
+            className={`h-auto py-2 transition-all font-bold text-xs ${
               activeTab === 'withdraw'
                 ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-500/20" 
                 : "hover:bg-cyan-500/10 hover:border-cyan-500/50 text-muted-foreground"
             }`}
             onClick={() => setActiveTab('withdraw')}
           >
-            <CircleDollarSign className="w-4 h-4 mr-2" />
+            <CircleDollarSign className="w-3 h-3 mr-1" />
             Withdraw
           </Button>
           <Button
             type="button"
             variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-sm ${
+            className={`h-auto py-2 transition-all font-bold text-xs ${
               activeTab === 'wallet-setup'
                 ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/20" 
                 : "hover:bg-blue-500/10 hover:border-blue-500/50 text-muted-foreground"
             }`}
             onClick={() => setActiveTab('wallet-setup')}
           >
-            <Wallet className="w-4 h-4 mr-2" />
+            <Wallet className="w-3 h-3 mr-1" />
             Wallet Setup
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className={`h-auto py-2 transition-all font-bold text-xs ${
+              activeTab === 'wallet-activity'
+                ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500 text-purple-300 shadow-lg shadow-purple-500/20" 
+                : "hover:bg-purple-500/10 hover:border-purple-500/50 text-muted-foreground"
+            }`}
+            onClick={() => setActiveTab('wallet-activity')}
+          >
+            <Receipt className="w-3 h-3 mr-1" />
+            Activity
           </Button>
         </div>
 
@@ -1202,6 +1216,56 @@ export default function Withdraw() {
                   </>
                 )}
               </div>
+          </div>
+        )}
+
+        {/* Wallet Activity Section */}
+        {activeTab === 'wallet-activity' && (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {withdrawalsData && withdrawalsData.length > 0 ? (
+                withdrawalsData.map((withdrawal: any) => (
+                  <div 
+                    key={withdrawal.id}
+                    className="flex items-center justify-between p-3 bg-[#1a1a1a]/50 rounded-xl border border-white/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      {withdrawal.status === 'approved' || withdrawal.status === 'paid' ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : withdrawal.status === 'rejected' ? (
+                        <Lock className="w-4 h-4 text-red-500" />
+                      ) : (
+                        <Loader2 className="w-4 h-4 text-yellow-500" />
+                      )}
+                      <div>
+                        <p className="text-sm text-white font-medium">
+                          ${parseFloat(withdrawal.amount || '0').toFixed(2)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs font-medium capitalize ${
+                        withdrawal.status === 'approved' || withdrawal.status === 'paid' ? 'text-green-500' :
+                        withdrawal.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'
+                      }`}>
+                        {withdrawal.status}
+                      </span>
+                      <p className="text-xs text-gray-500">
+                        {withdrawal.method || 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 bg-[#1a1a1a]/50 rounded-xl">
+                  <Receipt className="w-10 h-10 mx-auto mb-3 text-gray-600" />
+                  <p className="text-gray-500 text-sm">No transactions yet</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
