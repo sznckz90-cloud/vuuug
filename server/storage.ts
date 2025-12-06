@@ -9,6 +9,7 @@ import {
   userBalances,
   transactions,
   dailyTasks,
+  advertiserTasks,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -442,15 +443,17 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Process referral commission (10% of user's earnings)
-    // Only process commissions for non-referral earnings to avoid recursion
-    if (earning.source !== 'referral_commission' && earning.source !== 'referral') {
-      await this.processReferralCommission(earning.userId, newEarning.id, earning.amount);
-    }
-    
-    // Check and activate referral bonuses after ad watch (critical for referral system)
+    // Check and activate referral bonuses FIRST after ad watch (critical for referral system)
+    // This must happen BEFORE processing commissions so the referral status is updated to 'completed'
     if (earning.source === 'ad_watch') {
       await this.checkAndActivateReferralBonus(earning.userId);
+    }
+    
+    // Process referral commission (10% of user's earnings)
+    // Only process commissions for non-referral earnings to avoid recursion
+    // This runs AFTER activation so the referral is already 'completed' when checking
+    if (earning.source !== 'referral_commission' && earning.source !== 'referral') {
+      await this.processReferralCommission(earning.userId, newEarning.id, earning.amount);
     }
     
     return newEarning;
@@ -2798,6 +2801,81 @@ export class DatabaseStorage implements IStorage {
       console.error('❌ Error checking daily reset:', error);
       // Don't throw to avoid disrupting the interval
     }
+  }
+
+  // Get all advertiser tasks (for admin panel)
+  async getAllTasks(): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(advertiserTasks)
+      .orderBy(desc(advertiserTasks.createdAt));
+    return result;
+  }
+
+  // Get pending tasks (under_review status) for admin approval
+  async getPendingTasks(): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.status, 'under_review'))
+      .orderBy(desc(advertiserTasks.createdAt));
+    return result;
+  }
+
+  // Get monthly leaderboard
+  async getMonthlyLeaderboard(currentUserId?: string): Promise<any> {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const leaderboard = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        firstName: users.firstName,
+        totalEarned: sql<string>`COALESCE(SUM(${earnings.amount}), 0)`,
+      })
+      .from(users)
+      .leftJoin(earnings, and(
+        eq(users.id, earnings.userId),
+        gte(earnings.createdAt, monthStart),
+        sql`${earnings.source} NOT IN ('withdrawal', 'referral_commission')`
+      ))
+      .where(eq(users.banned, false))
+      .groupBy(users.id)
+      .orderBy(desc(sql`COALESCE(SUM(${earnings.amount}), 0)`))
+      .limit(100);
+
+    let userRank = null;
+    if (currentUserId) {
+      const userIndex = leaderboard.findIndex(u => u.id === currentUserId);
+      if (userIndex !== -1) {
+        userRank = userIndex + 1;
+      }
+    }
+
+    return {
+      leaderboard: leaderboard.map((u, i) => ({
+        ...u,
+        rank: i + 1,
+        displayName: u.username || u.firstName || 'Anonymous'
+      })),
+      userRank
+    };
+  }
+
+  // Get valid (completed) referral count for a user
+  async getValidReferralCount(userId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(referrals)
+      .innerJoin(users, eq(referrals.refereeId, users.id))
+      .where(and(
+        eq(referrals.referrerId, userId),
+        eq(referrals.status, 'completed'),
+        eq(users.banned, false)
+      ));
+    
+    return result[0]?.count || 0;
   }
 }
 
