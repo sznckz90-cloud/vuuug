@@ -24,6 +24,7 @@ import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import TopUpSheet from "@/components/TopUpSheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -376,13 +377,14 @@ export default function CreateTask() {
                 <span className="text-xl font-bold text-white">{tonBalance.toFixed(4)}</span>
               </div>
             </div>
-            <Button
-              type="button"
-              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold px-6 py-2"
-              onClick={() => setLocation("/topup-pdz")}
-            >
-              Top Up
-            </Button>
+            <TopUpSheet trigger={
+              <Button
+                type="button"
+                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold px-6 py-2"
+              >
+                Top Up
+              </Button>
+            } />
           </div>
         </div>
 
