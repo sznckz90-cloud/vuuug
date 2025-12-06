@@ -139,7 +139,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
       setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
-      // Handle Monetag unavailable - try Giga Hub fallback
+      // Handle Monetag unavailable - try Giga Hub as primary fallback
       if (monetagResult.unavailable) {
         console.log('Monetag unavailable, trying Giga Hub...');
         const gigaSuccess = await showGigaAd();
@@ -167,6 +167,10 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
             return;
           }
         }
+      } else {
+        // Monetag succeeded - now show Giga Hub as second ad in sequence
+        console.log('Monetag succeeded, showing Giga Hub...');
+        await showGigaAd(); // Show Giga Hub after Monetag (ignore result - it's bonus)
       }
       
       // STEP 2: Grant reward after ad completion

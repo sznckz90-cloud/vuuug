@@ -176,17 +176,17 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
               {isShowingAds ? (
                 <>
                   <Clock className="w-4 h-4 flex-shrink-0 animate-spin" />
-                  <span className="w-[60px] text-left">Ad...</span>
+                  <span className="text-center">Ad...</span>
                 </>
               ) : convertMutation.isPending ? (
                 <>
                   <RefreshCw className="w-4 h-4 flex-shrink-0 animate-spin" />
-                  <span className="w-[60px] text-left">Converting...</span>
+                  <span className="text-center">Converting...</span>
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 flex-shrink-0" />
-                  <span className="w-[60px] text-left">Convert</span>
+                  <span className="text-center">Convert</span>
                 </>
               )}
             </div>

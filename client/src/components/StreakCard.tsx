@@ -157,21 +157,20 @@ export default function StreakCard({ user }: StreakCardProps) {
   const canClaim = timeUntilNextClaim === "Available now" && !hasClaimed;
 
   return (
-    <Card className="mb-2 minimal-card">
-      <CardContent className="pt-2 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4cd3ff]/20 to-[#4cd3ff]/10 border border-[#4cd3ff]/30 flex items-center justify-center">
-              <Flame className="w-6 h-6 text-[#4cd3ff]" />
+    <Card className="mb-3 minimal-card">
+      <CardContent className="pt-3 pb-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff]/20 to-[#4cd3ff]/10 border border-[#4cd3ff]/30 flex items-center justify-center">
+              <Flame className="w-5 h-5 text-[#4cd3ff]" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">
+              <h3 className="text-white font-bold text-xl">
                 Claim Bonus
               </h3>
             </div>
           </div>
-          <div>
-            <Button
+          <Button
               onClick={handleClaimStreak}
               disabled={isClaiming || !canClaim}
               className="h-10 w-[120px] btn-primary"
@@ -180,19 +179,18 @@ export default function StreakCard({ user }: StreakCardProps) {
                 {isClaiming ? (
                   <>
                     <Loader className="w-4 h-4 flex-shrink-0 animate-spin" />
-                    <span className="w-[60px] text-left">Claiming...</span>
+                    <span className="text-center">Claiming...</span>
                   </>
                 ) : canClaim ? (
                   <>
                     <Flame className="w-4 h-4 flex-shrink-0" />
-                    <span className="w-[60px] text-left">Claim</span>
+                    <span className="text-center">Claim</span>
                   </>
                 ) : (
                   <span className="text-sm font-mono tabular-nums">{timeUntilNextClaim}</span>
                 )}
               </div>
             </Button>
-          </div>
         </div>
       </CardContent>
     </Card>
