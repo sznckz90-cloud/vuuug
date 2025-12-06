@@ -2877,6 +2877,34 @@ export class DatabaseStorage implements IStorage {
     
     return result[0]?.count || 0;
   }
+
+  // Get tasks created by a specific user (my tasks)
+  async getMyTasks(userId: string): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.advertiserId, userId))
+      .orderBy(desc(advertiserTasks.createdAt));
+    return result;
+  }
+
+  // Get active tasks for a user (excludes tasks they've already completed and their own tasks)
+  async getActiveTasksForUser(userId: string): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(advertiserTasks)
+      .where(and(
+        eq(advertiserTasks.status, 'running'),
+        sql`${advertiserTasks.advertiserId} != ${userId}`,
+        sql`NOT EXISTS (
+          SELECT 1 FROM task_clicks 
+          WHERE task_clicks.task_id = ${advertiserTasks.id} 
+          AND task_clicks.publisher_id = ${userId}
+        )`
+      ))
+      .orderBy(desc(advertiserTasks.createdAt));
+    return result;
+  }
 }
 
 export const storage = new DatabaseStorage();
