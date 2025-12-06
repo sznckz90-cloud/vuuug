@@ -2651,8 +2651,8 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Claim a completed task reward
-  async claimTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
+  // Claim a completed daily task reward
+  async claimDailyTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
     const resetDate = this.getCurrentResetDate();
     
     // Get the specific task
@@ -2934,6 +2934,96 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(advertiserTasks.createdAt));
     return result;
+  }
+
+  // Get a specific task by ID
+  async getTaskById(taskId: string): Promise<any | null> {
+    const [task] = await db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.id, taskId));
+    return task || null;
+  }
+
+  // Approve a task (change status from under_review to running)
+  async approveTask(taskId: string): Promise<any> {
+    const [updatedTask] = await db
+      .update(advertiserTasks)
+      .set({
+        status: 'running',
+        updatedAt: new Date()
+      })
+      .where(eq(advertiserTasks.id, taskId))
+      .returning();
+    
+    console.log(`✅ Task ${taskId} approved and set to running`);
+    return updatedTask;
+  }
+
+  // Reject a task (change status to rejected)
+  async rejectTask(taskId: string): Promise<any> {
+    const [updatedTask] = await db
+      .update(advertiserTasks)
+      .set({
+        status: 'rejected',
+        updatedAt: new Date()
+      })
+      .where(eq(advertiserTasks.id, taskId))
+      .returning();
+    
+    console.log(`❌ Task ${taskId} rejected`);
+    return updatedTask;
+  }
+
+  // Pause a task (change status from running to paused)
+  async pauseTask(taskId: string): Promise<any> {
+    const [updatedTask] = await db
+      .update(advertiserTasks)
+      .set({
+        status: 'paused',
+        updatedAt: new Date()
+      })
+      .where(eq(advertiserTasks.id, taskId))
+      .returning();
+    
+    console.log(`⏸️ Task ${taskId} paused`);
+    return updatedTask;
+  }
+
+  // Resume a task (change status from paused to running)
+  async resumeTask(taskId: string): Promise<any> {
+    const [updatedTask] = await db
+      .update(advertiserTasks)
+      .set({
+        status: 'running',
+        updatedAt: new Date()
+      })
+      .where(eq(advertiserTasks.id, taskId))
+      .returning();
+    
+    console.log(`▶️ Task ${taskId} resumed`);
+    return updatedTask;
+  }
+
+  // Delete a task
+  async deleteTask(taskId: string): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(advertiserTasks)
+        .where(eq(advertiserTasks.id, taskId))
+        .returning({ id: advertiserTasks.id });
+      
+      if (result.length === 0) {
+        console.log(`⚠️ Task ${taskId} not found for deletion`);
+        return false;
+      }
+      
+      console.log(`🗑️ Task ${taskId} deleted`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error deleting task ${taskId}:`, error);
+      return false;
+    }
   }
 }
 
