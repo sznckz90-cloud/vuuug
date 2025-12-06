@@ -10,9 +10,6 @@ import {
   transactions,
   dailyTasks,
   advertiserTasks,
-  taskClicks,
-  adminSettings,
-  spinData,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -33,12 +30,8 @@ import {
   type InsertTransaction,
   type DailyTask,
   type InsertDailyTask,
-  type AdvertiserTask,
-  type InsertAdvertiserTask,
-  type TaskClick,
-  type InsertTaskClick,
 } from "../shared/schema";
-import { db, pool } from "./db";
+import { db } from "./db";
 import { eq, desc, and, gte, lt, sql } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -104,12 +97,11 @@ export interface IStorage {
   
   // Admin operations
   getAllUsers(): Promise<User[]>;
-  updateUserBanStatus(userId: string, banned: boolean, reason?: string): Promise<void>;
+  updateUserBanStatus(userId: string, banned: boolean): Promise<void>;
   
   // Telegram user operations
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
-  getTelegramUser(telegramId: string): Promise<{ user: User | undefined }>;
-  upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>, deviceInfo?: { deviceId: string; fingerprint?: any } | null): Promise<{ user: User; isNewUser: boolean }>;
+  upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }>;
   
   
   // Daily reset system
@@ -131,26 +123,6 @@ export interface IStorage {
     totalReferralEarnings: string;
     totalPayouts: string;
     newUsersLast24h: number;
-  }>;
-  getAppSetting(key: string, defaultValue?: any): Promise<string | null>;
-  
-  // Task management operations
-  createTask(task: InsertAdvertiserTask): Promise<AdvertiserTask>;
-  getActiveTasks(): Promise<AdvertiserTask[]>;
-  getActiveTasksForUser(userId: string): Promise<AdvertiserTask[]>;
-  getTaskById(taskId: string): Promise<AdvertiserTask | undefined>;
-  getMyTasks(userId: string): Promise<AdvertiserTask[]>;
-  increaseTaskLimit(taskId: string, additionalClicks: number, additionalCost: string): Promise<AdvertiserTask>;
-  recordTaskClick(taskId: string, publisherId: string): Promise<{ success: boolean; message: string; reward?: string }>;
-  hasUserClickedTask(taskId: string, publisherId: string): Promise<boolean>;
-  
-  // Leaderboard operations
-  getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null>;
-  getMonthlyLeaderboard(userId?: string): Promise<{
-    topEarners: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalEarnings: string; userId: string }>;
-    topReferrers: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalReferrals: number; userId: string }>;
-    userEarnerRank?: { rank: number; totalEarnings: string } | null;
-    userReferrerRank?: { rank: number; totalReferrals: number } | null;
   }>;
 }
 
@@ -214,12 +186,7 @@ export class DatabaseStorage implements IStorage {
     return { user, isNewUser };
   }
 
-  async getTelegramUser(telegramId: string): Promise<{ user: User | undefined }> {
-    const user = await this.getUserByTelegramId(telegramId);
-    return { user };
-  }
-
-  async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>, deviceInfo?: { deviceId: string; fingerprint?: any } | null): Promise<{ user: User; isNewUser: boolean }> {
+  async upsertTelegramUser(telegramId: string, userData: Omit<UpsertUser, 'id' | 'telegramId'>): Promise<{ user: User; isNewUser: boolean }> {
     // Sanitize user data to prevent SQL issues
     const sanitizedData = {
       ...userData,
@@ -235,6 +202,7 @@ export class DatabaseStorage implements IStorage {
       level: userData.level || 1,
       flagged: userData.flagged || false,
       banned: userData.banned || false
+      // NOTE: Don't generate referral code here - it will be handled separately for new users only
     };
     
     // Check if user already exists by Telegram ID
@@ -242,30 +210,23 @@ export class DatabaseStorage implements IStorage {
     
     // If not found by telegram_id, check if user exists by personal_code (for migration scenarios)
     if (!existingUser && sanitizedData.personalCode) {
-      const personalCodeQuery = `SELECT * FROM users WHERE personal_code = $1 LIMIT 1`;
-      const personalCodeResult = await pool.query(personalCodeQuery, [sanitizedData.personalCode]);
-      const userByPersonalCode = personalCodeResult.rows[0] as User | undefined;
+      const result = await db.execute(sql`
+        SELECT * FROM users WHERE personal_code = ${sanitizedData.personalCode} LIMIT 1
+      `);
+      const userByPersonalCode = result.rows[0] as User | undefined;
       
       if (userByPersonalCode) {
         // User exists but doesn't have telegram_id set - update it
-        const updateQuery = `
+        const updateResult = await db.execute(sql`
           UPDATE users 
-          SET telegram_id = $1,
-              first_name = $2, 
-              last_name = $3, 
-              username = $4,
+          SET telegram_id = ${telegramId},
+              first_name = ${sanitizedData.firstName}, 
+              last_name = ${sanitizedData.lastName}, 
+              username = ${sanitizedData.username},
               updated_at = NOW()
-          WHERE personal_code = $5
+          WHERE personal_code = ${sanitizedData.personalCode}
           RETURNING *
-        `;
-        const updateValues = [
-          telegramId,
-          sanitizedData.firstName,
-          sanitizedData.lastName,
-          sanitizedData.username,
-          sanitizedData.personalCode
-        ];
-        const updateResult = await pool.query(updateQuery, updateValues);
+        `);
         const user = updateResult.rows[0] as User;
         return { user, isNewUser: false };
       }
@@ -275,31 +236,15 @@ export class DatabaseStorage implements IStorage {
     
     if (existingUser) {
       // For existing users, update fields and ensure referral code exists
-      const fingerprintValue = deviceInfo?.fingerprint 
-        ? JSON.stringify(deviceInfo.fingerprint)
-        : (existingUser.deviceFingerprint ? JSON.stringify(existingUser.deviceFingerprint) : null);
-      
-      const updateQuery = `
+      const result = await db.execute(sql`
         UPDATE users 
-        SET first_name = $1, 
-            last_name = $2, 
-            username = $3,
-            device_id = $4,
-            device_fingerprint = $5::jsonb,
-            last_login_at = NOW(),
+        SET first_name = ${sanitizedData.firstName}, 
+            last_name = ${sanitizedData.lastName}, 
+            username = ${sanitizedData.username},
             updated_at = NOW()
-        WHERE telegram_id = $6
+        WHERE telegram_id = ${telegramId}
         RETURNING *
-      `;
-      const updateValues = [
-        sanitizedData.firstName,
-        sanitizedData.lastName,
-        sanitizedData.username,
-        deviceInfo?.deviceId || existingUser.deviceId || null,
-        fingerprintValue,
-        telegramId
-      ];
-      const result = await pool.query(updateQuery, updateValues);
+      `);
       const user = result.rows[0] as User;
       
       // Ensure existing user has referral code
@@ -322,42 +267,22 @@ export class DatabaseStorage implements IStorage {
       // If it does, we'll create a unique email by appending the telegram ID
       let finalEmail = userData.email;
       try {
-        // Prepare fingerprint value for JSONB column
-        const fingerprintValue = deviceInfo?.fingerprint 
-          ? JSON.stringify(deviceInfo.fingerprint)
-          : null;
-        
         // Try to create with the provided email first
-        const insertQuery = `
+        const result = await db.execute(sql`
           INSERT INTO users (
             telegram_id, email, first_name, last_name, username, personal_code, 
             withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
-            daily_earnings, level, flagged, banned, device_id, device_fingerprint,
-            is_primary_account
+            daily_earnings, level, flagged, banned
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)
+          VALUES (
+            ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
+            ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
+            ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
+            ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
+            ${sanitizedData.banned}
+          )
           RETURNING *
-        `;
-        const insertValues = [
-          telegramId,
-          finalEmail,
-          sanitizedData.firstName,
-          sanitizedData.lastName,
-          sanitizedData.username,
-          sanitizedData.personalCode,
-          sanitizedData.withdrawBalance,
-          sanitizedData.totalEarnings,
-          sanitizedData.adsWatched,
-          sanitizedData.dailyAdsWatched,
-          sanitizedData.dailyEarnings,
-          sanitizedData.level,
-          sanitizedData.flagged,
-          sanitizedData.banned,
-          deviceInfo?.deviceId || null,
-          fingerprintValue,
-          true
-        ];
-        const result = await pool.query(insertQuery, insertValues);
+        `);
         const user = result.rows[0] as User;
         
         // Auto-generate referral code for new users
@@ -389,32 +314,21 @@ export class DatabaseStorage implements IStorage {
           }
           
           // Try again with modified data
-          const retryInsertQuery = `
+          const result = await db.execute(sql`
             INSERT INTO users (
               telegram_id, email, first_name, last_name, username, personal_code, 
               withdraw_balance, total_earnings, ads_watched, daily_ads_watched, 
               daily_earnings, level, flagged, banned
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            VALUES (
+              ${telegramId}, ${finalEmail}, ${sanitizedData.firstName}, ${sanitizedData.lastName}, 
+              ${sanitizedData.username}, ${sanitizedData.personalCode}, ${sanitizedData.withdrawBalance}, 
+              ${sanitizedData.totalEarnings}, ${sanitizedData.adsWatched}, ${sanitizedData.dailyAdsWatched}, 
+              ${sanitizedData.dailyEarnings}, ${sanitizedData.level}, ${sanitizedData.flagged}, 
+              ${sanitizedData.banned}
+            )
             RETURNING *
-          `;
-          const retryValues = [
-            telegramId,
-            finalEmail,
-            sanitizedData.firstName,
-            sanitizedData.lastName,
-            sanitizedData.username,
-            sanitizedData.personalCode,
-            sanitizedData.withdrawBalance,
-            sanitizedData.totalEarnings,
-            sanitizedData.adsWatched,
-            sanitizedData.dailyAdsWatched,
-            sanitizedData.dailyEarnings,
-            sanitizedData.level,
-            sanitizedData.flagged,
-            sanitizedData.banned
-          ];
-          const result = await pool.query(retryInsertQuery, retryValues);
+          `);
           const user = result.rows[0] as User;
           
           // Auto-generate referral code for new users
@@ -529,15 +443,17 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Process referral commission (10% of user's earnings)
-    // Only process commissions for non-referral earnings to avoid recursion
-    if (earning.source !== 'referral_commission' && earning.source !== 'referral') {
-      await this.processReferralCommission(earning.userId, newEarning.id, earning.amount);
-    }
-    
-    // Check and activate referral bonuses after ad watch (critical for referral system)
+    // Check and activate referral bonuses FIRST after ad watch (critical for referral system)
+    // This must happen BEFORE processing commissions so the referral status is updated to 'completed'
     if (earning.source === 'ad_watch') {
       await this.checkAndActivateReferralBonus(earning.userId);
+    }
+    
+    // Process referral commission (10% of user's earnings)
+    // Only process commissions for non-referral earnings to avoid recursion
+    // This runs AFTER activation so the referral is already 'completed' when checking
+    if (earning.source !== 'referral_commission' && earning.source !== 'referral') {
+      await this.processReferralCommission(earning.userId, newEarning.id, earning.amount);
     }
     
     return newEarning;
@@ -636,16 +552,21 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userBalances.userId, userId));
   }
 
-  // Helper function to get the correct day bucket start (00:00 UTC)
+  // Helper function to get the correct day bucket start (12:00 PM UTC)
   private getDayBucketStart(date: Date): Date {
     const bucketStart = new Date(date);
-    bucketStart.setUTCHours(0, 0, 0, 0);
+    bucketStart.setUTCHours(12, 0, 0, 0);
     
-    // Get the start of the current UTC day
+    // If the event occurred before 12:00 PM UTC on its calendar day,
+    // it belongs to the previous day's bucket
+    if (date.getTime() < bucketStart.getTime()) {
+      bucketStart.setUTCDate(bucketStart.getUTCDate() - 1);
+    }
+    
     return bucketStart;
   }
 
-  async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string }> {
+  async updateUserStreak(userId: string): Promise<{ newStreak: number; rewardEarned: string; isBonusDay: boolean }> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
     if (!user) {
@@ -656,22 +577,32 @@ export class DatabaseStorage implements IStorage {
     const lastStreakDate = user.lastStreakDate;
     let newStreak = 1;
     let rewardEarned = "0";
+    let isBonusDay = false;
 
     if (lastStreakDate) {
       const lastClaim = new Date(lastStreakDate);
-      const minutesSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60);
+      const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60);
       
-      // Allow claim every 5 minutes
-      if (minutesSinceLastClaim < 5) {
-        return { newStreak: user.currentStreak || 0, rewardEarned: "0" };
+      if (hoursSinceLastClaim < 24) {
+        return { newStreak: user.currentStreak || 0, rewardEarned: "0", isBonusDay: false };
       }
       
-      // Increment streak
-      newStreak = (user.currentStreak || 0) + 1;
+      const daysSinceLastClaim = Math.floor(hoursSinceLastClaim / 24);
+      
+      if (daysSinceLastClaim === 1 || (daysSinceLastClaim < 2 && hoursSinceLastClaim >= 24)) {
+        newStreak = (user.currentStreak || 0) + 1;
+      } else {
+        newStreak = 1;
+      }
     }
 
-    // Fixed reward: 1 PAD per claim
-    rewardEarned = "1";
+    if (newStreak === 5) {
+      rewardEarned = "0.0015";
+      isBonusDay = true;
+      newStreak = 0;
+    } else {
+      rewardEarned = "0.0001";
+    }
 
     await db
       .update(users)
@@ -686,18 +617,26 @@ export class DatabaseStorage implements IStorage {
       await this.addEarning({
         userId,
         amount: rewardEarned,
-        source: 'faucetpay',
-        description: `Faucetpay claim`,
+        source: isBonusDay ? 'streak_bonus_5day' : 'daily_streak',
+        description: isBonusDay ? '5-day streak bonus completed!' : `Daily streak claim`,
       });
     }
 
-    return { newStreak, rewardEarned };
+    return { newStreak, rewardEarned, isBonusDay };
   }
 
-  // Helper function for consistent 00:00 UTC reset date calculation
+  // Helper function for consistent 12:00 PM UTC reset date calculation
   private getResetDate(date = new Date()): string {
-    // Simply return the current UTC date (resets at midnight UTC / 5:30 AM IST)
-    return date.toISOString().split('T')[0];
+    const utcDate = date.toISOString().split('T')[0];
+    
+    // If current time is before 12:00 PM UTC, consider it still "yesterday" for tasks
+    if (date.getUTCHours() < 12) {
+      const yesterday = new Date(date);
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      return yesterday.toISOString().split('T')[0];
+    }
+    
+    return utcDate;
   }
 
   async incrementAdsWatched(userId: string): Promise<void> {
@@ -792,56 +731,6 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Referred user not found: ${referredId}`);
     }
     
-    // CRITICAL: Detect device-based self-referrals (same device creating multiple accounts)
-    const sameDeviceId = referrer.deviceId && referred.deviceId && referrer.deviceId === referred.deviceId;
-    const sameIP = referrer.lastLoginIp && referred.lastLoginIp && referrer.lastLoginIp === referred.lastLoginIp;
-    const sameBrowserFingerprint = referrer.browserFingerprint && referred.browserFingerprint && 
-                                    referrer.browserFingerprint === referred.browserFingerprint;
-    
-    // Self-referral if: same device ID, OR same IP + same browser fingerprint
-    const isSelfReferral = sameDeviceId || (sameIP && sameBrowserFingerprint);
-    
-    if (isSelfReferral) {
-      const reason = sameDeviceId 
-        ? `Same device ID: ${referrer.deviceId}` 
-        : `Same IP (${referrer.lastLoginIp}) + browser fingerprint`;
-      console.error(`🚨 Self-referral attempt detected! ${reason}`);
-      
-      // Determine which account is primary (older account or marked as primary)
-      const referrerCreated = referrer.createdAt ? new Date(referrer.createdAt).getTime() : 0;
-      const referredCreated = referred.createdAt ? new Date(referred.createdAt).getTime() : Date.now();
-      const isPrimaryReferrer = referrer.isPrimaryAccount === true || referrerCreated < referredCreated;
-      const isPrimaryReferred = referred.isPrimaryAccount === true || referredCreated < referrerCreated;
-      
-      const { banUserForMultipleAccounts, sendWarningToMainAccount, createBanLog } = await import('./deviceTracking');
-      
-      if (isPrimaryReferrer && !isPrimaryReferred) {
-        // Referrer is primary, ban the referred account
-        await banUserForMultipleAccounts(
-          referredId,
-          `Self-referral attempt - ${reason}`
-        );
-        await sendWarningToMainAccount(referrerId);
-        throw new Error('Referral invalid - same device/network detected. Duplicate account has been banned.');
-      } else if (!isPrimaryReferrer && isPrimaryReferred) {
-        // Referred is primary, ban the referrer account
-        await banUserForMultipleAccounts(
-          referrerId,
-          `Self-referral attempt - ${reason}`
-        );
-        await sendWarningToMainAccount(referredId);
-        throw new Error('Referral invalid - same device/network detected. Duplicate account has been banned.');
-      } else {
-        // Both are duplicates or can't determine, ban the newer one (referred)
-        await banUserForMultipleAccounts(
-          referredId,
-          `Self-referral attempt - ${reason}`
-        );
-        await sendWarningToMainAccount(referrerId);
-        throw new Error('Referral invalid - same device/network detected. Account has been banned.');
-      }
-    }
-    
     // Check if referral already exists
     const existingReferral = await db
       .select()
@@ -877,16 +766,11 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, referredId));
     
-    // NOTE: friendsInvited is NOT incremented here. It will only be incremented
-    // when the referred user watches their first ad (in checkAndActivateReferralBonus).
-    // This prevents fake referrals from counting towards the 3-friends withdrawal unlock.
-    
-    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}. Will count towards friendsInvited when friend watches first ad.`);
+    console.log(`✅ Referral relationship created (pending): ${referrerId} referred ${referredId}, referred_by updated to: ${referrer.referralCode}`);
     return referral;
   }
 
-  // Mark user as having watched first ad and activate any pending referrals
-  // Note: 0.002 TON bonus is now awarded immediately when friend joins (see telegram.ts)
+  // Check and activate referral bonus when friend completes FIRST ad (0.002 TON reward)
   async checkAndActivateReferralBonus(userId: string): Promise<void> {
     try {
       // Check if this user has already completed first ad
@@ -907,7 +791,7 @@ export class DatabaseStorage implements IStorage {
 
       const adsWatched = adCount?.count || 0;
       
-      // If user has watched first ad, mark it and activate any pending referrals
+      // If user has watched first ad, activate referral bonuses
       if (adsWatched >= 1) {
         // Mark this user as having completed first ad
         await db
@@ -915,7 +799,7 @@ export class DatabaseStorage implements IStorage {
           .set({ firstAdWatched: true })
           .where(eq(users.id, userId));
 
-        // Find pending referrals where this user is the referee (edge case: old referrals)
+        // Find pending referrals where this user is the referee
         const pendingReferrals = await db
           .select()
           .from(referrals)
@@ -924,31 +808,7 @@ export class DatabaseStorage implements IStorage {
             eq(referrals.status, 'pending')
           ));
 
-        // Check if referral rewards are enabled
-        const [referralRewardSetting] = await db
-          .select()
-          .from(adminSettings)
-          .where(eq(adminSettings.settingKey, 'referral_reward_enabled'))
-          .limit(1);
-        
-        const referralRewardEnabled = referralRewardSetting?.settingValue === 'true';
-        
-        // Get reward amounts from settings (defaults: 0.0005 USD and 50 PAD)
-        const [usdRewardSetting] = await db
-          .select()
-          .from(adminSettings)
-          .where(eq(adminSettings.settingKey, 'referral_reward_usd'))
-          .limit(1);
-        const [padRewardSetting] = await db
-          .select()
-          .from(adminSettings)
-          .where(eq(adminSettings.settingKey, 'referral_reward_pad'))
-          .limit(1);
-        
-        const referralRewardUSD = parseFloat(usdRewardSetting?.settingValue || '0.0005');
-        const referralRewardPAD = parseInt(padRewardSetting?.settingValue || '50');
-
-        // Activate each pending referral and increment friendsInvited for the referrer
+        // Activate each pending referral
         for (const referral of pendingReferrals) {
           // Update referral status to completed
           await db
@@ -956,87 +816,19 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          // NOW increment the referrer's friendsInvited count (since referral is now valid)
-          // Also award referral bonus if enabled
-          if (referralRewardEnabled) {
-            // Award USD and PAD bonus to the referrer
-            await db
-              .update(users)
-              .set({
-                friendsInvited: sql`COALESCE(${users.friendsInvited}, 0) + 1`,
-                usdBalance: sql`COALESCE(${users.usdBalance}, 0) + ${referralRewardUSD}`,
-                balance: sql`COALESCE(${users.balance}, 0) + ${referralRewardPAD}`,
-                pendingReferralBonus: sql`COALESCE(${users.pendingReferralBonus}, 0) + ${referralRewardUSD}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(users.id, referral.referrerId));
-            
-            // Record the referral reward as an earning
-            await db.insert(earnings).values({
-              userId: referral.referrerId,
-              amount: String(referralRewardUSD),
-              source: 'referral_bonus',
-              description: `Referral bonus: Friend watched first ad (+${referralRewardPAD} PAD, +$${referralRewardUSD} USD)`,
-            });
-            
-            // Grant 1 spin to the referrer for verified invite
-            await this.grantInviteSpin(referral.referrerId);
-            
-            console.log(`✅ Activated pending referral with bonus: ${referral.referrerId} -> ${userId}. Awarded ${referralRewardPAD} PAD + $${referralRewardUSD} USD + 1 Spin`);
-          } else {
-            // Just increment friendsInvited without bonus
-            await db
-              .update(users)
-              .set({
-                friendsInvited: sql`COALESCE(${users.friendsInvited}, 0) + 1`,
-                updatedAt: new Date(),
-              })
-              .where(eq(users.id, referral.referrerId));
-            
-            // Still grant 1 spin to the referrer for verified invite (even without PAD/USD bonus)
-            await this.grantInviteSpin(referral.referrerId);
-            
-            console.log(`✅ Activated pending referral: ${referral.referrerId} -> ${userId}. friendsInvited incremented + 1 Spin (bonus disabled).`);
-          }
+          // Award 0.002 TON referral bonus to referrer
+          await this.addEarning({
+            userId: referral.referrerId,
+            amount: "0.002",
+            source: 'referral',
+            description: `Referral bonus - friend completed first ad`,
+          });
+
+          console.log(`✅ First ad referral bonus: 0.002 TON awarded to ${referral.referrerId} from ${userId}'s first ad`);
         }
       }
     } catch (error) {
       console.error('Error checking referral bonus activation:', error);
-    }
-  }
-
-  // Grant 1 spin to a user for verified invite
-  async grantInviteSpin(userId: string): Promise<void> {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Get or create spin data
-      const existingSpinData = await db.query.spinData.findFirst({
-        where: eq(spinData.userId, userId),
-      }) as any;
-
-      if (!existingSpinData) {
-        // Create new spin data with 1 bonus spin
-        await db.insert(spinData).values({
-          userId,
-          freeSpinUsed: false,
-          extraSpins: 1,
-          spinAdsWatched: 0,
-          inviteSpinsEarned: 1,
-          lastSpinDate: today,
-        });
-        console.log(`✅ Created spin data for ${userId} with 1 invite spin`);
-      } else {
-        // Update existing spin data
-        await db.update(spinData).set({
-          extraSpins: (existingSpinData.extraSpins || 0) + 1,
-          inviteSpinsEarned: (existingSpinData.inviteSpinsEarned || 0) + 1,
-          updatedAt: new Date(),
-        }).where(eq(spinData.userId, userId));
-        console.log(`✅ Granted 1 invite spin to ${userId} (total: ${(existingSpinData.inviteSpinsEarned || 0) + 1})`);
-      }
-    } catch (error) {
-      console.error(`❌ Error granting invite spin to ${userId}:`, error);
     }
   }
 
@@ -1046,43 +838,6 @@ export class DatabaseStorage implements IStorage {
       .from(referrals)
       .where(eq(referrals.referrerId, userId))
       .orderBy(desc(referrals.createdAt));
-  }
-
-  // Get count of valid referrals (friends who watched at least 1 ad, excluding banned users)
-  async getValidReferralCount(userId: string): Promise<number> {
-    try {
-      // Get all referrals for this user
-      const userReferrals = await db
-        .select({
-          refereeId: referrals.refereeId,
-        })
-        .from(referrals)
-        .where(eq(referrals.referrerId, userId));
-      
-      if (userReferrals.length === 0) {
-        return 0;
-      }
-
-      // Count how many referred users have watched at least 1 ad AND are not banned
-      let validCount = 0;
-      for (const ref of userReferrals) {
-        const [referee] = await db
-          .select({ adsWatched: users.adsWatched, banned: users.banned })
-          .from(users)
-          .where(eq(users.id, ref.refereeId))
-          .limit(1);
-        
-        // Only count if user watched at least 1 ad AND is not banned
-        if (referee && (referee.adsWatched || 0) >= 1 && !referee.banned) {
-          validCount++;
-        }
-      }
-      
-      return validCount;
-    } catch (error) {
-      console.error('Error getting valid referral count:', error);
-      return 0;
-    }
   }
 
   async getUserByReferralCode(referralCode: string): Promise<User | null> {
@@ -1189,55 +944,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Sync friendsInvited counts from the referrals table for all users
-  async syncFriendsInvitedCounts(): Promise<void> {
-    try {
-      console.log('🔄 Starting friendsInvited count synchronization...');
-      
-      // Get all users
-      const allUsers = await db.select({ id: users.id }).from(users);
-      console.log(`Found ${allUsers.length} total users to sync`);
-      
-      let syncedCount = 0;
-      
-      for (const user of allUsers) {
-        try {
-          // Count only COMPLETED referrals (pending ones don't count until friend watches first ad)
-          const [result] = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(referrals)
-            .where(and(
-              eq(referrals.referrerId, user.id),
-              eq(referrals.status, 'completed')
-            ));
-          
-          const actualCount = result?.count || 0;
-          
-          // Update the friendsInvited field
-          await db
-            .update(users)
-            .set({ 
-              friendsInvited: actualCount,
-              updatedAt: new Date()
-            })
-            .where(eq(users.id, user.id));
-          
-          syncedCount++;
-          
-          if (actualCount > 0) {
-            console.log(`✅ Synced user ${user.id}: ${actualCount} friends invited`);
-          }
-        } catch (error) {
-          console.error(`❌ Error syncing user ${user.id}:`, error);
-        }
-      }
-      
-      console.log(`✅ friendsInvited sync completed: ${syncedCount} users updated`);
-    } catch (error) {
-      console.error('❌ Error in syncFriendsInvitedCounts:', error);
-    }
-  }
-
   async generateReferralCode(userId: string): Promise<string> {
     // First check if user already has a referral code
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -1246,20 +952,8 @@ export class DatabaseStorage implements IStorage {
       return user.referralCode;
     }
     
-    // Generate a 5-character alphanumeric UID (uppercase letters and numbers)
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    const randomBytes = crypto.randomBytes(5);
-    for (let i = 0; i < 5; i++) {
-      code += chars[randomBytes[i] % chars.length];
-    }
-    
-    // Ensure uniqueness by checking if code already exists
-    const existingUser = await db.select().from(users).where(eq(users.referralCode, code));
-    if (existingUser.length > 0) {
-      // Recursive call to generate a new code if collision occurs
-      return this.generateReferralCode(userId);
-    }
+    // Generate a secure random referral code using crypto
+    const code = crypto.randomBytes(6).toString('hex'); // 12-character hex code
     
     await db
       .update(users)
@@ -1280,39 +974,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(users.createdAt));
   }
 
-  async updateUserBanStatus(userId: string, banned: boolean, reason?: string, bannedBy?: string): Promise<void> {
-    // Get user info for logging
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    
+  async updateUserBanStatus(userId: string, banned: boolean): Promise<void> {
     await db
       .update(users)
       .set({
         banned,
-        bannedReason: reason || null,
-        bannedAt: banned ? new Date() : null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
-    
-    // Create ban log for manual bans (only when banning, not unbanning)
-    if (banned && user) {
-      try {
-        const { createBanLog } = await import('./deviceTracking');
-        await createBanLog({
-          bannedUserId: userId,
-          bannedUserUid: user.personalCode || undefined,
-          ip: user.lastLoginIp || undefined,
-          deviceId: user.deviceId || undefined,
-          userAgent: user.lastLoginUserAgent || undefined,
-          fingerprint: user.deviceFingerprint || undefined,
-          reason: reason || 'Banned by admin',
-          banType: 'manual',
-          bannedBy: bannedBy,
-        });
-      } catch (error) {
-        console.error('Failed to create ban log:', error);
-      }
-    }
   }
 
   // Promo code operations
@@ -1405,17 +1074,22 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(promoCodes.id, promoCode.id));
 
-    // Don't add earning here - let the route handler decide based on rewardType
-    // Return reward amount for the route handler to process
+    // Add reward to user balance
+    await this.addEarning({
+      userId,
+      amount: promoCode.rewardAmount,
+      source: 'promo_code',
+      description: `Promo code reward: ${code}`,
+    });
 
     return {
       success: true,
       message: `Promo code redeemed! You earned ${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
-      reward: promoCode.rewardAmount,
+      reward: `${promoCode.rewardAmount} ${promoCode.rewardCurrency}`,
     };
   }
 
-  // Process referral commission (10% for direct referrals only - stored as pending)
+  // Process referral commission (10% of user's earnings)
   async processReferralCommission(userId: string, originalEarningId: number, earningAmount: string): Promise<void> {
     try {
       // Only process commissions for ad watching earnings
@@ -1430,8 +1104,8 @@ export class DatabaseStorage implements IStorage {
         return;
       }
 
-      // Find Level 1 referrer (direct referrer - must be completed referral)
-      const [level1Referral] = await db
+      // Find who referred this user (must be completed referral)
+      const [referralInfo] = await db
         .select({ referrerId: referrals.referrerId })
         .from(referrals)
         .where(and(
@@ -1440,125 +1114,66 @@ export class DatabaseStorage implements IStorage {
         ))
         .limit(1);
 
-      if (level1Referral) {
-        // Calculate 10% commission for direct referrer (B)
-        // Handle both new PAD integers and legacy TON decimals
-        const earningValue = parseFloat(earningAmount);
-        const earningInPAD = earningValue < 1 ? Math.round(earningValue * 10000000) : Math.round(earningValue);
-        const commission = Math.round(earningInPAD * 0.10).toString();
-        
-        // Record the referral commission
-        await db.insert(referralCommissions).values({
-          referrerId: level1Referral.referrerId,
-          referredUserId: userId,
-          originalEarningId,
-          commissionAmount: commission,
-        });
-
-        // Add commission to pending referral bonus (NOT to balance directly)
-        const [referrer] = await db
-          .select({ pendingBonus: users.pendingReferralBonus })
-          .from(users)
-          .where(eq(users.id, level1Referral.referrerId))
-          .limit(1);
-        
-        // Convert legacy TON format to PAD if needed
-        const pendingValue = parseFloat(referrer?.pendingBonus || '0');
-        const currentPending = pendingValue < 1 ? Math.round(pendingValue * 10000000) : Math.round(pendingValue);
-        const newPending = (currentPending + parseFloat(commission)).toString();
-        
-        await db
-          .update(users)
-          .set({ 
-            pendingReferralBonus: newPending,
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, level1Referral.referrerId));
-
-        console.log(`✅ 10% commission of ${commission} added to pending bonus for ${level1Referral.referrerId} from ${userId}'s ad earnings`);
+      if (!referralInfo) {
+        // User was not referred by anyone or referral not activated
+        return;
       }
+
+      // Calculate 10% commission on ad earnings only
+      const commissionAmount = (parseFloat(earningAmount) * 0.10).toFixed(8);
       
-      // Notification disabled to prevent spam - users can claim bonuses in Affiliates page
-      // Commission is tracked in pendingReferralBonus and must be manually claimed
+      // Record the referral commission
+      await db.insert(referralCommissions).values({
+        referrerId: referralInfo.referrerId,
+        referredUserId: userId,
+        originalEarningId,
+        commissionAmount,
+      });
+
+      // Add commission as earnings to the referrer
+      await this.addEarning({
+        userId: referralInfo.referrerId,
+        amount: commissionAmount,
+        source: 'referral_commission',
+        description: `10% commission from referred user's ad earnings`,
+      });
+
+      // Log commission transaction
+      await this.logTransaction({
+        userId: referralInfo.referrerId,
+        amount: commissionAmount,
+        type: 'addition',
+        source: 'referral_commission',
+        description: `10% commission from referred user's ad earnings`,
+        metadata: { 
+          originalEarningId, 
+          referredUserId: userId,
+          commissionRate: '10%'
+        }
+      });
+
+      console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
+      
+      // Send Telegram notification to referrer about the commission
+      try {
+        const { sendReferralCommissionNotification } = await import('./telegram');
+        const referrer = await this.getUser(referralInfo.referrerId);
+        const referredUser = await this.getUser(userId);
+        
+        if (referrer && referrer.telegram_id && referredUser) {
+          await sendReferralCommissionNotification(
+            referrer.telegram_id,
+            referredUser.username || referredUser.firstName || 'your friend',
+            commissionAmount
+          );
+        }
+      } catch (error) {
+        console.error('❌ Error sending referral commission notification:', error);
+        // Don't throw error to avoid disrupting the main earning process
+      }
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process
-    }
-  }
-
-  // Claim pending referral bonus and add to balance
-  async claimReferralBonus(userId: string): Promise<{ success: boolean; message: string; amount?: string }> {
-    try {
-      // Get user's pending bonus
-      const [user] = await db
-        .select({ 
-          pendingBonus: users.pendingReferralBonus,
-          totalClaimed: users.totalClaimedReferralBonus,
-          balance: users.balance
-        })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      if (!user) {
-        return { success: false, message: 'User not found' };
-      }
-
-      // Convert legacy TON format to PAD if needed
-      const pendingValue = parseFloat(user.pendingBonus || '0');
-      const pendingAmount = pendingValue < 1 ? Math.round(pendingValue * 10000000) : Math.round(pendingValue);
-      
-      if (pendingAmount <= 0) {
-        return { success: false, message: 'No referral bonus available to claim' };
-      }
-
-      // Add pending bonus to balance and update totals (PAD as integers)
-      // Convert legacy balances if needed
-      const balanceValue = parseFloat(user.balance || '0');
-      const currentBalance = balanceValue < 1 ? Math.round(balanceValue * 10000000) : Math.round(balanceValue);
-      const totalClaimedValue = parseFloat(user.totalClaimed || '0');
-      const currentTotalClaimed = totalClaimedValue < 1 ? Math.round(totalClaimedValue * 10000000) : Math.round(totalClaimedValue);
-      
-      const newBalance = (currentBalance + pendingAmount).toString();
-      const newTotalClaimed = (currentTotalClaimed + pendingAmount).toString();
-
-      await db
-        .update(users)
-        .set({
-          balance: newBalance,
-          pendingReferralBonus: '0',
-          totalClaimedReferralBonus: newTotalClaimed,
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, userId));
-
-      // Add earning record for claimed bonus
-      await this.addEarning({
-        userId,
-        amount: pendingAmount.toString(),
-        source: 'referral_claim',
-        description: 'Claimed referral bonus',
-      });
-
-      // Log transaction
-      await this.logTransaction({
-        userId,
-        amount: pendingAmount.toString(),
-        type: 'addition',
-        source: 'referral_claim',
-        description: 'Claimed referral bonus',
-      });
-
-      console.log(`✅ User ${userId} claimed ${pendingAmount} PAD referral bonus`);
-
-      return { 
-        success: true, 
-        message: 'Referral bonus claimed successfully!', 
-        amount: pendingAmount.toString() 
-      };
-    } catch (error) {
-      console.error('Error claiming referral bonus:', error);
-      return { success: false, message: 'Failed to claim referral bonus' };
     }
   }
 
@@ -1572,42 +1187,6 @@ export class DatabaseStorage implements IStorage {
       ));
 
     return result.total;
-  }
-
-  async getUserReferralEarningsByLevel(userId: string): Promise<{ level1: string; level2: string }> {
-    // Get all referral commission earnings with their descriptions
-    const commissionEarnings = await db
-      .select({
-        amount: earnings.amount,
-        description: earnings.description
-      })
-      .from(earnings)
-      .where(and(
-        eq(earnings.userId, userId),
-        eq(earnings.source, 'referral_commission')
-      ));
-
-    let level1Total = 0;
-    let level2Total = 0;
-
-    // Separate earnings by level based on description
-    commissionEarnings.forEach(earning => {
-      const amount = parseFloat(earning.amount || '0');
-      if (earning.description?.includes('Level 1:') || earning.description?.includes('10% commission')) {
-        // 10% is old commission rate, treat as Level 1
-        level1Total += amount;
-      } else if (earning.description?.includes('Level 2:')) {
-        level2Total += amount;
-      } else {
-        // Default to level 1 for backward compatibility
-        level1Total += amount;
-      }
-    });
-
-    return {
-      level1: level1Total.toFixed(8),
-      level2: level2Total.toFixed(8)
-    };
   }
 
 
@@ -1740,19 +1319,6 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getAppSetting(key: string, defaultValue?: any): Promise<string | null> {
-    try {
-      const result = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, key)).limit(1);
-      if (result.length > 0 && result[0]?.settingValue) {
-        return result[0].settingValue;
-      }
-      return defaultValue !== undefined ? String(defaultValue) : null;
-    } catch (error) {
-      console.error(`Error fetching app setting '${key}':`, error);
-      return defaultValue !== undefined ? String(defaultValue) : null;
-    }
-  }
-
   // Withdrawal operations (missing implementations)
   async createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal> {
     const [result] = await db.insert(withdrawals).values(withdrawal).returning();
@@ -1782,6 +1348,7 @@ export class DatabaseStorage implements IStorage {
 
   async approveWithdrawal(withdrawalId: string, adminNotes?: string, transactionHash?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
     try {
+      // Get withdrawal details
       const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
       if (!withdrawal) {
         return { success: false, message: 'Withdrawal not found' };
@@ -1791,37 +1358,38 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
+      // Get user for logging and balance management
       const user = await this.getUser(withdrawal.userId);
       if (!user) {
         return { success: false, message: 'User not found' };
       }
 
-      const alreadyDeducted = withdrawal.deducted === true;
+      const withdrawalAmount = parseFloat(withdrawal.amount);
+      const userBalance = parseFloat(user.balance || '0');
 
-      if (alreadyDeducted) {
-        console.log(`💰 Balance already deducted for withdrawal #${withdrawalId} (legacy), skipping deduction`);
-      } else {
-        const withdrawalDetails = withdrawal.details as any;
-        const totalToDeduct = parseFloat(withdrawalDetails?.totalDeducted || withdrawal.amount);
-        const userUsdBalance = parseFloat(user.usdBalance || '0');
-        
-        if (userUsdBalance < totalToDeduct) {
-          return { success: false, message: 'User has insufficient USD balance for withdrawal' };
-        }
-
-        console.log(`💰 Deducting USD balance now for approved withdrawal: $${totalToDeduct.toFixed(2)}`);
-        console.log(`💰 Previous USD balance: $${userUsdBalance.toFixed(2)}, New USD balance: $${(userUsdBalance - totalToDeduct).toFixed(2)}`);
-
-        await db.update(users)
-          .set({ 
-            usdBalance: sql`${users.usdBalance} - ${totalToDeduct.toFixed(10)}`,
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, withdrawal.userId));
+      // Verify user has sufficient balance
+      if (userBalance < withdrawalAmount) {
+        return { success: false, message: 'User has insufficient balance for withdrawal' };
       }
 
+      console.log(`💰 Deducting balance now for approved withdrawal: ${withdrawalAmount} TON`);
+      console.log(`💰 Previous balance: ${userBalance} TON, New balance: ${(userBalance - withdrawalAmount).toFixed(8)} TON`);
+
+      // Add withdrawal record as earnings (negative amount) for tracking
+      // This will automatically deduct the balance via addEarning function
+      const paymentSystemName = withdrawal.method;
+      const description = `Withdrawal approved: ${withdrawal.amount} TON via ${paymentSystemName}`;
+
+      await this.addEarning({
+        userId: withdrawal.userId,
+        amount: `-${withdrawalAmount.toString()}`,
+        source: 'payout',
+        description: description,
+      });
+
+      // Update withdrawal status to Approved and mark as deducted
       const updateData: any = { 
-        status: 'success', 
+        status: 'Approved', 
         deducted: true,
         updatedAt: new Date() 
       };
@@ -1830,7 +1398,7 @@ export class DatabaseStorage implements IStorage {
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} approved — OK ✅`);
+      console.log(`✅ Withdrawal #${withdrawalId} approved with single deduction logic — OK ✅`);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
@@ -1839,8 +1407,9 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async rejectWithdrawal(withdrawalId: string, rejectionReason?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+  async rejectWithdrawal(withdrawalId: string, adminNotes?: string): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
     try {
+      // Get withdrawal details
       const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
       if (!withdrawal) {
         return { success: false, message: 'Withdrawal not found' };
@@ -1850,37 +1419,23 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      const alreadyDeducted = withdrawal.deducted === true;
-      
-      if (alreadyDeducted) {
-        const withdrawalDetails = withdrawal.details as any;
-        const refundAmount = parseFloat(withdrawalDetails?.totalDeducted || withdrawal.amount);
-        
-        await db.update(users)
-          .set({ 
-            usdBalance: sql`${users.usdBalance} + ${refundAmount.toFixed(10)}`,
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, withdrawal.userId));
-        
-        console.log(`💰 Withdrawal #${withdrawalId} rejected - refunded $${refundAmount.toFixed(2)} USD`);
-      } else {
-        console.log(`📝 Withdrawal #${withdrawalId} rejected - no balance was deducted, no refund needed`);
-      }
+      // No refund needed - balance was never deducted (it's only deducted on approval)
+      const withdrawalAmount = parseFloat(withdrawal.amount);
+      console.log(`❌ Withdrawal #${withdrawalId} rejected - no refund needed (balance was never deducted)`);
+      console.log(`💡 User balance remains unchanged at: ${withdrawal.amount} TON will stay available`);
 
+      // Update withdrawal status to rejected
       const updateData: any = { 
         status: 'rejected', 
-        refunded: alreadyDeducted,
+        refunded: false,
+        deducted: false,
         updatedAt: new Date() 
       };
-      if (rejectionReason) {
-        updateData.rejectionReason = rejectionReason;
-        updateData.adminNotes = `Rejected: ${rejectionReason}`;
-      }
+      if (adminNotes) updateData.adminNotes = adminNotes;
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} rejected`);
+      console.log(`✅ Withdrawal #${withdrawalId} rejected - balance remains untouched`);
       
       return { success: true, message: 'Withdrawal rejected', withdrawal: updatedWithdrawal };
     } catch (error) {
@@ -1895,7 +1450,137 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  // Legacy promotion system removed - now using dailyTasks table instead
+  // Ensure all required system tasks exist for production deployment
+  async ensureSystemTasksExist(): Promise<void> {
+    try {
+      // Get first available user to be the owner, or create a system user
+      let firstUser = await db.select({ id: users.id }).from(users).limit(1).then(users => users[0]);
+      
+      if (!firstUser) {
+        console.log('⚠️ No users found, creating system user for task ownership');
+        // Create a system user for task ownership
+        const systemUser = await db.insert(users).values({
+          id: 'system-user',
+          username: 'System',
+          firstName: 'System',
+          lastName: 'Tasks',
+          referralCode: 'SYSTEM',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }).returning({ id: users.id });
+        firstUser = systemUser[0];
+        console.log('✅ System user created for task ownership');
+      }
+
+      // Define all system tasks with exact specifications
+      const systemTasks = [
+        // Fixed daily tasks
+        {
+          id: 'channel-visit-check-update',
+          type: 'channel_visit',
+          url: 'https://t.me/PaidAdsNews',
+          rewardPerUser: '0.00015000', // 0.00015 TON formatted to 8 digits for precision
+          title: 'Channel visit (Check Update)',
+          description: 'Visit our Telegram channel for updates and news'
+        },
+        {
+          id: 'app-link-share',
+          type: 'share_link',
+          url: 'share://referral',
+          rewardPerUser: '0.00020000', // 0.00020 TON formatted to 8 digits for precision
+          title: 'App link share (Share link)',
+          description: 'Share your affiliate link with friends'
+        },
+        {
+          id: 'invite-friend-valid',
+          type: 'invite_friend',
+          url: 'invite://friend',
+          rewardPerUser: '0.00050000', // 0.00050 TON formatted to 8 digits for precision
+          title: 'Invite friend (valid)',
+          description: 'Invite 1 valid friend to earn rewards'
+        },
+        // Daily ads goal tasks
+        {
+          id: 'ads-goal-mini',
+          type: 'ads_goal_mini',
+          url: 'watch://ads/mini',
+          rewardPerUser: '0.00045000', // 0.00045 TON formatted to 8 digits for precision
+          title: 'Mini (Watch 15 ads)',
+          description: 'Watch 15 ads to complete this daily goal'
+        },
+        {
+          id: 'ads-goal-light',
+          type: 'ads_goal_light',
+          url: 'watch://ads/light',
+          rewardPerUser: '0.00060000', // 0.00060 TON formatted to 8 digits for precision
+          title: 'Light (Watch 25 ads)',
+          description: 'Watch 25 ads to complete this daily goal'
+        },
+        {
+          id: 'ads-goal-medium',
+          type: 'ads_goal_medium',
+          url: 'watch://ads/medium',
+          rewardPerUser: '0.00070000', // 0.00070 TON formatted to 8 digits for precision
+          title: 'Medium (Watch 45 ads)',
+          description: 'Watch 45 ads to complete this daily goal'
+        },
+        {
+          id: 'ads-goal-hard',
+          type: 'ads_goal_hard',
+          url: 'watch://ads/hard',
+          rewardPerUser: '0.00080000', // 0.00080 TON formatted to 8 digits for precision
+          title: 'Hard (Watch 75 ads)',
+          description: 'Watch 75 ads to complete this daily goal'
+        }
+      ];
+
+      // Create or update each system task
+      for (const task of systemTasks) {
+        const existingTask = await this.getPromotion(task.id);
+        
+        if (existingTask) {
+          // Update existing task to match current specifications
+          await db.update(promotions)
+            .set({
+              type: task.type,
+              url: task.url,
+              rewardPerUser: task.rewardPerUser,
+              title: task.title,
+              description: task.description,
+              status: 'active',
+              isApproved: true // System tasks are pre-approved
+            })
+            .where(eq(promotions.id, task.id));
+          
+          console.log(`✅ System task updated: ${task.title}`);
+        } else {
+          // Create new system task
+          await db.insert(promotions).values({
+            id: task.id,
+            ownerId: firstUser.id,
+            type: task.type,
+            url: task.url,
+            cost: '0',
+            rewardPerUser: task.rewardPerUser,
+            limit: 100000, // High limit for system tasks
+            claimedCount: 0,
+            status: 'active',
+            isApproved: true, // System tasks are pre-approved
+            title: task.title,
+            description: task.description,
+            createdAt: new Date()
+          });
+          
+          console.log(`✅ System task created: ${task.title}`);
+        }
+      }
+
+      console.log('✅ All system tasks ensured successfully');
+    } catch (error) {
+      console.error('❌ Error ensuring system tasks exist:', error);
+      // Don't throw - server should still start even if task creation fails
+    }
+  }
 
 
   // Ensure admin user with unlimited balance exists for production deployment
@@ -1964,18 +1649,225 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Legacy promotion/task status system removed - using dailyTasks table instead
+  // Promotion system removed - using Ads Watch Tasks system only
+
+  async getAvailablePromotionsForUser(userId: string): Promise<any> {
+    // Get all active and approved promotions - ALWAYS show them
+    const allPromotions = await db.select().from(promotions)
+      .where(and(eq(promotions.status, 'active'), eq(promotions.isApproved, true)))
+      .orderBy(desc(promotions.createdAt));
+
+    const currentDate = this.getCurrentTaskDate();
+    const availablePromotions = [];
+
+    for (const promotion of allPromotions) {
+      // Check if this is a daily task type
+      const isDailyTask = [
+        'channel_visit', 'share_link', 'invite_friend',
+        'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'
+      ].includes(promotion.type);
+
+      const periodDate = isDailyTask ? currentDate : undefined;
+      
+      // Get current task status from the new system
+      const taskStatus = await this.getTaskStatus(userId, promotion.id, periodDate);
+      
+      let completionStatus = 'locked';
+      let statusMessage = 'Click to start';
+      let progress = null;
+      let buttonText = 'Start';
+
+      if (taskStatus) {
+        if (taskStatus.status === 'claimed') {
+          completionStatus = 'claimed';
+          statusMessage = '✅ Done';
+          buttonText = '✅ Done';
+        } else if (taskStatus.status === 'claimable') {
+          completionStatus = 'claimable';
+          statusMessage = 'Ready to claim!';
+          buttonText = 'Claim';
+        } else {
+          // Status is 'locked' - check if we can make it claimable
+          const verificationResult = await this.verifyTask(userId, promotion.id, promotion.type);
+          if (verificationResult.status === 'claimable') {
+            completionStatus = 'claimable';
+            statusMessage = 'Ready to claim!';
+            buttonText = 'Claim';
+          } else {
+            completionStatus = 'locked';
+            if (promotion.type.startsWith('ads_goal_')) {
+              const user = await this.getUser(userId);
+              const adsWatchedToday = user?.adsWatchedToday || 0;
+              const adsGoalThresholds = {
+                'ads_goal_mini': 15,
+                'ads_goal_light': 25,
+                'ads_goal_medium': 45,
+                'ads_goal_hard': 75
+              };
+              const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
+              statusMessage = `Watch ${Math.max(0, requiredAds - adsWatchedToday)} more ads (${adsWatchedToday}/${requiredAds})`;
+              progress = {
+                current: adsWatchedToday,
+                required: requiredAds,
+                percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
+              };
+              buttonText = 'Watch Ads';
+            } else if (promotion.type === 'invite_friend') {
+              statusMessage = 'Invite a friend first';
+              buttonText = 'Copy Link';
+            } else if (promotion.type === 'share_link') {
+              statusMessage = 'Share your affiliate link first';
+              buttonText = 'Share Link';
+            } else if (promotion.type === 'channel_visit') {
+              statusMessage = 'Visit the channel';
+              buttonText = 'Visit Channel';
+            }
+          }
+        }
+      } else {
+        // No task status yet - create initial status
+        await this.setTaskStatus(userId, promotion.id, 'locked', periodDate);
+        
+        // Set default messages based on task type
+        if (promotion.type === 'channel_visit') {
+          statusMessage = 'Visit the channel';
+          buttonText = 'Visit Channel';
+        } else if (promotion.type === 'share_link') {
+          statusMessage = 'Share your affiliate link';
+          buttonText = 'Share Link';
+        } else if (promotion.type === 'invite_friend') {
+          statusMessage = 'Invite a friend';
+          buttonText = 'Copy Link';
+        } else if (promotion.type.startsWith('ads_goal_')) {
+          const adsGoalThresholds = {
+            'ads_goal_mini': 15,
+            'ads_goal_light': 25,
+            'ads_goal_medium': 45,
+            'ads_goal_hard': 75
+          };
+          const requiredAds = adsGoalThresholds[promotion.type as keyof typeof adsGoalThresholds] || 0;
+          const user = await this.getUser(userId);
+          const adsWatchedToday = user?.adsWatchedToday || 0;
+          statusMessage = `Watch ${Math.max(0, requiredAds - adsWatchedToday)} more ads (${adsWatchedToday}/${requiredAds})`;
+          progress = {
+            current: adsWatchedToday,
+            required: requiredAds,
+            percentage: Math.min(100, (adsWatchedToday / requiredAds) * 100)
+          };
+          buttonText = 'Watch Ads';
+        }
+      }
+
+      // ALWAYS add the task - never filter out
+      availablePromotions.push({
+        ...promotion,
+        completionStatus,
+        statusMessage,
+        buttonText,
+        progress
+      });
+    }
+
+    return {
+      success: true,
+      tasks: availablePromotions.map(p => ({
+        id: p.id,
+        title: p.title || 'Untitled Task',
+        description: p.description || '',
+        type: p.type,
+        channelUsername: p.url?.match(/t\.me\/([^/?]+)/)?.[1],
+        botUsername: p.url?.match(/t\.me\/([^/?]+)/)?.[1],
+        reward: p.rewardPerUser || '0',
+        completedCount: p.claimedCount || 0,
+        totalSlots: p.limit || 1000,
+        isActive: p.status === 'active',
+        createdAt: p.createdAt,
+        claimUrl: p.url,
+        // New task status system properties
+        completionStatus: (p as any).completionStatus,
+        statusMessage: (p as any).statusMessage,
+        buttonText: (p as any).buttonText,
+        progress: (p as any).progress
+      })),
+      total: availablePromotions.length
+    };
+  }
 
 
-  // Get current date in YYYY-MM-DD format for 00:00 UTC reset (5:30 AM IST)
+  // Task completion system removed - using Ads Watch Tasks system only
+
+
+  // Get current date in YYYY-MM-DD format for 12:00 PM UTC reset
   private getCurrentTaskDate(): string {
     const now = new Date();
-    // Reset at midnight UTC (5:30 AM IST)
+    const resetHour = 12; // 12:00 PM UTC
+    
+    // If current time is before 12:00 PM UTC, use yesterday's date
+    if (now.getUTCHours() < resetHour) {
+      now.setUTCDate(now.getUTCDate() - 1);
+    }
+    
     return now.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
   }
 
 
-  // Legacy completeDailyTask removed - using new dailyTasks claim system instead
+  async completeDailyTask(promotionId: string, userId: string, rewardAmount: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if promotion exists
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Daily task not found' };
+      }
+
+      // Check if user already completed this daily task today
+      const hasCompleted = await this.hasUserCompletedDailyTask(promotionId, userId);
+      if (hasCompleted) {
+        return { success: false, message: 'You have already completed this daily task today' };
+      }
+
+      const currentDate = this.getCurrentTaskDate();
+
+      // Record daily task completion
+      await db.insert(dailyTaskCompletions).values({
+        promotionId,
+        userId,
+        taskType: promotion.type, // Use promotion type as task type
+        rewardAmount,
+        progress: 1,
+        required: 1,
+        completed: true,
+        claimed: true,
+        completionDate: currentDate,
+      });
+
+      console.log(`📊 DAILY_TASK_COMPLETION_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Date=${currentDate}, Status=SUCCESS, Title="${promotion.title}"`);
+
+      // Add reward to user's earnings balance
+      await this.addBalance(userId, rewardAmount);
+
+      // Add earning record
+      await this.addEarning({
+        userId,
+        amount: rewardAmount,
+        source: 'daily_task_completion',
+        description: `Daily task completed: ${promotion.title}`,
+      });
+
+      // Send task completion notification to user via Telegram
+      try {
+        const { sendTaskCompletionNotification } = await import('./telegram');
+        await sendTaskCompletionNotification(userId, rewardAmount);
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+        // Don't fail the task completion if notification fails
+      }
+
+      return { success: true, message: 'Daily task completed successfully' };
+    } catch (error) {
+      console.error('Error completing daily task:', error);
+      return { success: false, message: 'Error completing daily task' };
+    }
+  }
 
   async checkAdsGoalCompletion(userId: string, adsGoalType: string): Promise<boolean> {
     const user = await this.getUser(userId);
@@ -2077,7 +1969,238 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Legacy task status system removed - taskStatuses table doesn't exist
+  // ============== NEW TASK STATUS SYSTEM FUNCTIONS ==============
+  
+  // Get or create task status for user
+  async getTaskStatus(userId: string, promotionId: string, periodDate?: string): Promise<TaskStatus | null> {
+    try {
+      const [taskStatus] = await db.select().from(taskStatuses)
+        .where(and(
+          eq(taskStatuses.userId, userId),
+          eq(taskStatuses.promotionId, promotionId),
+          periodDate ? eq(taskStatuses.periodDate, periodDate) : sql`${taskStatuses.periodDate} IS NULL`
+        ));
+      return taskStatus || null;
+    } catch (error) {
+      console.error('Error getting task status:', error);
+      return null;
+    }
+  }
+
+  // Update or create task status
+  async setTaskStatus(
+    userId: string, 
+    promotionId: string, 
+    status: 'locked' | 'claimable' | 'claimed',
+    periodDate?: string,
+    progressCurrent?: number,
+    progressRequired?: number,
+    metadata?: any
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const existingStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      
+      if (existingStatus) {
+        // Update existing status
+        await db.update(taskStatuses)
+          .set({
+            status,
+            progressCurrent,
+            progressRequired,
+            metadata,
+            updatedAt: sql`now()`
+          })
+          .where(eq(taskStatuses.id, existingStatus.id));
+      } else {
+        // Create new status
+        await db.insert(taskStatuses).values({
+          userId,
+          promotionId,
+          periodDate,
+          status,
+          progressCurrent: progressCurrent || 0,
+          progressRequired: progressRequired || 0,
+          metadata
+        });
+      }
+      
+      return { success: true, message: 'Task status updated successfully' };
+    } catch (error) {
+      console.error('Error setting task status:', error);
+      return { success: false, message: 'Failed to update task status' };
+    }
+  }
+
+  // Verify task and update status to claimable
+  async verifyTask(userId: string, promotionId: string, taskType: string): Promise<{ success: boolean; message: string; status?: 'claimable' | 'locked' | 'claimed' }> {
+    try {
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Task not found' };
+      }
+
+      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(taskType);
+      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
+
+      // Check current status
+      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      if (currentStatus?.status === 'claimed') {
+        return { success: false, message: 'Task already claimed', status: 'claimed' };
+      }
+
+      let verified = false;
+      let progressCurrent = 0;
+      let progressRequired = 0;
+
+      // Perform verification based on task type
+      switch (taskType) {
+        case 'channel_visit':
+          // Channel visit is immediately claimable after user clicks
+          verified = true;
+          break;
+          
+        case 'share_link':
+          // Check if user has shared their link
+          verified = await this.hasSharedLinkToday(userId);
+          break;
+          
+        case 'invite_friend':
+          // Check if user has valid referral today
+          verified = await this.hasValidReferralToday(userId);
+          break;
+          
+        case 'ads_goal_mini':
+        case 'ads_goal_light':
+        case 'ads_goal_medium':
+        case 'ads_goal_hard':
+          // Check if user met ads goal
+          const user = await this.getUser(userId);
+          const adsWatchedToday = user?.adsWatchedToday || 0;
+          
+          const adsGoalThresholds = {
+            'ads_goal_mini': 15,
+            'ads_goal_light': 25,
+            'ads_goal_medium': 45,
+            'ads_goal_hard': 75
+          };
+          
+          progressRequired = adsGoalThresholds[taskType as keyof typeof adsGoalThresholds] || 0;
+          progressCurrent = adsWatchedToday;
+          verified = adsWatchedToday >= progressRequired;
+          break;
+          
+        default:
+          verified = true; // For other task types, assume verified
+      }
+
+      const newStatus = verified ? 'claimable' : 'locked';
+      await this.setTaskStatus(userId, promotionId, newStatus, periodDate, progressCurrent, progressRequired);
+
+      return { 
+        success: true, 
+        message: verified ? 'Task verified, ready to claim!' : 'Task requirements not met yet',
+        status: newStatus
+      };
+    } catch (error) {
+      console.error('Error verifying task:', error);
+      return { success: false, message: 'Failed to verify task' };
+    }
+  }
+
+  // Claim task reward
+  async claimTaskReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
+    try {
+      const promotion = await this.getPromotion(promotionId);
+      if (!promotion) {
+        return { success: false, message: 'Task not found' };
+      }
+
+      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(promotion.type);
+      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
+
+      // Check current status
+      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      if (!currentStatus) {
+        return { success: false, message: 'Task status not found' };
+      }
+      
+      if (currentStatus.status === 'claimed') {
+        return { success: false, message: 'Task already claimed' };
+      }
+      
+      if (currentStatus.status !== 'claimable') {
+        return { success: false, message: 'Task not ready to claim' };
+      }
+
+      // Prevent users from claiming their own tasks
+      if (promotion.ownerId === userId) {
+        return { success: false, message: 'You cannot claim your own task' };
+      }
+
+      const rewardAmount = promotion.rewardPerUser || '0';
+      
+      // Record claim in appropriate table
+      if (isDailyTask) {
+        await db.insert(dailyTaskCompletions).values({
+          promotionId,
+          userId,
+          taskType: promotion.type,
+          rewardAmount,
+          progress: 1,
+          required: 1,
+          completed: true,
+          claimed: true,
+          completionDate: periodDate!,
+        });
+      } else {
+        await db.insert(taskCompletions).values({
+          promotionId,
+          userId,
+          rewardAmount,
+          verified: true,
+        });
+      }
+
+      // Add reward to balance
+      await this.addBalance(userId, rewardAmount);
+
+      // Add earning record
+      await this.addEarning({
+        userId,
+        amount: rewardAmount,
+        source: isDailyTask ? 'daily_task_completion' : 'task_completion',
+        description: `Task completed: ${promotion.title}`,
+      });
+
+      // Update task status to claimed
+      await this.setTaskStatus(userId, promotionId, 'claimed', periodDate);
+
+      // Get updated balance
+      const updatedBalance = await this.getUserBalance(userId);
+
+      console.log(`📊 TASK_CLAIM_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
+
+      // Send notification
+      try {
+        const { sendTaskCompletionNotification } = await import('./telegram');
+        await sendTaskCompletionNotification(userId, rewardAmount);
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+      }
+
+      return { 
+        success: true, 
+        message: 'Task claimed successfully!',
+        rewardAmount,
+        newBalance: updatedBalance?.balance || '0'
+      };
+    } catch (error) {
+      console.error('Error claiming task reward:', error);
+      return { success: false, message: 'Failed to claim task reward' };
+    }
+  }
+
+  // ============== END NEW TASK STATUS SYSTEM FUNCTIONS ==============
 
   // Method to record that user visited channel (called from frontend)
   async recordChannelVisit(userId: string): Promise<{ success: boolean; message: string }> {
@@ -2122,20 +2245,20 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Daily reset system - runs at 00:00 UTC (5:30 AM IST)
+  // Daily reset system - runs at 12:00 PM UTC
   async performDailyReset(): Promise<void> {
     try {
-      console.log('🔄 Starting daily reset at 00:00 UTC (5:30 AM IST)...');
+      console.log('🔄 Starting daily reset at 12:00 PM UTC...');
       
       const currentDate = new Date();
       const currentDateString = currentDate.toISOString().split('T')[0];
       const periodStart = new Date(currentDate);
-      periodStart.setUTCHours(0, 0, 0, 0); // 00:00 UTC period start (5:30 AM IST)
+      periodStart.setUTCHours(12, 0, 0, 0); // 12:00 PM UTC period start
       
       // 1. Check if reset was already performed for this period (idempotency)
       const usersNeedingReset = await db.select({ id: users.id })
         .from(users)
-        .where(sql`${users.lastResetDate} < ${periodStart.toISOString()} OR ${users.lastResetDate} IS NULL`)
+        .where(sql`${users.lastResetAt} < ${periodStart.toISOString()} OR ${users.lastResetAt} IS NULL`)
         .limit(1000); // Process in batches
       
       if (usersNeedingReset.length === 0) {
@@ -2146,29 +2269,69 @@ export class DatabaseStorage implements IStorage {
       console.log(`🔄 Resetting ${usersNeedingReset.length} users for period ${currentDateString}`);
       
       // 2. Reset all users' daily counters and tracking fields
-      // NOTE: friendsInvited is NOT reset - it's a lifetime count for withdrawal unlock
       await db.update(users)
         .set({ 
           adsWatchedToday: 0,
           channelVisited: false,
           appShared: false,
+          linkShared: false,
+          friendInvited: false,
+          friendsInvited: 0,
           lastResetDate: currentDate,
+          lastResetAt: periodStart,
           lastAdDate: currentDate 
         })
-        .where(sql`${users.lastResetDate} < ${periodStart.toISOString()} OR ${users.lastResetDate} IS NULL`);
+        .where(sql`${users.lastResetAt} < ${periodStart.toISOString()} OR ${users.lastResetAt} IS NULL`);
       
-      // 3. Daily tasks are auto-created when getUserDailyTasks is called
-      // No need to pre-create them in the reset
+      // 3. Create daily task completion records for all task types for this period
+      const taskTypes = ['channel_visit', 'share_link', 'invite_friend', 'ads_mini', 'ads_light', 'ads_medium', 'ads_hard'];
+      const taskRewards = {
+        'channel_visit': '0.000025',
+        'share_link': '0.000025', 
+        'invite_friend': '0.00005',
+        'ads_mini': '0.000035', // 15 ads
+        'ads_light': '0.000055', // 25 ads
+        'ads_medium': '0.000095', // 45 ads
+        'ads_hard': '0.000155' // 75 ads
+      };
+      const taskRequirements = {
+        'channel_visit': 1,
+        'share_link': 1,
+        'invite_friend': 1,
+        'ads_mini': 15,
+        'ads_light': 25,
+        'ads_medium': 45,
+        'ads_hard': 75
+      };
       
-      // 4. Clean up old daily tasks (older than 7 days)
+      for (const user of usersNeedingReset) {
+        for (const taskType of taskTypes) {
+          try {
+            await db.insert(dailyTaskCompletions).values({
+              userId: user.id,
+              taskType,
+              rewardAmount: taskRewards[taskType as keyof typeof taskRewards],
+              progress: 0,
+              required: taskRequirements[taskType as keyof typeof taskRequirements],
+              completed: false,
+              claimed: false,
+              completionDate: currentDateString,
+            }).onConflictDoNothing(); // Ignore if already exists
+          } catch (error) {
+            console.warn(`⚠️ Failed to create daily task ${taskType} for user ${user.id}:`, error);
+          }
+        }
+      }
+      
+      // 4. Clean up old daily task completions (older than 7 days)
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       const weekAgoString = weekAgo.toISOString().split('T')[0];
       
-      await db.delete(dailyTasks)
-        .where(sql`${dailyTasks.resetDate} < ${weekAgoString}`);
+      await db.delete(dailyTaskCompletions)
+        .where(sql`${dailyTaskCompletions.completionDate} < ${weekAgoString}`);
       
-      console.log('✅ Daily reset completed successfully at 00:00 UTC (5:30 AM IST)');
+      console.log('✅ Daily reset completed successfully at 12:00 PM UTC');
       console.log(`   - Reset ${usersNeedingReset.length} users for period ${currentDateString}`);
       console.log('   - Reset ads watched today to 0');
       console.log('   - Reset channel visited, app shared, link shared, friend invited to false');
@@ -2180,12 +2343,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Check if it's time for daily reset (00:00 UTC / 5:30 AM IST)
+  // Check if it's time for daily reset (12:00 PM UTC)
   async checkAndPerformDailyReset(): Promise<void> {
     const now = new Date();
     
-    // Check if it's exactly 00:00 UTC (5:30 AM IST) within 1 minute window
-    const isResetTime = now.getUTCHours() === 0 && now.getUTCMinutes() === 0;
+    // Check if it's exactly 12:00 PM UTC (within 1 minute window)
+    const isResetTime = now.getUTCHours() === 12 && now.getUTCMinutes() === 0;
     
     if (isResetTime) {
       await this.performDailyReset();
@@ -2326,122 +2489,24 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // ===== TON BALANCE MANAGEMENT =====
-  
-  async getTONBalance(userId: string): Promise<string> {
-    try {
-      const [user] = await db.select({ tonBalance: users.tonBalance }).from(users).where(eq(users.id, userId));
-      return user?.tonBalance || '0';
-    } catch (error) {
-      console.error('Error getting TON balance:', error);
-      return '0';
-    }
+  // Promotion claims methods
+  async hasUserClaimedPromotion(promotionId: string, userId: string): Promise<boolean> {
+    const [claim] = await db.select().from(promotionClaims)
+      .where(and(
+        eq(promotionClaims.promotionId, promotionId),
+        eq(promotionClaims.userId, userId)
+      ));
+    return !!claim;
   }
 
-  async addTONBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
-    try {
-      await db.update(users)
-        .set({
-          tonBalance: sql`${users.tonBalance} + ${amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId));
 
-      // Record transaction for TON addition
-      await this.logTransaction({
-        userId,
-        amount,
-        type: 'addition',
-        source,
-        description: description || `TON balance added from ${source}`,
-        metadata: { 
-          tonAmount: amount,
-          source
-        }
-      });
-
-      return { success: true, message: 'TON balance added successfully' };
-    } catch (error) {
-      console.error('Error adding TON balance:', error);
-      return { success: false, message: 'Error adding TON balance' };
-    }
+  async incrementPromotionClaimedCount(promotionId: string): Promise<void> {
+    await db.update(promotions)
+      .set({
+        claimedCount: sql`${promotions.claimedCount} + 1`,
+      })
+      .where(eq(promotions.id, promotionId));
   }
-
-  async addUSDBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
-    try {
-      await db.update(users)
-        .set({
-          usdBalance: sql`${users.usdBalance} + ${amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId));
-
-      // Record transaction for USD addition
-      await this.logTransaction({
-        userId,
-        amount,
-        type: 'addition',
-        source,
-        description: description || `USD balance added from ${source}`,
-        metadata: { 
-          usdAmount: amount,
-          source
-        }
-      });
-
-      return { success: true, message: 'USD balance added successfully' };
-    } catch (error) {
-      console.error('Error adding USD balance:', error);
-      return { success: false, message: 'Error adding USD balance' };
-    }
-  }
-
-  async deductTONBalance(userId: string, amount: string, source: string, description?: string): Promise<{ success: boolean; message: string }> {
-    try {
-      // Check if user is admin - admins have unlimited TON balance
-      const user = await this.getUser(userId);
-      const isAdmin = user?.telegram_id === process.env.TELEGRAM_ADMIN_ID;
-      
-      if (isAdmin) {
-        console.log('🔑 Admin has unlimited TON balance - allowing deduction');
-        return { success: true, message: 'TON deducted successfully (admin unlimited)' };
-      }
-
-      const currentTONBalance = parseFloat(user?.tonBalance || '0');
-      const deductAmount = parseFloat(amount);
-
-      if (currentTONBalance < deductAmount) {
-        return { success: false, message: 'Insufficient TON' };
-      }
-
-      await db.update(users)
-        .set({
-          tonBalance: sql`${users.tonBalance} - ${amount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId));
-
-      // Record transaction for TON deduction
-      await this.logTransaction({
-        userId,
-        amount: `-${amount}`,
-        type: 'deduction',
-        source,
-        description: description || `TON balance deducted for ${source}`,
-        metadata: { 
-          tonAmount: amount,
-          source
-        }
-      });
-
-      return { success: true, message: 'TON deducted successfully' };
-    } catch (error) {
-      console.error('Error deducting TON balance:', error);
-      return { success: false, message: 'Error deducting TON balance' };
-    }
-  }
-
-  // Legacy promotion claims methods removed - using dailyTasks instead
 
   // ===== NEW SIMPLE TASK SYSTEM =====
   
@@ -2586,8 +2651,8 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Claim a completed daily task reward
-  async claimDailyTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
+  // Claim a completed task reward
+  async claimTaskReward(userId: string, taskLevel: number): Promise<{ success: boolean; message: string; rewardAmount?: string }> {
     const resetDate = this.getCurrentResetDate();
     
     // Get the specific task
@@ -2738,402 +2803,107 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Task management operations
-  async createTask(task: InsertAdvertiserTask): Promise<AdvertiserTask> {
-    const [createdTask] = await db
-      .insert(advertiserTasks)
-      .values(task)
-      .returning();
-    
-    return createdTask;
-  }
-
-  async getActiveTasks(): Promise<AdvertiserTask[]> {
-    return db
+  // Get all advertiser tasks (for admin panel)
+  async getAllTasks(): Promise<any[]> {
+    const result = await db
       .select()
       .from(advertiserTasks)
-      .where(eq(advertiserTasks.status, "active"))
       .orderBy(desc(advertiserTasks.createdAt));
+    return result;
   }
 
-  async getActiveTasksForUser(userId: string): Promise<AdvertiserTask[]> {
-    const allActiveTasks = await db
+  // Get pending tasks (under_review status) for admin approval
+  async getPendingTasks(): Promise<any[]> {
+    const result = await db
       .select()
       .from(advertiserTasks)
-      .where(eq(advertiserTasks.status, "active"))
+      .where(eq(advertiserTasks.status, 'under_review'))
       .orderBy(desc(advertiserTasks.createdAt));
-
-    const completedTaskIds = await db
-      .select({ taskId: taskClicks.taskId })
-      .from(taskClicks)
-      .where(eq(taskClicks.publisherId, userId));
-
-    const completedIds = new Set(completedTaskIds.map(t => t.taskId));
-
-    return allActiveTasks.filter(task => 
-      task.advertiserId !== userId && !completedIds.has(task.id)
-    );
+    return result;
   }
 
-  async getTaskById(taskId: string): Promise<AdvertiserTask | undefined> {
-    const [task] = await db
-      .select()
-      .from(advertiserTasks)
-      .where(eq(advertiserTasks.id, taskId));
+  // Get monthly leaderboard
+  async getMonthlyLeaderboard(currentUserId?: string): Promise<any> {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    return task;
+    const leaderboard = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        firstName: users.firstName,
+        totalEarned: sql<string>`COALESCE(SUM(${earnings.amount}), 0)`,
+      })
+      .from(users)
+      .leftJoin(earnings, and(
+        eq(users.id, earnings.userId),
+        gte(earnings.createdAt, monthStart),
+        sql`${earnings.source} NOT IN ('withdrawal', 'referral_commission')`
+      ))
+      .where(eq(users.banned, false))
+      .groupBy(users.id)
+      .orderBy(desc(sql`COALESCE(SUM(${earnings.amount}), 0)`))
+      .limit(100);
+
+    let userRank = null;
+    if (currentUserId) {
+      const userIndex = leaderboard.findIndex(u => u.id === currentUserId);
+      if (userIndex !== -1) {
+        userRank = userIndex + 1;
+      }
+    }
+
+    return {
+      leaderboard: leaderboard.map((u, i) => ({
+        ...u,
+        rank: i + 1,
+        displayName: u.username || u.firstName || 'Anonymous'
+      })),
+      userRank
+    };
   }
 
-  async getMyTasks(userId: string): Promise<AdvertiserTask[]> {
-    return db
+  // Get valid (completed) referral count for a user
+  async getValidReferralCount(userId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(referrals)
+      .innerJoin(users, eq(referrals.refereeId, users.id))
+      .where(and(
+        eq(referrals.referrerId, userId),
+        eq(referrals.status, 'completed'),
+        eq(users.banned, false)
+      ));
+    
+    return result[0]?.count || 0;
+  }
+
+  // Get tasks created by a specific user (my tasks)
+  async getMyTasks(userId: string): Promise<any[]> {
+    const result = await db
       .select()
       .from(advertiserTasks)
       .where(eq(advertiserTasks.advertiserId, userId))
       .orderBy(desc(advertiserTasks.createdAt));
+    return result;
   }
 
-  async increaseTaskLimit(taskId: string, additionalClicks: number, additionalCost: string): Promise<AdvertiserTask> {
-    const [updatedTask] = await db
-      .update(advertiserTasks)
-      .set({
-        totalClicksRequired: sql`${advertiserTasks.totalClicksRequired} + ${additionalClicks}`,
-        totalCost: sql`${advertiserTasks.totalCost} + ${additionalCost}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(advertiserTasks.id, taskId))
-      .returning();
-    
-    return updatedTask;
-  }
-
-  async recordTaskClick(taskId: string, publisherId: string): Promise<{ success: boolean; message: string; reward?: string }> {
-    try {
-      // Check if user already clicked this task
-      const hasClicked = await this.hasUserClickedTask(taskId, publisherId);
-      if (hasClicked) {
-        return { success: false, message: "You have already clicked this task" };
-      }
-
-      // Get task details
-      const task = await this.getTaskById(taskId);
-      if (!task) {
-        return { success: false, message: "Task not found" };
-      }
-
-      // Check if task is active
-      if (task.status !== "active") {
-        return { success: false, message: "Task is not active" };
-      }
-
-      // Check if task has reached its limit
-      if (task.currentClicks >= task.totalClicksRequired) {
-        return { success: false, message: "Task has reached its click limit" };
-      }
-
-      // Verify channel membership for channel tasks
-      if (task.taskType === "channel") {
-        // Get the publisher's (clicking user's) telegram ID
-        const [publisher] = await db
-          .select({ telegramId: users.telegram_id })
-          .from(users)
-          .where(eq(users.id, publisherId));
-
-        if (!publisher || !publisher.telegramId) {
-          return { success: false, message: "User Telegram ID not found" };
-        }
-
-        // Extract channel username from task link - handle various URL formats
-        const cleanLink = task.link.split('?')[0].replace(/\/$/, '');
-        
-        // Check if this is a Telegram invite link (must be from t.me or telegram.me)
-        const isTelegramDomain = cleanLink.match(/https?:\/\/(t\.me|telegram\.me)\//);
-        const hasInvitePattern = cleanLink.includes('/joinchat/') || cleanLink.includes('/+');
-        const isInviteLink = isTelegramDomain && hasInvitePattern;
-        
-        if (!isTelegramDomain) {
-          // Not a Telegram link at all - reject
-          console.warn(`⚠️ Task ${task.id} has non-Telegram link: ${task.link}`);
-          return { success: false, message: "Only Telegram links (t.me or telegram.me) are allowed" };
-        }
-        
-        if (isInviteLink) {
-          // Telegram invite links cannot be verified via username-based membership check
-          // Skip verification for invite links with a warning
-          console.warn(`⚠️ Task ${task.id} uses Telegram invite link - membership verification skipped for invite-only channels`);
-          console.log(`ℹ️ Allowing completion for Telegram invite link: ${task.link}`);
-          // Allow the task to complete - user must have the link to attempt it
-        } else {
-          // Regular channel link - extract username and verify membership
-          // Support both t.me and telegram.me domains
-          const usernameMatch = cleanLink.match(/(?:t\.me|telegram\.me)\/([^/?]+)/);
-          
-          if (!usernameMatch || !usernameMatch[1]) {
-            console.warn(`⚠️ Could not extract channel username from link: ${task.link}`);
-            return { success: false, message: "Invalid channel link format" };
-          }
-
-          const channelUsername = usernameMatch[1];
-          const botToken = process.env.TELEGRAM_BOT_TOKEN;
-
-          if (!botToken) {
-            console.warn('⚠️ TELEGRAM_BOT_TOKEN not configured - channel verification bypassed');
-            // In development or when bot token is missing, allow the click
-          } else {
-            // Verify that the publisher (clicking user) is a member of the channel
-            const { verifyChannelMembership } = await import('./telegram');
-            const isMember = await verifyChannelMembership(
-              parseInt(publisher.telegramId),
-              channelUsername,
-              botToken
-            );
-
-            if (!isMember) {
-              return { success: false, message: "You must join the channel first" };
-            }
-          }
-        }
-      }
-
-      // Fetch dynamic task reward from admin settings based on task type
-      const channelRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'channel_task_reward')).limit(1);
-      const botRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bot_task_reward')).limit(1);
-      const partnerRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'partner_task_reward')).limit(1);
-      
-      const channelRewardPAD = parseInt(channelRewardSetting[0]?.settingValue || "30"); // 30 PAD
-      const botRewardPAD = parseInt(botRewardSetting[0]?.settingValue || "20"); // 20 PAD
-      const partnerRewardPAD = parseInt(partnerRewardSetting[0]?.settingValue || "5"); // Partner task reward from admin settings
-      
-      // Use the correct reward based on task type (in PAD)
-      let rewardPAD: number;
-      if (task.taskType === "partner") {
-        rewardPAD = partnerRewardPAD;
-      } else if (task.taskType === "channel") {
-        rewardPAD = channelRewardPAD;
-      } else {
-        rewardPAD = botRewardPAD;
-      }
-      const rewardAmount = rewardPAD.toString(); // Store as string for database
-
-      // Record the click
-      await db.insert(taskClicks).values({
-        taskId,
-        publisherId,
-        rewardAmount,
-      });
-
-      // Update task click count
-      const [updatedTask] = await db
-        .update(advertiserTasks)
-        .set({
-          currentClicks: sql`${advertiserTasks.currentClicks} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(advertiserTasks.id, taskId))
-        .returning();
-
-      // Check if task is now completed
-      if (updatedTask.currentClicks >= updatedTask.totalClicksRequired) {
-        await db
-          .update(advertiserTasks)
-          .set({
-            status: "completed",
-            completedAt: new Date(),
-          })
-          .where(eq(advertiserTasks.id, taskId));
-      }
-
-      // Add reward to publisher
-      await this.addEarning({
-        userId: publisherId,
-        amount: rewardAmount,
-        source: "task_click",
-        description: `Clicked on task: ${task.title}`,
-      });
-
-      // Log transaction
-      await this.logTransaction({
-        userId: publisherId,
-        amount: rewardAmount,
-        type: "addition",
-        source: "task_click",
-        description: `Task click reward: ${task.title}`,
-        metadata: { taskId, taskTitle: task.title }
-      });
-
-      return {
-        success: true,
-        message: "Task clicked successfully",
-        reward: rewardAmount,
-      };
-    } catch (error) {
-      console.error("Error recording task click:", error);
-      return { success: false, message: "Failed to record task click" };
-    }
-  }
-
-  async hasUserClickedTask(taskId: string, publisherId: string): Promise<boolean> {
-    const [click] = await db
+  // Get active tasks for a user (excludes tasks they've already completed and their own tasks)
+  async getActiveTasksForUser(userId: string): Promise<any[]> {
+    const result = await db
       .select()
-      .from(taskClicks)
+      .from(advertiserTasks)
       .where(and(
-        eq(taskClicks.taskId, taskId),
-        eq(taskClicks.publisherId, publisherId)
-      ));
-    
-    return !!click;
-  }
-  
-  async getTopUserByEarnings(): Promise<{ username: string; profileImage: string; totalEarnings: string } | null> {
-    try {
-      const [topUser] = await db
-        .select({
-          username: users.username,
-          profileImage: users.profileImageUrl,
-          totalEarnings: users.totalEarned
-        })
-        .from(users)
-        .where(sql`${users.totalEarned} > 0`)
-        .orderBy(desc(users.totalEarned))
-        .limit(1);
-      
-      if (!topUser) return null;
-      
-      return {
-        username: topUser.username || 'Anonymous',
-        profileImage: topUser.profileImage || '',
-        totalEarnings: topUser.totalEarnings || '0'
-      };
-    } catch (error) {
-      console.error('Error fetching top user by earnings:', error);
-      return null;
-    }
-  }
-  
-  async getMonthlyLeaderboard(userId?: string): Promise<{
-    topEarners: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalEarnings: string; userId: string }>;
-    topReferrers: Array<{ rank: number; username: string; firstName: string; profileImage: string; totalReferrals: number; userId: string }>;
-    userEarnerRank?: { rank: number; totalEarnings: string } | null;
-    userReferrerRank?: { rank: number; totalReferrals: number } | null;
-  }> {
-    try {
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      
-      // Get top 10 earners
-      const topEarnersData = await db
-        .select({
-          userId: earnings.userId,
-          totalEarnings: sql<string>`SUM(${earnings.amount})`,
-        })
-        .from(earnings)
-        .where(and(
-          gte(earnings.createdAt, monthStart),
-          sql`${earnings.source} <> 'withdrawal'`
-        ))
-        .groupBy(earnings.userId)
-        .orderBy(desc(sql`SUM(${earnings.amount})`))
-        .limit(10);
-      
-      const topEarners = await Promise.all(
-        topEarnersData.map(async (earner, index) => {
-          const user = await this.getUser(earner.userId);
-          return {
-            rank: index + 1,
-            username: user?.username || '',
-            firstName: user?.firstName || '',
-            profileImage: user?.profileImageUrl || '',
-            totalEarnings: earner.totalEarnings,
-            userId: earner.userId
-          };
-        })
-      );
-      
-      // Get top 50 referrers
-      const topReferrersData = await db
-        .select({
-          referrerId: referrals.referrerId,
-          totalReferrals: sql<number>`COUNT(*)`,
-        })
-        .from(referrals)
-        .groupBy(referrals.referrerId)
-        .orderBy(desc(sql`COUNT(*)`))
-        .limit(50);
-      
-      const topReferrers = await Promise.all(
-        topReferrersData.map(async (referrer, index) => {
-          const user = await this.getUser(referrer.referrerId);
-          return {
-            rank: index + 1,
-            username: user?.username || '',
-            firstName: user?.firstName || '',
-            profileImage: user?.profileImageUrl || '',
-            totalReferrals: Number(referrer.totalReferrals),
-            userId: referrer.referrerId
-          };
-        })
-      );
-      
-      let userEarnerRank = null;
-      let userReferrerRank = null;
-      
-      // Calculate user's rank if userId is provided
-      if (userId) {
-        // Get all earners with their ranks
-        const allEarnersData = await db
-          .select({
-            userId: earnings.userId,
-            totalEarnings: sql<string>`SUM(${earnings.amount})`,
-          })
-          .from(earnings)
-          .where(and(
-            gte(earnings.createdAt, monthStart),
-            sql`${earnings.source} <> 'withdrawal'`
-          ))
-          .groupBy(earnings.userId)
-          .orderBy(desc(sql`SUM(${earnings.amount})`));
-        
-        const userEarnerIndex = allEarnersData.findIndex(e => e.userId === userId);
-        if (userEarnerIndex !== -1) {
-          userEarnerRank = {
-            rank: userEarnerIndex + 1,
-            totalEarnings: allEarnersData[userEarnerIndex].totalEarnings
-          };
-        }
-        
-        // Get all referrers with their ranks
-        const allReferrersData = await db
-          .select({
-            referrerId: referrals.referrerId,
-            totalReferrals: sql<number>`COUNT(*)`,
-          })
-          .from(referrals)
-          .groupBy(referrals.referrerId)
-          .orderBy(desc(sql`COUNT(*)`));
-        
-        const userReferrerIndex = allReferrersData.findIndex(r => r.referrerId === userId);
-        if (userReferrerIndex !== -1) {
-          userReferrerRank = {
-            rank: userReferrerIndex + 1,
-            totalReferrals: Number(allReferrersData[userReferrerIndex].totalReferrals)
-          };
-        }
-      }
-      
-      return {
-        topEarners,
-        topReferrers,
-        userEarnerRank,
-        userReferrerRank
-      };
-    } catch (error) {
-      console.error('Error fetching monthly leaderboard:', error);
-      return {
-        topEarners: [],
-        topReferrers: [],
-        userEarnerRank: null,
-        userReferrerRank: null
-      };
-    }
+        eq(advertiserTasks.status, 'running'),
+        sql`${advertiserTasks.advertiserId} != ${userId}`,
+        sql`NOT EXISTS (
+          SELECT 1 FROM task_clicks 
+          WHERE task_clicks.task_id = ${advertiserTasks.id} 
+          AND task_clicks.publisher_id = ${userId}
+        )`
+      ))
+      .orderBy(desc(advertiserTasks.createdAt));
+    return result;
   }
 }
 
