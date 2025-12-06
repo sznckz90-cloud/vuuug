@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   CheckCircle, 
-  Sparkles, 
   FileText, 
   Clock, 
   TrendingUp, 
@@ -18,7 +17,8 @@ import {
   Trash2,
   Info,
   CheckCircle2,
-  Handshake
+  Handshake,
+  Sparkles
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect, useRef } from "react";
@@ -361,20 +361,29 @@ export default function CreateTask() {
   }
 
   const myTasks = myTasksData?.tasks || [];
-  const activeMyTasks = myTasks.filter(t => t.status === "active");
-  const completedMyTasks = myTasks.filter(t => t.status === "completed");
+  const activeMyTasks = myTasks.filter(t => t.status === "running" || t.status === "under_review" || t.status === "paused");
+  const completedMyTasks = myTasks.filter(t => t.status === "completed" || t.status === "rejected");
 
   return (
     <Layout>
       <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-primary" />
-            Create Task
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Promote your channel or bot
-          </p>
+          <div className="flex items-center justify-between bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl px-4 py-4">
+            <div className="flex items-center gap-3">
+              <img src="/images/ton.png" alt="TON" className="w-10 h-10 rounded-full" />
+              <div>
+                <p className="text-xs text-muted-foreground">TON Balance</p>
+                <span className="text-xl font-bold text-white">{tonBalance.toFixed(4)}</span>
+              </div>
+            </div>
+            <Button
+              type="button"
+              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold px-6 py-2"
+              onClick={() => setLocation("/topup-pdz")}
+            >
+              Top Up
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
@@ -629,8 +638,16 @@ export default function CreateTask() {
                                 </div>
                                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
                                   <span>{progress.toFixed(1)}% complete</span>
-                                  <span>
-                                    {task.status === "active" ? "Active" : "Completed"}
+                                  <span className={
+                                    task.status === "running" ? "text-green-400" :
+                                    task.status === "under_review" ? "text-yellow-400" :
+                                    task.status === "paused" ? "text-orange-400" :
+                                    "text-muted-foreground"
+                                  }>
+                                    {task.status === "running" ? "Running" : 
+                                     task.status === "under_review" ? "Pending Review" :
+                                     task.status === "paused" ? "Paused" :
+                                     task.status}
                                   </span>
                                 </div>
                               </div>
@@ -679,7 +696,9 @@ export default function CreateTask() {
                             <p className="text-xs text-muted-foreground">
                               {task.totalClicksRequired} clicks completed
                             </p>
-                            <p className="text-xs text-green-500 mt-1">✓ Completed</p>
+                            <p className={`text-xs mt-1 ${task.status === "rejected" ? "text-red-500" : "text-green-500"}`}>
+                              {task.status === "rejected" ? "✗ Rejected" : "✓ Completed"}
+                            </p>
                           </CardContent>
                         </Card>
                       ))}
