@@ -10,6 +10,8 @@ import {
   transactions,
   dailyTasks,
   advertiserTasks,
+  taskClicks,
+  adminSettings,
   type User,
   type UpsertUser,
   type InsertEarning,
@@ -3023,6 +3025,131 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error(`❌ Error deleting task ${taskId}:`, error);
       return false;
+    }
+  }
+
+  // Record a task click (when publisher clicks on a task)
+  async recordTaskClick(taskId: string, publisherId: string): Promise<{
+    success: boolean;
+    message: string;
+    reward?: number;
+    task?: any;
+  }> {
+    try {
+      // Get the task
+      const task = await this.getTaskById(taskId);
+      
+      if (!task) {
+        return { success: false, message: "Task not found" };
+      }
+
+      // Check if task is active and running
+      if (task.status !== 'running') {
+        return { success: false, message: "Task is not active" };
+      }
+
+      // Check if user is clicking their own task
+      if (task.advertiserId === publisherId) {
+        return { success: false, message: "You cannot click your own task" };
+      }
+
+      // Check if user already clicked this task
+      const existingClick = await db
+        .select()
+        .from(taskClicks)
+        .where(and(
+          eq(taskClicks.taskId, taskId),
+          eq(taskClicks.publisherId, publisherId)
+        ))
+        .limit(1);
+
+      if (existingClick.length > 0) {
+        return { success: false, message: "You have already completed this task" };
+      }
+
+      // Check if task has reached its click limit
+      if (task.currentClicks >= task.totalClicksRequired) {
+        return { success: false, message: "Task has reached its click limit" };
+      }
+
+      // Get reward amount from admin settings based on task type
+      const rewardSettingKey = task.taskType === 'bot' ? 'bot_task_reward_pad' : 
+                               task.taskType === 'partner' ? 'partner_task_reward_pad' : 
+                               'channel_task_reward_pad';
+      const rewardSetting = await db
+        .select()
+        .from(adminSettings)
+        .where(eq(adminSettings.settingKey, rewardSettingKey))
+        .limit(1);
+      
+      const rewardPAD = task.taskType === 'partner' ? 5 : 
+                        parseInt(rewardSetting[0]?.settingValue || (task.taskType === 'bot' ? '20' : '30'));
+
+      // Insert click record
+      await db.insert(taskClicks).values({
+        taskId: taskId,
+        publisherId: publisherId,
+        rewardAmount: rewardPAD.toString(),
+      });
+
+      // Increment current clicks on the task
+      const newClickCount = task.currentClicks + 1;
+      const isCompleted = newClickCount >= task.totalClicksRequired;
+
+      await db
+        .update(advertiserTasks)
+        .set({
+          currentClicks: newClickCount,
+          status: isCompleted ? 'completed' : 'running',
+          completedAt: isCompleted ? new Date() : undefined,
+          updatedAt: new Date()
+        })
+        .where(eq(advertiserTasks.id, taskId));
+
+      // Add reward to user's balance
+      const [publisher] = await db
+        .select({ balance: users.balance })
+        .from(users)
+        .where(eq(users.id, publisherId));
+
+      const currentBalance = parseInt(publisher?.balance || '0');
+      const newBalance = currentBalance + rewardPAD;
+
+      await db
+        .update(users)
+        .set({
+          balance: newBalance.toString(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, publisherId));
+
+      // Record the earning
+      await db.insert(earnings).values({
+        userId: publisherId,
+        amount: rewardPAD.toString(),
+        source: 'task_completion',
+        description: `Completed ${task.taskType} task: ${task.title}`,
+      });
+
+      console.log(`✅ Task click recorded: ${taskId} by ${publisherId} - Reward: ${rewardPAD} PAD`);
+
+      return {
+        success: true,
+        message: "Task click recorded successfully",
+        reward: rewardPAD,
+        task: {
+          ...task,
+          currentClicks: newClickCount,
+          status: isCompleted ? 'completed' : 'running'
+        }
+      };
+    } catch (error: any) {
+      // Handle unique constraint violation (user already clicked)
+      if (error.code === '23505') {
+        return { success: false, message: "You have already completed this task" };
+      }
+      console.error(`❌ Error recording task click:`, error);
+      return { success: false, message: "Failed to record task click" };
     }
   }
 }
