@@ -2822,6 +2822,36 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // Create a new advertiser task
+  async createTask(taskData: {
+    advertiserId: string;
+    taskType: string;
+    title: string;
+    link: string;
+    totalClicksRequired: number;
+    costPerClick: string;
+    totalCost: string;
+    status?: string;
+  }): Promise<any> {
+    const [task] = await db
+      .insert(advertiserTasks)
+      .values({
+        advertiserId: taskData.advertiserId,
+        taskType: taskData.taskType,
+        title: taskData.title,
+        link: taskData.link,
+        totalClicksRequired: taskData.totalClicksRequired,
+        costPerClick: taskData.costPerClick,
+        totalCost: taskData.totalCost,
+        status: taskData.status || 'under_review',
+        currentClicks: 0,
+      })
+      .returning();
+    
+    console.log(`📝 Task created: ${task.id} by ${taskData.advertiserId}`);
+    return task;
+  }
+
   // Get monthly leaderboard
   async getMonthlyLeaderboard(currentUserId?: string): Promise<any> {
     const now = new Date();
