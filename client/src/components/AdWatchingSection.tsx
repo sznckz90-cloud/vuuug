@@ -8,7 +8,6 @@ import { showNotification } from "@/components/AppNotification";
 declare global {
   interface Window {
     show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
-    showGiga?: () => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -95,23 +94,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     });
   };
 
-  const showGigaAd = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (typeof window.showGiga === 'function') {
-        window.showGiga()
-          .then(() => {
-            resolve(true);
-          })
-          .catch((error) => {
-            console.error('Giga ad error:', error);
-            resolve(false);
-          });
-      } else {
-        resolve(false);
-      }
-    });
-  };
-
   const showAdsgramAd = (): Promise<boolean> => {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
@@ -135,45 +117,29 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     sessionRewardedRef.current = false;
     
     try {
-      // STEP 1: Try Monetag first
+      // STEP 1: Show Monetag ad only - User must watch at least 3 seconds
       setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
-      // Handle Monetag unavailable - try Giga Hub as primary fallback
+      // Handle Monetag unavailable
       if (monetagResult.unavailable) {
-        console.log('Monetag unavailable, trying Giga Hub...');
-        const gigaSuccess = await showGigaAd();
-        if (!gigaSuccess) {
-          // Try Adsgram as last resort
-          const adsgramSuccess = await showAdsgramAd();
-          if (!adsgramSuccess) {
-            showNotification("Ads not available. Please try again later.", "error");
-            return;
-          }
-        }
-      } else if (!monetagResult.watchedFully) {
-        // Check if Monetag was closed before 3 seconds
-        showNotification("Claimed too fast!", "error");
+        showNotification("Ads not available. Please try again later.", "error");
         return;
-      } else if (!monetagResult.success) {
-        // Monetag failed - try Giga Hub fallback
-        console.log('Monetag failed, trying Giga Hub...');
-        const gigaSuccess = await showGigaAd();
-        if (!gigaSuccess) {
-          // Try Adsgram as last resort
-          const adsgramSuccess = await showAdsgramAd();
-          if (!adsgramSuccess) {
-            showNotification("Ad failed. Please try again.", "error");
-            return;
-          }
-        }
-      } else {
-        // Monetag succeeded - now show Giga Hub as second ad in sequence
-        console.log('Monetag succeeded, showing Giga Hub...');
-        await showGigaAd(); // Show Giga Hub after Monetag (ignore result - it's bonus)
       }
       
-      // STEP 2: Grant reward after ad completion
+      // Check if Monetag was closed before 3 seconds
+      if (!monetagResult.watchedFully) {
+        showNotification("Claimed too fast!", "error");
+        return;
+      }
+      
+      // Monetag was watched fully (at least 3 seconds)
+      if (!monetagResult.success) {
+        showNotification("Ad failed. Please try again.", "error");
+        return;
+      }
+      
+      // STEP 2: Grant reward immediately after Monetag completion
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
