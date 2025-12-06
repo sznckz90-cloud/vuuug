@@ -1,7 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import Layout from "@/components/Layout";
-import TopUpSheet from "@/components/TopUpSheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +18,7 @@ import {
   Trash2,
   Info,
   CheckCircle2,
-  Handshake,
-  Pause,
-  Play,
-  AlertCircle,
-  XCircle
+  Handshake
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect, useRef } from "react";
@@ -158,14 +153,13 @@ export default function CreateTask() {
   const availableBalance = isAdmin ? usdBalance : tonBalance;
   const hasSufficientBalance = availableBalance >= totalCost;
 
-  const { data: myTasksData, isLoading: myTasksLoading, isError: myTasksError, refetch: refetchMyTasks } = useQuery<{
+  const { data: myTasksData, isLoading: myTasksLoading, refetch: refetchMyTasks } = useQuery<{
     success: boolean;
     tasks: Task[];
   }>({
     queryKey: ["/api/advertiser-tasks/my-tasks"],
-    retry: 1,
+    retry: false,
     refetchOnMount: true,
-    staleTime: 0,
   });
 
   const createTaskMutation = useMutation({
@@ -248,44 +242,6 @@ export default function CreateTask() {
     },
     onError: (error: Error) => {
       showNotification(error.message || "Failed to delete task", "error");
-    },
-  });
-
-  const pauseTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const response = await apiRequest("POST", `/api/advertiser-tasks/${taskId}/pause`);
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message);
-      }
-      return data;
-    },
-    onSuccess: () => {
-      showNotification("Task paused!", "success");
-      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
-    },
-    onError: (error: Error) => {
-      showNotification(error.message || "Failed to pause task", "error");
-    },
-  });
-
-  const resumeTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const response = await apiRequest("POST", `/api/advertiser-tasks/${taskId}/resume`);
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message);
-      }
-      return data;
-    },
-    onSuccess: () => {
-      showNotification("Task resumed!", "success");
-      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks/my-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/advertiser-tasks"] });
-    },
-    onError: (error: Error) => {
-      showNotification(error.message || "Failed to resume task", "error");
     },
   });
 
@@ -405,30 +361,20 @@ export default function CreateTask() {
   }
 
   const myTasks = myTasksData?.tasks || [];
-  const underReviewTasks = myTasks.filter(t => t.status === "under_review");
-  const runningTasks = myTasks.filter(t => t.status === "running");
-  const pausedTasks = myTasks.filter(t => t.status === "paused");
+  const activeMyTasks = myTasks.filter(t => t.status === "active");
   const completedMyTasks = myTasks.filter(t => t.status === "completed");
-  const rejectedTasks = myTasks.filter(t => t.status === "rejected");
 
   return (
     <Layout>
       <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
-        {/* TON Balance Display with Top Up */}
-        <div className="flex items-center justify-between mb-6 p-3 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a]">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
-              <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
-            </div>
-            <span className="text-xl font-bold text-white">{tonBalance.toFixed(3)}</span>
-          </div>
-          <TopUpSheet 
-            trigger={
-              <Button className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold px-4 py-2 text-sm">
-                Top Up
-              </Button>
-            }
-          />
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-primary" />
+            Create Task
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Promote your channel or bot
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
@@ -616,21 +562,10 @@ export default function CreateTask() {
           <div className="space-y-4">
             {myTasksLoading ? (
               <div className="text-center py-8">
-                <div className="flex justify-center mb-2">
-                  <div className="w-8 h-8 border-2 border-[#4cd3ff] border-t-transparent rounded-full animate-spin"></div>
+                <div className="animate-spin text-primary text-2xl mb-2">
+                  <i className="fas fa-spinner"></i>
                 </div>
                 <p className="text-muted-foreground">Loading your tasks...</p>
-              </div>
-            ) : myTasksError ? (
-              <div className="text-center py-8">
-                <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
-                <p className="text-muted-foreground mb-4">Failed to load tasks</p>
-                <Button
-                  className="btn-primary"
-                  onClick={() => refetchMyTasks()}
-                >
-                  Try Again
-                </Button>
               </div>
             ) : myTasks.length === 0 ? (
               <div className="text-center py-8">
@@ -646,99 +581,39 @@ export default function CreateTask() {
               </div>
             ) : (
               <div className="space-y-4">
-                {underReviewTasks.length > 0 && (
+                {activeMyTasks.length > 0 && (
                   <>
-                    <h2 className="text-sm font-semibold text-yellow-400 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      Under Review ({underReviewTasks.length})
+                    <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Active Tasks ({activeMyTasks.length})
                     </h2>
                     <div className="space-y-3">
-                      {underReviewTasks.map((task) => (
-                        <Card key={task.id} className="minimal-card border-yellow-500/30">
-                          <CardContent className="pt-3 pb-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                {task.taskType === "channel" ? (
-                                  <Send className="w-4 h-4 text-yellow-400" />
-                                ) : task.taskType === "partner" ? (
-                                  <Handshake className="w-4 h-4 text-yellow-400" />
-                                ) : (
-                                  <BotIcon className="w-4 h-4 text-yellow-400" />
-                                )}
-                                <span className="text-xs text-muted-foreground uppercase">
-                                  {task.taskType}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                onClick={() => setTaskToDelete(task)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                            <h3 className="font-semibold text-white text-sm mb-1">{task.title}</h3>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              {task.totalClicksRequired} clicks requested
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded">
-                              <AlertCircle className="w-3 h-3" />
-                              <span>Pending admin approval</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {runningTasks.length > 0 && (
-                  <>
-                    <h2 className="text-sm font-semibold text-green-400 flex items-center gap-2 mt-6">
-                      <Play className="w-4 h-4" />
-                      Running Tasks ({runningTasks.length})
-                    </h2>
-                    <div className="space-y-3">
-                      {runningTasks.map((task) => {
+                      {activeMyTasks.map((task) => {
                         const progress = (task.currentClicks / task.totalClicksRequired) * 100;
                         const remaining = task.totalClicksRequired - task.currentClicks;
 
                         return (
-                          <Card key={task.id} className="minimal-card border-green-500/30">
+                          <Card key={task.id} className="minimal-card">
                             <CardContent className="pt-3 pb-3">
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                   {task.taskType === "channel" ? (
-                                    <Send className="w-4 h-4 text-green-400" />
-                                  ) : task.taskType === "partner" ? (
-                                    <Handshake className="w-4 h-4 text-green-400" />
+                                    <Send className="w-4 h-4 text-primary" />
                                   ) : (
-                                    <BotIcon className="w-4 h-4 text-green-400" />
+                                    <BotIcon className="w-4 h-4 text-primary" />
                                   )}
                                   <span className="text-xs text-muted-foreground uppercase">
                                     {task.taskType}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10"
-                                    onClick={() => pauseTaskMutation.mutate(task.id)}
-                                    disabled={pauseTaskMutation.isPending}
-                                  >
-                                    <Pause className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                    onClick={() => setTaskToDelete(task)}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                  onClick={() => setTaskToDelete(task)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                               <h3 className="font-semibold text-white text-sm mb-1">{task.title}</h3>
                               <p className="text-xs text-muted-foreground mb-2">
@@ -748,13 +623,15 @@ export default function CreateTask() {
                               <div className="mb-2">
                                 <div className="w-full bg-secondary rounded-full h-2">
                                   <div
-                                    className="bg-green-500 h-2 rounded-full transition-all"
+                                    className="bg-primary h-2 rounded-full transition-all"
                                     style={{ width: `${progress}%` }}
                                   />
                                 </div>
                                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
                                   <span>{progress.toFixed(1)}% complete</span>
-                                  <span className="text-green-400">Running</span>
+                                  <span>
+                                    {task.status === "active" ? "Active" : "Completed"}
+                                  </span>
                                 </div>
                               </div>
 
@@ -778,125 +655,6 @@ export default function CreateTask() {
                   </>
                 )}
 
-                {pausedTasks.length > 0 && (
-                  <>
-                    <h2 className="text-sm font-semibold text-orange-400 flex items-center gap-2 mt-6">
-                      <Pause className="w-4 h-4" />
-                      Paused Tasks ({pausedTasks.length})
-                    </h2>
-                    <div className="space-y-3">
-                      {pausedTasks.map((task) => {
-                        const progress = (task.currentClicks / task.totalClicksRequired) * 100;
-                        const remaining = task.totalClicksRequired - task.currentClicks;
-
-                        return (
-                          <Card key={task.id} className="minimal-card border-orange-500/30 opacity-75">
-                            <CardContent className="pt-3 pb-3">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  {task.taskType === "channel" ? (
-                                    <Send className="w-4 h-4 text-orange-400" />
-                                  ) : task.taskType === "partner" ? (
-                                    <Handshake className="w-4 h-4 text-orange-400" />
-                                  ) : (
-                                    <BotIcon className="w-4 h-4 text-orange-400" />
-                                  )}
-                                  <span className="text-xs text-muted-foreground uppercase">
-                                    {task.taskType}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
-                                    onClick={() => resumeTaskMutation.mutate(task.id)}
-                                    disabled={resumeTaskMutation.isPending}
-                                  >
-                                    <Play className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                    onClick={() => setTaskToDelete(task)}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                              <h3 className="font-semibold text-white text-sm mb-1">{task.title}</h3>
-                              <p className="text-xs text-muted-foreground mb-2">
-                                {task.currentClicks} / {task.totalClicksRequired} clicks • {remaining} remaining
-                              </p>
-
-                              <div className="mb-2">
-                                <div className="w-full bg-secondary rounded-full h-2">
-                                  <div
-                                    className="bg-orange-500 h-2 rounded-full transition-all"
-                                    style={{ width: `${progress}%` }}
-                                  />
-                                </div>
-                                <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                                  <span>{progress.toFixed(1)}% complete</span>
-                                  <span className="text-orange-400">Paused</span>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {rejectedTasks.length > 0 && (
-                  <>
-                    <h2 className="text-sm font-semibold text-red-400 flex items-center gap-2 mt-6">
-                      <XCircle className="w-4 h-4" />
-                      Rejected Tasks ({rejectedTasks.length})
-                    </h2>
-                    <div className="space-y-3">
-                      {rejectedTasks.map((task) => (
-                        <Card key={task.id} className="minimal-card border-red-500/30 opacity-60">
-                          <CardContent className="pt-3 pb-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                {task.taskType === "channel" ? (
-                                  <Send className="w-4 h-4 text-red-400" />
-                                ) : task.taskType === "partner" ? (
-                                  <Handshake className="w-4 h-4 text-red-400" />
-                                ) : (
-                                  <BotIcon className="w-4 h-4 text-red-400" />
-                                )}
-                                <span className="text-xs text-muted-foreground uppercase">
-                                  {task.taskType}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                onClick={() => setTaskToDelete(task)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                            <h3 className="font-semibold text-white text-sm mb-1">{task.title}</h3>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              {task.totalClicksRequired} clicks requested
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">
-                              <XCircle className="w-3 h-3" />
-                              <span>Rejected by Admin</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </>
-                )}
-
                 {completedMyTasks.length > 0 && (
                   <>
                     <h2 className="text-sm font-semibold text-white flex items-center gap-2 mt-6">
@@ -910,8 +668,6 @@ export default function CreateTask() {
                             <div className="flex items-center gap-2 mb-1">
                               {task.taskType === "channel" ? (
                                 <Send className="w-4 h-4 text-muted-foreground" />
-                              ) : task.taskType === "partner" ? (
-                                <Handshake className="w-4 h-4 text-muted-foreground" />
                               ) : (
                                 <BotIcon className="w-4 h-4 text-muted-foreground" />
                               )}
