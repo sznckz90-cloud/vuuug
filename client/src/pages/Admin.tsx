@@ -156,12 +156,9 @@ export default function AdminPage() {
 
         {/* Tabs Navigation - Move to Top */}
         <Tabs defaultValue="summary" className="w-full">
-          <TabsList className="grid grid-cols-7 w-full mb-3">
+          <TabsList className="grid grid-cols-6 w-full mb-3">
             <TabsTrigger value="summary" className="text-xs">
               Summary
-            </TabsTrigger>
-            <TabsTrigger value="tasks" className="text-xs">
-              Tasks
             </TabsTrigger>
             <TabsTrigger value="users" className="text-xs">
               Users
@@ -251,11 +248,6 @@ export default function AdminPage() {
 
               </>
             )}
-          </TabsContent>
-
-          {/* Task Management Tab */}
-          <TabsContent value="tasks" className="mt-0">
-            <TaskManagementSection />
           </TabsContent>
 
           {/* User Management Tab */}
@@ -1743,6 +1735,25 @@ function SettingsSection() {
         {activeCategory === 'withdrawals' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-2">
+              <Label htmlFor="minimum-withdrawal-usd" className="text-sm font-semibold">
+                <i className="fas fa-dollar-sign mr-2 text-green-600"></i>
+                Min USD (USD/USDT/Stars)
+              </Label>
+              <Input
+                id="minimum-withdrawal-usd"
+                type="number"
+                value={settings.minimumWithdrawalUSD}
+                onChange={(e) => setSettings({ ...settings, minimumWithdrawalUSD: e.target.value })}
+                placeholder="1.00"
+                min="0"
+                step="0.01"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: ${settingsData?.minimumWithdrawalUSD || 1.00}
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="minimum-withdrawal-ton" className="text-sm font-semibold">
                 <i className="fas fa-gem mr-2 text-blue-600"></i>
                 Min USD (TON Method)
@@ -1778,6 +1789,26 @@ function SettingsSection() {
               />
               <p className="text-xs text-muted-foreground">
                 Current: {settingsData?.withdrawalFeeTON || 5}%
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-fee-usd" className="text-sm font-semibold">
+                <i className="fas fa-percent mr-2 text-green-600"></i>
+                USD/USDT Fee (%)
+              </Label>
+              <Input
+                id="withdrawal-fee-usd"
+                type="number"
+                value={settings.withdrawalFeeUSD}
+                onChange={(e) => setSettings({ ...settings, withdrawalFeeUSD: e.target.value })}
+                placeholder="3"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.withdrawalFeeUSD || 3}%
               </p>
             </div>
 
@@ -2049,286 +2080,6 @@ function SettingsSection() {
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-interface AdminTask {
-  id: string;
-  taskType: string;
-  title: string;
-  link: string;
-  totalClicksRequired: number;
-  currentClicks: number;
-  costPerClick: string;
-  totalCost: string;
-  status: string;
-  advertiserId: string;
-  advertiserUid: string;
-  advertiserName: string;
-  advertiserTelegramUsername: string;
-  createdAt: string;
-  completedAt?: string;
-}
-
-function TaskManagementSection() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [activeTaskFilter, setActiveTaskFilter] = useState<'pending' | 'all'>('pending');
-
-  const { data: pendingTasksData, isLoading: pendingLoading } = useQuery({
-    queryKey: ["/api/admin/pending-tasks"],
-    queryFn: () => apiRequest("GET", "/api/admin/pending-tasks").then(res => res.json()),
-    refetchInterval: 10000,
-  });
-
-  const { data: allTasksData, isLoading: allLoading } = useQuery({
-    queryKey: ["/api/admin/all-tasks"],
-    queryFn: () => apiRequest("GET", "/api/admin/all-tasks").then(res => res.json()),
-    refetchInterval: 30000,
-  });
-
-  const approveTask = async (taskId: string) => {
-    try {
-      const res = await apiRequest("POST", `/api/admin/tasks/${taskId}/approve`);
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Task approved", description: "Task is now running" });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/pending-tasks"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/all-tasks"] });
-      } else {
-        toast({ title: "Error", description: data.message, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to approve task", variant: "destructive" });
-    }
-  };
-
-  const rejectTask = async (taskId: string) => {
-    try {
-      const res = await apiRequest("POST", `/api/admin/tasks/${taskId}/reject`);
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Task rejected" });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/pending-tasks"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/all-tasks"] });
-      } else {
-        toast({ title: "Error", description: data.message, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to reject task", variant: "destructive" });
-    }
-  };
-
-  const pauseTask = async (taskId: string) => {
-    try {
-      const res = await apiRequest("POST", `/api/admin/tasks/${taskId}/pause`);
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Task paused" });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/all-tasks"] });
-      } else {
-        toast({ title: "Error", description: data.message, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to pause task", variant: "destructive" });
-    }
-  };
-
-  const resumeTask = async (taskId: string) => {
-    try {
-      const res = await apiRequest("POST", `/api/admin/tasks/${taskId}/resume`);
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Task resumed" });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/all-tasks"] });
-      } else {
-        toast({ title: "Error", description: data.message, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to resume task", variant: "destructive" });
-    }
-  };
-
-  const deleteTask = async (taskId: string) => {
-    try {
-      const res = await apiRequest("DELETE", `/api/admin/tasks/${taskId}`);
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Task deleted" });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/pending-tasks"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/all-tasks"] });
-      } else {
-        toast({ title: "Error", description: data.message, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to delete task", variant: "destructive" });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      under_review: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-      running: "bg-green-500/20 text-green-400 border-green-500/30",
-      paused: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-      completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-      rejected: "bg-red-500/20 text-red-400 border-red-500/30",
-    };
-    const labels: Record<string, string> = {
-      under_review: "Under Review",
-      running: "Running",
-      paused: "Paused",
-      completed: "Completed",
-      rejected: "Rejected",
-    };
-    return (
-      <Badge className={`text-xs ${styles[status] || 'bg-gray-500/20 text-gray-400'}`}>
-        {labels[status] || status}
-      </Badge>
-    );
-  };
-
-  const pendingTasks: AdminTask[] = pendingTasksData?.tasks || [];
-  const allTasks: AdminTask[] = allTasksData?.tasks || [];
-  const displayTasks = activeTaskFilter === 'pending' ? pendingTasks : allTasks;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant={activeTaskFilter === 'pending' ? 'default' : 'outline'}
-            onClick={() => setActiveTaskFilter('pending')}
-            className="text-xs"
-          >
-            Pending Review ({pendingTasks.length})
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTaskFilter === 'all' ? 'default' : 'outline'}
-            onClick={() => setActiveTaskFilter('all')}
-            className="text-xs"
-          >
-            All Tasks ({allTasks.length})
-          </Button>
-        </div>
-      </div>
-
-      {(activeTaskFilter === 'pending' ? pendingLoading : allLoading) ? (
-        <div className="text-center py-8">
-          <i className="fas fa-spinner fa-spin text-2xl text-muted-foreground"></i>
-        </div>
-      ) : displayTasks.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          {activeTaskFilter === 'pending' ? 'No pending tasks' : 'No tasks found'}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {displayTasks.map((task) => (
-            <div key={task.id} className="bg-[#121212] border border-white/10 rounded-xl p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    {getStatusBadge(task.status)}
-                    <span className="text-xs text-muted-foreground uppercase">{task.taskType}</span>
-                  </div>
-                  <h3 className="font-semibold text-white text-sm mb-1">{task.title}</h3>
-                  <a 
-                    href={task.link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:underline break-all"
-                  >
-                    {task.link}
-                  </a>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-xs">
-                <div className="bg-[#1a1a1a] rounded-lg p-2">
-                  <p className="text-gray-500 mb-0.5">UID</p>
-                  <p className="text-white font-mono">{task.advertiserUid}</p>
-                </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-2">
-                  <p className="text-gray-500 mb-0.5">User</p>
-                  <p className="text-white">{task.advertiserName}</p>
-                </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-2">
-                  <p className="text-gray-500 mb-0.5">Telegram</p>
-                  <p className="text-white">@{task.advertiserTelegramUsername || 'N/A'}</p>
-                </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-2">
-                  <p className="text-gray-500 mb-0.5">Clicks</p>
-                  <p className="text-white">{task.currentClicks}/{task.totalClicksRequired}</p>
-                </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-2">
-                  <p className="text-gray-500 mb-0.5">Amount</p>
-                  <p className="text-white">${parseFloat(task.totalCost).toFixed(2)}</p>
-                </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-2">
-                  <p className="text-gray-500 mb-0.5">Created</p>
-                  <p className="text-white">{new Date(task.createdAt).toLocaleDateString()}</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                {task.status === 'under_review' && (
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={() => approveTask(task.id)}
-                      className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                    >
-                      <i className="fas fa-check mr-1"></i>
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => rejectTask(task.id)}
-                      className="bg-red-600 hover:bg-red-700 text-white text-xs"
-                    >
-                      <i className="fas fa-times mr-1"></i>
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {task.status === 'running' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => pauseTask(task.id)}
-                    className="text-xs"
-                  >
-                    <i className="fas fa-pause mr-1"></i>
-                    Pause
-                  </Button>
-                )}
-                {task.status === 'paused' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => resumeTask(task.id)}
-                    className="text-xs"
-                  >
-                    <i className="fas fa-play mr-1"></i>
-                    Resume
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => deleteTask(task.id)}
-                  className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                >
-                  <i className="fas fa-trash mr-1"></i>
-                  Delete
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
