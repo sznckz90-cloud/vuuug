@@ -4132,6 +4132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalClicksRequired,
           costPerClick: "0",
           totalCost: "0",
+          status: "running",
         });
 
         console.log('✅ Partner task created:', task);
@@ -4204,6 +4205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalClicksRequired,
           costPerClick: costPerClickUSD.toFixed(10),
           totalCost: totalCostUSD.toFixed(10),
+          status: "running",
         });
 
         console.log('✅ Task saved to database:', task);
@@ -4270,6 +4272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalClicksRequired,
           costPerClick: costPerClickTON.toFixed(10),
           totalCost: totalCostTON.toFixed(10),
+          status: "under_review",
         });
 
         console.log('✅ Task saved to database:', task);
