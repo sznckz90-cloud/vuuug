@@ -99,9 +99,9 @@ export default function Withdraw() {
   const usdBalance = parseFloat(user?.usdBalance || "0");
   const validReferralCount = validReferralData?.validReferralCount ?? 0;
   
-  const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled !== false;
+  const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled === true;
   const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal || 100;
-  const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled !== false;
+  const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled === true;
   const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal || 3;
   
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
