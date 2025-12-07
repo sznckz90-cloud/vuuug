@@ -73,6 +73,8 @@ export default function Withdraw() {
   const { data: appSettings } = useQuery<any>({
     queryKey: ['/api/app-settings'],
     retry: false,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const { data: validReferralData, isLoading: isLoadingReferrals, isFetched: isReferralsFetched } = useQuery<{ validReferralCount: number }>({

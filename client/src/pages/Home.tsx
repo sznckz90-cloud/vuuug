@@ -398,21 +398,19 @@ export default function Home() {
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
         </div>
 
-        <AdWatchingSection user={user as User} />
-
         <div className="grid grid-cols-2 gap-3 mt-3">
           <Button
             onClick={() => setLocation("/withdraw")}
             className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1"
           >
             <Wallet className="w-6 h-6 text-[#4cd3ff]" />
-            <span className="text-white font-semibold text-sm">Withdraw</span>
+            <span className="text-white font-semibold text-sm">Payouts</span>
           </Button>
 
           <Button
             onClick={handleConvert}
             disabled={isConverting || convertMutation.isPending}
-            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1"
+            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1 disabled:opacity-50"
           >
             {isConverting || convertMutation.isPending ? (
               <>
@@ -430,7 +428,7 @@ export default function Home() {
           <Button
             onClick={handleClaimStreak}
             disabled={isClaimingStreak || !canClaimStreak}
-            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1"
+            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1 disabled:opacity-50"
           >
             {isClaimingStreak ? (
               <>
@@ -444,8 +442,8 @@ export default function Home() {
               </>
             ) : (
               <>
-                <Flame className="w-6 h-6 text-gray-500" />
-                <span className="text-gray-400 font-semibold text-sm">{timeUntilNextClaim}</span>
+                <Flame className="w-6 h-6 text-[#4cd3ff] opacity-50" />
+                <span className="text-white font-semibold text-sm opacity-70">{timeUntilNextClaim}</span>
               </>
             )}
           </Button>
@@ -490,6 +488,10 @@ export default function Home() {
               </div>
             </DrawerContent>
           </Drawer>
+        </div>
+
+        <div className="mt-6">
+          <AdWatchingSection user={user as User} />
         </div>
       </main>
     </Layout>
