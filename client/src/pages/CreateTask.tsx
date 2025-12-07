@@ -24,6 +24,7 @@ import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import TopUpSheet from "@/components/TopUpSheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -367,6 +368,26 @@ export default function CreateTask() {
   return (
     <Layout>
       <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
+        <div className="mb-6">
+          <div className="flex items-center justify-between bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl px-4 py-4">
+            <div className="flex items-center gap-3">
+              <img src="/images/ton.png" alt="TON" className="w-10 h-10 rounded-full" />
+              <div>
+                <p className="text-xs text-muted-foreground">TON Balance</p>
+                <span className="text-xl font-bold text-white">{tonBalance.toFixed(4)}</span>
+              </div>
+            </div>
+            <TopUpSheet trigger={
+              <Button
+                type="button"
+                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold px-6 py-2"
+              >
+                Top Up
+              </Button>
+            } />
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-2 mb-6">
           <Button
             type="button"
