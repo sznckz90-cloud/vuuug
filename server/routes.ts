@@ -1181,8 +1181,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(withdrawals.createdAt))
         .limit(1);
       
+      // Get admin settings for withdrawal requirements
+      const allSettings = await db.select().from(adminSettings);
+      const getSetting = (key: string, defaultValue: string): string => {
+        const setting = allSettings.find(s => s.settingKey === key);
+        return setting?.settingValue || defaultValue;
+      };
+      
+      const withdrawalAdRequirementEnabled = getSetting('withdrawal_ad_requirement_enabled', 'true') === 'true';
+      const MINIMUM_ADS_FOR_WITHDRAWAL = parseInt(getSetting('minimum_ads_for_withdrawal', '100'));
+      
       let adsWatchedSinceLastWithdrawal = 0;
-      const MINIMUM_ADS_FOR_WITHDRAWAL = 100;
       
       if (lastWithdrawal.length === 0) {
         // No previous withdrawal - count all ads watched
@@ -1204,12 +1213,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         adsWatchedSinceLastWithdrawal = adsCountResult[0]?.count || 0;
       }
       
-      const canWithdraw = adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
+      // If ad requirement is disabled, user can always withdraw (regarding ads)
+      const canWithdraw = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
       
       res.json({ 
         adsWatchedSinceLastWithdrawal,
         canWithdraw,
-        requiredAds: MINIMUM_ADS_FOR_WITHDRAWAL
+        requiredAds: MINIMUM_ADS_FOR_WITHDRAWAL,
+        adRequirementEnabled: withdrawalAdRequirementEnabled
       });
     } catch (error) {
       console.error("Error checking withdrawal eligibility:", error);
@@ -4944,10 +4955,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ✅ Check if user has invited at least 3 friends
-        const friendsInvited = user.friendsInvited || 0;
-        if (friendsInvited < 3) {
-          throw new Error('You need to invite at least 3 friends to unlock withdrawals.');
+        // ✅ Check if user has invited enough friends (based on admin settings)
+        // First, get admin settings for invite requirement
+        const [inviteRequirementEnabledSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'withdrawal_invite_requirement_enabled'))
+          .limit(1);
+        const withdrawalInviteRequirementEnabled = (inviteRequirementEnabledSetting?.settingValue || 'true') === 'true';
+        
+        const [minimumInvitesSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'minimum_invites_for_withdrawal'))
+          .limit(1);
+        const minimumInvitesForWithdrawal = parseInt(minimumInvitesSetting?.settingValue || '3');
+        
+        // Only check invite requirement if it's enabled in admin settings
+        if (withdrawalInviteRequirementEnabled) {
+          const friendsInvited = user.friendsInvited || 0;
+          if (friendsInvited < minimumInvitesForWithdrawal) {
+            const remaining = minimumInvitesForWithdrawal - friendsInvited;
+            throw new Error(`Invite ${remaining} more friend${remaining !== 1 ? 's' : ''} to unlock withdrawals.`);
+          }
+        }
+        
+        // ✅ Check if user has watched enough ads (based on admin settings)
+        const [adRequirementEnabledSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'withdrawal_ad_requirement_enabled'))
+          .limit(1);
+        const withdrawalAdRequirementEnabled = (adRequirementEnabledSetting?.settingValue || 'true') === 'true';
+        
+        const [minimumAdsSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'minimum_ads_for_withdrawal'))
+          .limit(1);
+        const minimumAdsForWithdrawal = parseInt(minimumAdsSetting?.settingValue || '100');
+        
+        // Only check ad requirement if it's enabled in admin settings
+        if (withdrawalAdRequirementEnabled) {
+          // Get ads watched since last withdrawal
+          const lastApprovedWithdrawal = await tx
+            .select({ createdAt: withdrawals.createdAt })
+            .from(withdrawals)
+            .where(and(
+              eq(withdrawals.userId, String(userId)),
+              sql`${withdrawals.status} IN ('completed', 'approved')`
+            ))
+            .orderBy(desc(withdrawals.createdAt))
+            .limit(1);
+          
+          let adsWatchedSinceLastWithdrawal = user.adsWatched || 0;
+          
+          if (lastApprovedWithdrawal.length > 0) {
+            const lastWithdrawalDate = lastApprovedWithdrawal[0].createdAt;
+            const adsCountResult = await tx
+              .select({ count: sql<number>`count(*)` })
+              .from(earnings)
+              .where(and(
+                eq(earnings.userId, String(userId)),
+                eq(earnings.source, 'ad_watch'),
+                gte(earnings.createdAt, lastWithdrawalDate)
+              ));
+            adsWatchedSinceLastWithdrawal = adsCountResult[0]?.count || 0;
+          }
+          
+          if (adsWatchedSinceLastWithdrawal < minimumAdsForWithdrawal) {
+            const remaining = minimumAdsForWithdrawal - adsWatchedSinceLastWithdrawal;
+            throw new Error(`Watch ${remaining} more ad${remaining !== 1 ? 's' : ''} to unlock withdrawals.`);
+          }
         }
 
         // Check if user has appropriate wallet address based on method
