@@ -1,7 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
-import StreakCard from "@/components/StreakCard";
 import WalletSection from "@/components/WalletSection";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
@@ -105,9 +104,6 @@ export default function Home() {
           <h1 className="text-lg font-bold text-white mt-1">{displayName}</h1>
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
         </div>
-
-        {/* Daily Streak Section */}
-        <StreakCard user={user as User} />
 
         {/* Wallet Section - Compact */}
         <WalletSection

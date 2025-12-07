@@ -25,10 +25,20 @@ interface User {
   referralCode?: string;
 }
 
+interface WithdrawalDetails {
+  totalDeducted?: string;
+  fee?: string;
+  paymentDetails?: string;
+  walletAddress?: string;
+  tonWalletAddress?: string;
+  usdtWalletAddress?: string;
+  telegramUsername?: string;
+}
+
 interface Withdrawal {
   id: string;
   amount: string;
-  details: string;
+  details: WithdrawalDetails | string;
   status: string;
   createdAt: string;
   comment?: string;
@@ -351,6 +361,13 @@ export default function Withdraw() {
 
   const formatUSD = (amount: string) => {
     return parseFloat(amount).toFixed(2);
+  };
+
+  const getFullAmount = (withdrawal: Withdrawal): string => {
+    if (typeof withdrawal.details === 'object' && withdrawal.details?.totalDeducted) {
+      return withdrawal.details.totalDeducted;
+    }
+    return withdrawal.amount;
   };
 
   return (
@@ -746,7 +763,7 @@ export default function Withdraw() {
                       {getStatusIcon(withdrawal.status)}
                       <div>
                         <p className="text-sm text-white font-medium">
-                          ${formatUSD(withdrawal.amount)}
+                          ${formatUSD(getFullAmount(withdrawal))}
                         </p>
                         <p className="text-xs text-gray-500">
                           {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
