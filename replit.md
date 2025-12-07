@@ -78,6 +78,14 @@ CashWatch is a Telegram-based earning platform designed for users to earn PAD cu
 - **Touch Optimization**: Disabled tap highlight and prevented accidental zooming
 
 ### Bug Fixes (December 2025)
+- **Withdrawal Requirements Admin Control** (December 2025):
+  - All withdrawal requirements now fully controlled by admin settings (no hardcoded values)
+  - Invite friends requirement: Disabled when `withdrawal_invite_requirement_enabled=false` or `minimum_invites_for_withdrawal=0`
+  - Ad watch requirement: Disabled when `withdrawal_ad_requirement_enabled=false` or `minimum_ads_for_withdrawal=0`
+  - Dynamic error messages show remaining count (e.g., "Invite 2 more friends..." or "Watch 80 more ads...")
+  - Backend validates both requirements only when enabled in admin settings
+  - Frontend uses nullish coalescing (`??`) to properly handle 0 values from admin settings
+  - When admin disables requirements → withdrawal unlocks instantly without showing requirement cards
 - **Withdrawal UI Loading States**: Added `isLoadingRequirements` flag to prevent "locked" state flashing before data loads
 - **Ad Watch Updates**: Query invalidation for `/api/withdrawal-eligibility` and `/api/referrals/valid-count` after ad completion
 - **Referral Stats Consistency**: `/api/referrals/stats` now returns valid referral count (users who watched 1+ ads, not banned)
