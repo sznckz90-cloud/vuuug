@@ -1087,19 +1087,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ 
           success: true, 
           skipAuth: true, 
-          totalInvites: 0, 
+          totalInvites: 0,
+          successfulInvites: 0,
           totalClaimed: '0', 
           availableBonus: '0', 
           readyToClaim: '0' 
         });
       }
       const user = await storage.getUser(userId);
-      const allReferrals = await storage.getUserReferrals(userId);
-      const validReferralCount = await storage.getValidReferralCount(userId);
+      
+      // Get TOTAL invites (all users invited, regardless of status)
+      const totalInvitesCount = await storage.getTotalInvitesCount(userId);
+      
+      // Get SUCCESSFUL invites (users who watched 1+ ad AND are not banned)
+      const successfulInvitesCount = await storage.getValidReferralCount(userId);
       
       res.json({
-        totalInvites: validReferralCount,
-        allInvites: allReferrals.length,
+        totalInvites: totalInvitesCount,
+        successfulInvites: successfulInvitesCount,
         totalClaimed: user?.totalClaimedReferralBonus || '0',
         availableBonus: user?.pendingReferralBonus || '0',
         readyToClaim: user?.pendingReferralBonus || '0',

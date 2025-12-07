@@ -772,7 +772,7 @@ export class DatabaseStorage implements IStorage {
     return referral;
   }
 
-  // Check and activate referral bonus when friend completes FIRST ad (0.002 TON reward)
+  // Check and activate referral bonus when friend completes FIRST ad (PAD + USD rewards)
   async checkAndActivateReferralBonus(userId: string): Promise<void> {
     try {
       // Check if this user has already completed first ad
@@ -801,6 +801,11 @@ export class DatabaseStorage implements IStorage {
           .set({ firstAdWatched: true })
           .where(eq(users.id, userId));
 
+        // Get referral reward settings
+        const referralRewardEnabled = await this.getAppSetting('referral_reward_enabled', 'false');
+        const referralRewardPAD = parseInt(await this.getAppSetting('referral_reward_pad', '50'));
+        const referralRewardUSD = parseFloat(await this.getAppSetting('referral_reward_usd', '0.0005'));
+
         // Find pending referrals where this user is the referee
         const pendingReferrals = await db
           .select()
@@ -818,15 +823,26 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          // Award 0.002 TON referral bonus to referrer
+          // Award PAD referral bonus to referrer (always give PAD)
           await this.addEarning({
             userId: referral.referrerId,
-            amount: "0.002",
+            amount: String(referralRewardPAD),
             source: 'referral',
-            description: `Referral bonus - friend completed first ad`,
+            description: `Referral bonus - friend completed first ad (+${referralRewardPAD} PAD)`,
           });
 
-          console.log(`✅ First ad referral bonus: 0.002 TON awarded to ${referral.referrerId} from ${userId}'s first ad`);
+          console.log(`✅ First ad referral bonus: ${referralRewardPAD} PAD awarded to ${referral.referrerId} from ${userId}'s first ad`);
+
+          // Award USD bonus if enabled
+          if (referralRewardEnabled === 'true' && referralRewardUSD > 0) {
+            await this.addUSDBalance(
+              referral.referrerId,
+              String(referralRewardUSD),
+              'referral',
+              `Referral bonus - friend completed first ad (+$${referralRewardUSD} USD)`
+            );
+            console.log(`✅ First ad referral bonus: $${referralRewardUSD} USD awarded to ${referral.referrerId} from ${userId}'s first ad`);
+          }
         }
       }
     } catch (error) {
@@ -840,6 +856,35 @@ export class DatabaseStorage implements IStorage {
       .from(referrals)
       .where(eq(referrals.referrerId, userId))
       .orderBy(desc(referrals.createdAt));
+  }
+
+  // Get total count of ALL invites (regardless of status or if user watched ads)
+  async getTotalInvitesCount(userId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(referrals)
+      .where(eq(referrals.referrerId, userId));
+    
+    return result[0]?.count || 0;
+  }
+
+  // Clear orphaned referral - when referrer no longer exists
+  async clearOrphanedReferral(userId: string): Promise<void> {
+    try {
+      // Clear the referredBy field on the user
+      await db
+        .update(users)
+        .set({ 
+          referredBy: null,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      console.log(`✅ Cleared orphaned referral for user ${userId}`);
+    } catch (error) {
+      console.error(`❌ Error clearing orphaned referral for user ${userId}:`, error);
+      // Don't throw - this is a cleanup operation that shouldn't block main flow
+    }
   }
 
   async getUserByReferralCode(referralCode: string): Promise<User | null> {
