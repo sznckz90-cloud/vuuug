@@ -574,7 +574,12 @@ export default function Withdraw() {
             <div className="mt-6">
               <Button
                 onClick={handleWithdraw}
-                disabled={withdrawMutation.isPending || hasPendingWithdrawal || !isTonWalletSet || validReferralCount < MINIMUM_VALID_REFERRALS_REQUIRED}
+                disabled={
+                  withdrawMutation.isPending || 
+                  hasPendingWithdrawal || 
+                  !isTonWalletSet || 
+                  usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.50)
+                }
                 className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {withdrawMutation.isPending ? (
@@ -582,7 +587,7 @@ export default function Withdraw() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </>
-                ) : !isTonWalletSet ? 'Set Up Wallet First' : `Withdraw via ${selectedMethod}`}
+                ) : !isTonWalletSet ? 'Set Up Wallet First' : usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.50) ? `Minimum $${(selectedPaymentSystem?.minWithdrawal || 0.50).toFixed(2)} Required` : `Withdraw via ${selectedMethod}`}
               </Button>
             </div>
             </>
