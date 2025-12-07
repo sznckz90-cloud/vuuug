@@ -100,9 +100,9 @@ export default function Withdraw() {
   const validReferralCount = validReferralData?.validReferralCount ?? 0;
   
   const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled === true;
-  const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal || 100;
+  const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal ?? 100;
   const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled === true;
-  const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal || 3;
+  const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal ?? 3;
   
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
@@ -307,12 +307,14 @@ export default function Withdraw() {
     }
     
     if (!hasEnoughReferrals) {
-      showNotification("You need 3 friends who watched at least 1 ad to unlock withdrawals.", "error");
+      const remaining = MINIMUM_VALID_REFERRALS_REQUIRED - validReferralCount;
+      showNotification(`Invite ${remaining} more friend${remaining !== 1 ? 's' : ''} who watch${remaining !== 1 ? '' : 'es'} at least 1 ad to unlock withdrawals.`, "error");
       return;
     }
     
     if (!hasWatchedEnoughAds) {
-      showNotification(`You need to watch ${MINIMUM_ADS_FOR_WITHDRAWAL} ads to unlock this withdrawal.`, "error");
+      const remaining = MINIMUM_ADS_FOR_WITHDRAWAL - adsWatchedSinceLastWithdrawal;
+      showNotification(`Watch ${remaining} more ad${remaining !== 1 ? 's' : ''} to unlock this withdrawal.`, "error");
       return;
     }
 
