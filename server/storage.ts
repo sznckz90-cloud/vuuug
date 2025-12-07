@@ -1367,26 +1367,83 @@ export class DatabaseStorage implements IStorage {
       }
 
       const withdrawalAmount = parseFloat(withdrawal.amount);
-      const userBalance = parseFloat(user.balance || '0');
+      
+      // Determine which balance to check based on withdrawal method/currency
+      const paymentMethod = withdrawal.method?.toLowerCase() || '';
+      let currency = 'TON';
+      let userBalance = parseFloat(user.tonBalance || '0');
+      
+      if (paymentMethod.includes('usd') || paymentMethod.includes('tether') || paymentMethod.includes('usdt')) {
+        currency = 'USD';
+        userBalance = parseFloat(user.usdBalance || '0');
+      } else if (paymentMethod.includes('pad')) {
+        currency = 'PAD';
+        userBalance = parseInt(user.balance || '0');
+      }
 
       // Verify user has sufficient balance
       if (userBalance < withdrawalAmount) {
-        return { success: false, message: 'User has insufficient balance for withdrawal' };
+        return { success: false, message: `User has insufficient ${currency} balance for withdrawal` };
       }
 
-      console.log(`💰 Deducting balance now for approved withdrawal: ${withdrawalAmount} TON`);
-      console.log(`💰 Previous balance: ${userBalance} TON, New balance: ${(userBalance - withdrawalAmount).toFixed(8)} TON`);
+      console.log(`💰 Deducting ${currency} balance now for approved withdrawal: ${withdrawalAmount}`);
+      console.log(`💰 Previous ${currency} balance: ${userBalance}, New balance: ${(userBalance - withdrawalAmount).toFixed(8)}`);
 
-      // Add withdrawal record as earnings (negative amount) for tracking
-      // This will automatically deduct the balance via addEarning function
+      // Directly deduct the balance from the appropriate wallet
+      if (currency === 'TON') {
+        const newTonBalance = (userBalance - withdrawalAmount).toFixed(8);
+        await db
+          .update(users)
+          .set({
+            tonBalance: newTonBalance,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
+        console.log(`✅ TON balance deducted: ${userBalance} → ${newTonBalance}`);
+      } else if (currency === 'USD') {
+        const newUsdBalance = (userBalance - withdrawalAmount).toFixed(10);
+        await db
+          .update(users)
+          .set({
+            usdBalance: newUsdBalance,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
+        console.log(`✅ USD balance deducted: ${userBalance} → ${newUsdBalance}`);
+      } else {
+        // PAD is stored as integer, ensure we handle it correctly
+        const padWithdrawalAmount = Math.floor(withdrawalAmount);
+        const currentPadBalance = parseInt(user.balance || '0');
+        const newPadBalance = currentPadBalance - padWithdrawalAmount;
+        await db
+          .update(users)
+          .set({
+            balance: newPadBalance.toString(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
+        console.log(`✅ PAD balance deducted: ${currentPadBalance} → ${newPadBalance}`);
+      }
+
+      // Record withdrawal in earnings history for proper stats tracking
       const paymentSystemName = withdrawal.method;
-      const description = `Withdrawal approved: ${withdrawal.amount} TON via ${paymentSystemName}`;
-
-      await this.addEarning({
+      const description = `Withdrawal approved: ${withdrawal.amount} ${currency} via ${paymentSystemName}`;
+      
+      await db.insert(earnings).values({
         userId: withdrawal.userId,
         amount: `-${withdrawalAmount.toString()}`,
-        source: 'payout',
+        source: 'withdrawal',
         description: description,
+      });
+
+      // Also log the transaction for audit trail
+      await this.logTransaction({
+        userId: withdrawal.userId,
+        amount: `-${withdrawalAmount.toString()}`,
+        type: 'debit',
+        source: 'withdrawal',
+        description: description,
+        metadata: { withdrawalId, currency, method: paymentSystemName }
       });
 
       // Update withdrawal status to Approved and mark as deducted
@@ -1400,7 +1457,7 @@ export class DatabaseStorage implements IStorage {
       
       const [updatedWithdrawal] = await db.update(withdrawals).set(updateData).where(eq(withdrawals.id, withdrawalId)).returning();
       
-      console.log(`✅ Withdrawal #${withdrawalId} approved with single deduction logic — OK ✅`);
+      console.log(`✅ Withdrawal #${withdrawalId} approved with balance deduction — ${currency} balance updated ✅`);
       
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
@@ -3150,6 +3207,177 @@ export class DatabaseStorage implements IStorage {
       }
       console.error(`❌ Error recording task click:`, error);
       return { success: false, message: "Failed to record task click" };
+    }
+  }
+
+  // Get app setting from admin_settings table
+  async getAppSetting(key: string, defaultValue: string | number): Promise<string> {
+    try {
+      const [setting] = await db
+        .select({ settingValue: adminSettings.settingValue })
+        .from(adminSettings)
+        .where(eq(adminSettings.settingKey, key))
+        .limit(1);
+      
+      if (setting && setting.settingValue) {
+        return setting.settingValue;
+      }
+      return String(defaultValue);
+    } catch (error) {
+      console.error(`Error getting app setting ${key}:`, error);
+      return String(defaultValue);
+    }
+  }
+
+  // Add USD balance to user
+  async addUSDBalance(userId: string, amount: string, source: string, description: string): Promise<void> {
+    try {
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Invalid USD amount');
+      }
+
+      // Get current USD balance
+      const [user] = await db
+        .select({ usdBalance: users.usdBalance })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const currentUsdBalance = parseFloat(user.usdBalance || '0');
+      const newUsdBalance = (currentUsdBalance + amountNum).toFixed(10);
+
+      // Update user's USD balance
+      await db
+        .update(users)
+        .set({
+          usdBalance: newUsdBalance,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+
+      // Log the transaction
+      await this.logTransaction({
+        userId,
+        amount: amount,
+        type: 'credit',
+        source: source,
+        description: description,
+        metadata: { rewardType: 'USD' }
+      });
+
+      console.log(`✅ Added $${amountNum} USD to user ${userId}. New balance: $${newUsdBalance}`);
+    } catch (error) {
+      console.error(`Error adding USD balance:`, error);
+      throw error;
+    }
+  }
+
+  // Deduct balance for withdrawal approval (direct deduction method)
+  async deductBalanceForWithdrawal(userId: string, amount: string, currency: string = 'TON'): Promise<boolean> {
+    try {
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        console.error('Invalid deduction amount:', amount);
+        return false;
+      }
+
+      if (currency === 'TON') {
+        // Deduct from TON balance
+        const [user] = await db
+          .select({ tonBalance: users.tonBalance })
+          .from(users)
+          .where(eq(users.id, userId));
+
+        if (!user) {
+          console.error('User not found for balance deduction');
+          return false;
+        }
+
+        const currentBalance = parseFloat(user.tonBalance || '0');
+        if (currentBalance < amountNum) {
+          console.error(`Insufficient TON balance: ${currentBalance} < ${amountNum}`);
+          return false;
+        }
+
+        const newBalance = (currentBalance - amountNum).toFixed(8);
+
+        await db
+          .update(users)
+          .set({
+            tonBalance: newBalance,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+
+        console.log(`💰 Deducted ${amountNum} TON from user ${userId}. New balance: ${newBalance}`);
+      } else if (currency === 'USD') {
+        // Deduct from USD balance
+        const [user] = await db
+          .select({ usdBalance: users.usdBalance })
+          .from(users)
+          .where(eq(users.id, userId));
+
+        if (!user) {
+          console.error('User not found for USD balance deduction');
+          return false;
+        }
+
+        const currentBalance = parseFloat(user.usdBalance || '0');
+        if (currentBalance < amountNum) {
+          console.error(`Insufficient USD balance: ${currentBalance} < ${amountNum}`);
+          return false;
+        }
+
+        const newBalance = (currentBalance - amountNum).toFixed(10);
+
+        await db
+          .update(users)
+          .set({
+            usdBalance: newBalance,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+
+        console.log(`💰 Deducted $${amountNum} USD from user ${userId}. New balance: $${newBalance}`);
+      } else {
+        // Deduct from PAD balance (default)
+        const [user] = await db
+          .select({ balance: users.balance })
+          .from(users)
+          .where(eq(users.id, userId));
+
+        if (!user) {
+          console.error('User not found for PAD balance deduction');
+          return false;
+        }
+
+        const currentBalance = parseInt(user.balance || '0');
+        if (currentBalance < amountNum) {
+          console.error(`Insufficient PAD balance: ${currentBalance} < ${amountNum}`);
+          return false;
+        }
+
+        const newBalance = Math.round(currentBalance - amountNum);
+
+        await db
+          .update(users)
+          .set({
+            balance: newBalance.toString(),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+
+        console.log(`💰 Deducted ${amountNum} PAD from user ${userId}. New balance: ${newBalance}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error deducting balance for withdrawal:', error);
+      return false;
     }
   }
 }
