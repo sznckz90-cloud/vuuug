@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
-import { Share2, Users, Coins, Copy, Loader2 } from 'lucide-react';
+import { Share2, Users, Copy, Loader2 } from 'lucide-react';
 
 interface User {
   id: string;
@@ -16,6 +16,7 @@ interface User {
 
 interface ReferralStats {
   totalInvites: number;
+  successfulInvites: number;
   totalClaimed: string;
   availableBonus: string;
   readyToClaim: string;
@@ -29,8 +30,6 @@ interface AppSettings {
 }
 
 export default function Affiliates() {
-  const queryClient = useQueryClient();
-  
   const { data: user, isLoading: userLoading } = useQuery<User>({
     queryKey: ['/api/auth/user'],
     retry: false,
@@ -56,26 +55,6 @@ export default function Affiliates() {
     gcTime: 600000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-  });
-
-  const claimMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/referrals/claim', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to claim bonus');
-      return data;
-    },
-    onSuccess: (data) => {
-      showNotification(data.message || 'Bonus claimed successfully!', 'success');
-      queryClient.invalidateQueries({ queryKey: ['/api/referrals/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-    },
-    onError: (error: any) => {
-      showNotification(error.message || 'Failed to claim bonus', 'error');
-    },
   });
 
   const isLoading = userLoading || statsLoading;
@@ -150,14 +129,6 @@ export default function Affiliates() {
     setIsSharing(false);
   };
 
-  const handleClaim = () => {
-    claimMutation.mutate();
-  };
-
-  const totalClaimedPAD = Math.round(parseFloat(stats?.totalClaimed || '0'));
-  const availableBonusPAD = Math.round(parseFloat(stats?.availableBonus || '0'));
-  const hasBonus = availableBonusPAD > 0;
-
   if (isLoading) {
     return (
       <Layout>
@@ -231,44 +202,19 @@ export default function Affiliates() {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <Card className="minimal-card">
             <CardContent className="pt-4 pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Total Claim</div>
-              <div className="text-xl font-bold text-[#e5e5e5] flex items-center gap-1">
-                {totalClaimedPAD.toLocaleString()} 
-                <span className="text-sm text-gray-400 font-semibold">PAD</span>
-              </div>
+              <div className="text-xs text-muted-foreground mb-1">Total Invites</div>
+              <div className="text-xl font-bold text-[#e5e5e5]">{stats?.totalInvites || 0}</div>
             </CardContent>
           </Card>
           
           <Card className="minimal-card">
             <CardContent className="pt-4 pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Total Invites</div>
-              <div className="text-xl font-bold text-[#e5e5e5]">{stats?.totalInvites || 0}</div>
+              <div className="text-xs text-muted-foreground mb-1">Successful Invites</div>
+              <div className="text-xl font-bold text-[#4cd3ff]">{stats?.successfulInvites || 0}</div>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="minimal-card mb-2">
-          <CardContent className="pt-3 pb-3">
-            <Button
-              className={`w-full h-12 text-base ${
-                hasBonus 
-                  ? 'btn-primary' 
-                  : 'btn-secondary cursor-not-allowed'
-              }`}
-              onClick={handleClaim}
-              disabled={!hasBonus || claimMutation.isPending}
-            >
-              <Coins className="w-4 h-4 mr-2" />
-              {claimMutation.isPending ? 'Claiming...' : hasBonus ? 'Claim PAD' : 'No referral bonus available'}
-            </Button>
-            
-            {!hasBonus && (
-              <p className="text-xs text-center text-muted-foreground mt-2">
-                Invite friends to earn referral bonuses
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </main>
     </Layout>
   );
