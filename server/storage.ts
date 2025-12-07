@@ -1368,62 +1368,37 @@ export class DatabaseStorage implements IStorage {
 
       const withdrawalAmount = parseFloat(withdrawal.amount);
       
-      // Determine which balance to check based on withdrawal method/currency
-      const paymentMethod = withdrawal.method?.toLowerCase() || '';
-      let currency = 'TON';
-      let userBalance = parseFloat(user.tonBalance || '0');
+      // Get the total amount that should be deducted (includes fee) from withdrawal details
+      // The withdrawal.amount is the NET amount after fee, but we need to deduct the TOTAL (with fee)
+      const withdrawalDetails = withdrawal.details as any;
+      const totalToDeduct = withdrawalDetails?.totalDeducted 
+        ? parseFloat(withdrawalDetails.totalDeducted) 
+        : withdrawalAmount;
       
-      if (paymentMethod.includes('usd') || paymentMethod.includes('tether') || paymentMethod.includes('usdt')) {
-        currency = 'USD';
-        userBalance = parseFloat(user.usdBalance || '0');
-      } else if (paymentMethod.includes('pad')) {
-        currency = 'PAD';
-        userBalance = parseInt(user.balance || '0');
-      }
+      // ALL withdrawals use USD balance (the method just indicates payment preference: TON, USD, STARS, etc.)
+      // This matches the withdrawal creation flow where all amounts are in USD
+      const currency = 'USD';
+      const userBalance = parseFloat(user.usdBalance || '0');
 
       // Verify user has sufficient balance
-      if (userBalance < withdrawalAmount) {
-        return { success: false, message: `User has insufficient ${currency} balance for withdrawal` };
+      if (userBalance < totalToDeduct) {
+        return { success: false, message: `User has insufficient USD balance for withdrawal` };
       }
 
-      console.log(`💰 Deducting ${currency} balance now for approved withdrawal: ${withdrawalAmount}`);
-      console.log(`💰 Previous ${currency} balance: ${userBalance}, New balance: ${(userBalance - withdrawalAmount).toFixed(8)}`);
+      console.log(`💰 Deducting USD balance now for approved withdrawal`);
+      console.log(`💰 Net amount: $${withdrawalAmount}, Total to deduct (with fee): $${totalToDeduct}`);
+      console.log(`💰 Previous USD balance: ${userBalance}, New balance: ${(userBalance - totalToDeduct).toFixed(10)}`);
 
-      // Directly deduct the balance from the appropriate wallet
-      if (currency === 'TON') {
-        const newTonBalance = (userBalance - withdrawalAmount).toFixed(8);
-        await db
-          .update(users)
-          .set({
-            tonBalance: newTonBalance,
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, withdrawal.userId));
-        console.log(`✅ TON balance deducted: ${userBalance} → ${newTonBalance}`);
-      } else if (currency === 'USD') {
-        const newUsdBalance = (userBalance - withdrawalAmount).toFixed(10);
-        await db
-          .update(users)
-          .set({
-            usdBalance: newUsdBalance,
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, withdrawal.userId));
-        console.log(`✅ USD balance deducted: ${userBalance} → ${newUsdBalance}`);
-      } else {
-        // PAD is stored as integer, ensure we handle it correctly
-        const padWithdrawalAmount = Math.floor(withdrawalAmount);
-        const currentPadBalance = parseInt(user.balance || '0');
-        const newPadBalance = currentPadBalance - padWithdrawalAmount;
-        await db
-          .update(users)
-          .set({
-            balance: newPadBalance.toString(),
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, withdrawal.userId));
-        console.log(`✅ PAD balance deducted: ${currentPadBalance} → ${newPadBalance}`);
-      }
+      // Deduct the TOTAL amount (including fee) from USD balance
+      const newUsdBalance = (userBalance - totalToDeduct).toFixed(10);
+      await db
+        .update(users)
+        .set({
+          usdBalance: newUsdBalance,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, withdrawal.userId));
+      console.log(`✅ USD balance deducted: ${userBalance} → ${newUsdBalance}`);
 
       // Record withdrawal in earnings history for proper stats tracking
       const paymentSystemName = withdrawal.method;
