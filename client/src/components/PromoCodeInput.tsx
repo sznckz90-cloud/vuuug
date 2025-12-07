@@ -37,15 +37,8 @@ export default function PromoCodeInput() {
       showNotification("Promo applied successfully!", "success");
     },
     onError: (error: any) => {
-      const message = error.message || "Invalid code.";
-      
-      if (message.includes("expired")) {
-        showNotification("Promo expired.", "error");
-      } else if (message.includes("already")) {
-        showNotification("Already claimed.", "error");
-      } else {
-        showNotification("Invalid code.", "error");
-      }
+      const message = error.message || "Invalid promo code";
+      showNotification(message, "error");
     },
   });
 
