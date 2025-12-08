@@ -54,7 +54,7 @@ export default function Withdraw() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   
-  const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup' | 'wallet-activity'>('withdraw');
+  const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup'>('withdraw');
   
   const [selectedMethod, setSelectedMethod] = useState<string>('TON');
   
@@ -377,45 +377,30 @@ export default function Withdraw() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-3">
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="flex gap-3 mb-4">
           <Button
             type="button"
-            variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-xs ${
+            className={`flex-1 h-11 rounded-xl font-semibold text-sm shadow-md transition-all border-0 ${
               activeTab === 'withdraw'
-                ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-500/20" 
-                : "hover:bg-cyan-500/10 hover:border-cyan-500/50 text-muted-foreground"
+                ? "bg-[#007BFF] text-white shadow-[#007BFF]/30" 
+                : "bg-[#1a1a1a] text-gray-400 hover:bg-[#252525] hover:text-white"
             }`}
             onClick={() => setActiveTab('withdraw')}
           >
-            <CircleDollarSign className="w-4 h-4 mr-1" />
+            <CircleDollarSign className="w-4 h-4 mr-2" />
             Withdraw
           </Button>
           <Button
             type="button"
-            variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-xs ${
+            className={`flex-1 h-11 rounded-xl font-semibold text-sm shadow-md transition-all border-0 ${
               activeTab === 'wallet-setup'
-                ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/20" 
-                : "hover:bg-blue-500/10 hover:border-blue-500/50 text-muted-foreground"
+                ? "bg-[#007BFF] text-white shadow-[#007BFF]/30" 
+                : "bg-[#1a1a1a] text-gray-400 hover:bg-[#252525] hover:text-white"
             }`}
             onClick={() => setActiveTab('wallet-setup')}
           >
-            <Wallet className="w-4 h-4 mr-1" />
+            <Wallet className="w-4 h-4 mr-2" />
             Wallet Setup
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={`h-auto py-3 transition-all font-bold text-xs ${
-              activeTab === 'wallet-activity'
-                ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500 text-purple-300 shadow-lg shadow-purple-500/20" 
-                : "hover:bg-purple-500/10 hover:border-purple-500/50 text-muted-foreground"
-            }`}
-            onClick={() => setActiveTab('wallet-activity')}
-          >
-            <Receipt className="w-4 h-4 mr-1" />
-            Activity
           </Button>
         </div>
 
@@ -524,7 +509,6 @@ export default function Withdraw() {
             {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && (
             <>
             <div className="space-y-3">
-              <Label className="text-sm text-white">Withdrawal Method</Label>
               <div className="space-y-2">
                 {paymentSystems.map((system) => (
                   <button
@@ -596,13 +580,59 @@ export default function Withdraw() {
             </div>
             </>
             )}
+
+            <div className="mt-6 pt-4 border-t border-[#2a2a2a]">
+              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-[#4cd3ff]" />
+                Wallet Activity
+              </h3>
+              {withdrawalsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#4cd3ff]" />
+                </div>
+              ) : withdrawalsData.length === 0 ? (
+                <div className="text-center py-6 bg-[#1a1a1a]/50 rounded-xl">
+                  <Receipt className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No transactions yet</p>
+                  <p className="text-gray-600 text-xs mt-1">Your withdrawal history will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {withdrawalsData.map((withdrawal) => (
+                    <div 
+                      key={withdrawal.id}
+                      className="flex items-center justify-between p-3 bg-[#1a1a1a]/50 rounded-xl border border-white/5"
+                    >
+                      <div className="flex items-center gap-3">
+                        {getStatusIcon(withdrawal.status)}
+                        <div>
+                          <p className="text-sm text-white font-medium">
+                            ${formatUSD(getFullAmount(withdrawal))}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xs font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
+                          {withdrawal.status}
+                        </span>
+                        <p className="text-xs text-gray-500">
+                          {withdrawal.method || 'TON'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {activeTab === 'wallet-setup' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-xs text-[#c0c0c0]">TON Wallet Setup</label>
               <div className="space-y-2">
                 <button
                   className="w-full flex items-center space-x-2 p-3 rounded-lg border-2 transition-all border-[#4cd3ff] bg-[#4cd3ff]/10"
@@ -749,50 +779,6 @@ export default function Withdraw() {
           </div>
         )}
 
-        {activeTab === 'wallet-activity' && (
-          <div className="space-y-4">
-            {withdrawalsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-[#4cd3ff]" />
-              </div>
-            ) : withdrawalsData.length === 0 ? (
-              <div className="text-center py-6 bg-[#1a1a1a]/50 rounded-xl">
-                <Receipt className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No transactions yet</p>
-                <p className="text-gray-600 text-xs mt-1">Your withdrawal history will appear here</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {withdrawalsData.map((withdrawal) => (
-                  <div 
-                    key={withdrawal.id}
-                    className="flex items-center justify-between p-3 bg-[#1a1a1a]/50 rounded-xl border border-white/5"
-                  >
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(withdrawal.status)}
-                      <div>
-                        <p className="text-sm text-white font-medium">
-                          ${formatUSD(getFullAmount(withdrawal))}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {format(new Date(withdrawal.createdAt), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className={`text-xs font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
-                        {withdrawal.status}
-                      </span>
-                      <p className="text-xs text-gray-500">
-                        {withdrawal.method || 'TON'}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </main>
     </Layout>
   );
