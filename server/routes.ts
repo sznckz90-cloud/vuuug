@@ -357,6 +357,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get telegramId from authenticated session, NOT from query params
       const sessionUser = req.user?.user;
       const telegramId = sessionUser?.telegram_id;
+      const isDevMode = process.env.NODE_ENV === 'development';
+      
+      // Skip all verification in development mode
+      if (isDevMode) {
+        console.log('🔧 Development mode: Skipping channel/group verification');
+        const channelConfig = getChannelConfig();
+        return res.json({
+          success: true,
+          isVerified: true,
+          channelMember: true,
+          groupMember: true,
+          channelUrl: channelConfig.channelUrl,
+          groupUrl: channelConfig.groupUrl,
+          channelName: channelConfig.channelName,
+          groupName: channelConfig.groupName
+        });
+      }
       
       if (!telegramId) {
         console.log('⚠️ Membership check failed - no telegram_id in session');
@@ -1050,36 +1067,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Streak claim endpoint
+  // Streak claim endpoint (Claim Bonus - every 5 minutes, 1 PAD)
   app.post('/api/streak/claim', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
       const telegramId = req.user.user.telegram_id;
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const isDevMode = process.env.NODE_ENV === 'development';
       
-      // Verify channel membership before allowing claim
-      if (botToken) {
-        const isMember = await verifyChannelMembership(
-          parseInt(telegramId), 
-          config.telegram.channelId, 
-          botToken
-        );
-        
-        if (!isMember) {
-          return res.status(403).json({ 
+      // Skip channel verification in development mode
+      if (!isDevMode) {
+        // Verify channel membership before allowing claim
+        if (botToken) {
+          const isMember = await verifyChannelMembership(
+            parseInt(telegramId), 
+            config.telegram.channelId, 
+            botToken
+          );
+          
+          if (!isMember) {
+            return res.status(403).json({ 
+              success: false,
+              message: 'Please join our Telegram channel first to claim your bonus.',
+              requiresChannelJoin: true,
+              channelUsername: config.telegram.channelId,
+              channelUrl: config.telegram.channelUrl
+            });
+          }
+        } else {
+          return res.status(500).json({ 
             success: false,
-            message: 'Please join our Telegram channel first to claim your daily streak reward.',
-            requiresChannelJoin: true,
-            channelUsername: config.telegram.channelId,
-            channelUrl: config.telegram.channelUrl
+            message: 'Channel verification is temporarily unavailable. Please try again later.',
+            error_code: 'VERIFICATION_UNAVAILABLE'
           });
         }
-      } else if (process.env.NODE_ENV !== 'development') {
-        return res.status(500).json({ 
-          success: false,
-          message: 'Channel verification is temporarily unavailable. Please try again later.',
-          error_code: 'VERIFICATION_UNAVAILABLE'
-        });
       }
       
       const result = await storage.updateUserStreak(userId);
@@ -1087,14 +1108,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parseFloat(result.rewardEarned) === 0) {
         return res.status(400).json({ 
           success: false,
-          message: 'You have already claimed today\'s streak!'
+          message: 'Please wait 5 minutes before claiming again!'
         });
       }
       
       sendRealtimeUpdate(userId, {
         type: 'streak_reward',
         amount: result.rewardEarned,
-        message: '✅ Daily streak claimed!',
+        message: '✅ Bonus claimed!',
         timestamp: new Date().toISOString()
       });
       
@@ -1103,11 +1124,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         newStreak: result.newStreak,
         rewardEarned: result.rewardEarned,
         isBonusDay: result.isBonusDay,
-        message: 'Streak updated successfully'
+        message: 'Bonus claimed successfully'
       });
     } catch (error) {
-      console.error("Error processing streak:", error);
-      res.status(500).json({ message: "Failed to process streak" });
+      console.error("Error processing bonus claim:", error);
+      res.status(500).json({ message: "Failed to claim bonus" });
     }
   });
 
@@ -6081,110 +6102,113 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
       const { code } = req.body;
       
       if (!code || !code.trim()) {
-        return res.status(400).json({ message: 'Promo code is required' });
-      }
-      
-      // Get promo code details first to check reward type
-      const promoCode = await storage.getPromoCode(code.trim().toUpperCase());
-      
-      if (!promoCode) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Invalid promo code' 
+        return res.status(400).json({ 
+          success: false,
+          message: 'Please enter a promo code' 
         });
       }
       
-      // Use promo code (validates limits and expiry)
+      // Use promo code (validates all conditions including existence, limits, expiry)
       const result = await storage.usePromoCode(code.trim().toUpperCase(), userId);
       
-      if (result.success) {
-        // Add reward based on type - PAD, TON, USD supported (PDZ is deprecated, treated as TON)
-        let rewardType = promoCode.rewardType || 'PAD';
-        // Convert any legacy PDZ to TON
-        if (rewardType === 'PDZ') rewardType = 'TON';
-        const rewardAmount = result.reward;
-        
-        if (rewardType === 'PAD') {
-          // Add PAD balance - addEarning handles BOTH earnings tracking AND balance update
-          // Do NOT update balance directly to avoid double-crediting
-          const rewardPad = parseInt(rewardAmount || '0');
-          
-          await storage.addEarning({
-            userId,
-            amount: rewardAmount || '0',
-            source: 'promo_code',
-            description: `Redeemed promo code: ${code}`,
-          });
-          
-          res.json({ 
-            success: true, 
-            message: `${rewardPad} PAD added to your balance!`,
-            reward: rewardAmount,
-            rewardType: 'PAD'
-          });
-        } else if (rewardType === 'TON') {
-          // Add TON balance - direct update required since addEarning only handles PAD balance
-          const [currentUser] = await db
-            .select({ tonBalance: users.tonBalance })
-            .from(users)
-            .where(eq(users.id, userId));
-          
-          const currentTonBalance = parseFloat(currentUser?.tonBalance || '0');
-          const newTonBalance = (currentTonBalance + parseFloat(rewardAmount || '0')).toFixed(8);
-          
-          await db
-            .update(users)
-            .set({ tonBalance: newTonBalance, updatedAt: new Date() })
-            .where(eq(users.id, userId));
-          
-          // Log transaction for tracking (don't use addEarning as it would add to PAD balance)
-          await storage.logTransaction({
-            userId,
-            amount: rewardAmount || '0',
-            type: "credit",
-            source: "promo_code",
-            description: `Redeemed promo code: ${code}`,
-            metadata: { code, rewardType: 'TON' }
-          });
-          
-          res.json({ 
-            success: true, 
-            message: `${rewardAmount} TON added to your balance!`,
-            reward: rewardAmount,
-            rewardType: 'TON'
-          });
-        } else if (rewardType === 'USD') {
-          // Add USD balance - addUSDBalance handles balance update and transaction logging
-          await storage.addUSDBalance(userId, rewardAmount || '0', 'promo_code', `Redeemed promo code: ${code}`);
-          
-          res.json({ 
-            success: true, 
-            message: `$${rewardAmount} USD added to your balance!`,
-            reward: rewardAmount,
-            rewardType: 'USD'
-          });
-        } else {
-          // Default: Add PAD balance - addEarning handles BOTH earnings tracking AND balance update
-          const rewardPad = parseInt(rewardAmount || '0');
-          
-          await storage.addEarning({
-            userId,
-            amount: rewardAmount || '0',
-            source: 'promo_code',
-            description: `Redeemed promo code: ${code}`,
-          });
-          
-          res.json({ 
-            success: true, 
-            message: `${rewardPad} PAD added to your balance!`,
-            reward: rewardAmount,
-            rewardType: 'PAD'
-          });
-        }
-      } else {
-        res.status(400).json({ 
+      // Handle errors with proper user-friendly messages
+      if (!result.success) {
+        return res.status(400).json({ 
           success: false, 
-          message: result.message 
+          message: result.message
+        });
+      }
+      
+      // Get promo code details for reward type
+      const promoCode = await storage.getPromoCode(code.trim().toUpperCase());
+      
+      if (!promoCode) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid promo code'
+        });
+      }
+      
+      // Add reward based on type - PAD, TON, USD supported (PDZ is deprecated, treated as TON)
+      let rewardType = promoCode.rewardType || 'PAD';
+      // Convert any legacy PDZ to TON
+      if (rewardType === 'PDZ') rewardType = 'TON';
+      const rewardAmount = result.reward;
+      
+      if (rewardType === 'PAD') {
+        // Add PAD balance - addEarning handles BOTH earnings tracking AND balance update
+        const rewardPad = parseInt(rewardAmount || '0');
+        
+        await storage.addEarning({
+          userId,
+          amount: rewardAmount || '0',
+          source: 'promo_code',
+          description: `Redeemed promo code: ${code}`,
+        });
+        
+        res.json({ 
+          success: true, 
+          message: `${rewardPad} PAD added to your balance!`,
+          reward: rewardAmount,
+          rewardType: 'PAD'
+        });
+      } else if (rewardType === 'TON') {
+        // Add TON balance - direct update required since addEarning only handles PAD balance
+        const [currentUser] = await db
+          .select({ tonBalance: users.tonBalance })
+          .from(users)
+          .where(eq(users.id, userId));
+        
+        const currentTonBalance = parseFloat(currentUser?.tonBalance || '0');
+        const newTonBalance = (currentTonBalance + parseFloat(rewardAmount || '0')).toFixed(8);
+        
+        await db
+          .update(users)
+          .set({ tonBalance: newTonBalance, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+        
+        // Log transaction for tracking
+        await storage.logTransaction({
+          userId,
+          amount: rewardAmount || '0',
+          type: "credit",
+          source: "promo_code",
+          description: `Redeemed promo code: ${code}`,
+          metadata: { code, rewardType: 'TON' }
+        });
+        
+        res.json({ 
+          success: true, 
+          message: `${rewardAmount} TON added to your balance!`,
+          reward: rewardAmount,
+          rewardType: 'TON'
+        });
+      } else if (rewardType === 'USD') {
+        // Add USD balance
+        await storage.addUSDBalance(userId, rewardAmount || '0', 'promo_code', `Redeemed promo code: ${code}`);
+        
+        res.json({ 
+          success: true, 
+          message: `$${rewardAmount} USD added to your balance!`,
+          reward: rewardAmount,
+          rewardType: 'USD'
+        });
+      } else {
+        // Default: Add PAD balance
+        const rewardPad = parseInt(rewardAmount || '0');
+        
+        await storage.addEarning({
+          userId,
+          amount: rewardAmount || '0',
+          source: 'promo_code',
+          description: `Redeemed promo code: ${code}`,
+        });
+        
+        res.json({ 
+          success: true, 
+          message: `${rewardPad} PAD added to your balance!`,
+          reward: rewardAmount,
+          rewardType: 'PAD'
         });
       }
     } catch (error) {

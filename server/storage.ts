@@ -577,33 +577,17 @@ export class DatabaseStorage implements IStorage {
 
     const now = new Date();
     const lastStreakDate = user.lastStreakDate;
-    let newStreak = 1;
-    let rewardEarned = "0";
+    let newStreak = (user.currentStreak || 0) + 1;
+    let rewardEarned = "1";
     let isBonusDay = false;
 
     if (lastStreakDate) {
       const lastClaim = new Date(lastStreakDate);
-      const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60);
+      const minutesSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60);
       
-      if (hoursSinceLastClaim < 24) {
+      if (minutesSinceLastClaim < 5) {
         return { newStreak: user.currentStreak || 0, rewardEarned: "0", isBonusDay: false };
       }
-      
-      const daysSinceLastClaim = Math.floor(hoursSinceLastClaim / 24);
-      
-      if (daysSinceLastClaim === 1 || (daysSinceLastClaim < 2 && hoursSinceLastClaim >= 24)) {
-        newStreak = (user.currentStreak || 0) + 1;
-      } else {
-        newStreak = 1;
-      }
-    }
-
-    if (newStreak === 5) {
-      rewardEarned = "0.0015";
-      isBonusDay = true;
-      newStreak = 0;
-    } else {
-      rewardEarned = "0.0001";
     }
 
     await db
@@ -619,8 +603,8 @@ export class DatabaseStorage implements IStorage {
       await this.addEarning({
         userId,
         amount: rewardEarned,
-        source: isBonusDay ? 'streak_bonus_5day' : 'daily_streak',
-        description: isBonusDay ? '5-day streak bonus completed!' : `Daily streak claim`,
+        source: 'bonus_claim',
+        description: `Bonus claim - earned 1 PAD`,
       });
     }
 
@@ -1070,29 +1054,15 @@ export class DatabaseStorage implements IStorage {
     return promoCode;
   }
 
-  async usePromoCode(code: string, userId: string): Promise<{ success: boolean; message: string; reward?: string }> {
+  async usePromoCode(code: string, userId: string): Promise<{ success: boolean; message: string; reward?: string; errorType?: string }> {
     // Get promo code
     const promoCode = await this.getPromoCode(code);
     
     if (!promoCode) {
-      return { success: false, message: "Invalid promo code" };
+      return { success: false, message: "Invalid promo code", errorType: "invalid" };
     }
 
-    if (!promoCode.isActive) {
-      return { success: false, message: "Promo code is inactive" };
-    }
-
-    // Check if expired
-    if (promoCode.expiresAt && new Date() > new Date(promoCode.expiresAt)) {
-      return { success: false, message: "Promo code has expired" };
-    }
-
-    // Check usage limit
-    if (promoCode.usageLimit && (promoCode.usageCount || 0) >= promoCode.usageLimit) {
-      return { success: false, message: "Promo code usage limit reached" };
-    }
-
-    // Check per-user limit
+    // Check per-user limit first (already applied)
     const userUsageCount = await db
       .select({ count: sql<number>`count(*)` })
       .from(promoCodeUsage)
@@ -1102,7 +1072,22 @@ export class DatabaseStorage implements IStorage {
       ));
 
     if (userUsageCount[0]?.count >= (promoCode.perUserLimit || 1)) {
-      return { success: false, message: "You have reached the usage limit for this promo code" };
+      return { success: false, message: "Promo code already applied", errorType: "already_applied" };
+    }
+
+    // Check if expired
+    if (promoCode.expiresAt && new Date() > new Date(promoCode.expiresAt)) {
+      return { success: false, message: "Promo code has expired", errorType: "expired" };
+    }
+
+    // Check if active
+    if (!promoCode.isActive) {
+      return { success: false, message: "Promo code not active", errorType: "not_active" };
+    }
+
+    // Check usage limit (global limit reached)
+    if (promoCode.usageLimit && (promoCode.usageCount || 0) >= promoCode.usageLimit) {
+      return { success: false, message: "Promo code not active", errorType: "not_active" };
     }
 
     // Record usage
