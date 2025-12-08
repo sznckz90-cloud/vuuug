@@ -93,6 +93,9 @@ export const users = pgTable("users", {
   browserFingerprint: text("browser_fingerprint"), // Full fingerprint hash for WebApp detection
   registeredAt: timestamp("registered_at").defaultNow(), // First account registration timestamp
   referrerUid: text("referrer_uid"), // Referrer's UID for ban logs
+  // Mandatory channel/group join verification
+  isChannelGroupVerified: boolean("is_channel_group_verified").default(false),
+  lastMembershipCheck: timestamp("last_membership_check"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
