@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2 } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
@@ -367,7 +367,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pt-1">
+      <main className="max-w-md mx-auto px-4 pt-[14px]">
         <div className="flex flex-col items-center mb-3">
           {photoUrl ? (
             <img 
@@ -399,22 +399,26 @@ export default function Home() {
         </div>
 
         <div className="mb-3">
-          <h2 className="text-sm font-bold text-white mb-2">Promo Code</h2>
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Enter Promo Code"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-              disabled={redeemPromoMutation.isPending || isApplyingPromo}
-              className="flex-1 bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-10 rounded-xl text-sm"
-            />
-            <Button
-              onClick={handleApplyPromo}
-              disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
-              className="h-10 px-5 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] font-semibold rounded-xl text-sm"
-            >
-              {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
-            </Button>
+          <h2 className="text-lg font-bold text-white mb-2">Promo code</h2>
+          <div className="bg-[#1a1a1a] rounded-2xl p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <Input
+                  placeholder="Promo"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  disabled={redeemPromoMutation.isPending || isApplyingPromo}
+                  className="bg-transparent border border-[#4cd3ff]/30 rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-[52px] text-base focus:border-[#4cd3ff]/50 focus:ring-0"
+                />
+              </div>
+              <Button
+                onClick={handleApplyPromo}
+                disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
+                className="h-[52px] w-[52px] bg-[#4cd3ff]/20 hover:bg-[#4cd3ff]/30 text-[#4cd3ff] rounded-xl transition-all active:scale-[0.97] p-0 flex items-center justify-center border border-[#4cd3ff]/30"
+              >
+                {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-5 h-5 animate-spin" /> : <Gift className="w-5 h-5" />}
+              </Button>
+            </div>
           </div>
         </div>
 
