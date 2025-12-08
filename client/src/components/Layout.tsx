@@ -33,7 +33,9 @@ export default function Layout({ children }: LayoutProps) {
     { href: "/withdraw", icon: CircleDollarSign, label: "Payouts" },
   ];
 
-  const userPhotoUrl = user?.profileImageUrl || null;
+  // Get photo from Telegram WebApp first, then fallback to user data
+  const telegramPhotoUrl = typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
+  const userPhotoUrl = telegramPhotoUrl || user?.profileImageUrl || user?.profileUrl || null;
   const isHomeActive = location === "/";
 
   return (
@@ -59,13 +61,13 @@ export default function Layout({ children }: LayoutProps) {
       </div>
 
       {!showSeasonEnd && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A]">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A] pb-[env(safe-area-inset-bottom,12px)]">
           <div className="max-w-md mx-auto px-4">
-            <div className="flex justify-around items-center py-2.5">
-              {/* Home with Profile Photo */}
+            <div className="flex justify-around items-center py-2.5 pb-3">
+              {/* WATCH with Profile Photo */}
               <Link href="/">
                 <button
-                  className={`flex flex-col items-center justify-center gap-1 min-w-[60px] min-h-[52px] transition-all ${
+                  className={`flex flex-col items-center justify-center min-w-[60px] min-h-[52px] transition-all ${
                     isHomeActive 
                       ? "text-[#007BFF]" 
                       : "text-[#AAAAAA] hover:text-[#FFFFFF]"
@@ -75,19 +77,19 @@ export default function Layout({ children }: LayoutProps) {
                     <img 
                       src={userPhotoUrl} 
                       alt="Profile" 
-                      className={`w-7 h-7 rounded-full object-cover transition-all ${
+                      className={`w-7 h-7 rounded-full object-cover transition-all mb-[8px] ${
                         isHomeActive ? "ring-2 ring-[#007BFF]" : ""
                       }`}
                     />
                   ) : (
-                    <div className={`w-7 h-7 rounded-full bg-[#2a2a2a] flex items-center justify-center ${
+                    <div className={`w-7 h-7 rounded-full bg-[#2a2a2a] flex items-center justify-center mb-[8px] ${
                       isHomeActive ? "ring-2 ring-[#007BFF]" : ""
                     }`}>
                       <User className="w-4 h-4" />
                     </div>
                   )}
                   <span className={`text-[11px] font-medium ${isHomeActive ? 'font-semibold' : ''}`}>
-                    Home
+                    WATCH
                   </span>
                 </button>
               </Link>
@@ -99,14 +101,14 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <Link key={item.href} href={item.href}>
                     <button
-                      className={`flex flex-col items-center justify-center gap-1 min-w-[60px] min-h-[52px] transition-all ${
+                      className={`flex flex-col items-center justify-center min-w-[60px] min-h-[52px] transition-all ${
                         isActive 
                           ? "text-[#007BFF]" 
                           : "text-[#AAAAAA] hover:text-[#FFFFFF]"
                       }`}
                     >
                       <Icon 
-                        className="w-7 h-7 transition-all"
+                        className="w-7 h-7 transition-all mb-[8px]"
                         strokeWidth={isActive ? 2.5 : 2}
                       />
                       <span className={`text-[11px] font-medium ${isActive ? 'font-semibold' : ''}`}>

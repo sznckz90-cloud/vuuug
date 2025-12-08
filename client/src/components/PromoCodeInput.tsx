@@ -135,21 +135,20 @@ export default function PromoCodeInput() {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 relative">
-        <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4cd3ff]" />
+    <div className="flex items-center gap-3">
+      <div className="flex-1">
         <Input
-          placeholder="PROMO CODE"
+          placeholder="Enter promo code"
           value={promoCode}
           onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
           disabled={redeemPromoMutation.isPending || isShowingAd}
-          className="bg-[#0d0d0d] border-[#4cd3ff] text-white placeholder:text-gray-500 pl-10 h-10"
+          className="bg-[#0d0d0d] border border-[#333] rounded-lg text-white placeholder:text-gray-500 px-[14px] py-[12px] h-[48px] focus:border-[#4cd3ff] focus:ring-1 focus:ring-[#4cd3ff]"
         />
       </div>
       <Button
         onClick={handleSubmit}
         disabled={redeemPromoMutation.isPending || isShowingAd || !promoCode.trim()}
-        className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-semibold flex items-center gap-2"
+        className="min-h-[48px] px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black rounded-lg transition-all active:scale-[0.97] shadow-[0_0_20px_rgba(76,211,255,0.4)] font-bold flex items-center gap-2"
       >
         {isShowingAd && currentAdStep !== 'idle' && (
           currentAdStep === 'verifying' ? (
