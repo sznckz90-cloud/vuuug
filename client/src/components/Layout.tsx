@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, ClipboardList, CircleDollarSign, ShoppingBag } from "lucide-react";
+import { HeartHandshake, LayoutGrid, CircleDollarSign, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
@@ -27,17 +27,14 @@ export default function Layout({ children }: LayoutProps) {
     return <BanScreen reason={user.bannedReason} />;
   }
 
-  const leftNavItems = [
-    { href: "/store", icon: ShoppingBag, label: "Store" },
-    { href: "/tasks", icon: ClipboardList, label: "Task" },
-  ];
-
-  const rightNavItems = [
-    { href: "/affiliates", icon: Users, label: "Referrals" },
+  const navItems = [
+    { href: "/tasks", icon: LayoutGrid, label: "Task" },
+    { href: "/affiliates", icon: HeartHandshake, label: "Referrals" },
     { href: "/withdraw", icon: CircleDollarSign, label: "Payouts" },
   ];
 
-  const isWatchActive = location === "/";
+  const userPhotoUrl = user?.profileImageUrl || null;
+  const isHomeActive = location === "/";
 
   return (
     <div className="h-screen w-full flex flex-col bg-black overflow-hidden">
@@ -64,72 +61,55 @@ export default function Layout({ children }: LayoutProps) {
       {!showSeasonEnd && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A]">
           <div className="max-w-md mx-auto px-4">
-            <div className="flex justify-around items-center py-2.5 relative">
-              {/* Left Nav Items */}
-              {leftNavItems.map((item) => {
-                const isActive = location === item.href;
-                const Icon = item.icon;
-                
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <button
-                      className={`flex flex-col items-center justify-center gap-1 min-w-[56px] min-h-[48px] transition-all ${
-                        isActive 
-                          ? "text-[#007BFF]" 
-                          : "text-[#AAAAAA] hover:text-[#FFFFFF]"
-                      }`}
-                    >
-                      <Icon 
-                        className="w-6 h-6 transition-all"
-                        strokeWidth={isActive ? 2.5 : 2}
-                      />
-                      <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>
-                        {item.label}
-                      </span>
-                    </button>
-                  </Link>
-                );
-              })}
-
-              {/* Center Floating Watch Button */}
+            <div className="flex justify-around items-center py-2.5">
+              {/* Home with Profile Photo */}
               <Link href="/">
-                <button className="flex flex-col items-center justify-center min-w-[56px] -mt-6">
-                  <div className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-black ${
-                    isWatchActive ? "ring-2 ring-[#007BFF]" : ""
-                  }`}>
+                <button
+                  className={`flex flex-col items-center justify-center gap-1 min-w-[60px] min-h-[52px] transition-all ${
+                    isHomeActive 
+                      ? "text-[#007BFF]" 
+                      : "text-[#AAAAAA] hover:text-[#FFFFFF]"
+                  }`}
+                >
+                  {userPhotoUrl ? (
                     <img 
-                      src="/images/p-logo.png" 
-                      alt="Watch" 
-                      className="w-full h-full object-cover"
+                      src={userPhotoUrl} 
+                      alt="Profile" 
+                      className={`w-7 h-7 rounded-full object-cover transition-all ${
+                        isHomeActive ? "ring-2 ring-[#007BFF]" : ""
+                      }`}
                     />
-                  </div>
-                  <span className={`text-[10px] font-black tracking-wider mt-1 ${
-                    isWatchActive ? "text-[#007BFF]" : "text-[#AAAAAA]"
-                  }`}>
-                    WATCH
+                  ) : (
+                    <div className={`w-7 h-7 rounded-full bg-[#2a2a2a] flex items-center justify-center ${
+                      isHomeActive ? "ring-2 ring-[#007BFF]" : ""
+                    }`}>
+                      <User className="w-4 h-4" />
+                    </div>
+                  )}
+                  <span className={`text-[11px] font-medium ${isHomeActive ? 'font-semibold' : ''}`}>
+                    Home
                   </span>
                 </button>
               </Link>
 
-              {/* Right Nav Items */}
-              {rightNavItems.map((item) => {
+              {navItems.map((item) => {
                 const isActive = location === item.href;
                 const Icon = item.icon;
                 
                 return (
                   <Link key={item.href} href={item.href}>
                     <button
-                      className={`flex flex-col items-center justify-center gap-1 min-w-[56px] min-h-[48px] transition-all ${
+                      className={`flex flex-col items-center justify-center gap-1 min-w-[60px] min-h-[52px] transition-all ${
                         isActive 
                           ? "text-[#007BFF]" 
                           : "text-[#AAAAAA] hover:text-[#FFFFFF]"
                       }`}
                     >
                       <Icon 
-                        className="w-6 h-6 transition-all"
+                        className="w-7 h-7 transition-all"
                         strokeWidth={isActive ? 2.5 : 2}
                       />
-                      <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>
+                      <span className={`text-[11px] font-medium ${isActive ? 'font-semibold' : ''}`}>
                         {item.label}
                       </span>
                     </button>
