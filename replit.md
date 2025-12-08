@@ -56,3 +56,28 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 - **lucide-react**: Icon library.
 - **shadcn/ui**: UI component library.
 - **Tailwind CSS**: Styling framework.
+
+## Recent Changes
+
+### December 2024 - Promo Code Bug Fix
+- **Fixed double-reward bug**: Removed duplicate `addEarning()` call from `storage.usePromoCode()` since `routes.ts` already handles balance updates for different reward types (PAD, TON, USD).
+- **Fixed return format**: `usePromoCode()` now returns just the reward amount string, not "amount currency" format.
+- **Consistent tracking**: All promo code redemptions now properly record earnings via `storage.addEarning()` in routes.ts after balance update.
+
+## Development Setup
+
+### Running the Application
+```bash
+npm install
+npm run dev
+```
+
+### Environment Variables Required
+- `DATABASE_URL`: PostgreSQL connection string
+- `TELEGRAM_BOT_TOKEN`: For Telegram bot functionality
+- `SESSION_SECRET`: For session management
+- `TELEGRAM_ADMIN_ID`: Admin user's Telegram ID
+
+### Port Configuration
+- Frontend/Backend: Port 5000 (combined server)
+- WebSocket: `/ws` endpoint on same port
