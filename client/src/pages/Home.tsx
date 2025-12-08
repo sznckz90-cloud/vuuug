@@ -146,7 +146,7 @@ export default function Home() {
       if (!response.ok) {
         const error = await response.json();
         const errorObj = new Error(error.message || 'Failed to claim streak');
-        (errorObj as any).isAlreadyClaimed = error.message === "You have already claimed today's streak!";
+        (errorObj as any).isAlreadyClaimed = error.message === "Please wait 5 minutes before claiming again!";
         throw errorObj;
       }
       return response.json();
@@ -192,22 +192,16 @@ export default function Home() {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       setPromoCode("");
-      showNotification("Promo applied successfully!", "success");
+      showNotification(data.message || "Promo applied successfully!", "success");
     },
     onError: (error: any) => {
-      const message = error.message || "Invalid code.";
-      if (message.includes("expired")) {
-        showNotification("Promo expired.", "error");
-      } else if (message.includes("already")) {
-        showNotification("Already claimed.", "error");
-      } else {
-        showNotification(message, "error");
-      }
+      const message = error.message || "Invalid promo code";
+      showNotification(message, "error");
     },
   });
 
@@ -398,25 +392,24 @@ export default function Home() {
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
         </div>
 
-        <div className="mb-3">
-          <h2 className="text-lg font-bold text-white mb-2">Promo code</h2>
-          <div className="bg-[#1a1a1a] rounded-2xl p-3">
-            <div className="flex items-center gap-3">
+        <div className="mb-2">
+          <div className="bg-[#1a1a1a] rounded-xl p-2">
+            <div className="flex items-center gap-2">
               <div className="flex-1">
                 <Input
-                  placeholder="Promo"
+                  placeholder="Enter Promo Code"
                   value={promoCode}
                   onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
                   disabled={redeemPromoMutation.isPending || isApplyingPromo}
-                  className="bg-transparent border border-[#4cd3ff]/30 rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-[52px] text-base focus:border-[#4cd3ff]/50 focus:ring-0"
+                  className="bg-transparent border border-[#4cd3ff]/30 rounded-lg text-white placeholder:text-gray-500 px-3 py-2 h-[40px] text-sm focus:border-[#4cd3ff]/50 focus:ring-0"
                 />
               </div>
               <Button
                 onClick={handleApplyPromo}
                 disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
-                className="h-[52px] w-[52px] bg-[#4cd3ff]/20 hover:bg-[#4cd3ff]/30 text-[#4cd3ff] rounded-xl transition-all active:scale-[0.97] p-0 flex items-center justify-center border border-[#4cd3ff]/30"
+                className="h-[40px] w-[40px] bg-[#4cd3ff]/20 hover:bg-[#4cd3ff]/30 text-[#4cd3ff] rounded-lg transition-all active:scale-[0.97] p-0 flex items-center justify-center border border-[#4cd3ff]/30"
               >
-                {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-5 h-5 animate-spin" /> : <Gift className="w-5 h-5" />}
+                {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
               </Button>
             </div>
           </div>
@@ -426,17 +419,17 @@ export default function Home() {
           <Button
             onClick={handleConvert}
             disabled={isConverting || convertMutation.isPending}
-            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1 disabled:opacity-50"
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
           >
             {isConverting || convertMutation.isPending ? (
               <>
-                <Clock className="w-6 h-6 text-[#4cd3ff] animate-spin" />
-                <span className="text-white font-semibold text-sm">Converting...</span>
+                <Clock className="w-4 h-4 text-[#4cd3ff] animate-spin" />
+                <span className="text-white font-medium text-xs">Converting...</span>
               </>
             ) : (
               <>
-                <RefreshCw className="w-6 h-6 text-[#4cd3ff]" />
-                <span className="text-white font-semibold text-sm">Convert</span>
+                <RefreshCw className="w-4 h-4 text-[#4cd3ff]" />
+                <span className="text-white font-medium text-xs">Convert</span>
               </>
             )}
           </Button>
@@ -444,22 +437,22 @@ export default function Home() {
           <Button
             onClick={handleClaimStreak}
             disabled={isClaimingStreak || !canClaimStreak}
-            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1 disabled:opacity-50"
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
           >
             {isClaimingStreak ? (
               <>
-                <Loader2 className="w-6 h-6 text-[#4cd3ff] animate-spin" />
-                <span className="text-white font-semibold text-sm">Claiming...</span>
+                <Loader2 className="w-4 h-4 text-[#4cd3ff] animate-spin" />
+                <span className="text-white font-medium text-xs">Claiming...</span>
               </>
             ) : canClaimStreak ? (
               <>
-                <Flame className="w-6 h-6 text-[#4cd3ff]" />
-                <span className="text-white font-semibold text-sm">Streak Claim</span>
+                <Flame className="w-4 h-4 text-[#4cd3ff]" />
+                <span className="text-white font-medium text-xs">Claim Bonus</span>
               </>
             ) : (
               <>
-                <Flame className="w-6 h-6 text-[#4cd3ff] opacity-50" />
-                <span className="text-white font-semibold text-sm opacity-70">{timeUntilNextClaim}</span>
+                <Flame className="w-4 h-4 text-[#4cd3ff] opacity-50" />
+                <span className="text-white font-medium text-xs opacity-70">{timeUntilNextClaim}</span>
               </>
             )}
           </Button>
