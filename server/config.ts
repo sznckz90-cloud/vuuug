@@ -8,9 +8,14 @@ export const config = {
   // 2. Forward a message from the channel to @userinfobot
   // 3. It will show the channel ID (looks like: -1001234567890)
   telegram: {
-    channelId: process.env.TELEGRAM_CHANNEL_ID || '@PaidAdsNews',
+    // Channel settings (environment variables required)
+    channelId: process.env.TELEGRAM_CHANNEL_ID || '-1002480439556',
     channelUrl: process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/PaidAdsNews',
-    channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Paid Ads News',
+    channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Paid Adz Community',
+    // Group settings (environment variables required)
+    groupId: process.env.TELEGRAM_GROUP_ID || '-1002769424144',
+    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/PaidAdsCommunity',
+    groupName: process.env.TELEGRAM_GROUP_NAME || 'Paid Adz Chat',
   },
   
   // Bot configuration
@@ -26,5 +31,8 @@ export function getChannelConfig() {
     channelId: config.telegram.channelId,
     channelUrl: config.telegram.channelUrl,
     channelName: config.telegram.channelName,
+    groupId: config.telegram.groupId,
+    groupUrl: config.telegram.groupUrl,
+    groupName: config.telegram.groupName,
   };
 }

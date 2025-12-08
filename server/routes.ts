@@ -351,6 +351,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(getChannelConfig());
   });
 
+  // Mandatory channel/group membership check endpoint - authenticated
+  app.get('/api/membership/check', authenticateTelegram, async (req: any, res) => {
+    try {
+      // Get telegramId from authenticated session, NOT from query params
+      const sessionUser = req.user?.user;
+      const telegramId = sessionUser?.telegram_id;
+      
+      if (!telegramId) {
+        console.log('⚠️ Membership check failed - no telegram_id in session');
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Authentication required',
+          isVerified: false 
+        });
+      }
+      
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        // SECURITY: Fail closed when bot token is missing
+        console.log('❌ TELEGRAM_BOT_TOKEN not configured - blocking access');
+        return res.json({ 
+          success: false, 
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
+          message: 'Bot token not configured - verification unavailable'
+        });
+      }
+      
+      const channelConfig = getChannelConfig();
+      const userId = parseInt(telegramId, 10);
+      
+      // Check both channel and group membership
+      const [channelMember, groupMember] = await Promise.all([
+        verifyChannelMembership(userId, channelConfig.channelId, botToken),
+        verifyChannelMembership(userId, channelConfig.groupId, botToken)
+      ]);
+      
+      const isVerified = channelMember && groupMember;
+      
+      // Update user verification status in database
+      try {
+        await db.update(users)
+          .set({ 
+            isChannelGroupVerified: isVerified,
+            lastMembershipCheck: new Date()
+          })
+          .where(eq(users.id, sessionUser.id));
+      } catch (dbError) {
+        console.error('⚠️ Could not update user verification status:', dbError);
+      }
+      
+      console.log(`🔍 Membership check for ${telegramId}: channel=${channelMember}, group=${groupMember}, verified=${isVerified}`);
+      
+      res.json({
+        success: true,
+        isVerified,
+        channelMember,
+        groupMember,
+        channelUrl: channelConfig.channelUrl,
+        groupUrl: channelConfig.groupUrl,
+        channelName: channelConfig.channelName,
+        groupName: channelConfig.groupName
+      });
+    } catch (error) {
+      console.error('❌ Membership check error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to check membership',
+        isVerified: false 
+      });
+    }
+  });
+
   // Debug route to check database columns
   app.get('/api/debug/db-schema', async (req: any, res) => {
     try {
