@@ -13,28 +13,30 @@ export default function Header() {
   const tonBalance = parseFloat(user?.tonBalance || "0");
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background to-background/95 backdrop-blur-sm border-b border-white/5">
-      <div className="max-w-md mx-auto px-4 py-2 flex items-center justify-between">
+    <div className="fixed top-0 left-0 right-0 z-40 bg-black border-b border-[#1A1A1A]">
+      <div className="max-w-md mx-auto px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-gray-700/50 px-3 h-8 rounded-lg min-w-[80px]">
-            <DiamondIcon size={14} withGlow />
-            <div className="text-sm text-white font-bold">
+          <div className="flex items-center gap-2 bg-[#1A1A1A] px-4 h-10 rounded-xl min-w-[85px]">
+            <DiamondIcon size={16} withGlow />
+            <div className="text-sm text-white font-semibold">
               {padBalance.toLocaleString()}
             </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-gray-700/50 px-3 h-8 rounded-lg min-w-[80px]">
-            <img src="/images/ton.png" alt="TON" className="w-4 h-4 object-cover rounded-full" />
-            <div className="text-sm text-white font-bold">
+          <div className="flex items-center gap-2 bg-[#1A1A1A] px-4 h-10 rounded-xl min-w-[85px]">
+            <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center">
+              <img src="/images/ton.png" alt="TON" className="w-full h-full object-cover" />
+            </div>
+            <div className="text-sm text-white font-semibold">
               {tonBalance.toFixed(4)}
             </div>
           </div>
           
-          <div className="flex items-center gap-1.5 bg-gray-700/50 px-3 h-8 rounded-lg min-w-[80px]">
-            <span className="text-green-400 font-bold text-base">$</span>
-            <div className="text-sm text-white font-bold">
+          <div className="flex items-center gap-2 bg-[#1A1A1A] px-4 h-10 rounded-xl min-w-[85px]">
+            <span className="text-green-400 font-semibold text-base">$</span>
+            <div className="text-sm text-white font-semibold">
               {usdBalance.toFixed(3)}
             </div>
           </div>

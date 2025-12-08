@@ -43,7 +43,7 @@ export default function Layout({ children }: LayoutProps) {
     <div className="h-screen w-full flex flex-col bg-black overflow-hidden">
       {!showSeasonEnd && <Header />}
       
-      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '85px', paddingTop: '60px' }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '90px', paddingTop: '56px' }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location}
@@ -64,7 +64,7 @@ export default function Layout({ children }: LayoutProps) {
       {!showSeasonEnd && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A]">
           <div className="max-w-md mx-auto px-4">
-            <div className="flex justify-around items-center py-3 relative">
+            <div className="flex justify-around items-center py-2.5 relative">
               {/* Left Nav Items */}
               {leftNavItems.map((item) => {
                 const isActive = location === item.href;
@@ -73,7 +73,7 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <Link key={item.href} href={item.href}>
                     <button
-                      className={`flex flex-col items-center justify-center gap-1 min-w-[60px] transition-all ${
+                      className={`flex flex-col items-center justify-center gap-1 min-w-[56px] min-h-[48px] transition-all ${
                         isActive 
                           ? "text-[#007BFF]" 
                           : "text-[#AAAAAA] hover:text-[#FFFFFF]"
@@ -83,7 +83,7 @@ export default function Layout({ children }: LayoutProps) {
                         className="w-6 h-6 transition-all"
                         strokeWidth={isActive ? 2.5 : 2}
                       />
-                      <span className={`text-xs font-medium ${isActive ? 'font-semibold' : ''}`}>
+                      <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>
                         {item.label}
                       </span>
                     </button>
@@ -93,8 +93,8 @@ export default function Layout({ children }: LayoutProps) {
 
               {/* Center Floating Watch Button */}
               <Link href="/">
-                <button className="flex flex-col items-center justify-center min-w-[60px] -mt-8">
-                  <div className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-black ${
+                <button className="flex flex-col items-center justify-center min-w-[56px] -mt-6">
+                  <div className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-black ${
                     isWatchActive ? "ring-2 ring-[#007BFF]" : ""
                   }`}>
                     <img 
@@ -119,7 +119,7 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <Link key={item.href} href={item.href}>
                     <button
-                      className={`flex flex-col items-center justify-center gap-1 min-w-[60px] transition-all ${
+                      className={`flex flex-col items-center justify-center gap-1 min-w-[56px] min-h-[48px] transition-all ${
                         isActive 
                           ? "text-[#007BFF]" 
                           : "text-[#AAAAAA] hover:text-[#FFFFFF]"
@@ -129,7 +129,7 @@ export default function Layout({ children }: LayoutProps) {
                         className="w-6 h-6 transition-all"
                         strokeWidth={isActive ? 2.5 : 2}
                       />
-                      <span className={`text-xs font-medium ${isActive ? 'font-semibold' : ''}`}>
+                      <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>
                         {item.label}
                       </span>
                     </button>
