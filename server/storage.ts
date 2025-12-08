@@ -1052,7 +1052,7 @@ export class DatabaseStorage implements IStorage {
     const [promoCode] = await db
       .select()
       .from(promoCodes)
-      .where(eq(promoCodes.code, code));
+      .where(sql`LOWER(${promoCodes.code}) = LOWER(${code})`);
     
     return promoCode;
   }
