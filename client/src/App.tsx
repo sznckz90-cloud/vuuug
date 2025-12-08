@@ -106,10 +106,11 @@ function App() {
   const [isChannelGroupVerified, setIsChannelGroupVerified] = useState<boolean | null>(null);
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingMembership, setIsCheckingMembership] = useState(true);
+  
+  const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
   const checkMembership = useCallback(async () => {
     try {
-      // Endpoint now uses authenticated session - no need to pass telegramId
       const response = await fetch(`/api/membership/check`);
       const data = await response.json();
       
@@ -127,6 +128,14 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (isDevMode) {
+      console.log('🔧 Development mode: Skipping Telegram authentication');
+      setTelegramId('dev-user-123');
+      setIsChannelGroupVerified(true);
+      setIsCheckingMembership(false);
+      return;
+    }
+    
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.ready();
@@ -189,7 +198,7 @@ function App() {
       setIsCheckingMembership(false);
       setIsChannelGroupVerified(false);
     }
-  }, [checkMembership]);
+  }, [checkMembership, isDevMode]);
 
   const handleMembershipVerified = useCallback(() => {
     setIsChannelGroupVerified(true);
