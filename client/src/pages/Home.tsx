@@ -368,7 +368,7 @@ export default function Home() {
   return (
     <Layout>
       <main className="max-w-md mx-auto px-4 pt-1">
-        <div className="flex flex-col items-center mb-4">
+        <div className="flex flex-col items-center mb-3">
           {photoUrl ? (
             <img 
               src={photoUrl} 
@@ -398,15 +398,27 @@ export default function Home() {
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <Button
-            onClick={() => setLocation("/withdraw")}
-            className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1"
-          >
-            <Wallet className="w-6 h-6 text-[#4cd3ff]" />
-            <span className="text-white font-semibold text-sm">Payouts</span>
-          </Button>
+        <div className="mb-3">
+          <h2 className="text-sm font-bold text-white mb-2">Promo Code</h2>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Enter Promo Code"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              disabled={redeemPromoMutation.isPending || isApplyingPromo}
+              className="flex-1 bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-10 rounded-xl text-sm"
+            />
+            <Button
+              onClick={handleApplyPromo}
+              disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
+              className="h-10 px-5 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] font-semibold rounded-xl text-sm"
+            >
+              {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+            </Button>
+          </div>
+        </div>
 
+        <div className="grid grid-cols-2 gap-2 mt-2">
           <Button
             onClick={handleConvert}
             disabled={isConverting || convertMutation.isPending}
@@ -447,50 +459,9 @@ export default function Home() {
               </>
             )}
           </Button>
-
-          <Drawer open={promoDrawerOpen} onOpenChange={setPromoDrawerOpen}>
-            <DrawerTrigger asChild>
-              <Button
-                className="h-16 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-xl flex flex-col items-center justify-center gap-1"
-              >
-                <Ticket className="w-6 h-6 text-[#4cd3ff]" />
-                <span className="text-white font-semibold text-sm">Promo Code</span>
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="bg-black/95 backdrop-blur-xl border-t-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(76,211,255,0.15)] max-h-[85vh]">
-              <div className="px-4 pb-8 pt-2 overflow-y-auto">
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Ticket className="w-5 h-5 text-[#4cd3ff]" />
-                      <span className="text-sm font-semibold text-white">Promo Code</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 relative">
-                        <Input
-                          placeholder="Enter code"
-                          value={promoCode}
-                          onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                          disabled={redeemPromoMutation.isPending || isApplyingPromo}
-                          className="bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-11 rounded-xl"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleApplyPromo}
-                        disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
-                        className="h-11 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black transition-all active:scale-[0.97] font-semibold rounded-xl"
-                      >
-                        {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </DrawerContent>
-          </Drawer>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-3">
           <AdWatchingSection user={user as User} />
         </div>
       </main>
