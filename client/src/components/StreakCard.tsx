@@ -32,7 +32,7 @@ export default function StreakCard({ user }: StreakCardProps) {
       if (!response.ok) {
         const error = await response.json();
         const errorObj = new Error(error.message || 'Failed to claim streak');
-        (errorObj as any).isAlreadyClaimed = error.message === "You have already claimed today's streak!";
+        (errorObj as any).isAlreadyClaimed = error.message === "Please wait 5 minutes before claiming again!";
         throw errorObj;
       }
       return response.json();
@@ -173,23 +173,24 @@ export default function StreakCard({ user }: StreakCardProps) {
           <Button
               onClick={handleClaimStreak}
               disabled={isClaiming || !canClaim}
-              className="h-10 w-[120px] btn-primary"
+              className="h-10 px-4 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
             >
-              <div className="flex items-center justify-center gap-2 w-full">
-                {isClaiming ? (
-                  <>
-                    <Loader className="w-4 h-4 flex-shrink-0 animate-spin" />
-                    <span className="text-center">Claiming...</span>
-                  </>
-                ) : canClaim ? (
-                  <>
-                    <Flame className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-center">Claim</span>
-                  </>
-                ) : (
-                  <span className="text-sm font-mono tabular-nums">{timeUntilNextClaim}</span>
-                )}
-              </div>
+              {isClaiming ? (
+                <>
+                  <Loader className="w-4 h-4 text-[#4cd3ff] animate-spin" />
+                  <span className="text-white font-medium text-xs">Claiming...</span>
+                </>
+              ) : canClaim ? (
+                <>
+                  <Flame className="w-4 h-4 text-[#4cd3ff]" />
+                  <span className="text-white font-medium text-xs">Claim Bonus</span>
+                </>
+              ) : (
+                <>
+                  <Flame className="w-4 h-4 text-[#4cd3ff] opacity-50" />
+                  <span className="text-white font-medium text-xs opacity-70">{timeUntilNextClaim}</span>
+                </>
+              )}
             </Button>
         </div>
       </CardContent>

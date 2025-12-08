@@ -27,14 +27,18 @@ export default function PromoCodeInput() {
   const redeemPromoMutation = useMutation({
     mutationFn: async (code: string) => {
       const response = await apiRequest("POST", "/api/promo-codes/redeem", { code });
-      return response.json();
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Invalid promo code");
+      }
+      return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       setPromoCode("");
-      showNotification("Promo applied successfully!", "success");
+      showNotification(data.message || "Promo applied successfully!", "success");
     },
     onError: (error: any) => {
       const message = error.message || "Invalid promo code";
