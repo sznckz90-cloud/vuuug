@@ -6105,28 +6105,15 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
         const rewardAmount = result.reward;
         
         if (rewardType === 'PAD') {
-          // Add PAD balance (stored as integer in balance column)
-          const [currentUser] = await db
-            .select({ balance: users.balance })
-            .from(users)
-            .where(eq(users.id, userId));
+          // Add PAD balance - addEarning handles BOTH earnings tracking AND balance update
+          // Do NOT update balance directly to avoid double-crediting
+          const rewardPad = parseInt(rewardAmount || '0');
           
-          const currentPadBalance = parseInt(currentUser?.balance || '0');
-          const rewardPad = parseInt(rewardAmount);
-          const newPadBalance = currentPadBalance + rewardPad;
-          
-          await db
-            .update(users)
-            .set({ balance: newPadBalance.toString(), updatedAt: new Date() })
-            .where(eq(users.id, userId));
-          
-          await storage.logTransaction({
+          await storage.addEarning({
             userId,
-            amount: rewardAmount,
-            type: "credit",
-            source: "promo_code",
+            amount: rewardAmount || '0',
+            source: 'promo_code',
             description: `Redeemed promo code: ${code}`,
-            metadata: { code, rewardType: 'PAD' }
           });
           
           res.json({ 
@@ -6136,23 +6123,24 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
             rewardType: 'PAD'
           });
         } else if (rewardType === 'TON') {
-          // Add TON balance
+          // Add TON balance - direct update required since addEarning only handles PAD balance
           const [currentUser] = await db
             .select({ tonBalance: users.tonBalance })
             .from(users)
             .where(eq(users.id, userId));
           
           const currentTonBalance = parseFloat(currentUser?.tonBalance || '0');
-          const newTonBalance = (currentTonBalance + parseFloat(rewardAmount)).toFixed(8);
+          const newTonBalance = (currentTonBalance + parseFloat(rewardAmount || '0')).toFixed(8);
           
           await db
             .update(users)
             .set({ tonBalance: newTonBalance, updatedAt: new Date() })
             .where(eq(users.id, userId));
           
+          // Log transaction for tracking (don't use addEarning as it would add to PAD balance)
           await storage.logTransaction({
             userId,
-            amount: rewardAmount,
+            amount: rewardAmount || '0',
             type: "credit",
             source: "promo_code",
             description: `Redeemed promo code: ${code}`,
@@ -6166,8 +6154,8 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
             rewardType: 'TON'
           });
         } else if (rewardType === 'USD') {
-          // Add USD balance
-          await storage.addUSDBalance(userId, rewardAmount, 'promo_code', `Redeemed promo code: ${code}`);
+          // Add USD balance - addUSDBalance handles balance update and transaction logging
+          await storage.addUSDBalance(userId, rewardAmount || '0', 'promo_code', `Redeemed promo code: ${code}`);
           
           res.json({ 
             success: true, 
@@ -6176,28 +6164,14 @@ Note: Admin must manually pay user in real ${newWithdrawal.method}
             rewardType: 'USD'
           });
         } else {
-          // Default: Add PAD balance (not TON)
-          const [currentUser] = await db
-            .select({ balance: users.balance })
-            .from(users)
-            .where(eq(users.id, userId));
+          // Default: Add PAD balance - addEarning handles BOTH earnings tracking AND balance update
+          const rewardPad = parseInt(rewardAmount || '0');
           
-          const currentPadBalance = parseInt(currentUser?.balance || '0');
-          const rewardPad = parseInt(rewardAmount);
-          const newPadBalance = currentPadBalance + rewardPad;
-          
-          await db
-            .update(users)
-            .set({ balance: newPadBalance.toString(), updatedAt: new Date() })
-            .where(eq(users.id, userId));
-          
-          await storage.logTransaction({
+          await storage.addEarning({
             userId,
-            amount: rewardAmount,
-            type: "credit",
-            source: "promo_code",
-            description: `Promo code reward: ${code}`,
-            metadata: { code, rewardType: 'PAD' }
+            amount: rewardAmount || '0',
+            source: 'promo_code',
+            description: `Redeemed promo code: ${code}`,
           });
           
           res.json({ 
