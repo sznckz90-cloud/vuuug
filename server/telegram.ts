@@ -1029,21 +1029,26 @@ Share your unique referral link and earn PAD when your friends join:
           if (result.success && result.withdrawal) {
             const user = await storage.getUser(result.withdrawal.userId);
             
-            // Update admin message with formatted success details
             const withdrawalDetails = result.withdrawal.details as any;
-            const amount = result.withdrawal.amount;
-            const formattedAmount = formatUSD(amount);
+            const netAmount = parseFloat(withdrawalDetails?.netAmount || result.withdrawal.amount);
+            const requestedAmount = parseFloat(withdrawalDetails?.requestedAmount || result.withdrawal.amount);
+            const feeAmount = parseFloat(withdrawalDetails?.fee || '0');
+            const feePercent = requestedAmount > 0 ? ((feeAmount / requestedAmount) * 100).toFixed(0) : '0';
             const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
             const userName = user?.firstName || user?.username || 'Unknown';
-            const userId = user?.id || 'N/A';
-            const currentDate = new Date().toString();
-            
+            const userTelegramId = user?.telegram_id || '';
+            const userTelegramUsername = user?.username ? `@${user.username}` : 'N/A';
+            const currentDate = new Date().toUTCString();
             const method = result.withdrawal.method || 'USD';
-            const adminSuccessMessage = `✅ <b>Payout approved successfully</b>\n\n` +
-              `👤 User: ${userName}\n` +
-              `🆔 User ID: ${userId}\n` +
-              `💸 Amount: ${formattedAmount} ${method}\n` +
-              `💳 Address: ${walletAddress}\n` +
+            const paymentSystemId = withdrawalDetails?.paymentSystemId || '';
+            
+            const adminSuccessMessage = `✅ Withdrawal Successful\n\n` +
+              `🗣 User: <a href="tg://user?id=${userTelegramId}">${userName}</a>\n` +
+              `🆔 User ID: ${userTelegramId}\n` +
+              `💳 Username: ${userTelegramUsername}\n` +
+              `🌐 Address:\n<code>${walletAddress}</code>\n` +
+              `💸 Amount: ${netAmount.toFixed(5)} ${method}\n` +
+              `🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)\n` +
               `📅 Date: ${currentDate}\n` +
               `🤖 Bot: @Paid_Adzbot`;
             
@@ -1057,6 +1062,30 @@ Share your unique referral link and earn PAD when your friends join:
                 parse_mode: 'HTML'
               })
             });
+            
+            if (userTelegramId) {
+              const userConfirmationMessage = `🚀 Your payout has been successfully processed.\n\n` +
+                `💵 Amount: ${netAmount.toFixed(3)} ${method}\n` +
+                `🛂 Fee: ${feeAmount.toFixed(3)} (${feePercent}%)`;
+              
+              await sendUserTelegramNotification(userTelegramId, userConfirmationMessage);
+              
+              const isTONPayment = paymentSystemId === 'ton_coin' || method.toLowerCase().includes('ton');
+              const hasValidAddress = walletAddress && walletAddress !== 'N/A' && walletAddress.length > 10;
+              
+              if (isTONPayment && hasValidAddress) {
+                const transactionUrl = `https://tonscan.org/address/${walletAddress}`;
+                const transactionButtonMessage = `🎫 KR Pass`;
+                
+                const transactionButton = {
+                  inline_keyboard: [[
+                    { text: '👉🏻 Transaction 👈🏻', url: transactionUrl }
+                  ]]
+                };
+                
+                await sendUserTelegramNotification(userTelegramId, transactionButtonMessage, transactionButton);
+              }
+            }
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
               method: 'POST',
