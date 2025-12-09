@@ -146,8 +146,10 @@ export default function CreateTask() {
   // Determine payment method based on user type
   // Admin uses USD, Regular users use TON
   const paymentCurrency = isAdmin ? "USD" : "TON";
-  // TON cost per click is 0.0003 TON for regular users
-  const tonCostPerClick = 0.0003;
+  // TON cost per click from admin settings (separate for channel and bot)
+  const tonCostPerClick = taskType === 'bot' 
+    ? (appSettings?.botTaskCostTON || 0.0003)
+    : (appSettings?.channelTaskCostTON || 0.0003);
   const totalCostTON = tonCostPerClick * clicksNum;
   const totalCost = isAdmin ? totalCostUSD : totalCostTON;
   const availableBalance = isAdmin ? usdBalance : tonBalance;

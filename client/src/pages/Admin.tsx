@@ -1447,6 +1447,8 @@ function SettingsSection() {
     withdrawalFeeUSD: '3',
     channelTaskCost: '0.003',
     botTaskCost: '0.003',
+    channelTaskCostTON: '0.0003',
+    botTaskCostTON: '0.0003',
     channelTaskReward: '30',
     botTaskReward: '20',
     partnerTaskReward: '5',
@@ -1480,6 +1482,8 @@ function SettingsSection() {
         withdrawalFeeUSD: settingsData.withdrawalFeeUSD?.toString() || '3',
         channelTaskCost: settingsData.channelTaskCost?.toString() || '0.003',
         botTaskCost: settingsData.botTaskCost?.toString() || '0.003',
+        channelTaskCostTON: settingsData.channelTaskCostTON?.toString() || '0.0003',
+        botTaskCostTON: settingsData.botTaskCostTON?.toString() || '0.0003',
         channelTaskReward: settingsData.channelTaskReward?.toString() || '30',
         botTaskReward: settingsData.botTaskReward?.toString() || '20',
         partnerTaskReward: settingsData.partnerTaskReward?.toString() || '5',
@@ -1521,6 +1525,8 @@ function SettingsSection() {
     const withdrawalFeeUSD = parseFloat(settings.withdrawalFeeUSD);
     const channelCost = parseFloat(settings.channelTaskCost);
     const botCost = parseFloat(settings.botTaskCost);
+    const channelCostTON = parseFloat(settings.channelTaskCostTON);
+    const botCostTON = parseFloat(settings.botTaskCostTON);
     const channelReward = parseInt(settings.channelTaskReward);
     const botReward = parseInt(settings.botTaskReward);
     const partnerReward = parseInt(settings.partnerTaskReward);
@@ -1560,6 +1566,8 @@ function SettingsSection() {
         withdrawalFeeUSD: withdrawalFeeUSD,
         channelTaskCost: channelCost,
         botTaskCost: botCost,
+        channelTaskCostTON: channelCostTON,
+        botTaskCostTON: botCostTON,
         channelTaskReward: channelReward,
         botTaskReward: botReward,
         partnerTaskReward: partnerReward,
@@ -1887,15 +1895,26 @@ function SettingsSection() {
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Reward (PAD)</Label>
+                  <Label className="text-xs">Cost (TON)</Label>
                   <Input
                     type="number"
-                    value={settings.channelTaskReward}
-                    onChange={(e) => setSettings({ ...settings, channelTaskReward: e.target.value })}
-                    placeholder="30"
+                    value={settings.channelTaskCostTON}
+                    onChange={(e) => setSettings({ ...settings, channelTaskCostTON: e.target.value })}
+                    placeholder="0.0003"
+                    step="0.0001"
                     className="h-8"
                   />
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs">Reward (PAD)</Label>
+                <Input
+                  type="number"
+                  value={settings.channelTaskReward}
+                  onChange={(e) => setSettings({ ...settings, channelTaskReward: e.target.value })}
+                  placeholder="30"
+                  className="h-8"
+                />
               </div>
             </div>
 
@@ -1917,15 +1936,26 @@ function SettingsSection() {
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Reward (PAD)</Label>
+                  <Label className="text-xs">Cost (TON)</Label>
                   <Input
                     type="number"
-                    value={settings.botTaskReward}
-                    onChange={(e) => setSettings({ ...settings, botTaskReward: e.target.value })}
-                    placeholder="20"
+                    value={settings.botTaskCostTON}
+                    onChange={(e) => setSettings({ ...settings, botTaskCostTON: e.target.value })}
+                    placeholder="0.0003"
+                    step="0.0001"
                     className="h-8"
                   />
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs">Reward (PAD)</Label>
+                <Input
+                  type="number"
+                  value={settings.botTaskReward}
+                  onChange={(e) => setSettings({ ...settings, botTaskReward: e.target.value })}
+                  placeholder="20"
+                  className="h-8"
+                />
               </div>
             </div>
 
