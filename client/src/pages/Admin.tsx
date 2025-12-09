@@ -1458,6 +1458,7 @@ function SettingsSection() {
     referralRewardEnabled: false,
     referralRewardUSD: '0.0005',
     referralRewardPAD: '50',
+    referralAdsRequired: '1',
     // Withdrawal requirements
     withdrawalAdRequirementEnabled: true,
     minimumAdsForWithdrawal: '100',
@@ -1493,6 +1494,7 @@ function SettingsSection() {
         referralRewardEnabled: settingsData.referralRewardEnabled || false,
         referralRewardUSD: settingsData.referralRewardUSD?.toString() || '0.0005',
         referralRewardPAD: settingsData.referralRewardPAD?.toString() || '50',
+        referralAdsRequired: settingsData.referralAdsRequired?.toString() || '1',
         // Withdrawal requirements
         withdrawalAdRequirementEnabled: settingsData.withdrawalAdRequirementEnabled !== false,
         minimumAdsForWithdrawal: settingsData.minimumAdsForWithdrawal?.toString() || '100',
@@ -1577,6 +1579,7 @@ function SettingsSection() {
         referralRewardEnabled: settings.referralRewardEnabled,
         referralRewardUSD: refRewardUSD,
         referralRewardPAD: refRewardPAD,
+        referralAdsRequired: parseInt(settings.referralAdsRequired) || 1,
         withdrawalAdRequirementEnabled: settings.withdrawalAdRequirementEnabled,
         minimumAdsForWithdrawal: parseInt(settings.minimumAdsForWithdrawal) || 100,
         withdrawalInviteRequirementEnabled: settings.withdrawalInviteRequirementEnabled,
@@ -1744,6 +1747,24 @@ function SettingsSection() {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="referral-ads-required" className="text-sm font-semibold">
+                <i className="fas fa-play-circle mr-2 text-amber-500"></i>
+                Ads Required for Bonus
+              </Label>
+              <Input
+                id="referral-ads-required"
+                type="number"
+                value={settings.referralAdsRequired}
+                onChange={(e) => setSettings({ ...settings, referralAdsRequired: e.target.value })}
+                placeholder="1"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Number of ads a referred user must watch to trigger the referral bonus. Current: {settingsData?.referralAdsRequired || 1}
+              </p>
             </div>
           </div>
         )}
