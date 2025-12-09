@@ -14,6 +14,7 @@ declare global {
             is_premium?: boolean;
             photo_url?: string;
           };
+          start_param?: string;
           auth_date: number;
           hash: string;
         };
