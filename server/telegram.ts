@@ -861,18 +861,27 @@ Share your unique referral link and earn PAD when your friends join:
           // Send each withdrawal as a separate message with approve/reject buttons
           for (const { withdrawal, user } of displayWithdrawals) {
             const withdrawalDetails = withdrawal.details as any;
-            const amount = formatUSD(withdrawal.amount);
-            const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
-            const username = user?.username || user?.firstName || 'Unknown';
+            const netAmount = parseFloat(withdrawalDetails?.netAmount || withdrawal.amount);
+            const feeAmount = parseFloat(withdrawalDetails?.fee || '0');
+            const feePercent = withdrawalDetails?.feePercent || '0';
+            const walletAddress = withdrawalDetails?.paymentDetails || withdrawalDetails?.walletAddress || 'N/A';
+            const userName = user?.firstName || user?.username || 'Unknown';
+            const userTelegramId = user?.telegram_id || '';
+            const userTelegramUsername = user?.username ? `@${user.username}` : 'N/A';
             const createdAt = new Date(withdrawal.createdAt!).toUTCString();
             
-            const message = `💰 <b>Withdrawal Request</b>\n\n` +
-              `<b>User:</b> ${username}\n` +
-              `<b>Amount:</b> ${amount} ${withdrawal.method || 'USD'}\n` +
-              `<b>Method:</b> ${withdrawal.method || 'USD'}\n` +
-              `<b>Wallet:</b> ${walletAddress}\n` +
-              `<b>Created:</b> ${createdAt}\n` +
-              `<b>ID:</b> ${withdrawal.id}`;
+            // Format matches approved message format exactly
+            const message = `💰 Withdrawal Request
+
+🗣 User: <a href="tg://user?id=${userTelegramId}">${userName}</a>
+🆔 User ID: ${userTelegramId}
+💳 Username: ${userTelegramUsername}
+🌐 Address:
+${walletAddress}
+💸 Amount: ${netAmount.toFixed(5)} USD
+🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
+📅 Date: ${createdAt}
+🤖 Bot: @Paid_Adzbot`;
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
               method: 'POST',
@@ -1031,10 +1040,10 @@ Share your unique referral link and earn PAD when your friends join:
             
             const withdrawalDetails = result.withdrawal.details as any;
             const netAmount = parseFloat(withdrawalDetails?.netAmount || result.withdrawal.amount);
-            const requestedAmount = parseFloat(withdrawalDetails?.requestedAmount || result.withdrawal.amount);
             const feeAmount = parseFloat(withdrawalDetails?.fee || '0');
-            const feePercent = requestedAmount > 0 ? ((feeAmount / requestedAmount) * 100).toFixed(0) : '0';
-            const walletAddress = withdrawalDetails?.paymentDetails || 'N/A';
+            // Use stored fee percentage from admin settings (already saved when withdrawal was created)
+            const feePercent = withdrawalDetails?.feePercent || '0';
+            const walletAddress = withdrawalDetails?.paymentDetails || withdrawalDetails?.walletAddress || 'N/A';
             const userName = user?.firstName || user?.username || 'Unknown';
             const userTelegramId = user?.telegram_id || '';
             const userTelegramUsername = user?.username ? `@${user.username}` : 'N/A';
@@ -1042,15 +1051,17 @@ Share your unique referral link and earn PAD when your friends join:
             const method = result.withdrawal.method || 'USD';
             const paymentSystemId = withdrawalDetails?.paymentSystemId || '';
             
-            const adminSuccessMessage = `✅ Withdrawal Successful\n\n` +
-              `🗣 User: <a href="tg://user?id=${userTelegramId}">${userName}</a>\n` +
-              `🆔 User ID: ${userTelegramId}\n` +
-              `💳 Username: ${userTelegramUsername}\n` +
-              `🌐 Address:\n<code>${walletAddress}</code>\n` +
-              `💸 Amount: ${netAmount.toFixed(5)} ${method}\n` +
-              `🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)\n` +
-              `📅 Date: ${currentDate}\n` +
-              `🤖 Bot: @Paid_Adzbot`;
+            const adminSuccessMessage = `✅ Withdrawal Successful
+
+🗣 User: <a href="tg://user?id=${userTelegramId}">${userName}</a>
+🆔 User ID: ${userTelegramId}
+💳 Username: ${userTelegramUsername}
+🌐 Address:
+${walletAddress}
+💸 Amount: ${netAmount.toFixed(5)} USD
+🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
+📅 Date: ${currentDate}
+🤖 Bot: @Paid_Adzbot`;
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
               method: 'POST',
@@ -1064,26 +1075,28 @@ Share your unique referral link and earn PAD when your friends join:
             });
             
             if (userTelegramId) {
-              const userConfirmationMessage = `🚀 Your payout has been successfully processed.\n\n` +
-                `💵 Amount: ${netAmount.toFixed(3)} ${method}\n` +
-                `🛂 Fee: ${feeAmount.toFixed(3)} (${feePercent}%)`;
+              // User confirmation message with Amount (net after fee) and Fee with percentage
+              const userConfirmationMessage = `🚀 Your payout has been successfully processed.
+
+💵 Amount: ${netAmount.toFixed(3)} USD
+🛂 Fee: ${feeAmount.toFixed(3)} (${feePercent}%)`;
               
-              await sendUserTelegramNotification(userTelegramId, userConfirmationMessage);
-              
+              // Check if TON payment and has valid address for transaction button
               const isTONPayment = paymentSystemId === 'ton_coin' || method.toLowerCase().includes('ton');
               const hasValidAddress = walletAddress && walletAddress !== 'N/A' && walletAddress.length > 10;
               
               if (isTONPayment && hasValidAddress) {
-                const transactionUrl = `https://tonscan.org/address/${walletAddress}`;
-                const transactionButtonMessage = `🎫 KR Pass`;
-                
+                // Store withdrawal ID for callback-based link protection
+                // Send message with callback button that will open the URL when clicked
                 const transactionButton = {
                   inline_keyboard: [[
-                    { text: '👉🏻 Transaction 👈🏻', url: transactionUrl }
+                    { text: '👉🏻 Transaction 👈🏻', callback_data: `tx_view_${result.withdrawal.id}` }
                   ]]
                 };
                 
-                await sendUserTelegramNotification(userTelegramId, transactionButtonMessage, transactionButton);
+                await sendUserTelegramNotification(userTelegramId, userConfirmationMessage, transactionButton);
+              } else {
+                await sendUserTelegramNotification(userTelegramId, userConfirmationMessage);
               }
             }
             
@@ -1186,6 +1199,75 @@ Share your unique referral link and earn PAD when your friends join:
             body: JSON.stringify({ 
               callback_query_id: callbackQuery.id,
               text: 'Error processing rejection',
+              show_alert: true
+            })
+          });
+        }
+        return true;
+      }
+      
+      // Handle transaction view callback - opens tonscan URL for the user's withdrawal address
+      if (data && data.startsWith('tx_view_')) {
+        const withdrawalId = data.replace('tx_view_', '');
+        
+        try {
+          // Get the withdrawal to find the wallet address
+          const { db } = await import('./db');
+          const { eq } = await import('drizzle-orm');
+          const { withdrawals } = await import('../shared/schema');
+          
+          const [withdrawal] = await db
+            .select()
+            .from(withdrawals)
+            .where(eq(withdrawals.id, withdrawalId))
+            .limit(1);
+          
+          if (withdrawal) {
+            const withdrawalDetails = withdrawal.details as any;
+            const walletAddress = withdrawalDetails?.paymentDetails || withdrawalDetails?.walletAddress || withdrawalDetails?.tonWalletAddress || '';
+            
+            if (walletAddress && walletAddress.length > 10) {
+              const transactionUrl = `https://tonscan.org/address/${walletAddress}`;
+              
+              // Answer callback and open URL
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  callback_query_id: callbackQuery.id,
+                  url: transactionUrl
+                })
+              });
+            } else {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  callback_query_id: callbackQuery.id,
+                  text: 'Transaction details not available',
+                  show_alert: true
+                })
+              });
+            }
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                callback_query_id: callbackQuery.id,
+                text: 'Withdrawal not found',
+                show_alert: true
+              })
+            });
+          }
+        } catch (error) {
+          console.error('Error handling transaction view:', error);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              callback_query_id: callbackQuery.id,
+              text: 'Error loading transaction',
               show_alert: true
             })
           });

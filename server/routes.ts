@@ -5242,8 +5242,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`📝 Creating withdrawal request for $${withdrawalAmount.toFixed(2)} USD via ${method} (balance will be deducted on approval)`);
 
+        // Store the fee percentage from admin settings for consistent display
+        const feePercentForDetails = method === 'TON' ? feePercentTON : (method === 'STARS' ? 0.05 : feePercentUSD);
         withdrawalDetails.totalDeducted = usdToDeduct.toFixed(10);
         withdrawalDetails.fee = fee.toFixed(10);
+        withdrawalDetails.feePercent = (feePercentForDetails * 100).toString(); // Store exact percentage (e.g., "5" or "2.5")
+        withdrawalDetails.requestedAmount = usdToDeduct.toFixed(10); // Total amount before fee
+        withdrawalDetails.netAmount = withdrawalAmount.toFixed(10); // Amount after fee
 
         const withdrawalData: any = {
           userId,
@@ -5261,10 +5266,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           withdrawal, 
           withdrawnAmount: withdrawalAmount, // USD amount
           fee: fee,
+          feePercent: (feePercentForDetails * 100).toString(), // Fee percentage as string (exact value)
           method: method,
           starPackage: method === 'STARS' ? starPackage : undefined,
           userTelegramId: user.telegram_id,
-          username: user.username 
+          username: user.username,
+          firstName: user.firstName || user.username || 'Unknown',
+          walletAddress: walletAddress
         };
       });
 
@@ -5279,22 +5287,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Send withdrawal notification to admin via Telegram bot with inline buttons
-      const methodDisplay = newWithdrawal.method === 'STARS' 
-        ? `${newWithdrawal.method} (${newWithdrawal.starPackage} ⭐)` 
-        : newWithdrawal.method;
+      // Format matches the approved withdrawal message format exactly
+      const userName = newWithdrawal.firstName;
+      const userTelegramId = newWithdrawal.userTelegramId || '';
+      const userTelegramUsername = newWithdrawal.username ? `@${newWithdrawal.username}` : 'N/A';
+      const currentDate = new Date().toUTCString();
+      const walletAddress = newWithdrawal.walletAddress || 'N/A';
+      const feeAmount = newWithdrawal.fee;
+      const feePercent = newWithdrawal.feePercent;
       
-      const adminMessage = `
-💸 <b>New Withdrawal Request</b>
+      const adminMessage = `💰 Withdrawal Request
 
-• <b>User:</b> @${newWithdrawal.username || 'Unknown'}
-• <b>Request ID:</b> ${newWithdrawal.withdrawal.id}
-• <b>Amount:</b> $${newWithdrawal.withdrawnAmount.toFixed(2)} USD
-• <b>Method:</b> ${methodDisplay}
-• <b>Wallet/ID:</b> ${newWithdrawal.withdrawal.details?.paymentDetails || 'N/A'}
-• <b>Time:</b> ${new Date().toUTCString()}
-
-Note: Admin must manually pay user in real ${newWithdrawal.method}
-      `.trim();
+🗣 User: <a href="tg://user?id=${userTelegramId}">${userName}</a>
+🆔 User ID: ${userTelegramId}
+💳 Username: ${userTelegramUsername}
+🌐 Address:
+${walletAddress}
+💸 Amount: ${newWithdrawal.withdrawnAmount.toFixed(5)} USD
+🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
+📅 Date: ${currentDate}
+🤖 Bot: @Paid_Adzbot`;
 
       // Create inline keyboard with Approve and Reject buttons
       const inlineKeyboard = {
