@@ -765,6 +765,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const channelTaskCostUSD = parseFloat(getSetting('channel_task_cost_usd', '0.003')); // Default $0.003 per click
       const botTaskCostUSD = parseFloat(getSetting('bot_task_cost_usd', '0.003')); // Default $0.003 per click
       
+      // TON costs for regular users
+      const channelTaskCostTON = parseFloat(getSetting('channel_task_cost_ton', '0.0003')); // Default 0.0003 TON per click
+      const botTaskCostTON = parseFloat(getSetting('bot_task_cost_ton', '0.0003')); // Default 0.0003 TON per click
+      
       // Separate channel and bot task rewards (in PAD)
       const channelTaskRewardPAD = parseInt(getSetting('channel_task_reward', '30')); // Default 30 PAD per click
       const botTaskRewardPAD = parseInt(getSetting('bot_task_reward', '20')); // Default 20 PAD per click
@@ -818,6 +822,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         withdrawalFeeUSD,
         channelTaskCostUSD,
         botTaskCostUSD,
+        channelTaskCostTON,
+        botTaskCostTON,
         channelTaskRewardPAD,
         botTaskRewardPAD,
         taskCostPerClick,
@@ -2380,6 +2386,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         withdrawalFeeUSD: parseFloat(getSetting('withdrawal_fee_usd', '3')), // NEW: USD withdrawal fee %
         channelTaskCost: parseFloat(getSetting('channel_task_cost_usd', '0.003')), // NEW: Channel cost in USD (admin only)
         botTaskCost: parseFloat(getSetting('bot_task_cost_usd', '0.003')), // NEW: Bot cost in USD (admin only)
+        channelTaskCostTON: parseFloat(getSetting('channel_task_cost_ton', '0.0003')), // TON cost for regular users
+        botTaskCostTON: parseFloat(getSetting('bot_task_cost_ton', '0.0003')), // TON cost for regular users
         channelTaskReward: parseInt(getSetting('channel_task_reward', '30')), // NEW: Channel reward in PAD
         botTaskReward: parseInt(getSetting('bot_task_reward', '20')), // NEW: Bot reward in PAD
         partnerTaskReward: parseInt(getSetting('partner_task_reward', '5')), // NEW: Partner reward in PAD
@@ -2425,6 +2433,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         withdrawalFeeUSD,
         channelTaskCost,
         botTaskCost,
+        channelTaskCostTON,
+        botTaskCostTON,
         channelTaskReward,
         botTaskReward,
         partnerTaskReward,
@@ -2468,6 +2478,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('withdrawal_fee_usd', withdrawalFeeUSD); // % fee for USD
       await updateSetting('channel_task_cost_usd', channelTaskCost); // USD (admin only)
       await updateSetting('bot_task_cost_usd', botTaskCost); // USD (admin only)
+      await updateSetting('channel_task_cost_ton', channelTaskCostTON); // TON (regular users)
+      await updateSetting('bot_task_cost_ton', botTaskCostTON); // TON (regular users)
       await updateSetting('channel_task_reward', channelTaskReward); // PAD
       await updateSetting('bot_task_reward', botTaskReward); // PAD
       await updateSetting('partner_task_reward', partnerTaskReward); // PAD
@@ -4332,11 +4344,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           task 
         });
       } else {
-        // Regular users: TON-based costs
+        // Regular users: TON-based costs from admin settings
         console.log('👤 Regular user task creation - using TON balance');
         
-        // Cost is 0.0003 TON per click
-        const costPerClickTON = 0.0003;
+        // Get TON cost per click from admin settings
+        const channelTonCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'channel_task_cost_ton')).limit(1);
+        const botTonCostSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bot_task_cost_ton')).limit(1);
+        
+        const channelCostPerClickTON = parseFloat(channelTonCostSetting[0]?.settingValue || "0.0003");
+        const botCostPerClickTON = parseFloat(botTonCostSetting[0]?.settingValue || "0.0003");
+        
+        const costPerClickTON = taskType === "channel" ? channelCostPerClickTON : botCostPerClickTON;
         const totalCostTON = costPerClickTON * totalClicksRequired;
         
         // Fetch TON balance

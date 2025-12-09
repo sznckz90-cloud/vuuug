@@ -3130,16 +3130,24 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Get reward amount from admin settings based on task type
-      const rewardSettingKey = task.taskType === 'bot' ? 'bot_task_reward_pad' : 
-                               task.taskType === 'partner' ? 'partner_task_reward_pad' : 
-                               'channel_task_reward_pad';
+      const rewardSettingKey = task.taskType === 'bot' ? 'bot_task_reward' : 
+                               task.taskType === 'partner' ? 'partner_task_reward' : 
+                               'channel_task_reward';
       const rewardSetting = await db
         .select()
         .from(adminSettings)
         .where(eq(adminSettings.settingKey, rewardSettingKey))
         .limit(1);
       
-      const rewardPAD = task.taskType === 'partner' ? 5 : 
+      // Get partner task reward from settings if partner task, otherwise use regular rewards
+      const partnerRewardSetting = await db
+        .select()
+        .from(adminSettings)
+        .where(eq(adminSettings.settingKey, 'partner_task_reward'))
+        .limit(1);
+      const partnerReward = parseInt(partnerRewardSetting[0]?.settingValue || '5');
+      
+      const rewardPAD = task.taskType === 'partner' ? partnerReward : 
                         parseInt(rewardSetting[0]?.settingValue || (task.taskType === 'bot' ? '20' : '30'));
 
       // Insert click record
