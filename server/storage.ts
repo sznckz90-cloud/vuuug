@@ -756,16 +756,20 @@ export class DatabaseStorage implements IStorage {
     return referral;
   }
 
-  // Check and activate referral bonus when friend completes FIRST ad (PAD + USD rewards)
+  // Check and activate referral bonus when friend watches required number of ads (PAD + USD rewards)
+  // Uses admin-configured 'referral_ads_required' setting instead of hardcoded value
   async checkAndActivateReferralBonus(userId: string): Promise<void> {
     try {
-      // Check if this user has already completed first ad
+      // Check if this user has already received their referral bonus
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user || user.firstAdWatched) {
-        // First ad already processed for this user
+        // Referral bonus already processed for this user
         return;
       }
 
+      // Get admin-configured referral ads requirement (no hardcoded values)
+      const referralAdsRequired = parseInt(await this.getAppSetting('referral_ads_required', '1'));
+      
       // Count ads watched by this user
       const [adCount] = await db
         .select({ count: sql<number>`count(*)` })
@@ -777,15 +781,15 @@ export class DatabaseStorage implements IStorage {
 
       const adsWatched = adCount?.count || 0;
       
-      // If user has watched first ad, activate referral bonuses
-      if (adsWatched >= 1) {
-        // Mark this user as having completed first ad
+      // If user has watched the admin-configured required number of ads, activate referral bonuses
+      if (adsWatched >= referralAdsRequired) {
+        // Mark this user as having completed the referral ad requirement
         await db
           .update(users)
           .set({ firstAdWatched: true })
           .where(eq(users.id, userId));
 
-        // Get referral reward settings
+        // Get referral reward settings from admin (no hardcoded values)
         const referralRewardEnabled = await this.getAppSetting('referral_reward_enabled', 'false');
         const referralRewardPAD = parseInt(await this.getAppSetting('referral_reward_pad', '50'));
         const referralRewardUSD = parseFloat(await this.getAppSetting('referral_reward_usd', '0.0005'));
@@ -807,25 +811,25 @@ export class DatabaseStorage implements IStorage {
             .set({ status: 'completed' })
             .where(eq(referrals.id, referral.id));
 
-          // Award PAD referral bonus to referrer (always give PAD)
+          // Award PAD referral bonus to referrer (uses admin-configured amount)
           await this.addEarning({
             userId: referral.referrerId,
             amount: String(referralRewardPAD),
             source: 'referral',
-            description: `Referral bonus - friend completed first ad (+${referralRewardPAD} PAD)`,
+            description: `Referral bonus - friend watched ${referralAdsRequired} ads (+${referralRewardPAD} PAD)`,
           });
 
-          console.log(`✅ First ad referral bonus: ${referralRewardPAD} PAD awarded to ${referral.referrerId} from ${userId}'s first ad`);
+          console.log(`✅ Referral bonus: ${referralRewardPAD} PAD awarded to ${referral.referrerId} from ${userId}'s ${referralAdsRequired} ad watches`);
 
-          // Award USD bonus if enabled
+          // Award USD bonus if enabled (uses admin-configured amount)
           if (referralRewardEnabled === 'true' && referralRewardUSD > 0) {
             await this.addUSDBalance(
               referral.referrerId,
               String(referralRewardUSD),
               'referral',
-              `Referral bonus - friend completed first ad (+$${referralRewardUSD} USD)`
+              `Referral bonus - friend watched ${referralAdsRequired} ads (+$${referralRewardUSD} USD)`
             );
-            console.log(`✅ First ad referral bonus: $${referralRewardUSD} USD awarded to ${referral.referrerId} from ${userId}'s first ad`);
+            console.log(`✅ Referral bonus: $${referralRewardUSD} USD awarded to ${referral.referrerId} from ${userId}'s ${referralAdsRequired} ad watches`);
           }
         }
       }

@@ -547,7 +547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // New Telegram WebApp authentication route
   app.post('/api/auth/telegram', async (req: any, res) => {
     try {
-      const { initData } = req.body;
+      const { initData, startParam } = req.body;
       
       if (!initData) {
         console.log('⚠️ No initData provided - checking for cached user_id in headers');
@@ -555,7 +555,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (cachedUserId) {
           console.log('✅ Using cached user_id from headers:', cachedUserId);
-          return res.json({ success: true, user: cachedUserId });
+          // Note: Returning users clicking referral links won't create new referrals
+          // Referrals are only created for NEW users with valid initData
+          if (startParam) {
+            console.log(`ℹ️ Returning user has startParam=${startParam} but referrals only apply to new users`);
+          }
+          return res.json({ success: true, user: cachedUserId, referralProcessed: false });
         }
         
         console.log('ℹ️ No cached user_id found - returning skipAuth response');
@@ -601,6 +606,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error sending welcome message:', welcomeError);
           // Don't fail authentication if welcome message fails
         }
+        
+        // Process referral if startParam (referral code) was provided for new users
+        let referralProcessed = false;
+        if (startParam && startParam !== telegramUser.id.toString()) {
+          console.log(`🔄 Processing Mini App referral: referralCode=${startParam}, newUser=${telegramUser.id}`);
+          try {
+            const referrer = await storage.getUserByReferralCode(startParam);
+            if (referrer && referrer.id !== upsertedUser.id) {
+              console.log(`👤 Found referrer via Mini App: ${referrer.id} (${referrer.firstName || 'No name'})`);
+              await storage.createReferral(referrer.id, upsertedUser.id);
+              console.log(`✅ Referral created via Mini App: ${referrer.id} -> ${upsertedUser.id}`);
+              referralProcessed = true;
+            } else if (!referrer) {
+              console.log(`❌ Invalid referral code from Mini App: ${startParam}`);
+            }
+          } catch (referralError) {
+            console.error('❌ Mini App referral processing failed:', referralError);
+            // Don't fail authentication if referral processing fails
+          }
+        }
+        return res.json({ ...upsertedUser, referralProcessed });
       }
       
       res.json(upsertedUser);
@@ -786,6 +812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const referralRewardEnabled = getSetting('referral_reward_enabled', 'false') === 'true';
       const referralRewardUSD = parseFloat(getSetting('referral_reward_usd', '0.0005'));
       const referralRewardPAD = parseInt(getSetting('referral_reward_pad', '50'));
+      const referralAdsRequired = parseInt(getSetting('referral_ads_required', '1')); // Ads needed for affiliate bonus
       
       // Daily task rewards (for TaskSection.tsx)
       const streakReward = parseInt(getSetting('streak_reward', '100')); // Daily streak claim reward in PAD
@@ -837,6 +864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralRewardEnabled,
         referralRewardUSD,
         referralRewardPAD,
+        referralAdsRequired,
         // Daily task rewards
         streakReward,
         shareTaskReward,
@@ -2398,6 +2426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralRewardEnabled: getSetting('referral_reward_enabled', 'false') === 'true',
         referralRewardUSD: parseFloat(getSetting('referral_reward_usd', '0.0005')),
         referralRewardPAD: parseInt(getSetting('referral_reward_pad', '50')),
+        referralAdsRequired: parseInt(getSetting('referral_ads_required', '1')),
         // Daily task rewards
         streakReward: parseInt(getSetting('streak_reward', '100')),
         shareTaskReward: parseInt(getSetting('share_task_reward', '1000')),
@@ -2444,6 +2473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralRewardEnabled,
         referralRewardUSD,
         referralRewardPAD,
+        referralAdsRequired,
         // Daily task rewards
         streakReward,
         shareTaskReward,
@@ -2454,6 +2484,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         withdrawalInviteRequirementEnabled,
         minimumInvitesForWithdrawal
       } = req.body;
+      
+      // Validate referralAdsRequired - must be a positive integer >= 1
+      const validatedReferralAdsRequired = referralAdsRequired !== undefined 
+        ? Math.max(1, parseInt(referralAdsRequired) || 1) 
+        : undefined;
       
       // Helper function to update a setting
       const updateSetting = async (key: string, value: any) => {
@@ -2489,6 +2524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('referral_reward_enabled', referralRewardEnabled);
       await updateSetting('referral_reward_usd', referralRewardUSD);
       await updateSetting('referral_reward_pad', referralRewardPAD);
+      await updateSetting('referral_ads_required', validatedReferralAdsRequired);
       
       // Daily task rewards
       await updateSetting('streak_reward', streakReward);
