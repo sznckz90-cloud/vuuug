@@ -145,6 +145,11 @@ function App() {
         setTelegramId(tg.initDataUnsafe.user.id.toString());
       }
       
+      // Persist start_param to localStorage if present (for referral tracking across sessions)
+      if (tg.initDataUnsafe?.start_param) {
+        localStorage.setItem("tg_start_param", tg.initDataUnsafe.start_param);
+      }
+      
       const { deviceId, fingerprint } = setupDeviceTracking();
       
       const headers: Record<string, string> = { 
@@ -155,8 +160,15 @@ function App() {
       let body: any = {};
       let userTelegramId: string | null = null;
       
+      // Get startParam from current session or persisted value
+      const startParam = tg.initDataUnsafe?.start_param || localStorage.getItem("tg_start_param");
+      
       if (tg.initData) {
         body = { initData: tg.initData };
+        // Include start_param (referral code) if present - critical for referral tracking
+        if (startParam) {
+          body.startParam = startParam;
+        }
         if (tg.initDataUnsafe?.user?.id) {
           userTelegramId = tg.initDataUnsafe.user.id.toString();
         }
@@ -167,6 +179,10 @@ function App() {
             const user = JSON.parse(cachedUser);
             headers["x-user-id"] = user.id.toString();
             userTelegramId = user.id.toString();
+            // Include startParam in cached user branch as well - for returning users clicking referral links
+            if (startParam) {
+              body.startParam = startParam;
+            }
           } catch {}
         }
       }
@@ -178,6 +194,10 @@ function App() {
       })
         .then(res => res.json())
         .then(data => {
+          // Clear persisted start_param if referral was successfully processed
+          if (data.referralProcessed) {
+            localStorage.removeItem("tg_start_param");
+          }
           if (data.banned) {
             setIsBanned(true);
             setBanReason(data.reason);
