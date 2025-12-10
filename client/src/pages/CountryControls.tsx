@@ -1,15 +1,10 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/useAdmin";
 import Layout from "@/components/Layout";
 import { Link } from "wouter";
-import { Globe, Search, ArrowLeft, Shield, MapPin } from "lucide-react";
 
 interface Country {
   code: string;
@@ -34,14 +29,14 @@ export default function CountryControlsPage() {
     queryKey: ["/api/countries"],
     queryFn: () => fetch("/api/countries").then(res => res.json()),
     enabled: isAdmin,
-    refetchInterval: 30000,
+    refetchInterval: 5000,
   });
 
-  const { data: blockedData } = useQuery<{ success: boolean; blocked: string[] }>({
+  const { data: blockedData, refetch: refetchBlocked } = useQuery<{ success: boolean; blocked: string[] }>({
     queryKey: ["/api/blocked"],
     queryFn: () => fetch("/api/blocked").then(res => res.json()),
     enabled: isAdmin,
-    refetchInterval: 30000,
+    refetchInterval: 5000,
   });
 
   const { data: userInfo } = useQuery<UserInfo>({
@@ -73,26 +68,26 @@ export default function CountryControlsPage() {
 
   const blockedCount = countries.filter(c => c.blocked).length;
 
-  const handleToggle = async (countryCode: string, currentBlocked: boolean) => {
+  const handleToggle = async (countryCode: string, isCurrentlyBlocked: boolean) => {
     setUpdatingCountries(prev => new Set(prev).add(countryCode));
     
     try {
-      // Toggle OFF (currently allowed) → block the country
-      // Toggle ON (currently blocked) → unblock the country
-      const endpoint = currentBlocked ? '/api/unblock-country' : '/api/block-country';
-      const response = await apiRequest('POST', endpoint, { country_code: countryCode });
+      const endpoint = isCurrentlyBlocked ? '/api/unblock-country' : '/api/block-country';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ country_code: countryCode })
+      });
       const result = await response.json();
       
       if (result.success) {
-        // Refresh both queries to update UI
-        queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/blocked"] });
+        await refetchBlocked();
         toast({
-          title: currentBlocked ? "Country Unblocked" : "Country Blocked",
-          description: "Saved",
+          title: isCurrentlyBlocked ? "Country Allowed" : "Country Blocked",
+          description: `${countryCode} has been ${isCurrentlyBlocked ? 'allowed' : 'blocked'}`,
         });
       } else {
-        throw new Error(result.error || 'Failed to update country status');
+        throw new Error(result.error || 'Failed to update');
       }
     } catch (error: any) {
       toast({
@@ -109,15 +104,22 @@ export default function CountryControlsPage() {
     }
   };
 
+  const getFlagEmoji = (countryCode: string): string => {
+    const codePoints = countryCode
+      .toUpperCase()
+      .split('')
+      .map(char => 127397 + char.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
+  };
+
   if (adminLoading) {
     return (
       <Layout>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin text-primary text-3xl mb-4">
-              <i className="fas fa-spinner"></i>
-            </div>
-            <div className="text-foreground font-medium">Loading...</div>
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="flex gap-1">
+            <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
           </div>
         </div>
       </Layout>
@@ -127,15 +129,19 @@ export default function CountryControlsPage() {
   if (!isAdmin) {
     return (
       <Layout>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-red-500 text-5xl mb-4">
-              <i className="fas fa-exclamation-triangle"></i>
+        <div className="min-h-screen bg-black flex items-center justify-center p-6">
+          <div className="text-center max-w-sm">
+            <div className="w-20 h-20 mx-auto mb-8 rounded-full border-2 border-white/20 flex items-center justify-center">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
             </div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Access Denied</h1>
-            <p className="text-muted-foreground mb-4">You don't have permission to access this page.</p>
+            <h1 className="text-2xl font-semibold text-white mb-4">Access Denied</h1>
+            <p className="text-white/50 text-sm mb-8">You don't have permission to access this page.</p>
             <Link href="/">
-              <Button>Return Home</Button>
+              <button className="px-6 py-3 bg-white text-black font-medium rounded-xl">
+                Return Home
+              </button>
             </Link>
           </div>
         </div>
@@ -145,152 +151,123 @@ export default function CountryControlsPage() {
 
   return (
     <Layout>
-      <main className="max-w-4xl mx-auto px-4 pb-20 pt-3">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+      <main className="min-h-screen bg-black pb-20">
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <div className="flex items-center gap-4 mb-6">
             <Link href="/admin">
-              <Button variant="ghost" size="sm" className="h-8 px-2">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
+              <button className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
             </Link>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Globe className="w-5 h-5 text-blue-500" />
-              Country Controls
-            </h1>
+            <h1 className="text-xl font-semibold text-white">Country Controls</h1>
           </div>
-          <Button 
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
-              queryClient.invalidateQueries({ queryKey: ["/api/blocked"] });
-              queryClient.invalidateQueries({ queryKey: ["/api/user-info"] });
-            }}
-            className="h-8 px-3 text-xs"
-          >
-            <i className="fas fa-sync-alt"></i>
-          </Button>
-        </div>
 
-        {userInfo && (
-          <Card className="bg-[#121212] border-white/10 mb-4">
-            <CardContent className="p-4">
+          {userInfo && (
+            <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-xl">
               <div className="flex items-center gap-3">
-                <MapPin className="w-5 h-5 text-green-500" />
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
                 <div>
-                  <div className="text-sm font-medium text-foreground">
-                    Your Current Country: {userInfo.countryCode} ({userInfo.country})
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    IP: {userInfo.ip}
-                  </div>
+                  <p className="text-white text-sm font-medium">
+                    Your Location: {getFlagEmoji(userInfo.countryCode)} {userInfo.country}
+                  </p>
+                  <p className="text-white/40 text-xs">IP: {userInfo.ip}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
 
-        <Card className="bg-[#121212] border-white/10 mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <Shield className="w-4 h-4" />
-                  <span>Geo-Restriction Status</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {blockedCount === 0 
-                    ? "All countries are currently allowed"
-                    : `${blockedCount} ${blockedCount === 1 ? 'country' : 'countries'} blocked`
-                  }
+          <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Status</p>
+                <p className="text-white text-sm">
+                  {blockedCount === 0 ? "All countries allowed" : `${blockedCount} blocked`}
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-[#4cd3ff]">{countries.length}</div>
-                <div className="text-xs text-muted-foreground">Total Countries</div>
+                <p className="text-3xl font-bold text-white">{countries.length}</p>
+                <p className="text-white/40 text-xs">Countries</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="bg-[#121212] border-white/10">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search countries..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-[#1a1a1a] border-white/10"
-                />
-              </div>
+          <div className="mb-4">
+            <div className="relative">
+              <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search countries..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/30"
+              />
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
             {countriesLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="animate-spin text-primary text-2xl">
-                  <i className="fas fa-spinner"></i>
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
               </div>
+            ) : filteredCountries.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-white/40 text-sm">No countries found</p>
+              </div>
             ) : (
-              <div className="max-h-[500px] overflow-y-auto">
-                {filteredCountries.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No countries found matching "{searchQuery}"
-                  </div>
-                ) : (
-                  <div className="divide-y divide-white/5">
-                    {filteredCountries.map(country => (
-                      <div 
-                        key={country.code}
-                        className={`flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors ${country.blocked ? 'bg-red-500/5' : ''}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">
-                            {getFlagEmoji(country.code)}
-                          </span>
-                          <div>
-                            <p className="font-medium text-foreground">{country.name}</p>
-                            <p className="text-xs text-muted-foreground">{country.code}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {country.blocked && (
-                            <span className="text-xs text-red-400 font-medium">Blocked</span>
-                          )}
-                          <Switch
-                            checked={!country.blocked}
-                            onCheckedChange={() => handleToggle(country.code, country.blocked)}
-                            disabled={updatingCountries.has(country.code)}
-                          />
-                        </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                {filteredCountries.map((country, index) => (
+                  <div 
+                    key={country.code}
+                    className={`flex items-center justify-between px-4 py-3 ${
+                      index !== filteredCountries.length - 1 ? 'border-b border-white/5' : ''
+                    } ${country.blocked ? 'bg-red-500/5' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{getFlagEmoji(country.code)}</span>
+                      <div>
+                        <p className="text-white text-sm font-medium">{country.name}</p>
+                        <p className="text-white/40 text-xs">{country.code}</p>
                       </div>
-                    ))}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {country.blocked && (
+                        <span className="text-xs text-red-400 font-medium px-2 py-1 bg-red-500/10 rounded">
+                          Blocked
+                        </span>
+                      )}
+                      <Switch
+                        checked={!country.blocked}
+                        onCheckedChange={() => handleToggle(country.code, country.blocked)}
+                        disabled={updatingCountries.has(country.code)}
+                      />
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
 
-        <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-          <p className="text-xs text-yellow-400">
-            <strong>Note:</strong> When a country is blocked (toggle OFF), users from that country will see a "Not available in your country" screen and cannot access the mini app.
-            The blocking works server-side based on IP detection.
-          </p>
+          <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+            <p className="text-white/40 text-xs">
+              <strong className="text-white/60">Note:</strong> Toggle OFF to block a country. 
+              Users from blocked countries will see a "Not available" screen.
+            </p>
+          </div>
         </div>
       </main>
     </Layout>
   );
-}
-
-function getFlagEmoji(countryCode: string): string {
-  const codePoints = countryCode
-    .toUpperCase()
-    .split('')
-    .map(char => 127397 + char.charCodeAt(0));
-  return String.fromCodePoint(...codePoints);
 }
