@@ -162,6 +162,28 @@ export function useWebSocket() {
               console.log('⚙️ App settings updated by admin - refreshing');
               break;
               
+            case 'country_blocked':
+              // Admin blocked a country - dispatch event for App.tsx to handle
+              console.log('🚫 Country blocked:', (message as any).countryCode);
+              window.dispatchEvent(new CustomEvent('countryBlockChanged', { 
+                detail: { 
+                  action: 'blocked',
+                  countryCode: (message as any).countryCode 
+                } 
+              }));
+              break;
+              
+            case 'country_unblocked':
+              // Admin unblocked a country - dispatch event for App.tsx to handle
+              console.log('✅ Country unblocked:', (message as any).countryCode);
+              window.dispatchEvent(new CustomEvent('countryBlockChanged', { 
+                detail: { 
+                  action: 'unblocked',
+                  countryCode: (message as any).countryCode 
+                } 
+              }));
+              break;
+              
             default:
               // Remove default black notifications to prevent duplicates
               // Only log unhandled messages for debugging
