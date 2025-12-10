@@ -69,18 +69,38 @@ export default function CountryControlsPage() {
   const blockedCount = countries.filter(c => c.blocked).length;
 
   const handleToggle = async (countryCode: string, isCurrentlyBlocked: boolean) => {
+    // Prevent double-clicks
+    if (updatingCountries.has(countryCode)) {
+      return;
+    }
+    
     setUpdatingCountries(prev => new Set(prev).add(countryCode));
     
     try {
+      // Get Telegram data for admin authentication
+      const tg = window.Telegram?.WebApp;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      
+      if (tg?.initData) {
+        headers['x-telegram-data'] = tg.initData;
+      }
+      
+      // If currently blocked, we need to unblock (allow)
+      // If currently allowed (not blocked), we need to block
       const endpoint = isCurrentlyBlocked ? '/api/unblock-country' : '/api/block-country';
+      
+      console.log(`Toggle country ${countryCode}: currently blocked=${isCurrentlyBlocked}, calling ${endpoint}`);
+      
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ country_code: countryCode })
       });
+      
       const result = await response.json();
       
       if (result.success) {
+        // Immediately refetch blocked list to update UI
         await refetchBlocked();
         toast({
           title: isCurrentlyBlocked ? "Country Allowed" : "Country Blocked",
@@ -90,6 +110,7 @@ export default function CountryControlsPage() {
         throw new Error(result.error || 'Failed to update');
       }
     } catch (error: any) {
+      console.error('Toggle error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to update country status",
