@@ -980,6 +980,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const withdrawalInviteRequirementEnabled = getSetting('withdrawal_invite_requirement_enabled', 'true') === 'true';
       const minimumInvitesForWithdrawal = parseInt(getSetting('minimum_invites_for_withdrawal', '3'));
       
+      // Adult ads setting (Adsterra)
+      const adultAdsEnabled = getSetting('adult_ads_enabled', 'false') === 'true';
+      
       // Legacy compatibility - keep old values for backwards compatibility
       const taskCostPerClick = channelTaskCostUSD; // Use channel cost as default
       const taskRewardPerClick = channelTaskRewardPAD / 10000000; // Legacy TON format for compatibility
@@ -1029,6 +1032,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumAdsForWithdrawal,
         withdrawalInviteRequirementEnabled,
         minimumInvitesForWithdrawal,
+        // Adult ads
+        adultAdsEnabled,
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -2634,7 +2639,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         withdrawalAdRequirementEnabled,
         minimumAdsForWithdrawal,
         withdrawalInviteRequirementEnabled,
-        minimumInvitesForWithdrawal
+        minimumInvitesForWithdrawal,
+        // Adult ads
+        adultAdsEnabled
       } = req.body;
       
       // Validate referralAdsRequired - must be a positive integer >= 1
@@ -2688,6 +2695,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('minimum_ads_for_withdrawal', minimumAdsForWithdrawal);
       await updateSetting('withdrawal_invite_requirement_enabled', withdrawalInviteRequirementEnabled);
       await updateSetting('minimum_invites_for_withdrawal', minimumInvitesForWithdrawal);
+      
+      // Adult ads (Adsterra)
+      await updateSetting('adult_ads_enabled', adultAdsEnabled);
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
