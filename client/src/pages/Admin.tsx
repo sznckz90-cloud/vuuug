@@ -2077,6 +2077,21 @@ function SettingsSection() {
                 {settings.seasonBroadcastActive ? 'Active' : 'Inactive'}
               </p>
             </div>
+
+            <Link href="/admin/country-controls">
+              <div className="space-y-2 p-3 border border-blue-500/30 rounded-lg bg-gradient-to-r from-blue-500/10 to-blue-500/5 hover:border-blue-500/50 cursor-pointer transition-all">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold cursor-pointer">
+                    <i className="fas fa-globe mr-2 text-blue-500"></i>
+                    Country Controls
+                  </Label>
+                  <i className="fas fa-chevron-right text-blue-500 text-xs"></i>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Block or allow access from specific countries
+                </p>
+              </div>
+            </Link>
           </div>
         )}
         
