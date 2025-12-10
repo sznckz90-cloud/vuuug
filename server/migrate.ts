@@ -533,6 +533,20 @@ export async function ensureDatabaseSchema(): Promise<void> {
       )
     `);
     
+    // Blocked countries table for geo-restriction
+    console.log('🔄 [MIGRATION] Creating blocked_countries table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS blocked_countries (
+        id SERIAL PRIMARY KEY,
+        country_code VARCHAR(2) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ [MIGRATION] blocked_countries table created');
+    
+    // Create index for blocked countries
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_blocked_countries_code ON blocked_countries(country_code)`);
+
     // Create indexes for performance
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON sessions(expire)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`);

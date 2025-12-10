@@ -341,8 +341,11 @@ const BLOCKED_HTML = `<!DOCTYPE html>
       padding: 40px;
     }
     .icon {
-      font-size: 64px;
       margin-bottom: 24px;
+    }
+    .icon svg {
+      width: 64px;
+      height: 64px;
     }
     h1 {
       color: #ffffff;
@@ -359,12 +362,25 @@ const BLOCKED_HTML = `<!DOCTYPE html>
 </head>
 <body>
   <div class="container">
-    <div class="icon">🚫</div>
+    <div class="icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+      </svg>
+    </div>
     <h1>Not available in your country</h1>
     <p>This service is not accessible from your location.</p>
   </div>
 </body>
 </html>`;
+
+// Check if user is admin based on Telegram ID
+function isAdminUser(telegramId: string | null): boolean {
+  if (!telegramId) return false;
+  const adminId = process.env.TELEGRAM_ADMIN_ID;
+  if (!adminId) return false;
+  return adminId.toString() === telegramId.toString();
+}
 
 export async function countryBlockingMiddleware(req: Request, res: Response, next: NextFunction) {
   // Always allow API routes (authentication, admin endpoints, etc.)
@@ -378,6 +394,72 @@ export async function countryBlockingMiddleware(req: Request, res: Response, nex
   }
   
   try {
+    // Check for admin via Telegram WebApp initData in URL query params (initial page load)
+    const tgWebAppData = req.query.tgWebAppData as string;
+    if (tgWebAppData) {
+      try {
+        const urlParams = new URLSearchParams(tgWebAppData);
+        const userString = urlParams.get('user');
+        if (userString) {
+          const telegramUser = JSON.parse(decodeURIComponent(userString));
+          if (isAdminUser(telegramUser.id?.toString())) {
+            console.log('✅ Admin user detected via tgWebAppData, bypassing country block');
+            return next();
+          }
+        }
+      } catch (e) {
+        // Continue with normal check if parsing fails
+      }
+    }
+    
+    // Check for admin via hash fragment data (Telegram Mini Apps send data in URL)
+    const referer = req.headers.referer || req.headers.origin || '';
+    if (referer) {
+      try {
+        const url = new URL(referer);
+        const hashParams = new URLSearchParams(url.hash.replace('#', ''));
+        const tgData = hashParams.get('tgWebAppData');
+        if (tgData) {
+          const dataParams = new URLSearchParams(tgData);
+          const userString = dataParams.get('user');
+          if (userString) {
+            const telegramUser = JSON.parse(decodeURIComponent(userString));
+            if (isAdminUser(telegramUser.id?.toString())) {
+              console.log('✅ Admin user detected via referer hash, bypassing country block');
+              return next();
+            }
+          }
+        }
+      } catch (e) {
+        // Continue with normal check if parsing fails
+      }
+    }
+    
+    // Check if user is admin via custom headers (for subsequent requests)
+    const telegramData = req.headers['x-telegram-data'] as string;
+    if (telegramData) {
+      try {
+        const urlParams = new URLSearchParams(telegramData);
+        const userString = urlParams.get('user');
+        if (userString) {
+          const telegramUser = JSON.parse(userString);
+          if (isAdminUser(telegramUser.id?.toString())) {
+            console.log('✅ Admin user detected in middleware, bypassing country block');
+            return next();
+          }
+        }
+      } catch (e) {
+        // Continue with normal check if parsing fails
+      }
+    }
+    
+    // Also check admin ID from cached user header
+    const cachedUserId = req.headers['x-user-id'] as string;
+    if (isAdminUser(cachedUserId)) {
+      console.log('✅ Admin user detected via cached ID in middleware, bypassing country block');
+      return next();
+    }
+    
     // Step 1: Detect user IP from headers or socket
     const clientIP = getClientIP(req);
     

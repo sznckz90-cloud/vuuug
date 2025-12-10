@@ -7342,6 +7342,62 @@ ${walletAddress}
 
   // ============ COUNTRY BLOCKING API ============
   
+  // GET /api/check-country - Check if user's country is blocked (for frontend blocking)
+  app.get('/api/check-country', async (req: any, res) => {
+    try {
+      const { getClientIP, getCountryFromIP, getBlockedCountries } = await import('./countryBlocking');
+      
+      // Prevent caching so blocks take effect immediately
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      // Check if user is admin - admins are never blocked
+      const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
+      if (telegramData) {
+        try {
+          const urlParams = new URLSearchParams(telegramData);
+          const userString = urlParams.get('user');
+          if (userString) {
+            const telegramUser = JSON.parse(userString);
+            if (isAdmin(telegramUser.id.toString())) {
+              console.log('✅ Admin user detected, bypassing country check');
+              return res.json({ blocked: false, country: null, isAdmin: true });
+            }
+          }
+        } catch (e) {
+          // Continue with normal check if parsing fails
+        }
+      }
+      
+      // Also check admin ID from session/localStorage cached user
+      const cachedUserId = req.headers['x-user-id'];
+      if (cachedUserId && isAdmin(cachedUserId.toString())) {
+        console.log('✅ Admin user detected via cached ID, bypassing country check');
+        return res.json({ blocked: false, country: null, isAdmin: true });
+      }
+      
+      const clientIP = getClientIP(req);
+      const result = await getCountryFromIP(clientIP);
+      
+      if (!result.countryCode) {
+        return res.json({ blocked: false, country: null });
+      }
+      
+      const blockedCodes = await getBlockedCountries();
+      const isBlocked = blockedCodes.includes(result.countryCode.toUpperCase());
+      
+      res.json({
+        blocked: isBlocked,
+        country: result.countryCode,
+        countryName: result.countryName
+      });
+    } catch (error) {
+      console.error('❌ Error checking country:', error);
+      res.json({ blocked: false, country: null });
+    }
+  });
+
   // GET /api/user-info - Get user's IP and detected country (for admin panel display)
   app.get('/api/user-info', async (req: any, res) => {
     try {
