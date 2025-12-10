@@ -6,6 +6,7 @@ import AppNotification from "@/components/AppNotification";
 import { useEffect, lazy, Suspense, useState, memo, useCallback } from "react";
 import { setupDeviceTracking } from "@/lib/deviceId";
 import BanScreen from "@/components/BanScreen";
+import CountryBlockedScreen from "@/components/CountryBlockedScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -28,9 +29,9 @@ const PageLoader = memo(function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-black">
       <div className="flex gap-1">
-        <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '0ms' }}></div>
-        <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '150ms' }}></div>
-        <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
+        <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
+        <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
       </div>
     </div>
   );
@@ -105,11 +106,48 @@ function AppContent() {
 function App() {
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState<string>();
+  const [isCountryBlocked, setIsCountryBlocked] = useState(false);
   const [isChannelGroupVerified, setIsChannelGroupVerified] = useState<boolean | null>(null);
   const [telegramId, setTelegramId] = useState<string | null>(null);
+  const [isCheckingCountry, setIsCheckingCountry] = useState(true);
   const [isCheckingMembership, setIsCheckingMembership] = useState(true);
   
   const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
+
+  const checkCountry = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      
+      // Send Telegram data for admin detection
+      const tg = window.Telegram?.WebApp;
+      if (tg?.initData) {
+        headers['x-telegram-data'] = tg.initData;
+      }
+      
+      // Also send cached user ID if available
+      const cachedUser = localStorage.getItem("tg_user");
+      if (cachedUser) {
+        try {
+          const user = JSON.parse(cachedUser);
+          headers['x-user-id'] = user.id.toString();
+        } catch {}
+      }
+      
+      const response = await fetch('/api/check-country', { 
+        cache: 'no-store',
+        headers
+      });
+      const data = await response.json();
+      
+      if (data.blocked) {
+        setIsCountryBlocked(true);
+      }
+    } catch (err) {
+      console.error("Country check error:", err);
+    } finally {
+      setIsCheckingCountry(false);
+    }
+  }, []);
 
   const checkMembership = useCallback(async () => {
     try {
@@ -130,8 +168,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    checkCountry();
+  }, [checkCountry]);
+
+  useEffect(() => {
+    if (isCheckingCountry || isCountryBlocked) {
+      return;
+    }
+
     if (isDevMode) {
-      console.log('🔧 Development mode: Skipping Telegram authentication');
+      console.log('Development mode: Skipping Telegram authentication');
       setTelegramId('dev-user-123');
       setIsChannelGroupVerified(true);
       setIsCheckingMembership(false);
@@ -147,7 +193,6 @@ function App() {
         setTelegramId(tg.initDataUnsafe.user.id.toString());
       }
       
-      // Persist start_param to localStorage if present (for referral tracking across sessions)
       if (tg.initDataUnsafe?.start_param) {
         localStorage.setItem("tg_start_param", tg.initDataUnsafe.start_param);
       }
@@ -162,12 +207,10 @@ function App() {
       let body: any = {};
       let userTelegramId: string | null = null;
       
-      // Get startParam from current session or persisted value
       const startParam = tg.initDataUnsafe?.start_param || localStorage.getItem("tg_start_param");
       
       if (tg.initData) {
         body = { initData: tg.initData };
-        // Include start_param (referral code) if present - critical for referral tracking
         if (startParam) {
           body.startParam = startParam;
         }
@@ -181,7 +224,6 @@ function App() {
             const user = JSON.parse(cachedUser);
             headers["x-user-id"] = user.id.toString();
             userTelegramId = user.id.toString();
-            // Include startParam in cached user branch as well - for returning users clicking referral links
             if (startParam) {
               body.startParam = startParam;
             }
@@ -196,7 +238,6 @@ function App() {
       })
         .then(res => res.json())
         .then(data => {
-          // Clear persisted start_param if referral was successfully processed
           if (data.referralProcessed) {
             localStorage.removeItem("tg_start_param");
           }
@@ -220,11 +261,27 @@ function App() {
       setIsCheckingMembership(false);
       setIsChannelGroupVerified(false);
     }
-  }, [checkMembership, isDevMode]);
+  }, [checkMembership, isDevMode, isCheckingCountry, isCountryBlocked]);
 
   const handleMembershipVerified = useCallback(() => {
     setIsChannelGroupVerified(true);
   }, []);
+
+  if (isCheckingCountry) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="flex gap-1">
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isCountryBlocked) {
+    return <CountryBlockedScreen />;
+  }
 
   if (isBanned) {
     return <BanScreen reason={banReason} />;
@@ -234,9 +291,9 @@ function App() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="flex gap-1">
-          <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '0ms' }}></div>
-          <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '150ms' }}></div>
-          <div className="w-2 h-2 rounded-full bg-[#4cd3ff] animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
         </div>
       </div>
     );
@@ -247,16 +304,16 @@ function App() {
       return <MandatoryJoinScreen telegramId={telegramId} onVerified={handleMembershipVerified} />;
     } else {
       return (
-        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-gradient-to-b from-gray-900 to-black rounded-2xl border border-gray-800 p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-6">
+          <div className="text-center max-w-sm">
+            <div className="w-20 h-20 mx-auto mb-8 rounded-full border-2 border-white/20 flex items-center justify-center">
+              <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-white mb-2">Open in Telegram</h1>
-            <p className="text-gray-400 text-sm">
-              Please open this app from Telegram to continue. This app requires Telegram authentication.
+            <h1 className="text-2xl font-semibold text-white mb-4 tracking-tight">Open in Telegram</h1>
+            <p className="text-white/60 text-base leading-relaxed">
+              Please open this app from Telegram to continue.
             </p>
           </div>
         </div>
