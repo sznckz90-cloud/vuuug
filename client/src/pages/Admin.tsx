@@ -1467,7 +1467,9 @@ function SettingsSection() {
     // Daily task rewards
     streakReward: '100',
     shareTaskReward: '1000',
-    communityTaskReward: '1000'
+    communityTaskReward: '1000',
+    // Adult ads
+    adultAdsEnabled: false
   });
   
   useEffect(() => {
@@ -1503,7 +1505,9 @@ function SettingsSection() {
         // Daily task rewards
         streakReward: settingsData.streakReward?.toString() || '100',
         shareTaskReward: settingsData.shareTaskReward?.toString() || '1000',
-        communityTaskReward: settingsData.communityTaskReward?.toString() || '1000'
+        communityTaskReward: settingsData.communityTaskReward?.toString() || '1000',
+        // Adult ads
+        adultAdsEnabled: settingsData.adultAdsEnabled || false
       });
     }
   }, [settingsData]);
@@ -1586,7 +1590,8 @@ function SettingsSection() {
         minimumInvitesForWithdrawal: parseInt(settings.minimumInvitesForWithdrawal) || 3,
         streakReward: parseInt(settings.streakReward) || 100,
         shareTaskReward: parseInt(settings.shareTaskReward) || 1000,
-        communityTaskReward: parseInt(settings.communityTaskReward) || 1000
+        communityTaskReward: parseInt(settings.communityTaskReward) || 1000,
+        adultAdsEnabled: settings.adultAdsEnabled
       });
       
       const result = await response.json();
@@ -2092,6 +2097,31 @@ function SettingsSection() {
                 </p>
               </div>
             </Link>
+
+            <div className="space-y-2 p-3 border rounded-lg bg-pink-50/5 border-pink-500/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  <i className="fas fa-ad mr-2 text-pink-500"></i>
+                  Adult Ads (Adsterra)
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, adultAdsEnabled: !settings.adultAdsEnabled })}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    settings.adultAdsEnabled ? 'bg-pink-500' : 'bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      settings.adultAdsEnabled ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {settings.adultAdsEnabled ? 'Adult banner ads are enabled' : 'Adult banner ads are disabled'}
+              </p>
+            </div>
           </div>
         )}
         

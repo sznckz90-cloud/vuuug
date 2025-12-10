@@ -20,6 +20,7 @@ import {
   Bell
 } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
+import AdsterraBanner from "@/components/AdsterraBanner";
 import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAdFlow } from "@/hooks/useAdFlow";
@@ -633,6 +634,11 @@ export default function Missions() {
             <p className="text-gray-500 text-xs mt-1">Check back later for new tasks!</p>
           </div>
         )}
+
+        {/* Adsterra Banner */}
+        <div className="mt-4">
+          <AdsterraBanner size="300x250" className="mx-auto" />
+        </div>
       </main>
     </Layout>
   );
