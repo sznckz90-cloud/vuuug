@@ -21,7 +21,6 @@ const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
 const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
-const AdList = lazy(() => import("@/pages/AdList"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -49,7 +48,6 @@ function Router() {
         <Route path="/wallet-activity" component={WalletActivity} />
         <Route path="/wallet-setup" component={WalletSetup} />
         <Route path="/withdraw" component={Withdraw} />
-        <Route path="/ad-list" component={AdList} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
