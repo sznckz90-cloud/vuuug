@@ -59,6 +59,18 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 
 ## Recent Changes
 
+### December 2024 - Country Blocking System Fix
+- **Complete country blocking system**: Server-side middleware blocks users from restricted countries before serving the app.
+- **Admin panel improvements**: CountryControls.tsx now displays admin's current country/IP and has working toggle buttons.
+- **API endpoints**: 
+  - `GET /api/countries` - List all countries
+  - `GET /api/blocked` - List blocked country codes
+  - `GET /api/user-info` - Get user's IP and detected country
+  - `POST /api/block-country` - Block a country (admin only)
+  - `POST /api/unblock-country` - Unblock a country (admin only)
+- **Middleware flow**: IP detection via x-forwarded-for → ip-api.com lookup → database check → block with HTML page or allow.
+- **Database table**: `blocked_countries` stores blocked country codes.
+
 ### December 2024 - Promo Code Bug Fix
 - **Fixed double-reward bug**: Removed duplicate `addEarning()` call from `storage.usePromoCode()` since `routes.ts` already handles balance updates for different reward types (PAD, TON, USD).
 - **Fixed return format**: `usePromoCode()` now returns just the reward amount string, not "amount currency" format.
