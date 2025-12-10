@@ -107,6 +107,7 @@ function App() {
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState<string>();
   const [isCountryBlocked, setIsCountryBlocked] = useState(false);
+  const [userCountryCode, setUserCountryCode] = useState<string | null>(null);
   const [isChannelGroupVerified, setIsChannelGroupVerified] = useState<boolean | null>(null);
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingCountry, setIsCheckingCountry] = useState(true);
@@ -139,8 +140,15 @@ function App() {
       });
       const data = await response.json();
       
+      // Store user's country code for instant block detection
+      if (data.country) {
+        setUserCountryCode(data.country.toUpperCase());
+      }
+      
       if (data.blocked) {
         setIsCountryBlocked(true);
+      } else {
+        setIsCountryBlocked(false);
       }
     } catch (err) {
       console.error("Country check error:", err);
@@ -151,7 +159,26 @@ function App() {
 
   const checkMembership = useCallback(async () => {
     try {
-      const response = await fetch(`/api/membership/check`);
+      const headers: Record<string, string> = {};
+      
+      // Send Telegram initData for secure membership verification
+      // The backend will verify the signature to prevent spoofing
+      const tg = window.Telegram?.WebApp;
+      if (tg?.initData) {
+        headers['x-telegram-data'] = tg.initData;
+      } else {
+        // No Telegram data available - cannot verify membership securely
+        console.log('No Telegram initData available for membership check');
+        setIsChannelGroupVerified(false);
+        setIsCheckingMembership(false);
+        return;
+      }
+      
+      // Use secure check-membership endpoint
+      const response = await fetch('/api/check-membership', {
+        cache: 'no-store',
+        headers
+      });
       const data = await response.json();
       
       if (data.success && data.isVerified) {
@@ -170,6 +197,32 @@ function App() {
   useEffect(() => {
     checkCountry();
   }, [checkCountry]);
+
+  // Listen for real-time country block changes via WebSocket
+  useEffect(() => {
+    const handleCountryBlockChange = (event: CustomEvent) => {
+      const { action, countryCode } = event.detail;
+      
+      console.log(`🌍 Country block change: ${countryCode} - ${action}`);
+      
+      // If user's country matches the blocked country, update immediately
+      if (userCountryCode && countryCode === userCountryCode) {
+        if (action === 'blocked') {
+          console.log('🚫 Your country was just blocked!');
+          setIsCountryBlocked(true);
+        } else if (action === 'unblocked') {
+          console.log('✅ Your country was just unblocked!');
+          setIsCountryBlocked(false);
+        }
+      }
+    };
+    
+    window.addEventListener('countryBlockChanged', handleCountryBlockChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('countryBlockChanged', handleCountryBlockChange as EventListener);
+    };
+  }, [userCountryCode]);
 
   useEffect(() => {
     if (isCheckingCountry || isCountryBlocked) {
