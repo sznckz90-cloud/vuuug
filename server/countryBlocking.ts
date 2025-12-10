@@ -221,28 +221,44 @@ export function getClientIP(req: Request): string {
 export interface CountryLookupResult {
   countryCode: string | null;
   countryName: string | null;
+  isVPN: boolean;
+  isProxy: boolean;
+  isHosting: boolean;
 }
 
 export async function getCountryFromIP(ip: string): Promise<CountryLookupResult> {
   if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-    return { countryCode: null, countryName: null };
+    return { countryCode: null, countryName: null, isVPN: false, isProxy: false, isHosting: false };
   }
   
   try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,country,status`);
+    // Request extended fields including proxy, hosting, and mobile detection
+    // Fields: countryCode, country, status, proxy (VPN/proxy), hosting (datacenter/hosting)
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,country,status,proxy,hosting`);
     if (!response.ok) {
       console.error('IP-API request failed:', response.status);
-      return { countryCode: null, countryName: null };
+      return { countryCode: null, countryName: null, isVPN: false, isProxy: false, isHosting: false };
     }
     const data = await response.json();
     if (data.status === 'success' && data.countryCode) {
-      return { countryCode: data.countryCode, countryName: data.country || null };
+      return { 
+        countryCode: data.countryCode, 
+        countryName: data.country || null,
+        isVPN: data.proxy === true,
+        isProxy: data.proxy === true,
+        isHosting: data.hosting === true
+      };
     }
-    return { countryCode: null, countryName: null };
+    return { countryCode: null, countryName: null, isVPN: false, isProxy: false, isHosting: false };
   } catch (error) {
     console.error('Error getting country from IP:', error);
-    return { countryCode: null, countryName: null };
+    return { countryCode: null, countryName: null, isVPN: false, isProxy: false, isHosting: false };
   }
+}
+
+// Check if IP is using VPN, proxy, or hosting provider
+export function isVPNOrProxy(result: CountryLookupResult): boolean {
+  return result.isVPN || result.isProxy || result.isHosting;
 }
 
 async function isCountryBlocked(countryCode: string): Promise<boolean> {
@@ -293,26 +309,48 @@ export async function unblockCountry(countryCode: string): Promise<boolean> {
 export interface CountryCheckResult {
   blocked: boolean;
   country: string | null;
+  isVPN: boolean;
+  isProxy: boolean;
+  isHosting: boolean;
+  vpnBypass: boolean;
 }
 
 export async function checkCountry(ip: string): Promise<CountryCheckResult> {
   if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-    return { blocked: false, country: null };
+    return { blocked: false, country: null, isVPN: false, isProxy: false, isHosting: false, vpnBypass: false };
   }
   
   try {
     const result = await getCountryFromIP(ip);
     
     if (!result.countryCode) {
-      return { blocked: false, country: null };
+      return { blocked: false, country: null, isVPN: result.isVPN, isProxy: result.isProxy, isHosting: result.isHosting, vpnBypass: false };
     }
     
-    const blocked = await isCountryBlocked(result.countryCode);
+    const countryIsBlocked = await isCountryBlocked(result.countryCode);
     
-    return { blocked, country: result.countryCode };
+    // VPN BYPASS LOGIC: If country is blocked BUT user is using VPN/proxy/hosting, ALLOW access
+    const usingVPN = isVPNOrProxy(result);
+    const vpnBypass = countryIsBlocked && usingVPN;
+    
+    // Final blocked status: blocked only if country is blocked AND NOT using VPN
+    const finalBlocked = countryIsBlocked && !usingVPN;
+    
+    if (vpnBypass) {
+      console.log(`🔐 VPN bypass granted for ${result.countryCode} (VPN: ${result.isVPN}, Proxy: ${result.isProxy}, Hosting: ${result.isHosting})`);
+    }
+    
+    return { 
+      blocked: finalBlocked, 
+      country: result.countryCode,
+      isVPN: result.isVPN,
+      isProxy: result.isProxy,
+      isHosting: result.isHosting,
+      vpnBypass
+    };
   } catch (error) {
     console.error('Error in checkCountry:', error);
-    return { blocked: false, country: null };
+    return { blocked: false, country: null, isVPN: false, isProxy: false, isHosting: false, vpnBypass: false };
   }
 }
 
@@ -468,7 +506,7 @@ export async function countryBlockingMiddleware(req: Request, res: Response, nex
       return next();
     }
     
-    // Step 2: Convert IP to country via ip-api.com
+    // Step 2: Convert IP to country via ip-api.com (includes VPN detection)
     const result = await getCountryFromIP(clientIP);
     
     if (!result.countryCode) {
@@ -476,17 +514,25 @@ export async function countryBlockingMiddleware(req: Request, res: Response, nex
     }
     
     // Step 3: Check if country is blocked in database
-    const blocked = await isCountryBlocked(result.countryCode);
+    const countryIsBlocked = await isCountryBlocked(result.countryCode);
     
-    // Step 4: If blocked, return block HTML page
-    if (blocked) {
+    // Step 4: VPN BYPASS - If using VPN/proxy/hosting, allow access even if country is blocked
+    const usingVPN = isVPNOrProxy(result);
+    
+    if (countryIsBlocked && usingVPN) {
+      console.log(`🔐 VPN bypass granted from ${result.countryCode} (IP: ${clientIP}, VPN: ${result.isVPN}, Hosting: ${result.isHosting})`);
+      return next();
+    }
+    
+    // Step 5: If blocked (and NOT using VPN), return block HTML page
+    if (countryIsBlocked) {
       console.log(`🚫 Blocked access from ${result.countryCode} (IP: ${clientIP})`);
       res.setHeader('Content-Type', 'text/html');
       res.setHeader('Cache-Control', 'no-store');
       return res.status(403).send(BLOCKED_HTML);
     }
     
-    // Step 5: If allowed, continue to next()
+    // Step 6: If allowed, continue to next()
     next();
   } catch (error) {
     console.error('Country blocking middleware error:', error);

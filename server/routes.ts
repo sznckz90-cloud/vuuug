@@ -7497,7 +7497,7 @@ ${walletAddress}
   // GET /api/check-country - Check if user's country is blocked (for frontend blocking)
   app.get('/api/check-country', async (req: any, res) => {
     try {
-      const { getClientIP, getCountryFromIP, getBlockedCountries } = await import('./countryBlocking');
+      const { getClientIP, getCountryFromIP, getBlockedCountries, isVPNOrProxy } = await import('./countryBlocking');
       
       // Prevent caching so blocks take effect immediately
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -7548,12 +7548,27 @@ ${walletAddress}
       }
       
       const blockedCodes = await getBlockedCountries();
-      const isBlocked = blockedCodes.includes(result.countryCode.toUpperCase());
+      const countryIsBlocked = blockedCodes.includes(result.countryCode.toUpperCase());
+      
+      // VPN BYPASS LOGIC: If user is from blocked country BUT using VPN/proxy/hosting, ALLOW access
+      const usingVPN = isVPNOrProxy(result);
+      const vpnBypass = countryIsBlocked && usingVPN;
+      
+      // Final blocked status: blocked only if country is blocked AND NOT using VPN
+      const finalBlocked = countryIsBlocked && !usingVPN;
+      
+      if (vpnBypass) {
+        console.log(`🔐 VPN bypass granted for ${result.countryCode} (IP: ${clientIP}, VPN: ${result.isVPN}, Hosting: ${result.isHosting})`);
+      }
       
       res.json({
-        blocked: isBlocked,
+        blocked: finalBlocked,
         country: result.countryCode,
-        countryName: result.countryName
+        countryName: result.countryName,
+        isVPN: result.isVPN,
+        isProxy: result.isProxy,
+        isHosting: result.isHosting,
+        vpnBypass
       });
     } catch (error) {
       console.error('❌ Error checking country:', error);
