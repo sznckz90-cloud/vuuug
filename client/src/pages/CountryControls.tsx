@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/useAdmin";
 import Layout from "@/components/Layout";
 import { Link } from "wouter";
-import { Globe, Search, ArrowLeft, Shield } from "lucide-react";
+import { Globe, Search, ArrowLeft, Shield, MapPin } from "lucide-react";
 
 interface Country {
   code: string;
   name: string;
   blocked: boolean;
+}
+
+interface UserInfo {
+  ip: string;
+  country: string;
+  countryCode: string;
 }
 
 export default function CountryControlsPage() {
@@ -24,14 +30,36 @@ export default function CountryControlsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingCountries, setUpdatingCountries] = useState<Set<string>>(new Set());
 
-  const { data: countriesData, isLoading: countriesLoading } = useQuery<{ success: boolean; countries: Country[] }>({
-    queryKey: ["/api/admin/countries"],
-    queryFn: () => apiRequest("GET", "/api/admin/countries").then(res => res.json()),
+  const { data: countriesData, isLoading: countriesLoading } = useQuery<{ success: boolean; countries: { code: string; name: string }[] }>({
+    queryKey: ["/api/countries"],
+    queryFn: () => fetch("/api/countries").then(res => res.json()),
     enabled: isAdmin,
     refetchInterval: 30000,
   });
 
-  const countries = countriesData?.countries || [];
+  const { data: blockedData } = useQuery<{ success: boolean; blocked: string[] }>({
+    queryKey: ["/api/blocked"],
+    queryFn: () => fetch("/api/blocked").then(res => res.json()),
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+
+  const { data: userInfo } = useQuery<UserInfo>({
+    queryKey: ["/api/user-info"],
+    queryFn: () => fetch("/api/user-info").then(res => res.json()),
+    enabled: isAdmin,
+    staleTime: 60000,
+  });
+
+  const blockedSet = useMemo(() => new Set(blockedData?.blocked || []), [blockedData]);
+  
+  const countries: Country[] = useMemo(() => {
+    return (countriesData?.countries || []).map(c => ({
+      code: c.code,
+      name: c.name,
+      blocked: blockedSet.has(c.code)
+    }));
+  }, [countriesData, blockedSet]);
   
   const filteredCountries = useMemo(() => {
     if (!searchQuery.trim()) return countries;
@@ -49,15 +77,19 @@ export default function CountryControlsPage() {
     setUpdatingCountries(prev => new Set(prev).add(countryCode));
     
     try {
-      const endpoint = currentBlocked ? '/api/admin/unblock-country' : '/api/admin/block-country';
+      // Toggle OFF (currently allowed) → block the country
+      // Toggle ON (currently blocked) → unblock the country
+      const endpoint = currentBlocked ? '/api/unblock-country' : '/api/block-country';
       const response = await apiRequest('POST', endpoint, { country_code: countryCode });
       const result = await response.json();
       
       if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/countries"] });
+        // Refresh both queries to update UI
+        queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/blocked"] });
         toast({
           title: currentBlocked ? "Country Unblocked" : "Country Blocked",
-          description: result.message,
+          description: "Saved",
         });
       } else {
         throw new Error(result.error || 'Failed to update country status');
@@ -129,12 +161,34 @@ export default function CountryControlsPage() {
           <Button 
             size="sm"
             variant="outline"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/countries"] })}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/blocked"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/user-info"] });
+            }}
             className="h-8 px-3 text-xs"
           >
             <i className="fas fa-sync-alt"></i>
           </Button>
         </div>
+
+        {userInfo && (
+          <Card className="bg-[#121212] border-white/10 mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <MapPin className="w-5 h-5 text-green-500" />
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    Your Current Country: {userInfo.countryCode} ({userInfo.country})
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    IP: {userInfo.ip}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="bg-[#121212] border-white/10 mb-4">
           <CardContent className="p-4">
