@@ -206,7 +206,7 @@ export function getAllCountries() {
   return COUNTRIES;
 }
 
-function getClientIP(req: Request): string {
+export function getClientIP(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string') {
     return forwarded.split(',')[0].trim();
@@ -283,6 +283,36 @@ export async function unblockCountry(countryCode: string): Promise<boolean> {
     console.error('Error unblocking country:', error);
     return false;
   }
+}
+
+export interface CountryCheckResult {
+  blocked: boolean;
+  country: string | null;
+}
+
+export async function checkCountry(ip: string): Promise<CountryCheckResult> {
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
+    return { blocked: false, country: null };
+  }
+  
+  try {
+    const countryCode = await getCountryFromIP(ip);
+    
+    if (!countryCode) {
+      return { blocked: false, country: null };
+    }
+    
+    const blocked = await isCountryBlocked(countryCode);
+    
+    return { blocked, country: countryCode };
+  } catch (error) {
+    console.error('Error in checkCountry:', error);
+    return { blocked: false, country: null };
+  }
+}
+
+export function getBlockedHTML(): string {
+  return BLOCKED_HTML;
 }
 
 const BLOCKED_HTML = `<!DOCTYPE html>
