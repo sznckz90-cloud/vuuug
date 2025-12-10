@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
 import { ensureDatabaseSchema } from "./migrate";
+import { countryBlockingMiddleware } from "./countryBlocking";
 
 // CRITICAL: Run database migrations before ANYTHING else
 // This ensures the telegram_id column exists before any database operations
@@ -22,6 +23,9 @@ try {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Country blocking middleware - must be early to block requests before any other processing
+app.use(countryBlockingMiddleware);
 
 // Add webhook route BEFORE any other middleware to ensure it works
 app.post('/api/telegram/webhook', async (req: any, res) => {
