@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
-import AdsterraBanner from "@/components/AdsterraBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -461,11 +460,6 @@ export default function Home() {
 
         <div className="mt-3">
           <AdWatchingSection user={user as User} />
-        </div>
-
-        {/* Adsterra Banner */}
-        <div className="mt-4">
-          <AdsterraBanner size="300x250" className="mx-auto" />
         </div>
       </main>
     </Layout>
