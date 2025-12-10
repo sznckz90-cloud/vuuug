@@ -142,10 +142,11 @@ const isAdmin = (telegramId: string): boolean => {
   return adminId.toString() === telegramId.toString();
 };
 
-// Admin authentication middleware
+// Admin authentication middleware with optional signature verification
 const authenticateAdmin = async (req: any, res: any, next: any) => {
   try {
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
     
     // Development mode: Allow admin access for test user
     if (process.env.NODE_ENV === 'development' && !telegramData) {
@@ -162,22 +163,47 @@ const authenticateAdmin = async (req: any, res: any, next: any) => {
     }
     
     if (!telegramData) {
-      return res.status(401).json({ message: "Admin access denied" });
+      console.log('❌ Admin auth failed: No Telegram data in request');
+      return res.status(401).json({ message: "Admin access denied - no authentication data" });
     }
 
+    // If bot token is available, verify the signature for security
+    if (botToken) {
+      const { verifyTelegramWebAppData } = await import('./auth');
+      const { isValid, user: verifiedUser } = verifyTelegramWebAppData(telegramData, botToken);
+      
+      if (!isValid) {
+        console.log('⚠️ Admin auth: Telegram signature verification failed, continuing with parsed data');
+        // Continue with basic parsing if signature fails (for backwards compatibility)
+      } else if (verifiedUser) {
+        // Use verified user data
+        if (!isAdmin(verifiedUser.id.toString())) {
+          console.log(`❌ Admin auth denied: User ${verifiedUser.id} is not admin`);
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        console.log(`✅ Admin authenticated via signature: ${verifiedUser.id}`);
+        req.user = { telegramUser: verifiedUser };
+        return next();
+      }
+    }
+
+    // Fallback: Parse without signature verification (when bot token missing)
     const urlParams = new URLSearchParams(telegramData);
     const userString = urlParams.get('user');
     
     if (!userString) {
-      return res.status(401).json({ message: "Invalid Telegram data" });
+      console.log('❌ Admin auth failed: No user in Telegram data');
+      return res.status(401).json({ message: "Invalid Telegram data - no user" });
     }
 
     const telegramUser = JSON.parse(userString);
     
     if (!isAdmin(telegramUser.id.toString())) {
+      console.log(`❌ Admin auth denied: User ${telegramUser.id} is not admin`);
       return res.status(403).json({ message: "Admin access required" });
     }
 
+    console.log(`✅ Admin authenticated (fallback): ${telegramUser.id}`);
     req.user = { telegramUser };
     next();
   } catch (error) {
@@ -197,6 +223,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Set up WebSocket server for real-time updates  
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Helper function to broadcast to all connected clients
+  const broadcastToAll = (message: object) => {
+    const messageStr = JSON.stringify(message);
+    wss.clients.forEach((client: WebSocket) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(messageStr);
+      }
+    });
+  };
   
   wss.on('connection', (ws: WebSocket, req) => {
     console.log('🔌 New WebSocket connection established');
@@ -349,6 +385,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get channel configuration for frontend
   app.get('/api/config/channel', (req: any, res) => {
     res.json(getChannelConfig());
+  });
+
+  // Secure check-membership endpoint for initial app load
+  // Verifies Telegram initData signature before trusting user ID
+  app.get('/api/check-membership', async (req: any, res) => {
+    try {
+      const isDevMode = process.env.NODE_ENV === 'development';
+      const channelConfig = getChannelConfig();
+      
+      // Skip all verification in development mode
+      if (isDevMode) {
+        console.log('🔧 Development mode: Skipping channel/group verification');
+        return res.json({
+          success: true,
+          isVerified: true,
+          channelMember: true,
+          groupMember: true,
+          channelUrl: channelConfig.channelUrl,
+          groupUrl: channelConfig.groupUrl,
+          channelName: channelConfig.channelName,
+          groupName: channelConfig.groupName
+        });
+      }
+      
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        // SECURITY: Fail closed when bot token is missing
+        console.log('❌ TELEGRAM_BOT_TOKEN not configured - blocking access');
+        return res.json({ 
+          success: false, 
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
+          channelUrl: channelConfig.channelUrl,
+          groupUrl: channelConfig.groupUrl,
+          channelName: channelConfig.channelName,
+          groupName: channelConfig.groupName,
+          message: 'Bot token not configured'
+        });
+      }
+      
+      // Get Telegram initData from headers - this contains the cryptographic signature
+      const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
+      
+      if (!telegramData) {
+        console.log('⚠️ check-membership: No Telegram data provided - requiring auth');
+        return res.json({ 
+          success: false, 
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
+          channelUrl: channelConfig.channelUrl,
+          groupUrl: channelConfig.groupUrl,
+          channelName: channelConfig.channelName,
+          groupName: channelConfig.groupName,
+          message: 'Authentication required'
+        });
+      }
+      
+      // SECURITY: Verify Telegram initData signature to prevent spoofing
+      const { verifyTelegramWebAppData } = await import('./auth');
+      const { isValid, user: telegramUser } = verifyTelegramWebAppData(telegramData, botToken);
+      
+      if (!isValid || !telegramUser || !telegramUser.id) {
+        console.log('❌ check-membership: Invalid Telegram signature - blocking access');
+        return res.json({ 
+          success: false, 
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
+          channelUrl: channelConfig.channelUrl,
+          groupUrl: channelConfig.groupUrl,
+          channelName: channelConfig.channelName,
+          groupName: channelConfig.groupName,
+          message: 'Invalid authentication signature'
+        });
+      }
+      
+      const telegramId = telegramUser.id.toString();
+      const userId = parseInt(telegramId, 10);
+      
+      // Check both channel and group membership
+      const [channelMember, groupMember] = await Promise.all([
+        verifyChannelMembership(userId, channelConfig.channelId, botToken),
+        verifyChannelMembership(userId, channelConfig.groupId, botToken)
+      ]);
+      
+      const isVerified = channelMember && groupMember;
+      
+      console.log(`🔍 check-membership for ${telegramId}: channel=${channelMember}, group=${groupMember}, verified=${isVerified}`);
+      
+      res.json({
+        success: true,
+        isVerified,
+        channelMember,
+        groupMember,
+        channelUrl: channelConfig.channelUrl,
+        groupUrl: channelConfig.groupUrl,
+        channelName: channelConfig.channelName,
+        groupName: channelConfig.groupName
+      });
+    } catch (error) {
+      console.error('❌ check-membership error:', error);
+      const channelConfig = getChannelConfig();
+      res.json({ 
+        success: false, 
+        isVerified: false,
+        channelMember: false,
+        groupMember: false,
+        channelUrl: channelConfig.channelUrl,
+        groupUrl: channelConfig.groupUrl,
+        channelName: channelConfig.channelName,
+        groupName: channelConfig.groupName,
+        message: 'Failed to check membership'
+      });
+    }
   });
 
   // Mandatory channel/group membership check endpoint - authenticated
@@ -7352,29 +7504,40 @@ ${walletAddress}
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
       
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      
       // Check if user is admin - admins are never blocked
+      // SECURITY: Verify Telegram initData signature before trusting admin status
       const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
-      if (telegramData) {
+      if (telegramData && botToken) {
+        try {
+          const { verifyTelegramWebAppData } = await import('./auth');
+          const { isValid, user: verifiedUser } = verifyTelegramWebAppData(telegramData, botToken);
+          
+          if (isValid && verifiedUser && isAdmin(verifiedUser.id.toString())) {
+            console.log(`✅ Admin user verified (${verifiedUser.id}), bypassing country check`);
+            return res.json({ blocked: false, country: null, isAdmin: true });
+          }
+        } catch (e) {
+          console.log('⚠️ Admin verification failed, continuing with country check');
+        }
+      }
+      
+      // In development mode, allow admin bypass via parsed (unverified) initData
+      if (process.env.NODE_ENV === 'development' && telegramData) {
         try {
           const urlParams = new URLSearchParams(telegramData);
           const userString = urlParams.get('user');
           if (userString) {
             const telegramUser = JSON.parse(userString);
             if (isAdmin(telegramUser.id.toString())) {
-              console.log('✅ Admin user detected, bypassing country check');
+              console.log('🔧 Dev mode: Admin bypass via parsed data');
               return res.json({ blocked: false, country: null, isAdmin: true });
             }
           }
         } catch (e) {
-          // Continue with normal check if parsing fails
+          // Continue with normal check
         }
-      }
-      
-      // Also check admin ID from session/localStorage cached user
-      const cachedUserId = req.headers['x-user-id'];
-      if (cachedUserId && isAdmin(cachedUserId.toString())) {
-        console.log('✅ Admin user detected via cached ID, bypassing country check');
-        return res.json({ blocked: false, country: null, isAdmin: true });
       }
       
       const clientIP = getClientIP(req);
@@ -7471,6 +7634,14 @@ ${walletAddress}
       
       if (success) {
         console.log(`🚫 Country blocked: ${country_code}`);
+        
+        // Broadcast to all clients so they recheck their country status immediately
+        broadcastToAll({
+          type: 'country_blocked',
+          countryCode: country_code.toUpperCase(),
+          message: `Country ${country_code} has been blocked`
+        });
+        
         res.json({ success: true, message: `Country ${country_code} blocked` });
       } else {
         res.status(500).json({ success: false, error: 'Failed to block country' });
@@ -7495,6 +7666,14 @@ ${walletAddress}
       
       if (success) {
         console.log(`✅ Country unblocked: ${country_code}`);
+        
+        // Broadcast to all clients so they recheck their country status immediately
+        broadcastToAll({
+          type: 'country_unblocked',
+          countryCode: country_code.toUpperCase(),
+          message: `Country ${country_code} has been unblocked`
+        });
+        
         res.json({ success: true, message: `Country ${country_code} unblocked` });
       } else {
         res.status(500).json({ success: false, error: 'Failed to unblock country' });
