@@ -310,6 +310,13 @@ export const dailyMissions = pgTable("daily_missions", {
   unique("daily_missions_user_type_date_unique").on(table.userId, table.missionType, table.resetDate),
 ]);
 
+// Blocked countries for geo-restriction
+export const blockedCountries = pgTable("blocked_countries", {
+  id: serial("id").primaryKey(),
+  countryCode: varchar("country_code", { length: 2 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
@@ -328,6 +335,7 @@ export const insertBanLogSchema = createInsertSchema(banLogs).omit({ id: true, c
 export const insertSpinDataSchema = createInsertSchema(spinData).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSpinHistorySchema = createInsertSchema(spinHistory).omit({ id: true, createdAt: true });
 export const insertDailyMissionSchema = createInsertSchema(dailyMissions).omit({ id: true, createdAt: true });
+export const insertBlockedCountrySchema = createInsertSchema(blockedCountries).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -364,3 +372,5 @@ export type SpinHistory = typeof spinHistory.$inferSelect;
 export type InsertSpinHistory = z.infer<typeof insertSpinHistorySchema>;
 export type DailyMission = typeof dailyMissions.$inferSelect;
 export type InsertDailyMission = z.infer<typeof insertDailyMissionSchema>;
+export type BlockedCountry = typeof blockedCountries.$inferSelect;
+export type InsertBlockedCountry = z.infer<typeof insertBlockedCountrySchema>;
