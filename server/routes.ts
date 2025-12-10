@@ -7340,8 +7340,115 @@ ${walletAddress}
     }
   });
 
-  // ============ COUNTRY BLOCKING ADMIN API ============
+  // ============ COUNTRY BLOCKING API ============
   
+  // GET /api/user-info - Get user's IP and detected country (for admin panel display)
+  app.get('/api/user-info', async (req: any, res) => {
+    try {
+      const { getClientIP, getAllCountries, getCountryFromIP } = await import('./countryBlocking');
+      
+      const clientIP = getClientIP(req);
+      const result = await getCountryFromIP(clientIP);
+      
+      let countryName = result.countryName || 'Unknown';
+      let countryCode = result.countryCode || 'XX';
+      
+      // If we only got country code but no name, try to find it in our list
+      if (countryCode !== 'XX' && countryName === 'Unknown') {
+        const allCountries = getAllCountries();
+        const found = allCountries.find(c => c.code === countryCode);
+        if (found) {
+          countryName = found.name;
+        }
+      }
+      
+      res.json({
+        ip: clientIP || 'Unknown',
+        country: countryName,
+        countryCode: countryCode
+      });
+    } catch (error) {
+      console.error('❌ Error fetching user info:', error);
+      res.status(500).json({ 
+        ip: 'Unknown',
+        country: 'Unknown',
+        countryCode: 'XX'
+      });
+    }
+  });
+
+  // GET /api/countries - Get all countries (public)
+  app.get('/api/countries', async (req: any, res) => {
+    try {
+      const { getAllCountries } = await import('./countryBlocking');
+      const allCountries = getAllCountries();
+      res.json({ success: true, countries: allCountries });
+    } catch (error) {
+      console.error('❌ Error fetching countries:', error);
+      res.status(500).json({ error: 'Failed to fetch countries' });
+    }
+  });
+
+  // GET /api/blocked - Get list of blocked country codes (public)
+  app.get('/api/blocked', async (req: any, res) => {
+    try {
+      const { getBlockedCountries } = await import('./countryBlocking');
+      const blockedCodes = await getBlockedCountries();
+      res.json({ success: true, blocked: blockedCodes });
+    } catch (error) {
+      console.error('❌ Error fetching blocked countries:', error);
+      res.status(500).json({ error: 'Failed to fetch blocked countries' });
+    }
+  });
+
+  // POST /api/block-country - Block a country (requires admin)
+  app.post('/api/block-country', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { country_code } = req.body;
+      
+      if (!country_code || typeof country_code !== 'string' || country_code.length !== 2) {
+        return res.status(400).json({ success: false, error: 'Invalid country code' });
+      }
+      
+      const { blockCountry } = await import('./countryBlocking');
+      const success = await blockCountry(country_code);
+      
+      if (success) {
+        console.log(`🚫 Country blocked: ${country_code}`);
+        res.json({ success: true, message: `Country ${country_code} blocked` });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to block country' });
+      }
+    } catch (error) {
+      console.error('❌ Error blocking country:', error);
+      res.status(500).json({ success: false, error: 'Failed to block country' });
+    }
+  });
+
+  // POST /api/unblock-country - Unblock a country (requires admin)
+  app.post('/api/unblock-country', authenticateAdmin, async (req: any, res) => {
+    try {
+      const { country_code } = req.body;
+      
+      if (!country_code || typeof country_code !== 'string' || country_code.length !== 2) {
+        return res.status(400).json({ success: false, error: 'Invalid country code' });
+      }
+      
+      const { unblockCountry } = await import('./countryBlocking');
+      const success = await unblockCountry(country_code);
+      
+      if (success) {
+        console.log(`✅ Country unblocked: ${country_code}`);
+        res.json({ success: true, message: `Country ${country_code} unblocked` });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to unblock country' });
+      }
+    } catch (error) {
+      console.error('❌ Error unblocking country:', error);
+      res.status(500).json({ success: false, error: 'Failed to unblock country' });
+    }
+  });
+
   // GET /api/admin/countries - Get all countries with block status
   app.get('/api/admin/countries', authenticateAdmin, async (req: any, res) => {
     try {

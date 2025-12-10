@@ -218,25 +218,30 @@ export function getClientIP(req: Request): string {
   return req.socket?.remoteAddress || req.ip || '';
 }
 
-async function getCountryFromIP(ip: string): Promise<string | null> {
+export interface CountryLookupResult {
+  countryCode: string | null;
+  countryName: string | null;
+}
+
+export async function getCountryFromIP(ip: string): Promise<CountryLookupResult> {
   if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-    return null;
+    return { countryCode: null, countryName: null };
   }
   
   try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,status`);
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,country,status`);
     if (!response.ok) {
       console.error('IP-API request failed:', response.status);
-      return null;
+      return { countryCode: null, countryName: null };
     }
     const data = await response.json();
     if (data.status === 'success' && data.countryCode) {
-      return data.countryCode;
+      return { countryCode: data.countryCode, countryName: data.country || null };
     }
-    return null;
+    return { countryCode: null, countryName: null };
   } catch (error) {
     console.error('Error getting country from IP:', error);
-    return null;
+    return { countryCode: null, countryName: null };
   }
 }
 
@@ -296,15 +301,15 @@ export async function checkCountry(ip: string): Promise<CountryCheckResult> {
   }
   
   try {
-    const countryCode = await getCountryFromIP(ip);
+    const result = await getCountryFromIP(ip);
     
-    if (!countryCode) {
+    if (!result.countryCode) {
       return { blocked: false, country: null };
     }
     
-    const blocked = await isCountryBlocked(countryCode);
+    const blocked = await isCountryBlocked(result.countryCode);
     
-    return { blocked, country: countryCode };
+    return { blocked, country: result.countryCode };
   } catch (error) {
     console.error('Error in checkCountry:', error);
     return { blocked: false, country: null };
@@ -362,43 +367,48 @@ const BLOCKED_HTML = `<!DOCTYPE html>
 </html>`;
 
 export async function countryBlockingMiddleware(req: Request, res: Response, next: NextFunction) {
-  if (req.path.startsWith('/api/admin')) {
-    return next();
-  }
-  
+  // Always allow API routes (authentication, admin endpoints, etc.)
   if (req.path.startsWith('/api/')) {
     return next();
   }
   
+  // Allow static assets (css, js, images, fonts, etc.)
   if (req.path !== '/' && !req.path.endsWith('.html') && req.path.includes('.')) {
     return next();
   }
   
   try {
+    // Step 1: Detect user IP from headers or socket
     const clientIP = getClientIP(req);
     
+    // Skip blocking for local/development IPs
     if (!clientIP || clientIP === '127.0.0.1' || clientIP === '::1') {
       return next();
     }
     
-    const countryCode = await getCountryFromIP(clientIP);
+    // Step 2: Convert IP to country via ip-api.com
+    const result = await getCountryFromIP(clientIP);
     
-    if (!countryCode) {
+    if (!result.countryCode) {
       return next();
     }
     
-    const blocked = await isCountryBlocked(countryCode);
+    // Step 3: Check if country is blocked in database
+    const blocked = await isCountryBlocked(result.countryCode);
     
+    // Step 4: If blocked, return block HTML page
     if (blocked) {
-      console.log(`🚫 Blocked access from ${countryCode} (IP: ${clientIP})`);
+      console.log(`🚫 Blocked access from ${result.countryCode} (IP: ${clientIP})`);
       res.setHeader('Content-Type', 'text/html');
       res.setHeader('Cache-Control', 'no-store');
       return res.status(403).send(BLOCKED_HTML);
     }
     
+    // Step 5: If allowed, continue to next()
     next();
   } catch (error) {
     console.error('Country blocking middleware error:', error);
+    // On error, allow access to avoid blocking legitimate users
     next();
   }
 }
