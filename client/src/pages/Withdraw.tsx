@@ -427,87 +427,6 @@ export default function Withdraw() {
               </Card>
             )}
             
-            {!isLoadingRequirements && withdrawalInviteRequirementEnabled && !hasEnoughReferrals && (
-              <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <Lock className="w-5 h-5 text-blue-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-white font-semibold text-sm">Unlock Withdrawals</h3>
-                        <p className="text-[11px] text-gray-500">One-time requirement</p>
-                      </div>
-                    </div>
-                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
-                      Locked
-                    </span>
-                  </div>
-                  
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-400">Invite friends who watch 1+ ad</span>
-                      <span className="text-white font-bold">{validReferralCount} / {MINIMUM_VALID_REFERRALS_REQUIRED}</span>
-                    </div>
-                    <Progress 
-                      value={(validReferralCount / MINIMUM_VALID_REFERRALS_REQUIRED) * 100} 
-                      className="h-2 bg-[#2a2a2a]"
-                    />
-                    
-                    <Button
-                      onClick={openShareSheet}
-                      disabled={isSharing}
-                      className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg mt-2"
-                    >
-                      {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
-                      {isSharing ? 'Sending...' : 'Invite Friends'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            
-            {!isLoadingRequirements && withdrawalAdRequirementEnabled && hasEnoughReferrals && !hasWatchedEnoughAds && (
-              <Card className="bg-[#111111] border-[#2a2a2a] overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <PlayCircle className="w-5 h-5 text-blue-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-white font-semibold text-sm">Watch Ads</h3>
-                        <p className="text-[11px] text-gray-500">Resets after each withdrawal</p>
-                      </div>
-                    </div>
-                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-medium rounded-full">
-                      {MINIMUM_ADS_FOR_WITHDRAWAL - adsWatchedSinceLastWithdrawal} left
-                    </span>
-                  </div>
-                  
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-400">Progress to unlock withdrawal</span>
-                      <span className="text-white font-bold">{adsWatchedSinceLastWithdrawal} / {MINIMUM_ADS_FOR_WITHDRAWAL}</span>
-                    </div>
-                    <Progress 
-                      value={(adsWatchedSinceLastWithdrawal / MINIMUM_ADS_FOR_WITHDRAWAL) * 100} 
-                      className="h-2 bg-[#2a2a2a]"
-                    />
-                    
-                    <Button
-                      onClick={() => setLocation('/')}
-                      className="w-full h-11 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold rounded-lg mt-2"
-                    >
-                      <Lock className="w-4 h-4 mr-2" />
-                      Get Access
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {hasPendingWithdrawal && (
               <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                 <p className="text-xs text-yellow-500">
@@ -516,43 +435,7 @@ export default function Withdraw() {
               </div>
             )}
 
-            {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && !hasEnoughBug && (
-              <Card className="bg-[#1a1a1a] border-lime-500/20 overflow-hidden">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Bug className="w-4 h-4 text-lime-400" />
-                    <span className="text-lime-400">BUG Balance Required</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="p-4 space-y-3">
-                    <div className="text-xs text-gray-300">
-                      You need <span className="font-bold text-lime-400">{minimumBugForWithdrawal.toLocaleString()} BUG</span> to make a withdrawal.
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-400">Your BUG Balance</span>
-                      <span className="text-white font-bold">{Math.floor(bugBalance).toLocaleString()} / {minimumBugForWithdrawal.toLocaleString()}</span>
-                    </div>
-                    <Progress 
-                      value={(bugBalance / minimumBugForWithdrawal) * 100} 
-                      className="h-2 bg-[#2a2a2a]"
-                    />
-                    <div className="text-xs text-gray-400">
-                      Earn BUG by watching ads, completing tasks, or inviting friends.
-                    </div>
-                    <Button
-                      onClick={() => setLocation('/')}
-                      className="w-full h-11 bg-gradient-to-r from-lime-500 to-green-500 hover:from-lime-600 hover:to-green-600 text-white font-semibold rounded-lg mt-2"
-                    >
-                      <Bug className="w-4 h-4 mr-2" />
-                      Earn More BUG
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && hasEnoughBug && (
+            {!isLoadingRequirements && (
             <>
             <div className="space-y-3">
               <div className="space-y-2">
@@ -582,17 +465,44 @@ export default function Withdraw() {
                 ))}
               </div>
 
-              <div className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
-                <div className="text-xs text-[#aaa]">You will receive</div>
-                <div className="text-lg font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
-                <div className="text-xs text-[#aaa] mt-1">
+              <div className="p-4 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] space-y-3">
+                <div>
+                  <div className="text-xs text-[#aaa]">You will receive</div>
+                  <div className="text-2xl font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
+                </div>
+                <div className="text-xs text-[#aaa]">
                   Full balance withdrawal ({selectedPaymentSystem?.fee}% fee deducted)
                 </div>
-                <div className="text-xs text-yellow-400/80 mt-1">
+                <div className="text-xs text-yellow-400/80">
                   Withdrawal method: {selectedMethod}
                 </div>
-                <div className="text-xs text-cyan-400/80 mt-1">
-                  Minimum: ${selectedPaymentSystem?.minWithdrawal?.toFixed(2) || '0.50'} USD
+                
+                {appSettings?.minimumBugForWithdrawal > 0 && (
+                  <div className={`flex items-center gap-2 text-xs ${hasEnoughBug ? 'text-green-400' : 'text-red-400'}`}>
+                    <Bug className="w-4 h-4" />
+                    <span>To withdraw you need: {minimumBugForWithdrawal.toLocaleString()} BUG</span>
+                    {hasEnoughBug && <Check className="w-3 h-3" />}
+                  </div>
+                )}
+                
+                {withdrawalInviteRequirementEnabled && (
+                  <div className={`flex items-center gap-2 text-xs ${hasEnoughReferrals ? 'text-green-400' : 'text-red-400'}`}>
+                    <UserPlus className="w-4 h-4" />
+                    <span>To withdraw you need: {MINIMUM_VALID_REFERRALS_REQUIRED} friend{MINIMUM_VALID_REFERRALS_REQUIRED !== 1 ? 's' : ''}</span>
+                    {hasEnoughReferrals && <Check className="w-3 h-3" />}
+                  </div>
+                )}
+                
+                {withdrawalAdRequirementEnabled && (
+                  <div className={`flex items-center gap-2 text-xs ${hasWatchedEnoughAds ? 'text-green-400' : 'text-red-400'}`}>
+                    <PlayCircle className="w-4 h-4" />
+                    <span>To withdraw you need: {MINIMUM_ADS_FOR_WITHDRAWAL} ads</span>
+                    {hasWatchedEnoughAds && <Check className="w-3 h-3" />}
+                  </div>
+                )}
+                
+                <div className="text-xs text-cyan-400/80 pt-2 border-t border-[#2a2a2a]">
+                  Minimum: ${(selectedPaymentSystem?.minWithdrawal || 0.10).toFixed(2)} USD
                 </div>
               </div>
             </div>
@@ -612,7 +522,10 @@ export default function Withdraw() {
                   withdrawMutation.isPending || 
                   hasPendingWithdrawal || 
                   !isTonWalletSet || 
-                  usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.50)
+                  usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.10) ||
+                  !hasEnoughReferrals ||
+                  !hasWatchedEnoughAds ||
+                  !hasEnoughBug
                 }
                 className="w-full bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -621,7 +534,7 @@ export default function Withdraw() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </>
-                ) : !isTonWalletSet ? 'Set Up Wallet First' : usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.50) ? `Minimum $${(selectedPaymentSystem?.minWithdrawal || 0.50).toFixed(2)} Required` : `Withdraw via ${selectedMethod}`}
+                ) : !isTonWalletSet ? 'Set Up Wallet First' : usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.10) ? `Minimum $${(selectedPaymentSystem?.minWithdrawal || 0.10).toFixed(2)} Required` : (!hasEnoughReferrals || !hasWatchedEnoughAds || !hasEnoughBug) ? 'Requirements Not Met' : `Withdraw via ${selectedMethod}`}
               </Button>
             </div>
             </>

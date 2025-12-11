@@ -886,7 +886,7 @@ function PromoCreatorSection() {
   const [formData, setFormData] = useState({
     code: '',
     rewardAmount: '',
-    rewardType: 'TON' as 'PAD' | 'TON' | 'USD',
+    rewardType: 'TON' as 'PAD' | 'TON' | 'USD' | 'BUG',
     usageLimit: '',
     perUserLimit: '1',
     expiresAt: ''
@@ -974,8 +974,8 @@ function PromoCreatorSection() {
             <Input placeholder="PROMO CODE" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} maxLength={20} className="flex-1 h-8 text-sm" />
             <Button type="button" variant="outline" onClick={handleGenerateCode} size="sm" className="h-8"><i className="fas fa-random"></i></Button>
           </div>
-          <div className="grid grid-cols-3 gap-1">
-            {(['PAD', 'TON', 'USD'] as const).map(type => (
+          <div className="grid grid-cols-4 gap-1">
+            {(['PAD', 'TON', 'USD', 'BUG'] as const).map(type => (
               <Button key={type} type="button" variant={formData.rewardType === type ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, rewardType: type })} className="h-8 text-xs">{type}</Button>
             ))}
           </div>
@@ -1090,14 +1090,19 @@ function PayoutLogsSection({ data }: { data: any }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedPayouts.map((payout: any) => (
-                <TableRow key={payout.id} className="hover:bg-white/5">
-                  <TableCell className="text-xs py-2 font-mono text-[#4cd3ff]">{payout.user?.referralCode || payout.user?.personalCode || 'N/A'}</TableCell>
-                  <TableCell className="text-xs py-2 font-semibold text-green-400">{formatCurrency(payout.amount || '0')}</TableCell>
-                  <TableCell className="py-2">{getStatusBadge(payout.status)}</TableCell>
-                  <TableCell className="text-[10px] py-2 text-muted-foreground">{new Date(payout.createdAt || payout.created_on).toLocaleDateString()}</TableCell>
-                </TableRow>
-              ))}
+              {paginatedPayouts.map((payout: any) => {
+                const username = payout.user?.telegramUsername || payout.user?.username || payout.user?.firstName || payout.user?.referralCode || payout.user?.personalCode || 'N/A';
+                const displayUsername = username.startsWith('@') ? username : (payout.user?.telegramUsername || payout.user?.username ? `@${payout.user?.telegramUsername || payout.user?.username}` : username);
+                const usdAmount = parseFloat(payout.amount || '0');
+                return (
+                  <TableRow key={payout.id} className="hover:bg-white/5">
+                    <TableCell className="text-xs py-2 font-medium text-[#4cd3ff]">{displayUsername}</TableCell>
+                    <TableCell className="text-xs py-2 font-semibold text-green-400">${usdAmount.toFixed(2)}</TableCell>
+                    <TableCell className="py-2">{getStatusBadge(payout.status)}</TableCell>
+                    <TableCell className="text-[10px] py-2 text-muted-foreground">{new Date(payout.createdAt || payout.created_on).toLocaleDateString()}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

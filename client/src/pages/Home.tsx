@@ -408,18 +408,15 @@ export default function Home() {
           
           <h1 className="text-lg font-bold text-white mt-1">{displayName}</h1>
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
-</div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <img src="/images/p-logo.png" alt="PAD" className="w-4 h-4 object-contain" />
+            <span className="text-sm font-bold text-[#4cd3ff]">
+              {balancePAD.toLocaleString()} PAD
+            </span>
+          </div>
+        </div>
 
-<div className="flex items-center gap-2 mt-1">
-  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#4cd3ff]/30">
-    <Bug className="w-3 h-3 text-green-400" />
-    <span className="text-[10px] font-bold text-green-400">
-      {Math.floor(balanceBUG).toLocaleString()} BUG
-    </span>
-  </div>
-</div>
-
-<div className="grid grid-cols-2 gap-2 mt-2">
+        <div className="grid grid-cols-2 gap-2 mt-2">
   <Button
             onClick={handleConvertClick}
             disabled={isConverting || convertMutation.isPending}

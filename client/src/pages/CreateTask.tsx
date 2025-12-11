@@ -48,6 +48,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import TopUpSheet from "@/components/TopUpSheet";
+import { Plus } from "lucide-react";
 
 interface Task {
   id: string;
@@ -369,6 +371,22 @@ export default function CreateTask() {
   return (
     <Layout>
       <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
+        {!isAdmin && (
+          <div className="flex items-center justify-between mb-4 p-3 bg-[#1A1A1A] rounded-xl border border-[#2A2A2A]">
+            <div className="flex items-center gap-2">
+              <img src="/images/ton.png" alt="TON" className="w-5 h-5 object-cover rounded-full" />
+              <span className="text-sm font-semibold text-white">{tonBalance.toFixed(4)} TON</span>
+            </div>
+            <TopUpSheet 
+              trigger={
+                <button className="flex items-center gap-1 px-3 py-1.5 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black text-xs font-semibold rounded-lg transition-colors">
+                  <Plus className="w-3.5 h-3.5" />
+                  Top Up
+                </button>
+              }
+            />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2 mb-6">
           <Button
             type="button"
