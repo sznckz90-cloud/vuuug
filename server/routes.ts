@@ -2705,7 +2705,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         withdrawalAdRequirementEnabled,
         minimumAdsForWithdrawal,
         withdrawalInviteRequirementEnabled,
-        minimumInvitesForWithdrawal
+        minimumInvitesForWithdrawal,
+        // BUG currency settings
+        bugRewardPerAd,
+        bugRewardPerTask,
+        bugRewardPerReferral,
+        minimumBugForWithdrawal,
+        padToBugRate,
+        minimumConvertPadToBug
       } = req.body;
       
       // Validate referralAdsRequired - must be a positive integer >= 1
@@ -2759,6 +2766,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('minimum_ads_for_withdrawal', minimumAdsForWithdrawal);
       await updateSetting('withdrawal_invite_requirement_enabled', withdrawalInviteRequirementEnabled);
       await updateSetting('minimum_invites_for_withdrawal', minimumInvitesForWithdrawal);
+      
+      // BUG currency settings
+      await updateSetting('bug_reward_per_ad', bugRewardPerAd);
+      await updateSetting('bug_reward_per_task', bugRewardPerTask);
+      await updateSetting('bug_reward_per_referral', bugRewardPerReferral);
+      await updateSetting('minimum_bug_for_withdrawal', minimumBugForWithdrawal);
+      await updateSetting('pad_to_bug_rate', padToBugRate);
+      await updateSetting('minimum_convert_pad_to_bug', minimumConvertPadToBug);
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
@@ -4065,19 +4080,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
 
-  // PAD to USD conversion endpoint
+  // PAD conversion endpoint (supports USD, TON, BUG)
   app.post('/api/convert-to-usd', async (req: any, res) => {
     try {
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
       
       if (!userId) {
-        console.log("⚠️ USD conversion requested without session - skipping");
+        console.log("⚠️ Conversion requested without session - skipping");
         return res.json({ success: true, skipAuth: true });
       }
 
-      const { padAmount } = req.body;
+      const { padAmount, convertTo = 'USD' } = req.body;
       
-      console.log('💵 PAD to USD conversion request:', { userId, padAmount });
+      console.log('💵 PAD conversion request:', { userId, padAmount, convertTo });
       
       const convertAmount = parseFloat(padAmount);
       if (!padAmount || isNaN(convertAmount) || convertAmount <= 0) {
@@ -4087,20 +4102,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Get conversion rate from admin settings (default: 10,000 PAD = $1)
-      const conversionRateSetting = await storage.getAppSetting('pad_to_usd_rate', '10000');
-      const PAD_TO_USD_RATE = parseFloat(conversionRateSetting);
-      const usdAmount = convertAmount / PAD_TO_USD_RATE;
-      
-      console.log(`📊 Using conversion rate: ${PAD_TO_USD_RATE} PAD = $1 USD`);
-      
       // Use transaction to ensure atomicity
       const result = await db.transaction(async (tx) => {
         // Lock user row and get current balances
         const [user] = await tx
           .select({ 
             balance: users.balance,
-            usdBalance: users.usdBalance
+            usdBalance: users.usdBalance,
+            tonBalance: users.tonBalance,
+            bugBalance: users.bugBalance
           })
           .from(users)
           .where(eq(users.id, userId))
@@ -4110,55 +4120,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('User not found');
         }
         
-        // balance field now stores PAD as BIGINT (integer)
         const currentPadBalance = parseFloat(user.balance || '0');
-        const currentUsdBalance = parseFloat(user.usdBalance || '0');
         
         if (currentPadBalance < convertAmount) {
           throw new Error('Insufficient PAD balance');
         }
         
-        // Deduct PAD and add USD
         const newPadBalance = currentPadBalance - convertAmount;
-        const newUsdBalance = currentUsdBalance + usdAmount;
+        let updateData: any = {
+          balance: String(Math.round(newPadBalance)),
+          updatedAt: new Date()
+        };
         
-        await tx
-          .update(users)
-          .set({
-            balance: String(Math.round(newPadBalance)),
-            usdBalance: newUsdBalance.toFixed(10),
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, userId));
+        let convertedAmount = 0;
+        let convertedCurrency = convertTo;
         
-        console.log(`✅ PAD to USD conversion successful: ${convertAmount} PAD → $${usdAmount.toFixed(2)} USD`);
-        console.log(`📊 New balances - PAD: ${newPadBalance}, USD: $${newUsdBalance.toFixed(2)}`);
+        if (convertTo === 'USD') {
+          const conversionRateSetting = await storage.getAppSetting('pad_to_usd_rate', '10000');
+          const PAD_TO_USD_RATE = parseFloat(conversionRateSetting);
+          convertedAmount = convertAmount / PAD_TO_USD_RATE;
+          const currentUsdBalance = parseFloat(user.usdBalance || '0');
+          updateData.usdBalance = (currentUsdBalance + convertedAmount).toFixed(10);
+          console.log(`✅ PAD to USD: ${convertAmount} PAD → $${convertedAmount.toFixed(4)} USD`);
+        } else if (convertTo === 'TON') {
+          const padToTonRateSetting = await storage.getAppSetting('pad_to_ton_rate', '10000000');
+          const PAD_TO_TON_RATE = parseFloat(padToTonRateSetting);
+          convertedAmount = convertAmount / PAD_TO_TON_RATE;
+          const currentTonBalance = parseFloat(user.tonBalance || '0');
+          updateData.tonBalance = (currentTonBalance + convertedAmount).toFixed(10);
+          console.log(`✅ PAD to TON: ${convertAmount} PAD → ${convertedAmount.toFixed(6)} TON`);
+        } else if (convertTo === 'BUG') {
+          const padToBugRateSetting = await storage.getAppSetting('pad_to_bug_rate', '1');
+          const PAD_TO_BUG_RATE = parseFloat(padToBugRateSetting);
+          convertedAmount = convertAmount * PAD_TO_BUG_RATE;
+          const currentBugBalance = parseFloat(user.bugBalance || '0');
+          updateData.bugBalance = (currentBugBalance + convertedAmount).toFixed(10);
+          console.log(`✅ PAD to BUG: ${convertAmount} PAD → ${convertedAmount.toFixed(0)} BUG`);
+        }
+        
+        await tx.update(users).set(updateData).where(eq(users.id, userId));
         
         return {
           padAmount: convertAmount,
-          usdAmount,
-          newPadBalance: newPadBalance,
-          newUsdBalance: newUsdBalance
+          convertedAmount,
+          convertedCurrency,
+          newPadBalance
         };
       });
       
-      // Send real-time update
-      sendRealtimeUpdate(userId, {
-        type: 'balance_update',
-        balance: String(result.newPadBalance),
-        usdBalance: result.newUsdBalance.toFixed(10)
-      });
+      sendRealtimeUpdate(userId, { type: 'balance_update' });
       
       res.json({
         success: true,
-        message: 'Conversion successful!',
+        message: `Converted to ${result.convertedCurrency} successfully!`,
         ...result
       });
       
     } catch (error) {
-      console.error('❌ Error converting PAD to USD:', error);
+      console.error('❌ Error converting PAD:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to convert';
-      
       res.status(errorMessage === 'Insufficient PAD balance' ? 400 : 500).json({ 
         success: false, 
         message: errorMessage
