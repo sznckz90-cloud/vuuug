@@ -1409,7 +1409,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           successfulInvites: 0,
           totalClaimed: '0', 
           availableBonus: '0', 
-          readyToClaim: '0' 
+          readyToClaim: '0',
+          totalBugEarned: 0,
+          totalUsdEarned: 0
         });
       }
       const user = await storage.getUser(userId);
@@ -1420,12 +1422,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get SUCCESSFUL invites (users who watched 1+ ad AND are not banned)
       const successfulInvitesCount = await storage.getValidReferralCount(userId);
       
+      // Get reward settings from admin settings
+      const [bugRewardSetting] = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bug_reward_per_referral')).limit(1);
+      const bugRewardPerReferral = parseInt(bugRewardSetting?.settingValue || '50');
+      
+      // Calculate total BUG and USD earned from referrals
+      const totalBugEarned = successfulInvitesCount * bugRewardPerReferral;
+      const totalUsdEarned = parseFloat(user?.totalClaimedReferralBonus || '0') + parseFloat(user?.pendingReferralBonus || '0');
+      
       res.json({
         totalInvites: totalInvitesCount,
         successfulInvites: successfulInvitesCount,
         totalClaimed: user?.totalClaimedReferralBonus || '0',
         availableBonus: user?.pendingReferralBonus || '0',
         readyToClaim: user?.pendingReferralBonus || '0',
+        totalBugEarned: totalBugEarned,
+        totalUsdEarned: totalUsdEarned
       });
     } catch (error) {
       console.error("Error fetching referral stats:", error);
@@ -5647,17 +5659,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ✅ Check if user has enough BUG balance for withdrawal
-        const [minimumBugSetting] = await tx
-          .select({ settingValue: adminSettings.settingValue })
-          .from(adminSettings)
-          .where(eq(adminSettings.settingKey, 'minimum_bug_for_withdrawal'))
-          .limit(1);
-        const minimumBugForWithdrawal = parseInt(minimumBugSetting?.settingValue || '1000'); // Default: $0.1 = 1000 BUG
+        // Dynamic BUG requirement: scales with USD amount (0.1 USD = 1000 BUG, so 1 USD = 10000 BUG)
+        const currentUsdBalanceForBug = parseFloat(user.usdBalance || '0');
+        const bugPerUsd = 10000; // 0.1 USD = 1000 BUG means 1 USD = 10000 BUG
+        const minimumBugForWithdrawal = Math.ceil(currentUsdBalanceForBug * bugPerUsd);
         
         const currentBugBalance = parseFloat(user.bugBalance || '0');
         if (currentBugBalance < minimumBugForWithdrawal) {
           const remaining = minimumBugForWithdrawal - currentBugBalance;
-          throw new Error(`Earn ${remaining.toFixed(0)} more BUG to unlock withdrawals. You need ${minimumBugForWithdrawal} BUG total.`);
+          throw new Error(`Earn ${remaining.toFixed(0)} more BUG to unlock your $${currentUsdBalanceForBug.toFixed(2)} withdrawal. Required: ${minimumBugForWithdrawal.toLocaleString()} BUG.`);
         }
 
         // Check if user has appropriate wallet address based on method
