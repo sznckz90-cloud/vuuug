@@ -18,10 +18,7 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Missions = lazy(() => import("@/pages/Missions"));
 const CreateTask = lazy(() => import("@/pages/CreateTask"));
-const WalletActivity = lazy(() => import("@/pages/WalletActivity"));
-const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
-const AdList = lazy(() => import("@/pages/AdList"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
 const Store = lazy(() => import("@/pages/Store"));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -47,10 +44,7 @@ function Router() {
         <Route path="/missions" component={Missions} />
         <Route path="/task/create" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
-        <Route path="/wallet-activity" component={WalletActivity} />
-        <Route path="/wallet-setup" component={WalletSetup} />
         <Route path="/withdraw" component={Withdraw} />
-        <Route path="/ad-list" component={AdList} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
