@@ -140,15 +140,13 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
           </button>
         )}
       </DrawerTrigger>
-      <DrawerContent className="bg-black/95 backdrop-blur-xl border-t-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(76,211,255,0.15)] max-h-[80vh]">
-        <div className="px-4 pb-5 pt-1 overflow-y-auto">
-          <div className="space-y-3">
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
-                <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover" />
-              </div>
-              <span className="text-base font-semibold text-white">Top-Up TON</span>
-            </div>
+      <DrawerContent className="bg-[#1a1a1a] border-t border-white/10 rounded-t-2xl max-h-[80vh]">
+        <div className="px-6 pb-6 pt-4 overflow-y-auto">
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-white text-center flex items-center justify-center gap-2">
+              <img src="/images/ton.png" alt="TON" className="w-6 h-6 object-cover rounded-full" />
+              Top-Up TON
+            </h2>
 
             <div className="grid grid-cols-4 gap-2">
               {PRESET_AMOUNTS.map((amount) => (
@@ -156,10 +154,10 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
                   key={amount}
                   onClick={() => handlePresetSelect(amount)}
                   disabled={isLoading}
-                  className={`py-2 px-2 rounded-lg border transition-all text-sm font-medium ${
+                  className={`py-3 px-3 rounded-xl border transition-all text-sm font-semibold ${
                     tonAmount === amount.toString()
                       ? "bg-[#4cd3ff] text-black border-[#4cd3ff]"
-                      : "bg-[#1a1a1a] text-white border-white/10 hover:border-[#4cd3ff]/50"
+                      : "bg-[#0d0d0d] text-white border-white/20 hover:border-[#4cd3ff]/50"
                   }`}
                 >
                   {amount}
@@ -167,30 +165,37 @@ export default function TopUpSheet({ trigger }: TopUpSheetProps) {
               ))}
             </div>
 
-            <div className="flex gap-2 items-center">
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="Custom amount"
-                value={tonAmount}
-                onChange={handleInputChange}
-                disabled={isLoading}
-                className="bg-[#1a1a1a] border-[#333] text-white placeholder:text-gray-500 h-10 rounded-lg flex-1"
-              />
-              <Button
-                onClick={handlePay}
-                disabled={!tonAmount || isLoading || !!validationError}
-                className="h-10 px-6 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold rounded-lg transition-all active:scale-[0.98]"
-              >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Pay"}
-              </Button>
-            </div>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="Enter custom amount"
+              value={tonAmount}
+              onChange={handleInputChange}
+              disabled={isLoading}
+              className="bg-[#0d0d0d] border border-white/20 rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 text-center text-lg font-semibold focus:border-[#4cd3ff] focus:ring-0"
+            />
 
             {validationError && (
               <p className="text-xs text-red-500 text-center">{validationError}</p>
             )}
 
-            <p className="text-[10px] text-center text-gray-600">
+            <div className="flex gap-3">
+              <Button
+                onClick={() => handleOpenChange(false)}
+                className="flex-1 h-11 bg-[#2a2a2a] hover:bg-[#333] text-white font-semibold rounded-xl"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={handlePay}
+                disabled={!tonAmount || isLoading || !!validationError}
+                className="flex-1 h-11 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold rounded-xl disabled:opacity-50"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Pay"}
+              </Button>
+            </div>
+
+            <p className="text-[10px] text-center text-gray-500">
               Min 0.1 TON • Secured by ArcPay
             </p>
 
