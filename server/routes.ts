@@ -980,6 +980,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const withdrawalInviteRequirementEnabled = getSetting('withdrawal_invite_requirement_enabled', 'true') === 'true';
       const minimumInvitesForWithdrawal = parseInt(getSetting('minimum_invites_for_withdrawal', '3'));
       
+      // BUG currency settings
+      const minimumConvertPadToTon = parseInt(getSetting('minimum_convert_pad_to_ton', '10000'));
+      const minimumConvertPadToBug = parseInt(getSetting('minimum_convert_pad_to_bug', '1000'));
+      const padToTonRate = parseInt(getSetting('pad_to_ton_rate', '10000000')); // 10M PAD = 1 TON
+      const padToBugRate = parseInt(getSetting('pad_to_bug_rate', '1')); // 1 PAD = 1 BUG
+      const bugRewardPerAd = parseInt(getSetting('bug_reward_per_ad', '1')); // BUG per ad watched
+      const bugRewardPerTask = parseInt(getSetting('bug_reward_per_task', '10')); // BUG per task completed
+      const bugRewardPerReferral = parseInt(getSetting('bug_reward_per_referral', '50')); // BUG per referral
+      const minimumBugForWithdrawal = parseInt(getSetting('minimum_bug_for_withdrawal', '1000')); // Default: $0.1 = 1000 BUG
+      const activePromoCode = getSetting('active_promo_code', ''); // Current active promo code
+      
       // Legacy compatibility - keep old values for backwards compatibility
       const taskCostPerClick = channelTaskCostUSD; // Use channel cost as default
       const taskRewardPerClick = channelTaskRewardPAD / 10000000; // Legacy TON format for compatibility
@@ -1029,6 +1040,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumAdsForWithdrawal,
         withdrawalInviteRequirementEnabled,
         minimumInvitesForWithdrawal,
+        // BUG currency settings
+        minimumConvertPadToTon,
+        minimumConvertPadToBug,
+        padToTonRate,
+        padToBugRate,
+        bugRewardPerAd,
+        bugRewardPerTask,
+        bugRewardPerReferral,
+        minimumBugForWithdrawal,
+        activePromoCode,
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -1092,9 +1113,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch admin settings for daily limit and reward amount
       const dailyAdLimitSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'daily_ad_limit')).limit(1);
       const rewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'reward_per_ad')).limit(1);
+      const bugRewardPerAdSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bug_reward_per_ad')).limit(1);
       
       const dailyAdLimit = dailyAdLimitSetting[0]?.settingValue ? parseInt(dailyAdLimitSetting[0].settingValue) : 50;
       const rewardPerAdPAD = rewardPerAdSetting[0]?.settingValue ? parseInt(rewardPerAdSetting[0].settingValue) : 1000;
+      const bugRewardPerAd = bugRewardPerAdSetting[0]?.settingValue ? parseInt(bugRewardPerAdSetting[0].settingValue) : 1;
       
       // Enforce daily ad limit (configurable, default 50)
       const adsWatchedToday = user.adsWatchedToday || 0;
@@ -1120,6 +1143,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Increment ads watched count
         await storage.incrementAdsWatched(userId);
+        
+        // Add BUG reward for watching ad
+        if (bugRewardPerAd > 0) {
+          await db
+            .update(users)
+            .set({
+              bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugRewardPerAd}`,
+              updatedAt: new Date()
+            })
+            .where(eq(users.id, userId));
+          console.log(`🐛 Added ${bugRewardPerAd} BUG to user ${userId} for ad watch`);
+        }
         
         // Check and activate referral bonuses (anti-fraud: requires 10 ads)
         try {
@@ -1182,7 +1217,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         rewardPAD: adRewardPAD,
+        rewardBUG: bugRewardPerAd,
         newBalance: updatedUser?.balance || user.balance || "0",
+        newBugBalance: updatedUser?.bugBalance || "0",
         adsWatchedToday: newAdsWatched
       });
     } catch (error) {
@@ -1471,6 +1508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const withdrawalAdRequirementEnabled = getSetting('withdrawal_ad_requirement_enabled', 'true') === 'true';
       const MINIMUM_ADS_FOR_WITHDRAWAL = parseInt(getSetting('minimum_ads_for_withdrawal', '100'));
+      const MINIMUM_BUG_FOR_WITHDRAWAL = parseInt(getSetting('minimum_bug_for_withdrawal', '1000')); // Default: $0.1 = 1000 BUG
       
       let adsWatchedSinceLastWithdrawal = 0;
       
@@ -1494,12 +1532,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         adsWatchedSinceLastWithdrawal = adsCountResult[0]?.count || 0;
       }
       
+      // Check BUG balance requirement
+      const currentBugBalance = parseFloat(user.bugBalance || '0');
+      const hasSufficientBug = currentBugBalance >= MINIMUM_BUG_FOR_WITHDRAWAL;
+      
       // If ad requirement is disabled, user can always withdraw (regarding ads)
-      const canWithdraw = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
+      const canWithdrawAds = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
+      const canWithdraw = canWithdrawAds && hasSufficientBug;
       
       res.json({ 
         adsWatchedSinceLastWithdrawal,
         canWithdraw,
+        canWithdrawAds,
+        hasSufficientBug,
+        bugBalance: currentBugBalance,
+        requiredBug: MINIMUM_BUG_FOR_WITHDRAWAL,
         requiredAds: MINIMUM_ADS_FOR_WITHDRAWAL,
         adRequirementEnabled: withdrawalAdRequirementEnabled
       });
@@ -1858,11 +1905,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Reward: 0.0001 TON = 1,000 PAD
       const rewardAmount = '0.0001';
       
+      // Get BUG reward setting
+      const bugRewardSetting = await storage.getAppSetting('bug_reward_per_task', '10');
+      const bugReward = parseInt(bugRewardSetting);
+      
       await db.transaction(async (tx) => {
-        // Update balance and mark task complete
+        // Update balance, BUG balance, and mark task complete
         await tx.update(users)
           .set({ 
             balance: sql`${users.balance} + ${rewardAmount}`,
+            bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugReward}`,
             taskShareCompletedToday: true,
             updatedAt: new Date()
           })
@@ -1877,10 +1929,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
       
+      console.log(`🐛 Added ${bugReward} BUG to user ${userId} for share task`);
+      
       res.json({
         success: true,
         message: 'Task completed!',
-        rewardAmount
+        rewardAmount,
+        rewardBUG: bugReward
       });
       
     } catch (error) {
@@ -1997,10 +2052,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Reward: 0.0001 TON = 1,000 PAD
       const rewardAmount = '0.0001';
       
+      // Get BUG reward setting
+      const bugRewardSetting = await storage.getAppSetting('bug_reward_per_task', '10');
+      const bugReward = parseInt(bugRewardSetting);
+      
       await db.transaction(async (tx) => {
         await tx.update(users)
           .set({ 
             balance: sql`${users.balance} + ${rewardAmount}`,
+            bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugReward}`,
             taskChannelCompletedToday: true,
             updatedAt: new Date()
           })
@@ -2014,10 +2074,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
       
+      console.log(`🐛 Added ${bugReward} BUG to user ${userId} for channel task`);
+      
       res.json({
         success: true,
         message: 'Task completed!',
-        rewardAmount
+        rewardAmount,
+        rewardBUG: bugReward
       });
       
     } catch (error) {
@@ -2053,10 +2116,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Reward: 0.0001 TON = 1,000 PAD
       const rewardAmount = '0.0001';
       
+      // Get BUG reward setting
+      const bugRewardSetting = await storage.getAppSetting('bug_reward_per_task', '10');
+      const bugReward = parseInt(bugRewardSetting);
+      
       await db.transaction(async (tx) => {
         await tx.update(users)
           .set({ 
             balance: sql`${users.balance} + ${rewardAmount}`,
+            bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugReward}`,
             taskCommunityCompletedToday: true,
             updatedAt: new Date()
           })
@@ -2070,10 +2138,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
       
+      console.log(`🐛 Added ${bugReward} BUG to user ${userId} for community task`);
+      
       res.json({
         success: true,
         message: 'Task completed!',
-        rewardAmount
+        rewardAmount,
+        rewardBUG: bugReward
       });
       
     } catch (error) {
@@ -4095,6 +4166,220 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PAD to TON conversion endpoint
+  app.post('/api/convert-to-ton', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log("⚠️ TON conversion requested without session - skipping");
+        return res.json({ success: true, skipAuth: true });
+      }
+
+      const { padAmount } = req.body;
+      
+      console.log('💎 PAD to TON conversion request:', { userId, padAmount });
+      
+      const convertAmount = parseFloat(padAmount);
+      if (!padAmount || isNaN(convertAmount) || convertAmount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid PAD amount'
+        });
+      }
+
+      // Get minimum conversion from admin settings
+      const minConvertSetting = await storage.getAppSetting('minimum_convert_pad_to_ton', '10000');
+      const minimumConvertPAD = parseFloat(minConvertSetting);
+
+      if (convertAmount < minimumConvertPAD) {
+        return res.status(400).json({
+          success: false,
+          message: `Minimum ${minimumConvertPAD.toLocaleString()} PAD required for TON conversion`
+        });
+      }
+      
+      // Get conversion rate from admin settings (default: 10,000,000 PAD = 1 TON)
+      const conversionRateSetting = await storage.getAppSetting('pad_to_ton_rate', '10000000');
+      const PAD_TO_TON_RATE = parseFloat(conversionRateSetting);
+      const tonAmount = convertAmount / PAD_TO_TON_RATE;
+      
+      console.log(`📊 Using conversion rate: ${PAD_TO_TON_RATE} PAD = 1 TON`);
+      
+      // Use transaction to ensure atomicity
+      const result = await db.transaction(async (tx) => {
+        const [user] = await tx
+          .select({ 
+            balance: users.balance,
+            tonBalance: users.tonBalance
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) {
+          throw new Error('User not found');
+        }
+        
+        const currentPadBalance = parseFloat(user.balance || '0');
+        const currentTonBalance = parseFloat(user.tonBalance || '0');
+        
+        if (currentPadBalance < convertAmount) {
+          throw new Error('Insufficient PAD balance');
+        }
+        
+        const newPadBalance = currentPadBalance - convertAmount;
+        const newTonBalance = currentTonBalance + tonAmount;
+        
+        await tx
+          .update(users)
+          .set({
+            balance: String(Math.round(newPadBalance)),
+            tonBalance: newTonBalance.toFixed(10),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`✅ PAD to TON conversion successful: ${convertAmount} PAD → ${tonAmount.toFixed(6)} TON`);
+        
+        return {
+          padAmount: convertAmount,
+          tonAmount,
+          newPadBalance,
+          newTonBalance
+        };
+      });
+      
+      sendRealtimeUpdate(userId, {
+        type: 'balance_update',
+        balance: String(result.newPadBalance),
+        tonBalance: result.newTonBalance.toFixed(10)
+      });
+      
+      res.json({
+        success: true,
+        message: 'Conversion to TON successful!',
+        ...result
+      });
+      
+    } catch (error) {
+      console.error('❌ Error converting PAD to TON:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to convert';
+      
+      res.status(errorMessage === 'Insufficient PAD balance' ? 400 : 500).json({ 
+        success: false, 
+        message: errorMessage
+      });
+    }
+  });
+
+  // PAD to BUG conversion endpoint
+  app.post('/api/convert-to-bug', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        console.log("⚠️ BUG conversion requested without session - skipping");
+        return res.json({ success: true, skipAuth: true });
+      }
+
+      const { padAmount } = req.body;
+      
+      console.log('🐛 PAD to BUG conversion request:', { userId, padAmount });
+      
+      const convertAmount = parseFloat(padAmount);
+      if (!padAmount || isNaN(convertAmount) || convertAmount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid PAD amount'
+        });
+      }
+
+      // Get minimum conversion from admin settings
+      const minConvertSetting = await storage.getAppSetting('minimum_convert_pad_to_bug', '1000');
+      const minimumConvertPAD = parseFloat(minConvertSetting);
+
+      if (convertAmount < minimumConvertPAD) {
+        return res.status(400).json({
+          success: false,
+          message: `Minimum ${minimumConvertPAD.toLocaleString()} PAD required for BUG conversion`
+        });
+      }
+      
+      // Get conversion rate from admin settings (default: 1 PAD = 1 BUG)
+      const conversionRateSetting = await storage.getAppSetting('pad_to_bug_rate', '1');
+      const PAD_TO_BUG_RATE = parseFloat(conversionRateSetting);
+      const bugAmount = convertAmount / PAD_TO_BUG_RATE;
+      
+      console.log(`📊 Using conversion rate: ${PAD_TO_BUG_RATE} PAD = 1 BUG`);
+      
+      // Use transaction to ensure atomicity
+      const result = await db.transaction(async (tx) => {
+        const [user] = await tx
+          .select({ 
+            balance: users.balance,
+            bugBalance: users.bugBalance
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+        
+        if (!user) {
+          throw new Error('User not found');
+        }
+        
+        const currentPadBalance = parseFloat(user.balance || '0');
+        const currentBugBalance = parseFloat(user.bugBalance || '0');
+        
+        if (currentPadBalance < convertAmount) {
+          throw new Error('Insufficient PAD balance');
+        }
+        
+        const newPadBalance = currentPadBalance - convertAmount;
+        const newBugBalance = currentBugBalance + bugAmount;
+        
+        await tx
+          .update(users)
+          .set({
+            balance: String(Math.round(newPadBalance)),
+            bugBalance: newBugBalance.toFixed(10),
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`✅ PAD to BUG conversion successful: ${convertAmount} PAD → ${bugAmount.toFixed(0)} BUG`);
+        
+        return {
+          padAmount: convertAmount,
+          bugAmount,
+          newPadBalance,
+          newBugBalance
+        };
+      });
+      
+      sendRealtimeUpdate(userId, {
+        type: 'balance_update',
+        balance: String(result.newPadBalance),
+        bugBalance: result.newBugBalance.toFixed(10)
+      });
+      
+      res.json({
+        success: true,
+        message: 'Conversion to BUG successful!',
+        ...result
+      });
+      
+    } catch (error) {
+      console.error('❌ Error converting PAD to BUG:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to convert';
+      
+      res.status(errorMessage === 'Insufficient PAD balance' ? 400 : 500).json({ 
+        success: false, 
+        message: errorMessage
+      });
+    }
+  });
+
   // Setup USDT wallet (Optimism network only)
   app.post('/api/wallet/usdt', async (req: any, res) => {
     try {
@@ -5195,6 +5480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .select({ 
             balance: users.balance,
             usdBalance: users.usdBalance,
+            bugBalance: users.bugBalance,
             cwalletId: users.cwalletId,
             usdtWalletAddress: users.usdtWalletAddress,
             telegramStarsUsername: users.telegramStarsUsername,
@@ -5203,7 +5489,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             username: users.username,
             banned: users.banned,
             bannedReason: users.bannedReason,
-            deviceId: users.deviceId
+            deviceId: users.deviceId,
+            adsWatched: users.adsWatched
           })
           .from(users)
           .where(eq(users.id, userId))
@@ -5328,6 +5615,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const remaining = minimumAdsForWithdrawal - adsWatchedSinceLastWithdrawal;
             throw new Error(`Watch ${remaining} more ad${remaining !== 1 ? 's' : ''} to unlock withdrawals.`);
           }
+        }
+
+        // ✅ Check if user has enough BUG balance for withdrawal
+        const [minimumBugSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'minimum_bug_for_withdrawal'))
+          .limit(1);
+        const minimumBugForWithdrawal = parseInt(minimumBugSetting?.settingValue || '1000'); // Default: $0.1 = 1000 BUG
+        
+        const currentBugBalance = parseFloat(user.bugBalance || '0');
+        if (currentBugBalance < minimumBugForWithdrawal) {
+          const remaining = minimumBugForWithdrawal - currentBugBalance;
+          throw new Error(`Earn ${remaining.toFixed(0)} more BUG to unlock withdrawals. You need ${minimumBugForWithdrawal} BUG total.`);
         }
 
         // Check if user has appropriate wallet address based on method
@@ -5467,6 +5768,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
+        
+        // Deduct BUG balance on withdrawal request (BUG is consumed to unlock withdrawal)
+        await tx
+          .update(users)
+          .set({
+            bugBalance: sql`GREATEST(COALESCE(${users.bugBalance}, '0')::numeric - ${minimumBugForWithdrawal}, 0)`,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+        
+        console.log(`🐛 Deducted ${minimumBugForWithdrawal} BUG from user ${userId} for withdrawal`);
         
         return { 
           withdrawal, 
