@@ -989,6 +989,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bugRewardPerTask = parseInt(getSetting('bug_reward_per_task', '10')); // BUG per task completed
       const bugRewardPerReferral = parseInt(getSetting('bug_reward_per_referral', '50')); // BUG per referral
       const minimumBugForWithdrawal = parseInt(getSetting('minimum_bug_for_withdrawal', '1000')); // Default: $0.1 = 1000 BUG
+      const bugPerUsd = parseInt(getSetting('bug_per_usd', '10000')); // Default: 1 USD = 10000 BUG
+      const withdrawalBugRequirementEnabled = getSetting('withdrawal_bug_requirement_enabled', 'true') === 'true';
       const activePromoCode = getSetting('active_promo_code', ''); // Current active promo code
       
       // Legacy compatibility - keep old values for backwards compatibility
@@ -1049,6 +1051,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bugRewardPerTask,
         bugRewardPerReferral,
         minimumBugForWithdrawal,
+        bugPerUsd,
+        withdrawalBugRequirementEnabled,
         activePromoCode,
       });
     } catch (error) {
@@ -2671,6 +2675,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumAdsForWithdrawal: parseInt(getSetting('minimum_ads_for_withdrawal', '100')),
         withdrawalInviteRequirementEnabled: getSetting('withdrawal_invite_requirement_enabled', 'true') === 'true',
         minimumInvitesForWithdrawal: parseInt(getSetting('minimum_invites_for_withdrawal', '3')),
+        // BUG currency settings
+        bugRewardPerAd: parseInt(getSetting('bug_reward_per_ad', '1')),
+        bugRewardPerTask: parseInt(getSetting('bug_reward_per_task', '10')),
+        bugRewardPerReferral: parseInt(getSetting('bug_reward_per_referral', '50')),
+        minimumBugForWithdrawal: parseInt(getSetting('minimum_bug_for_withdrawal', '1000')),
+        padToBugRate: parseInt(getSetting('pad_to_bug_rate', '1')),
+        minimumConvertPadToBug: parseInt(getSetting('minimum_convert_pad_to_bug', '1000')),
+        bugPerUsd: parseInt(getSetting('bug_per_usd', '10000')),
+        withdrawalBugRequirementEnabled: getSetting('withdrawal_bug_requirement_enabled', 'true') === 'true',
         // Legacy fields for backwards compatibility
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
         taskPerClickReward: parseInt(getSetting('channel_task_reward', '30')),
@@ -2724,7 +2737,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bugRewardPerReferral,
         minimumBugForWithdrawal,
         padToBugRate,
-        minimumConvertPadToBug
+        minimumConvertPadToBug,
+        bugPerUsd,
+        withdrawalBugRequirementEnabled
       } = req.body;
       
       // Validate referralAdsRequired - must be a positive integer >= 1
@@ -2786,6 +2801,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('minimum_bug_for_withdrawal', minimumBugForWithdrawal);
       await updateSetting('pad_to_bug_rate', padToBugRate);
       await updateSetting('minimum_convert_pad_to_bug', minimumConvertPadToBug);
+      await updateSetting('bug_per_usd', bugPerUsd);
+      await updateSetting('withdrawal_bug_requirement_enabled', withdrawalBugRequirementEnabled);
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
@@ -5658,14 +5675,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ✅ Check if user has enough BUG balance for withdrawal
-        // Dynamic BUG requirement: scales with USD amount (0.1 USD = 1000 BUG, so 1 USD = 10000 BUG)
+        // ✅ Check if user has enough BUG balance for withdrawal (if enabled)
+        // Get BUG requirement settings from admin
+        const [bugRequirementEnabledSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'withdrawal_bug_requirement_enabled'))
+          .limit(1);
+        const withdrawalBugRequirementEnabled = bugRequirementEnabledSetting?.settingValue !== 'false';
+        
+        const [bugPerUsdSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'bug_per_usd'))
+          .limit(1);
+        const bugPerUsd = parseInt(bugPerUsdSetting?.settingValue || '10000'); // Default: 1 USD = 10000 BUG
+        
+        // Dynamic BUG requirement: scales with USD amount based on admin setting
         const currentUsdBalanceForBug = parseFloat(user.usdBalance || '0');
-        const bugPerUsd = 10000; // 0.1 USD = 1000 BUG means 1 USD = 10000 BUG
         const minimumBugForWithdrawal = Math.ceil(currentUsdBalanceForBug * bugPerUsd);
         
         const currentBugBalance = parseFloat(user.bugBalance || '0');
-        if (currentBugBalance < minimumBugForWithdrawal) {
+        if (withdrawalBugRequirementEnabled && currentBugBalance < minimumBugForWithdrawal) {
           const remaining = minimumBugForWithdrawal - currentBugBalance;
           throw new Error(`Earn ${remaining.toFixed(0)} more BUG to unlock your $${currentUsdBalanceForBug.toFixed(2)} withdrawal. Required: ${minimumBugForWithdrawal.toLocaleString()} BUG.`);
         }
@@ -6843,12 +6874,12 @@ ${walletAddress}
         console.log('🎲 Auto-generated promo code:', finalCode);
       }
       
-      // Validate reward type - only PAD, TON, USD supported (PDZ is deprecated)
+      // Validate reward type - PAD, TON, USD, BUG supported (PDZ is deprecated)
       let finalRewardType = rewardType || 'TON';
       // Convert legacy PDZ to TON
       if (finalRewardType === 'PDZ') finalRewardType = 'TON';
-      if (finalRewardType !== 'PAD' && finalRewardType !== 'TON' && finalRewardType !== 'USD') {
-        return res.status(400).json({ message: 'Reward type must be PAD, TON, or USD' });
+      if (finalRewardType !== 'PAD' && finalRewardType !== 'TON' && finalRewardType !== 'USD' && finalRewardType !== 'BUG') {
+        return res.status(400).json({ message: 'Reward type must be PAD, TON, USD, or BUG' });
       }
       
       const promoCode = await storage.createPromoCode({
