@@ -4904,6 +4904,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           task: task
         });
 
+        // Send notification to admin about new task submission
+        try {
+          const adminNotification = `📝 <b>New Task Submitted</b>\n\nType: ${taskType}\nTitle: ${title}\nClicks: ${totalClicksRequired}\nCost: ${totalCostTON.toFixed(4)} TON\n\nPlease review.`;
+          await sendTelegramMessage(adminNotification);
+          console.log('📩 Admin notification sent for new task');
+        } catch (notifyError) {
+          console.error('Failed to send admin notification:', notifyError);
+        }
+
         return res.json({ 
           success: true, 
           message: "Task created successfully",
@@ -6742,6 +6751,37 @@ ${walletAddress}
           message: `$${rewardAmount} USD added to your balance!`,
           reward: rewardAmount,
           rewardType: 'USD'
+        });
+      } else if (rewardType === 'BUG') {
+        // Add BUG balance
+        const [currentUser] = await db
+          .select({ bugBalance: users.bugBalance })
+          .from(users)
+          .where(eq(users.id, userId));
+        
+        const currentBugBalance = parseFloat(currentUser?.bugBalance || '0');
+        const newBugBalance = (currentBugBalance + parseFloat(rewardAmount || '0')).toFixed(2);
+        
+        await db
+          .update(users)
+          .set({ bugBalance: newBugBalance, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+        
+        // Log transaction for tracking
+        await storage.logTransaction({
+          userId,
+          amount: rewardAmount || '0',
+          type: "credit",
+          source: "promo_code",
+          description: `Redeemed promo code: ${code}`,
+          metadata: { code, rewardType: 'BUG' }
+        });
+        
+        res.json({ 
+          success: true, 
+          message: `${rewardAmount} BUG added to your balance!`,
+          reward: rewardAmount,
+          rewardType: 'BUG'
         });
       } else {
         // Default: Add PAD balance
