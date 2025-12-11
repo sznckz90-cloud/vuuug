@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { showNotification } from '@/components/AppNotification';
 import Layout from '@/components/Layout';
-import { Share2, Users, Copy, Loader2 } from 'lucide-react';
+import { Share2, Users, Copy, Loader2, Bug, DollarSign } from 'lucide-react';
 
 interface User {
   id: string;
@@ -20,6 +20,8 @@ interface ReferralStats {
   totalClaimed: string;
   availableBonus: string;
   readyToClaim: string;
+  totalBugEarned?: number;
+  totalUsdEarned?: number;
 }
 
 interface AppSettings {
@@ -211,6 +213,32 @@ export default function Affiliates() {
             <CardContent className="pt-4 pb-4">
               <div className="text-xs text-muted-foreground mb-1">Successful Invites</div>
               <div className="text-xl font-bold text-[#4cd3ff]">{stats?.successfulInvites || 0}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Card className="minimal-card">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Bug className="w-4 h-4 text-green-400" />
+                <span className="text-xs text-muted-foreground">BUG Earned</span>
+              </div>
+              <div className="text-xl font-bold text-green-400">
+                {(stats?.totalBugEarned || 0).toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="minimal-card">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-muted-foreground">Total Earned</span>
+              </div>
+              <div className="text-xl font-bold text-emerald-400">
+                ${(stats?.totalUsdEarned || 0).toFixed(3)}
+              </div>
             </CardContent>
           </Card>
         </div>

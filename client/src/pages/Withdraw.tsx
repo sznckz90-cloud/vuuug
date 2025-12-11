@@ -105,7 +105,10 @@ export default function Withdraw() {
   const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal ?? 100;
   const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled === true;
   const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal ?? 3;
-  const minimumBugForWithdrawal = appSettings?.minimumBugForWithdrawal ?? 1000;
+  
+  // Dynamic BUG requirement: scales with USD balance (0.1 USD = 1000 BUG, so 1 USD = 10000 BUG)
+  const bugPerUsd = 10000;
+  const minimumBugForWithdrawal = Math.ceil(usdBalance * bugPerUsd);
   
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
@@ -477,10 +480,10 @@ export default function Withdraw() {
                   Withdrawal method: {selectedMethod}
                 </div>
                 
-                {appSettings?.minimumBugForWithdrawal > 0 && (
+                {usdBalance > 0 && (
                   <div className={`flex items-center gap-2 text-xs ${hasEnoughBug ? 'text-green-400' : 'text-red-400'}`}>
                     <Bug className="w-4 h-4" />
-                    <span>To withdraw you need: {minimumBugForWithdrawal.toLocaleString()} BUG</span>
+                    <span>BUG Required: {minimumBugForWithdrawal.toLocaleString()} (You have: {Math.floor(bugBalance).toLocaleString()})</span>
                     {hasEnoughBug && <Check className="w-3 h-3" />}
                   </div>
                 )}
