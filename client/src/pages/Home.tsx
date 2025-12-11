@@ -6,15 +6,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 
 declare global {
@@ -33,6 +28,7 @@ interface User {
   telegramId?: string;
   balance?: string;
   usdBalance?: string;
+  bugBalance?: string;
   lastStreakDate?: string;
   username?: string;
   firstName?: string;
@@ -49,11 +45,14 @@ export default function Home() {
 
   const [isConverting, setIsConverting] = useState(false);
   const [isClaimingStreak, setIsClaimingStreak] = useState(false);
-  const [promoDrawerOpen, setPromoDrawerOpen] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [hasClaimed, setHasClaimed] = useState(false);
   const [timeUntilNextClaim, setTimeUntilNextClaim] = useState<string>("");
+  
+  const [promoPopupOpen, setPromoPopupOpen] = useState(false);
+  const [convertPopupOpen, setConvertPopupOpen] = useState(false);
+  const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
 
   const { data: leaderboardData } = useQuery<{
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
@@ -117,12 +116,12 @@ export default function Home() {
   }, [(user as User)?.lastStreakDate, (user as User)?.id]);
 
   const convertMutation = useMutation({
-    mutationFn: async (amount: number) => {
+    mutationFn: async ({ amount, convertTo }: { amount: number; convertTo: string }) => {
       const res = await fetch("/api/convert-to-usd", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ padAmount: amount }),
+        body: JSON.stringify({ padAmount: amount, convertTo }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -134,6 +133,7 @@ export default function Home() {
       showNotification("Convert successful.", "success");
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
+      setConvertPopupOpen(false);
     },
     onError: (error: Error) => {
       showNotification(error.message, "error");
@@ -197,6 +197,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
       setPromoCode("");
+      setPromoPopupOpen(false);
       showNotification(data.message || "Promo applied successfully!", "success");
     },
     onError: (error: any) => {
@@ -238,8 +239,16 @@ export default function Home() {
     });
   };
 
-  const handleConvert = async () => {
-    const minimumConvertPAD = appSettings?.minimumConvertPAD || 10000;
+  const handleConvertClick = () => {
+    setConvertPopupOpen(true);
+  };
+
+  const handleConvertConfirm = async () => {
+    const minimumConvertPAD = selectedConvertType === 'USD' 
+      ? (appSettings?.minimumConvertPAD || 10000)
+      : selectedConvertType === 'TON'
+        ? (appSettings?.minimumConvertPadToTon || 10000)
+        : (appSettings?.minimumConvertPadToBug || 1000);
     
     if (balancePAD < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
@@ -275,7 +284,7 @@ export default function Home() {
         return;
       }
       
-      convertMutation.mutate(balancePAD);
+      convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
       
     } catch (error) {
       console.error('Convert error:', error);
@@ -324,6 +333,14 @@ export default function Home() {
     }
   };
 
+  const handleBoosterClick = () => {
+    if (isAdmin) {
+      setLocation("/store");
+    } else {
+      showNotification("Boosters are coming soon!", "info");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -342,6 +359,7 @@ export default function Home() {
   const rawBalance = parseFloat((user as User)?.balance || "0");
   const balancePAD = rawBalance < 1 ? Math.round(rawBalance * 10000000) : Math.round(rawBalance);
   const balanceUSD = parseFloat((user as User)?.usdBalance || "0");
+  const balanceBUG = parseFloat((user as User)?.bugBalance || "0");
   
   const userUID = (user as User)?.referralCode || "00000";
 
@@ -392,32 +410,9 @@ export default function Home() {
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
         </div>
 
-        <div className="mb-2">
-          <div className="bg-[#1a1a1a] rounded-xl p-2">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="Enter Promo Code"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                  disabled={redeemPromoMutation.isPending || isApplyingPromo}
-                  className="bg-transparent border border-[#4cd3ff]/30 rounded-lg text-white placeholder:text-gray-500 px-3 py-2 h-[40px] text-sm focus:border-[#4cd3ff]/50 focus:ring-0"
-                />
-              </div>
-              <Button
-                onClick={handleApplyPromo}
-                disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
-                className="h-[40px] w-[40px] bg-[#4cd3ff]/20 hover:bg-[#4cd3ff]/30 text-[#4cd3ff] rounded-lg transition-all active:scale-[0.97] p-0 flex items-center justify-center border border-[#4cd3ff]/30"
-              >
-                {redeemPromoMutation.isPending || isApplyingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-2 gap-2 mt-2">
           <Button
-            onClick={handleConvert}
+            onClick={handleConvertClick}
             disabled={isConverting || convertMutation.isPending}
             className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
           >
@@ -458,10 +453,151 @@ export default function Home() {
           </Button>
         </div>
 
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Button
+            onClick={() => setPromoPopupOpen(true)}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-purple-500/30 hover:border-purple-500 hover:bg-purple-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Gift className="w-4 h-4 text-purple-400" />
+            <span className="text-white font-medium text-xs">Promo</span>
+          </Button>
+
+          <Button
+            onClick={handleBoosterClick}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Rocket className="w-4 h-4 text-orange-400" />
+            <span className="text-white font-medium text-xs">Booster</span>
+          </Button>
+        </div>
+
         <div className="mt-3">
           <AdWatchingSection user={user as User} />
         </div>
       </main>
+
+      {promoPopupOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-sm border border-white/10">
+            <h2 className="text-xl font-bold text-white text-center mb-4">Enter Promo Code</h2>
+            
+            <Input
+              placeholder="Enter code here"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              disabled={redeemPromoMutation.isPending || isApplyingPromo}
+              className="bg-[#0d0d0d] border border-white/20 rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 text-center text-lg font-semibold tracking-wider focus:border-purple-500 focus:ring-0 mb-4"
+            />
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  setPromoPopupOpen(false);
+                  setPromoCode("");
+                }}
+                className="flex-1 h-11 bg-[#2a2a2a] hover:bg-[#333] text-white font-semibold rounded-xl"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={handleApplyPromo}
+                disabled={redeemPromoMutation.isPending || isApplyingPromo || !promoCode.trim()}
+                className="flex-1 h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl disabled:opacity-50"
+              >
+                {redeemPromoMutation.isPending || isApplyingPromo ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Apply"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {convertPopupOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-sm border border-white/10">
+            <h2 className="text-xl font-bold text-white text-center mb-2">Convert PAD</h2>
+            <p className="text-gray-400 text-sm text-center mb-4">
+              Balance: {balancePAD.toLocaleString()} PAD
+            </p>
+            
+            <div className="space-y-3 mb-4">
+              <button
+                onClick={() => setSelectedConvertType('USD')}
+                className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                  selectedConvertType === 'USD' 
+                    ? 'border-green-500 bg-green-500/10' 
+                    : 'border-white/10 bg-[#0d0d0d] hover:border-white/30'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-green-400" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-white font-semibold">PAD → USD</p>
+                  <p className="text-xs text-gray-400">Min: {(appSettings?.minimumConvertPAD || 10000).toLocaleString()} PAD</p>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setSelectedConvertType('TON')}
+                className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                  selectedConvertType === 'TON' 
+                    ? 'border-blue-500 bg-blue-500/10' 
+                    : 'border-white/10 bg-[#0d0d0d] hover:border-white/30'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <Coins className="w-5 h-5 text-blue-400" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-white font-semibold">PAD → TON</p>
+                  <p className="text-xs text-gray-400">Min: {(appSettings?.minimumConvertPadToTon || 10000).toLocaleString()} PAD</p>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setSelectedConvertType('BUG')}
+                className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                  selectedConvertType === 'BUG' 
+                    ? 'border-emerald-500 bg-emerald-500/10' 
+                    : 'border-white/10 bg-[#0d0d0d] hover:border-white/30'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <Bug className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-white font-semibold">PAD → BUG</p>
+                  <p className="text-xs text-gray-400">Min: {(appSettings?.minimumConvertPadToBug || 1000).toLocaleString()} PAD</p>
+                </div>
+              </button>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setConvertPopupOpen(false)}
+                className="flex-1 h-11 bg-[#2a2a2a] hover:bg-[#333] text-white font-semibold rounded-xl"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={handleConvertConfirm}
+                disabled={isConverting || convertMutation.isPending}
+                className="flex-1 h-11 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-semibold rounded-xl disabled:opacity-50"
+              >
+                {isConverting || convertMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Convert"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

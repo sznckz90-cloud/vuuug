@@ -1467,7 +1467,14 @@ function SettingsSection() {
     // Daily task rewards
     streakReward: '100',
     shareTaskReward: '1000',
-    communityTaskReward: '1000'
+    communityTaskReward: '1000',
+    // BUG currency settings
+    bugRewardPerAd: '1',
+    bugRewardPerTask: '10',
+    bugRewardPerReferral: '50',
+    minimumBugForWithdrawal: '1000',
+    padToBugRate: '1',
+    minimumConvertPadToBug: '1000'
   });
   
   useEffect(() => {
@@ -1503,7 +1510,14 @@ function SettingsSection() {
         // Daily task rewards
         streakReward: settingsData.streakReward?.toString() || '100',
         shareTaskReward: settingsData.shareTaskReward?.toString() || '1000',
-        communityTaskReward: settingsData.communityTaskReward?.toString() || '1000'
+        communityTaskReward: settingsData.communityTaskReward?.toString() || '1000',
+        // BUG currency settings
+        bugRewardPerAd: settingsData.bugRewardPerAd?.toString() || '1',
+        bugRewardPerTask: settingsData.bugRewardPerTask?.toString() || '10',
+        bugRewardPerReferral: settingsData.bugRewardPerReferral?.toString() || '50',
+        minimumBugForWithdrawal: settingsData.minimumBugForWithdrawal?.toString() || '1000',
+        padToBugRate: settingsData.padToBugRate?.toString() || '1',
+        minimumConvertPadToBug: settingsData.minimumConvertPadToBug?.toString() || '1000'
       });
     }
   }, [settingsData]);
@@ -1513,6 +1527,7 @@ function SettingsSection() {
     { id: 'affiliates' as const, label: 'Affiliates', icon: 'users' },
     { id: 'withdrawals' as const, label: 'Withdrawals', icon: 'wallet' },
     { id: 'tasks' as const, label: 'Tasks', icon: 'tasks' },
+    { id: 'bug' as const, label: 'BUG Currency', icon: 'bug' },
     { id: 'other' as const, label: 'Other', icon: 'cog' },
   ];
   
@@ -1586,7 +1601,14 @@ function SettingsSection() {
         minimumInvitesForWithdrawal: parseInt(settings.minimumInvitesForWithdrawal) || 3,
         streakReward: parseInt(settings.streakReward) || 100,
         shareTaskReward: parseInt(settings.shareTaskReward) || 1000,
-        communityTaskReward: parseInt(settings.communityTaskReward) || 1000
+        communityTaskReward: parseInt(settings.communityTaskReward) || 1000,
+        // BUG currency settings
+        bugRewardPerAd: parseInt(settings.bugRewardPerAd) || 1,
+        bugRewardPerTask: parseInt(settings.bugRewardPerTask) || 10,
+        bugRewardPerReferral: parseInt(settings.bugRewardPerReferral) || 50,
+        minimumBugForWithdrawal: parseInt(settings.minimumBugForWithdrawal) || 1000,
+        padToBugRate: parseInt(settings.padToBugRate) || 1,
+        minimumConvertPadToBug: parseInt(settings.minimumConvertPadToBug) || 1000
       });
       
       const result = await response.json();
@@ -1630,6 +1652,7 @@ function SettingsSection() {
             cat.id === 'affiliates' ? 'from-green-500/20 to-green-500/10 border-green-500 text-green-400' :
             cat.id === 'withdrawals' ? 'from-emerald-500/20 to-emerald-500/10 border-emerald-500 text-emerald-400' :
             cat.id === 'tasks' ? 'from-cyan-500/20 to-cyan-500/10 border-[#4cd3ff] text-[#4cd3ff]' :
+            cat.id === 'bug' ? 'from-lime-500/20 to-lime-500/10 border-lime-500 text-lime-400' :
             'from-purple-500/20 to-purple-500/10 border-purple-500 text-purple-400';
           return (
             <Button key={cat.id} size="sm" variant="outline" onClick={() => setActiveCategory(cat.id)} className={`text-xs h-7 ${isActive ? `bg-gradient-to-r ${catColors}` : 'border-white/20 text-muted-foreground hover:border-white/40'}`}>
@@ -2012,6 +2035,118 @@ function SettingsSection() {
               />
               <p className="text-xs text-muted-foreground">
                 Current: {settingsData?.minimumClicks || 500} clicks
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeCategory === 'bug' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="bug-reward-per-ad" className="text-sm font-semibold">
+                <i className="fas fa-bug mr-2 text-lime-600"></i>
+                BUG Per Ad Watch
+              </Label>
+              <Input
+                id="bug-reward-per-ad"
+                type="number"
+                value={settings.bugRewardPerAd}
+                onChange={(e) => setSettings({ ...settings, bugRewardPerAd: e.target.value })}
+                placeholder="1"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.bugRewardPerAd || 1} BUG
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bug-reward-per-task" className="text-sm font-semibold">
+                <i className="fas fa-tasks mr-2 text-lime-600"></i>
+                BUG Per Task
+              </Label>
+              <Input
+                id="bug-reward-per-task"
+                type="number"
+                value={settings.bugRewardPerTask}
+                onChange={(e) => setSettings({ ...settings, bugRewardPerTask: e.target.value })}
+                placeholder="10"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.bugRewardPerTask || 10} BUG
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bug-reward-per-referral" className="text-sm font-semibold">
+                <i className="fas fa-users mr-2 text-lime-600"></i>
+                BUG Per Referral
+              </Label>
+              <Input
+                id="bug-reward-per-referral"
+                type="number"
+                value={settings.bugRewardPerReferral}
+                onChange={(e) => setSettings({ ...settings, bugRewardPerReferral: e.target.value })}
+                placeholder="50"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.bugRewardPerReferral || 50} BUG
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minimum-bug-for-withdrawal" className="text-sm font-semibold">
+                <i className="fas fa-wallet mr-2 text-lime-600"></i>
+                Min BUG for Withdrawal
+              </Label>
+              <Input
+                id="minimum-bug-for-withdrawal"
+                type="number"
+                value={settings.minimumBugForWithdrawal}
+                onChange={(e) => setSettings({ ...settings, minimumBugForWithdrawal: e.target.value })}
+                placeholder="1000"
+                min="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.minimumBugForWithdrawal || 1000} BUG (1000 BUG = $0.1)
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pad-to-bug-rate" className="text-sm font-semibold">
+                <i className="fas fa-exchange-alt mr-2 text-lime-600"></i>
+                PAD to BUG Rate
+              </Label>
+              <Input
+                id="pad-to-bug-rate"
+                type="number"
+                value={settings.padToBugRate}
+                onChange={(e) => setSettings({ ...settings, padToBugRate: e.target.value })}
+                placeholder="1"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                1 PAD = {settingsData?.padToBugRate || 1} BUG
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minimum-convert-pad-to-bug" className="text-sm font-semibold">
+                <i className="fas fa-coins mr-2 text-lime-600"></i>
+                Min PAD to Convert to BUG
+              </Label>
+              <Input
+                id="minimum-convert-pad-to-bug"
+                type="number"
+                value={settings.minimumConvertPadToBug}
+                onChange={(e) => setSettings({ ...settings, minimumConvertPadToBug: e.target.value })}
+                placeholder="1000"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {settingsData?.minimumConvertPadToBug || 1000} PAD
               </p>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/queryClient';
 import { showNotification } from '@/components/AppNotification';
-import { Loader2, Check, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle, Receipt, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Check, Wallet, HelpCircle, Info, CircleDollarSign, Lock, UserPlus, PlayCircle, Receipt, Clock, CheckCircle, XCircle, Bug } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { getPaymentSystems } from '@/constants/paymentSystems';
 import { useLocation } from 'wouter';
@@ -18,6 +18,7 @@ interface User {
   id: string;
   balance: string;
   usdBalance?: string;
+  bugBalance?: string;
   friendsInvited?: number;
   cwalletId?: string;
   adsWatched?: number;
@@ -97,12 +98,14 @@ export default function Withdraw() {
   const walletChangeFee = appSettings?.walletChangeFee || 5000;
   const padBalance = parseFloat(user?.balance || "0");
   const usdBalance = parseFloat(user?.usdBalance || "0");
+  const bugBalance = parseFloat(user?.bugBalance || "0");
   const validReferralCount = validReferralData?.validReferralCount ?? 0;
   
   const withdrawalAdRequirementEnabled = appSettings?.withdrawalAdRequirementEnabled === true;
   const MINIMUM_ADS_FOR_WITHDRAWAL = appSettings?.minimumAdsForWithdrawal ?? 100;
   const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled === true;
   const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal ?? 3;
+  const minimumBugForWithdrawal = appSettings?.minimumBugForWithdrawal ?? 1000;
   
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
@@ -121,6 +124,7 @@ export default function Withdraw() {
   
   const hasWatchedEnoughAds = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
   const hasEnoughReferrals = !withdrawalInviteRequirementEnabled || validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
+  const hasEnoughBug = bugBalance >= minimumBugForWithdrawal;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
   const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
@@ -317,6 +321,12 @@ export default function Withdraw() {
       showNotification(`Watch ${remaining} more ad${remaining !== 1 ? 's' : ''} to unlock this withdrawal.`, "error");
       return;
     }
+    
+    if (!hasEnoughBug) {
+      const remaining = Math.ceil(minimumBugForWithdrawal - bugBalance);
+      showNotification(`You need ${remaining.toLocaleString()} more BUG to withdraw. Watch ads or complete tasks to earn BUG.`, "error");
+      return;
+    }
 
     if (hasPendingWithdrawal) {
       showNotification("Cannot create new request until current one is processed.", "error");
@@ -506,7 +516,43 @@ export default function Withdraw() {
               </div>
             )}
 
-            {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && (
+            {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && !hasEnoughBug && (
+              <Card className="bg-[#1a1a1a] border-lime-500/20 overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Bug className="w-4 h-4 text-lime-400" />
+                    <span className="text-lime-400">BUG Balance Required</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="p-4 space-y-3">
+                    <div className="text-xs text-gray-300">
+                      You need <span className="font-bold text-lime-400">{minimumBugForWithdrawal.toLocaleString()} BUG</span> to make a withdrawal.
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Your BUG Balance</span>
+                      <span className="text-white font-bold">{Math.floor(bugBalance).toLocaleString()} / {minimumBugForWithdrawal.toLocaleString()}</span>
+                    </div>
+                    <Progress 
+                      value={(bugBalance / minimumBugForWithdrawal) * 100} 
+                      className="h-2 bg-[#2a2a2a]"
+                    />
+                    <div className="text-xs text-gray-400">
+                      Earn BUG by watching ads, completing tasks, or inviting friends.
+                    </div>
+                    <Button
+                      onClick={() => setLocation('/')}
+                      className="w-full h-11 bg-gradient-to-r from-lime-500 to-green-500 hover:from-lime-600 hover:to-green-600 text-white font-semibold rounded-lg mt-2"
+                    >
+                      <Bug className="w-4 h-4 mr-2" />
+                      Earn More BUG
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {!isLoadingRequirements && hasEnoughReferrals && hasWatchedEnoughAds && hasEnoughBug && (
             <>
             <div className="space-y-3">
               <div className="space-y-2">
