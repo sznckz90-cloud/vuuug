@@ -408,10 +408,19 @@ export default function Home() {
           
           <h1 className="text-lg font-bold text-white mt-1">{displayName}</h1>
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
-        </div>
+</div>
 
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <Button
+<div className="flex items-center gap-2 mt-1">
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#4cd3ff]/30">
+    <Bug className="w-3 h-3 text-green-400" />
+    <span className="text-[10px] font-bold text-green-400">
+      {Math.floor(balanceBUG).toLocaleString()} BUG
+    </span>
+  </div>
+</div>
+
+<div className="grid grid-cols-2 gap-2 mt-2">
+  <Button
             onClick={handleConvertClick}
             disabled={isConverting || convertMutation.isPending}
             className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
