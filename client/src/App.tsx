@@ -23,6 +23,7 @@ const WalletSetup = lazy(() => import("@/pages/WalletSetup"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const AdList = lazy(() => import("@/pages/AdList"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
+const Store = lazy(() => import("@/pages/Store"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -53,6 +54,7 @@ function Router() {
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
+        <Route path="/store" component={Store} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
