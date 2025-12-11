@@ -408,16 +408,10 @@ export default function Home() {
           
           <h1 className="text-lg font-bold text-white mt-1">{displayName}</h1>
           <p className="text-xs text-gray-400 -mt-0.5">UID: {userUID}</p>
-          <div className="flex items-center gap-1.5 mt-1">
-            <img src="/images/p-logo.png" alt="PAD" className="w-4 h-4 object-contain" />
-            <span className="text-sm font-bold text-[#4cd3ff]">
-              {balancePAD.toLocaleString()} PAD
-            </span>
-          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-2">
-  <Button
+          <Button
             onClick={handleConvertClick}
             disabled={isConverting || convertMutation.isPending}
             className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
