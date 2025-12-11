@@ -1479,7 +1479,9 @@ function SettingsSection() {
     bugRewardPerReferral: '50',
     minimumBugForWithdrawal: '1000',
     padToBugRate: '1',
-    minimumConvertPadToBug: '1000'
+    minimumConvertPadToBug: '1000',
+    bugPerUsd: '10000',
+    withdrawalBugRequirementEnabled: true
   });
   
   useEffect(() => {
@@ -1522,7 +1524,9 @@ function SettingsSection() {
         bugRewardPerReferral: settingsData.bugRewardPerReferral?.toString() || '50',
         minimumBugForWithdrawal: settingsData.minimumBugForWithdrawal?.toString() || '1000',
         padToBugRate: settingsData.padToBugRate?.toString() || '1',
-        minimumConvertPadToBug: settingsData.minimumConvertPadToBug?.toString() || '1000'
+        minimumConvertPadToBug: settingsData.minimumConvertPadToBug?.toString() || '1000',
+        bugPerUsd: settingsData.bugPerUsd?.toString() || '10000',
+        withdrawalBugRequirementEnabled: settingsData.withdrawalBugRequirementEnabled !== false
       });
     }
   }, [settingsData]);
@@ -1613,7 +1617,9 @@ function SettingsSection() {
         bugRewardPerReferral: parseInt(settings.bugRewardPerReferral) || 50,
         minimumBugForWithdrawal: parseInt(settings.minimumBugForWithdrawal) || 1000,
         padToBugRate: parseInt(settings.padToBugRate) || 1,
-        minimumConvertPadToBug: parseInt(settings.minimumConvertPadToBug) || 1000
+        minimumConvertPadToBug: parseInt(settings.minimumConvertPadToBug) || 1000,
+        bugPerUsd: parseInt(settings.bugPerUsd) || 10000,
+        withdrawalBugRequirementEnabled: settings.withdrawalBugRequirementEnabled
       });
       
       const result = await response.json();
@@ -2152,6 +2158,51 @@ function SettingsSection() {
               />
               <p className="text-xs text-muted-foreground">
                 Current: {settingsData?.minimumConvertPadToBug || 1000} PAD
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bug-per-usd" className="text-sm font-semibold">
+                <i className="fas fa-dollar-sign mr-2 text-lime-600"></i>
+                BUG per USD (Withdrawal)
+              </Label>
+              <Input
+                id="bug-per-usd"
+                type="number"
+                value={settings.bugPerUsd}
+                onChange={(e) => setSettings({ ...settings, bugPerUsd: e.target.value })}
+                placeholder="10000"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                1 USD = {settingsData?.bugPerUsd || 10000} BUG required for withdrawal
+              </p>
+            </div>
+
+            <div className="space-y-2 p-3 border rounded-lg bg-lime-50/5 border-lime-500/20 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  <i className="fas fa-bug mr-2 text-lime-500"></i>
+                  Withdrawal BUG Requirement
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, withdrawalBugRequirementEnabled: !settings.withdrawalBugRequirementEnabled })}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    settings.withdrawalBugRequirementEnabled ? 'bg-lime-500' : 'bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      settings.withdrawalBugRequirementEnabled ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {settings.withdrawalBugRequirementEnabled 
+                  ? 'Users must have enough BUG (based on USD amount × BUG per USD) to withdraw' 
+                  : 'BUG requirement disabled - users can withdraw without BUG'}
               </p>
             </div>
           </div>

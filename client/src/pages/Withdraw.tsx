@@ -106,8 +106,9 @@ export default function Withdraw() {
   const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled === true;
   const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal ?? 3;
   
-  // Dynamic BUG requirement: scales with USD balance (0.1 USD = 1000 BUG, so 1 USD = 10000 BUG)
-  const bugPerUsd = 10000;
+  // Dynamic BUG requirement: scales with USD balance based on admin setting (default 1 USD = 10000 BUG)
+  const withdrawalBugRequirementEnabled = appSettings?.withdrawalBugRequirementEnabled !== false;
+  const bugPerUsd = appSettings?.bugPerUsd ?? 10000;
   const minimumBugForWithdrawal = Math.ceil(usdBalance * bugPerUsd);
   
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
@@ -127,7 +128,7 @@ export default function Withdraw() {
   
   const hasWatchedEnoughAds = !withdrawalAdRequirementEnabled || adsWatchedSinceLastWithdrawal >= MINIMUM_ADS_FOR_WITHDRAWAL;
   const hasEnoughReferrals = !withdrawalInviteRequirementEnabled || validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
-  const hasEnoughBug = bugBalance >= minimumBugForWithdrawal;
+  const hasEnoughBug = !withdrawalBugRequirementEnabled || bugBalance >= minimumBugForWithdrawal;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
   const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
@@ -480,7 +481,7 @@ export default function Withdraw() {
                   Withdrawal method: {selectedMethod}
                 </div>
                 
-                {usdBalance > 0 && (
+                {withdrawalBugRequirementEnabled && usdBalance > 0 && (
                   <div className={`flex items-center gap-2 text-xs ${hasEnoughBug ? 'text-green-400' : 'text-red-400'}`}>
                     <Bug className="w-4 h-4" />
                     <span>BUG Required: {minimumBugForWithdrawal.toLocaleString()} (You have: {Math.floor(bugBalance).toLocaleString()})</span>
