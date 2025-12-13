@@ -370,16 +370,16 @@ export default function CreateTask() {
 
   return (
     <Layout>
-      <main ref={mainRef} className="max-w-md mx-auto px-4 mt-6">
+      <main ref={mainRef} className="max-w-md mx-auto px-4 pt-4 pb-24">
         {!isAdmin && (
-          <div className="flex items-center justify-between mb-4 p-3 bg-[#1A1A1A] rounded-xl border border-[#2A2A2A]">
+          <div className="flex items-center justify-between mb-4 p-3 bg-gradient-to-r from-[#1A1A1A] to-[#0D1117] rounded-xl border border-[#2A2A2A] shadow-lg">
             <div className="flex items-center gap-2">
               <img src="/images/ton.png" alt="TON" className="w-5 h-5 object-cover rounded-full" />
               <span className="text-sm font-semibold text-white">{tonBalance.toFixed(4)} TON</span>
             </div>
             <TopUpSheet 
               trigger={
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-[#4cd3ff] hover:bg-[#6ddeff] text-black text-xs font-semibold rounded-lg transition-colors">
+                <button className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-[#4cd3ff] to-[#007BFF] hover:from-[#6ddeff] hover:to-[#1a8cff] text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                   <Plus className="w-3.5 h-3.5" />
                   Top Up
                 </button>

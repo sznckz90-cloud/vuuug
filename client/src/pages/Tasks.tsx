@@ -3,10 +3,11 @@ import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, ClipboardList, Send, Bot as BotIcon, Sparkles, ChevronRight, Handshake } from "lucide-react";
+import { CheckCircle, ClipboardList, Send, Bot as BotIcon, Sparkles, ChevronRight, Handshake, Bug } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { DiamondIcon } from "@/components/DiamondIcon";
 
 interface Task {
   id: string;
@@ -30,6 +31,7 @@ interface AppSettings {
   channelTaskReward?: number;
   botTaskReward?: number;
   partnerTaskReward?: number;
+  bugRewardPerTask?: number;
   [key: string]: any;
 }
 
@@ -53,6 +55,7 @@ export default function Tasks() {
   const channelRewardPAD = appSettings?.channelTaskReward || 30;
   const botRewardPAD = appSettings?.botTaskReward || 20;
   const partnerRewardPAD = appSettings?.partnerTaskReward || 5;
+  const bugRewardPerTask = appSettings?.bugRewardPerTask || 10;
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<{
     success: boolean;
@@ -293,31 +296,31 @@ export default function Tasks() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 mt-6 pb-24">
+      <main className="max-w-md mx-auto px-4 pt-2 pb-24">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-            <CheckCircle className="w-6 h-6 text-primary" />
+            <CheckCircle className="w-6 h-6 text-[#4cd3ff]" />
             Tasks
           </h1>
           <p className="text-sm text-muted-foreground">
-            Earn PAD by completing tasks
+            Complete tasks to earn PAD and BUB rewards
           </p>
         </div>
 
         <Card 
-          className="minimal-card mb-4 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
+          className="bg-gradient-to-br from-[#1A1A1A] to-[#0D1117] border border-[#2A2A2A] rounded-2xl mb-5 cursor-pointer hover:border-[#4cd3ff]/50 transition-all shadow-lg group"
           onClick={() => setLocation("/task/create")}
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0 shadow-xl group-hover:shadow-[#4cd3ff]/30 transition-all">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
                 <h3 className="text-white font-semibold text-sm">Create My Task</h3>
                 <p className="text-muted-foreground text-xs mt-0.5">Promote your channel or bot</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+              <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0 group-hover:text-[#4cd3ff] transition-colors" />
             </div>
           </CardContent>
         </Card>
@@ -363,15 +366,17 @@ export default function Tasks() {
             <p className="text-muted-foreground">Loading tasks...</p>
           </div>
         ) : filteredTasks.length === 0 ? (
-          <Card className="minimal-card">
-            <CardContent className="pt-6 pb-6 text-center">
-              <ClipboardList className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-muted-foreground">
+          <Card className="bg-gradient-to-br from-[#1A1A1A] to-[#0D1117] border border-[#2A2A2A] rounded-2xl">
+            <CardContent className="pt-8 pb-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#2A2A2A] flex items-center justify-center">
+                <ClipboardList className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <p className="text-white font-medium mb-1">
                 {selectedCategory 
                   ? `No ${selectedCategory} tasks available` 
                   : 'No active tasks available'}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Check back later for new tasks</p>
+              <p className="text-xs text-muted-foreground">Check back later for new tasks</p>
             </CardContent>
           </Card>
         ) : (
@@ -434,16 +439,25 @@ export default function Tasks() {
               const buttonState = getButtonState();
 
               return (
-                <Card key={task.id} className="minimal-card hover:bg-[#1A1A1A]/50 transition-all">
-                  <CardContent className="p-3">
+                <Card key={task.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D1117] border border-[#2A2A2A] rounded-2xl overflow-hidden hover:border-[#3A3A3A] transition-all shadow-lg">
+                  <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`w-10 h-10 rounded-xl ${getIconBg(task.taskType)} flex items-center justify-center flex-shrink-0 shadow-lg`}>
+                        <div className={`w-12 h-12 rounded-2xl ${getIconBg(task.taskType)} flex items-center justify-center flex-shrink-0 shadow-xl`}>
                           <span className="text-white">{getTaskIcon(task.taskType)}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-semibold text-sm truncate">{task.title}</h3>
-                          <p className={`text-xs font-bold ${getRewardColor(task.taskType)}`}>+{padReward.toLocaleString()} PAD</p>
+                          <h3 className="text-white font-semibold text-sm truncate mb-1.5">{task.title}</h3>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              <DiamondIcon size={14} withGlow />
+                              <span className="text-xs font-bold text-[#4cd3ff]">+{padReward.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Bug className="w-3.5 h-3.5 text-green-400" />
+                              <span className="text-xs font-bold text-green-400">+{bugRewardPerTask}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <Button
@@ -465,7 +479,7 @@ export default function Tasks() {
                           }
                         }}
                         disabled={buttonState.disabled}
-                        className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl ${buttonState.className} text-white border-0 shadow-md`}
+                        className={`h-10 px-5 text-xs flex-shrink-0 min-w-[80px] font-bold rounded-xl ${buttonState.className} text-white border-0 shadow-lg`}
                       >
                         {buttonState.content}
                       </Button>
