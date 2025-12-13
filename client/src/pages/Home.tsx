@@ -239,6 +239,27 @@ export default function Home() {
     });
   };
 
+  const showMonetagPopupAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+    return new Promise((resolve) => {
+      console.log('🎬 Attempting to show Monetag popup ad...');
+      if (typeof window.show_10306459 === 'function') {
+        console.log('✅ Monetag SDK found, calling popup ad...');
+        window.show_10306459('pop')
+          .then(() => {
+            console.log('✅ Monetag popup ad completed successfully');
+            resolve({ success: true, unavailable: false });
+          })
+          .catch((error) => {
+            console.error('❌ Monetag popup ad error:', error);
+            resolve({ success: false, unavailable: false });
+          });
+      } else {
+        console.log('⚠️ Monetag SDK not available, skipping ad');
+        resolve({ success: false, unavailable: true });
+      }
+    });
+  };
+
   const handleConvertClick = () => {
     setConvertPopupOpen(true);
   };
@@ -258,32 +279,25 @@ export default function Home() {
     if (isConverting || convertMutation.isPending) return;
     
     setIsConverting(true);
+    console.log('💱 Convert started, showing popup ad...');
     
     try {
-      const monetagResult = await showMonetagAd();
+      const popupResult = await showMonetagPopupAd();
+      console.log('📊 Popup ad result:', popupResult);
       
-      if (monetagResult.unavailable) {
-        showNotification("Ads not available. Please try again later.", "error");
+      if (popupResult.unavailable) {
+        console.log('⚠️ Ads unavailable, proceeding with convert');
+        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+        return;
+      }
+      
+      if (!popupResult.success) {
+        showNotification("Please watch the ad to convert.", "error");
         setIsConverting(false);
         return;
       }
       
-      if (!monetagResult.success) {
-        showNotification("Ad failed. Please try again.", "error");
-        setIsConverting(false);
-        return;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const adsgramSuccess = await showAdsgramAd();
-      
-      if (!adsgramSuccess) {
-        showNotification("Please complete all ads to convert.", "error");
-        setIsConverting(false);
-        return;
-      }
-      
+      console.log('✅ Ad watched, converting');
       convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
       
     } catch (error) {
@@ -300,9 +314,20 @@ export default function Home() {
     setIsClaimingStreak(true);
     
     try {
-      const adSuccess = await showAdsgramAd();
+      const popupResult = await showMonetagPopupAd();
       
-      if (!adSuccess) {
+      if (popupResult.unavailable) {
+        const adSuccess = await showAdsgramAd();
+        if (!adSuccess) {
+          showNotification("Please watch the ad completely to claim your bonus.", "error");
+          setIsClaimingStreak(false);
+          return;
+        }
+        claimStreakMutation.mutate();
+        return;
+      }
+      
+      if (!popupResult.success) {
         showNotification("Please watch the ad completely to claim your bonus.", "error");
         setIsClaimingStreak(false);
         return;
@@ -325,10 +350,29 @@ export default function Home() {
     if (isApplyingPromo || redeemPromoMutation.isPending) return;
     
     setIsApplyingPromo(true);
+    console.log('🎫 Promo code claim started, showing popup ad...');
     
     try {
+      const popupResult = await showMonetagPopupAd();
+      console.log('📊 Popup ad result:', popupResult);
+      
+      if (popupResult.unavailable) {
+        console.log('⚠️ Ads unavailable, proceeding with promo claim');
+        redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+        return;
+      }
+      
+      if (!popupResult.success) {
+        showNotification("Please watch the ad to claim your promo code.", "error");
+        setIsApplyingPromo(false);
+        return;
+      }
+      
+      console.log('✅ Ad watched, claiming promo code');
       redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
-    } finally {
+    } catch (error) {
+      console.error('Promo claim error:', error);
+      showNotification("Something went wrong. Please try again.", "error");
       setIsApplyingPromo(false);
     }
   };
