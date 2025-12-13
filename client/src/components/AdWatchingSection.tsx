@@ -7,7 +7,7 @@ import { showNotification } from "@/components/AppNotification";
 
 declare global {
   interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -74,9 +74,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
 
   const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10013974 === 'function') {
+      if (typeof window.show_10306459 === 'function') {
         monetagStartTimeRef.current = Date.now();
-        window.show_10013974()
+        window.show_10306459()
           .then(() => {
             const watchDuration = Date.now() - monetagStartTimeRef.current;
             const watchedAtLeast3Seconds = watchDuration >= 3000;
@@ -117,7 +117,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     sessionRewardedRef.current = false;
     
     try {
-      // STEP 1: Show Monetag ad only - User must watch at least 3 seconds
+      // STEP 1: Show Monetag ad - User must watch at least 3 seconds
       setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
@@ -139,7 +139,20 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         return;
       }
       
-      // STEP 2: Grant reward immediately after Monetag completion
+      // Small delay between ads
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // STEP 2: Show AdGram ad
+      setCurrentAdStep('adsgram');
+      const adsgramSuccess = await showAdsgramAd();
+      
+      // Both ads must be watched to get reward
+      if (!adsgramSuccess) {
+        showNotification("Please complete both ads to earn rewards.", "error");
+        return;
+      }
+      
+      // STEP 3: Grant reward after both ads complete successfully
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
@@ -154,7 +167,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         }));
         
         // Sync with backend - single reward call
-        watchAdMutation.mutate('monetag');
+        watchAdMutation.mutate('monetag+adsgram');
       }
     } finally {
       // Always reset state on completion or error
@@ -189,7 +202,8 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
                   <Clock size={16} className="animate-spin" />
                 )}
                 <span className="text-sm font-semibold">
-                  {currentAdStep === 'monetag' ? 'Showing Ad...' : 
+                  {currentAdStep === 'monetag' ? 'Monetag...' : 
+                   currentAdStep === 'adsgram' ? 'AdGram...' :
                    currentAdStep === 'verifying' ? 'Verifying...' : 'Loading...'}
                 </span>
               </>
