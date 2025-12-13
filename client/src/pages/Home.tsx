@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 
 declare global {
   interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -224,8 +224,8 @@ export default function Home() {
 
   const showMonetagAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10013974 === 'function') {
-        window.show_10013974()
+      if (typeof window.show_10306459 === 'function') {
+        window.show_10306459()
           .then(() => {
             resolve({ success: true, unavailable: false });
           })
