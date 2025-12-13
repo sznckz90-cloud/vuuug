@@ -1054,6 +1054,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bugPerUsd,
         withdrawalBugRequirementEnabled,
         activePromoCode,
+        // Withdrawal packages (JSON array of {usd, bug} objects)
+        withdrawalPackages: JSON.parse(getSetting('withdrawal_packages', '[{"usd":0.2,"bug":2000},{"usd":0.4,"bug":4000},{"usd":0.8,"bug":8000}]')),
       });
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -2684,6 +2686,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minimumConvertPadToBug: parseInt(getSetting('minimum_convert_pad_to_bug', '1000')),
         bugPerUsd: parseInt(getSetting('bug_per_usd', '10000')),
         withdrawalBugRequirementEnabled: getSetting('withdrawal_bug_requirement_enabled', 'true') === 'true',
+        // Withdrawal packages
+        withdrawalPackages: JSON.parse(getSetting('withdrawal_packages', '[{"usd":0.2,"bug":2000},{"usd":0.4,"bug":4000},{"usd":0.8,"bug":8000}]')),
         // Legacy fields for backwards compatibility
         minimumWithdrawal: parseFloat(getSetting('minimum_withdrawal_ton', '0.5')),
         taskPerClickReward: parseInt(getSetting('channel_task_reward', '30')),
@@ -2739,7 +2743,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         padToBugRate,
         minimumConvertPadToBug,
         bugPerUsd,
-        withdrawalBugRequirementEnabled
+        withdrawalBugRequirementEnabled,
+        // Withdrawal packages
+        withdrawalPackages
       } = req.body;
       
       // Validate referralAdsRequired - must be a positive integer >= 1
@@ -2803,6 +2809,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateSetting('minimum_convert_pad_to_bug', minimumConvertPadToBug);
       await updateSetting('bug_per_usd', bugPerUsd);
       await updateSetting('withdrawal_bug_requirement_enabled', withdrawalBugRequirementEnabled);
+      
+      // Withdrawal packages (stored as JSON string)
+      if (withdrawalPackages !== undefined) {
+        await updateSetting('withdrawal_packages', JSON.stringify(withdrawalPackages));
+      }
       
       // Broadcast settings update to all connected users for instant refresh
       broadcastUpdate({
@@ -5501,9 +5512,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, skipAuth: true });
       }
       
-      const { method, starPackage, amount: requestedAmount } = req.body;
+      const { method, starPackage, amount: requestedAmount, withdrawalPackage } = req.body;
 
-      console.log('📝 Withdrawal request received:', { userId, method, starPackage });
+      console.log('📝 Withdrawal request received:', { userId, method, starPackage, withdrawalPackage });
 
       // Validate withdrawal method
       const validMethods = ['TON', 'USDT', 'STARS'];
@@ -5675,7 +5686,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ✅ Check if user has enough BUG balance for withdrawal (if enabled)
+        // ✅ Get withdrawal packages from admin settings
+        const [withdrawalPackagesSetting] = await tx
+          .select({ settingValue: adminSettings.settingValue })
+          .from(adminSettings)
+          .where(eq(adminSettings.settingKey, 'withdrawal_packages'))
+          .limit(1);
+        const withdrawalPackagesConfig = JSON.parse(withdrawalPackagesSetting?.settingValue || '[{"usd":0.2,"bug":2000},{"usd":0.4,"bug":4000},{"usd":0.8,"bug":8000}]');
+        
         // Get BUG requirement settings from admin
         const [bugRequirementEnabledSetting] = await tx
           .select({ settingValue: adminSettings.settingValue })
@@ -5691,14 +5709,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
         const bugPerUsd = parseInt(bugPerUsdSetting?.settingValue || '10000'); // Default: 1 USD = 10000 BUG
         
-        // Dynamic BUG requirement: scales with USD amount based on admin setting
+        // Determine BUG requirement based on package or FULL withdrawal
         const currentUsdBalanceForBug = parseFloat(user.usdBalance || '0');
-        const minimumBugForWithdrawal = Math.ceil(currentUsdBalanceForBug * bugPerUsd);
+        let minimumBugForWithdrawal: number;
+        let packageUsdAmount: number | null = null;
+        
+        if (withdrawalPackage && withdrawalPackage !== 'FULL') {
+          // Package-based withdrawal: use package's BUG requirement
+          const selectedPkg = withdrawalPackagesConfig.find((p: any) => p.usd === withdrawalPackage);
+          if (!selectedPkg) {
+            throw new Error('Invalid withdrawal package selected');
+          }
+          minimumBugForWithdrawal = selectedPkg.bug;
+          packageUsdAmount = selectedPkg.usd;
+          
+          // Check if user has enough USD balance for this package
+          if (currentUsdBalanceForBug < packageUsdAmount) {
+            throw new Error(`Insufficient balance. You need $${packageUsdAmount.toFixed(2)} for this package.`);
+          }
+        } else {
+          // FULL withdrawal: dynamic BUG requirement based on full USD balance
+          minimumBugForWithdrawal = Math.ceil(currentUsdBalanceForBug * bugPerUsd);
+        }
         
         const currentBugBalance = parseFloat(user.bugBalance || '0');
         if (withdrawalBugRequirementEnabled && currentBugBalance < minimumBugForWithdrawal) {
           const remaining = minimumBugForWithdrawal - currentBugBalance;
-          throw new Error(`Earn ${remaining.toFixed(0)} more BUG to unlock your $${currentUsdBalanceForBug.toFixed(2)} withdrawal. Required: ${minimumBugForWithdrawal.toLocaleString()} BUG.`);
+          const amountStr = packageUsdAmount ? `$${packageUsdAmount.toFixed(2)}` : `$${currentUsdBalanceForBug.toFixed(2)}`;
+          throw new Error(`Earn ${remaining.toFixed(0)} more BUG to unlock your ${amountStr} withdrawal. Required: ${minimumBugForWithdrawal.toLocaleString()} BUG.`);
         }
 
         // Check if user has appropriate wallet address based on method
@@ -5792,22 +5830,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           withdrawalDetails.stars = starPackage;
           withdrawalDetails.telegramUsername = walletAddress;
         } else {
-          // TON or USD - withdraw full balance (ALL IN USD)
+          // TON or USD withdrawal - package-based or FULL balance
           if (currentUsdBalance <= 0) {
             throw new Error('Insufficient balance for withdrawal');
           }
           
-          // Check minimum withdrawal requirement - use TON minimum for TON method, USD minimum for others
-          const requiredMinimum = method === 'TON' ? minimumWithdrawalTON : minimumWithdrawalUSD;
-          if (currentUsdBalance < requiredMinimum) {
-            throw new Error(`Minimum ${requiredMinimum.toFixed(2)}`);
+          // Determine the USD amount to withdraw based on package selection
+          let baseAmount: number;
+          if (packageUsdAmount !== null) {
+            // Package-based withdrawal: use exact package amount
+            baseAmount = packageUsdAmount;
+          } else {
+            // FULL withdrawal: use full balance
+            baseAmount = currentUsdBalance;
+            
+            // Check minimum withdrawal requirement only for FULL withdrawals
+            const requiredMinimum = method === 'TON' ? minimumWithdrawalTON : minimumWithdrawalUSD;
+            if (baseAmount < requiredMinimum) {
+              throw new Error(`Minimum ${requiredMinimum.toFixed(2)}`);
+            }
           }
           
           // Use admin-configured fees: TON and USD have different fees
           const feePercent = method === 'TON' ? feePercentTON : feePercentUSD;
-          fee = currentUsdBalance * feePercent;
-          withdrawalAmount = currentUsdBalance - fee; // USD amount after fee
-          usdToDeduct = currentUsdBalance;
+          fee = baseAmount * feePercent;
+          withdrawalAmount = baseAmount - fee; // USD amount after fee
+          usdToDeduct = baseAmount;
+          
+          // Store package info if applicable
+          if (packageUsdAmount !== null) {
+            withdrawalDetails.withdrawalPackage = packageUsdAmount;
+            withdrawalDetails.bugDeducted = minimumBugForWithdrawal;
+          }
           
           // Store wallet address based on method
           if (method === 'TON') {
@@ -5839,16 +5893,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
-        // Deduct BUG balance on withdrawal request (BUG is consumed to unlock withdrawal)
+        // Deduct BOTH USD and BUG balances on withdrawal request
         await tx
           .update(users)
           .set({
+            usdBalance: sql`GREATEST(COALESCE(${users.usdBalance}, '0')::numeric - ${usdToDeduct}, 0)`,
             bugBalance: sql`GREATEST(COALESCE(${users.bugBalance}, '0')::numeric - ${minimumBugForWithdrawal}, 0)`,
             updatedAt: new Date()
           })
           .where(eq(users.id, userId));
         
-        console.log(`🐛 Deducted ${minimumBugForWithdrawal} BUG from user ${userId} for withdrawal`);
+        console.log(`💵 Deducted $${usdToDeduct.toFixed(2)} USD and ${minimumBugForWithdrawal} BUG from user ${userId} for withdrawal`);
         
         return { 
           withdrawal, 
