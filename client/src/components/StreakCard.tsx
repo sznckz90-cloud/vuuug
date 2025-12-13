@@ -8,6 +8,7 @@ import { Flame, Loader } from "lucide-react";
 
 declare global {
   interface Window {
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -132,15 +133,43 @@ export default function StreakCard({ user }: StreakCardProps) {
     });
   };
 
+  const showMonetagPopupAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+    return new Promise((resolve) => {
+      if (typeof window.show_10306459 === 'function') {
+        window.show_10306459('pop')
+          .then(() => {
+            resolve({ success: true, unavailable: false });
+          })
+          .catch((error) => {
+            console.error('Monetag popup ad error:', error);
+            resolve({ success: false, unavailable: false });
+          });
+      } else {
+        resolve({ success: false, unavailable: true });
+      }
+    });
+  };
+
   const handleClaimStreak = async () => {
     if (isClaiming || hasClaimed) return;
     
     setIsClaiming(true);
     
     try {
-      const adSuccess = await showAdsgramAd();
+      const popupResult = await showMonetagPopupAd();
       
-      if (!adSuccess) {
+      if (popupResult.unavailable) {
+        const adSuccess = await showAdsgramAd();
+        if (!adSuccess) {
+          showNotification("Please watch the ad completely to claim your bonus.", "error");
+          setIsClaiming(false);
+          return;
+        }
+        claimStreakMutation.mutate();
+        return;
+      }
+      
+      if (!popupResult.success) {
         showNotification("Please watch the ad completely to claim your bonus.", "error");
         setIsClaiming(false);
         return;
