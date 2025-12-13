@@ -13,11 +13,11 @@ export default function Header() {
   const padBalance = rawBalance < 1 ? Math.round(rawBalance * 10000000) : Math.round(rawBalance);
   const bugBalance = parseFloat(user?.bugBalance || "0");
 
-  const formatBugBalance = (balance: number) => {
+  const formatBalance = (balance: number) => {
     if (balance >= 1000000) {
       return (balance / 1000000).toFixed(1) + 'M';
     } else if (balance >= 1000) {
-      return (balance / 1000).toFixed(1) + 'K';
+      return (balance / 1000).toFixed(1) + 'k';
     }
     return Math.round(balance).toLocaleString();
   };
@@ -26,17 +26,17 @@ export default function Header() {
     <div className="fixed top-0 left-0 right-0 z-40 bg-black border-b border-[#1A1A1A] pt-[env(safe-area-inset-top,8px)]">
       <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-[#1A1A1A] px-5 h-8 rounded-lg min-w-[100px]">
+          <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 h-8 rounded-lg min-w-[80px] max-w-[110px]">
             <DiamondIcon size={16} withGlow />
-            <span className="text-sm text-white font-semibold">
-              {padBalance.toLocaleString()}
+            <span className="text-sm text-white font-semibold truncate">
+              {formatBalance(padBalance)}
             </span>
           </div>
           
-          <div className="flex items-center gap-2 bg-[#1A1A1A] px-5 h-8 rounded-lg min-w-[90px]">
-            <Bug className="w-4 h-4 text-green-400" />
-            <span className="text-sm text-white font-semibold">
-              {formatBugBalance(bugBalance)}
+          <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 h-8 rounded-lg min-w-[70px] max-w-[100px]">
+            <Bug className="w-4 h-4 text-green-400 flex-shrink-0" />
+            <span className="text-sm text-white font-semibold truncate">
+              {formatBalance(bugBalance)}
             </span>
           </div>
         </div>
