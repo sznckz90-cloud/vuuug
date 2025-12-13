@@ -21,7 +21,7 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 - **Stack**: React, TypeScript, Vite (frontend); Express.js, Node.js (backend); PostgreSQL with Drizzle ORM (database).
 - **Authentication**: Telegram WebApp Authentication.
 - **Currency Conversion**: API endpoint for PAD to USD conversion (10,000 PAD = 1 USD).
-- **Withdrawal System**: Supports TON blockchain only, with a 5% fee ($0.50 min) and server-enforced minimums. Includes a 3-tab layout for Withdraw, Wallet Setup, and Wallet Activity. Fee (5000 PAD) for changing existing TON wallet details.
+- **Withdrawal System**: Supports TON blockchain only with package-based withdrawals. Users select from preset packages ($0.20, $0.40, $0.80) or FULL balance withdrawal. Each package requires proportional BUG balance (calculated via `bugPerUsd` multiplier). Both USD and BUG are deducted on successful withdrawal. 5% fee with server-enforced minimums. Fee (5000 PAD) for changing existing TON wallet details.
 - **ArcPay Integration**: Full integration for PDZ top-ups, including secure API credential handling, retry logic, and a webhook for payment notifications.
 - **Earning Mechanics**: Includes Faucetpay (+1 PAD), Referral System, and Ad Rewards, all managed as PAD integers.
 - **Number Formatting**: Uses compact notation (1k, 1M) for large PAD amounts.
