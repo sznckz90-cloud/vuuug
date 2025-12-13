@@ -58,6 +58,7 @@ export default function Withdraw() {
   const [activeTab, setActiveTab] = useState<'withdraw' | 'wallet-setup'>('withdraw');
   
   const [selectedMethod, setSelectedMethod] = useState<string>('TON');
+  const [selectedPackage, setSelectedPackage] = useState<number | 'FULL'>('FULL');
   
   const [tonWalletId, setTonWalletId] = useState('');
   const [newTonWalletId, setNewTonWalletId] = useState('');
@@ -106,10 +107,43 @@ export default function Withdraw() {
   const withdrawalInviteRequirementEnabled = appSettings?.withdrawalInviteRequirementEnabled === true;
   const MINIMUM_VALID_REFERRALS_REQUIRED = appSettings?.minimumInvitesForWithdrawal ?? 3;
   
-  // Dynamic BUG requirement: scales with USD balance based on admin setting (default 1 USD = 10000 BUG)
+  // Dynamic BUG requirement: scales with selected package or full balance
   const withdrawalBugRequirementEnabled = appSettings?.withdrawalBugRequirementEnabled !== false;
   const bugPerUsd = appSettings?.bugPerUsd ?? 10000;
-  const minimumBugForWithdrawal = Math.ceil(usdBalance * bugPerUsd);
+  
+  // Withdrawal packages from admin settings - compute BUG requirements using bugPerUsd
+  const defaultPackages = [
+    {usd: 0.2},
+    {usd: 0.4},
+    {usd: 0.8}
+  ];
+  const rawPackages = appSettings?.withdrawalPackages || defaultPackages;
+  const withdrawalPackages = rawPackages.map((pkg: {usd: number, bug?: number}) => ({
+    usd: pkg.usd,
+    bug: pkg.bug ?? Math.ceil(pkg.usd * bugPerUsd)
+  }));
+  
+  // Get the withdrawal amount based on selected package
+  const getWithdrawalUsdAmount = () => {
+    if (selectedPackage === 'FULL') {
+      return usdBalance;
+    }
+    return selectedPackage;
+  };
+  
+  // Calculate BUG requirement based on selected package - always use bugPerUsd for consistency
+  const getBugRequirementForAmount = (usdAmount: number) => {
+    return Math.ceil(usdAmount * bugPerUsd);
+  };
+  
+  const getPackageBugRequirement = () => {
+    if (selectedPackage === 'FULL') {
+      return getBugRequirementForAmount(usdBalance);
+    }
+    return getBugRequirementForAmount(selectedPackage as number);
+  };
+  
+  const minimumBugForWithdrawal = getPackageBugRequirement();
   
   const { data: withdrawalEligibility, isLoading: isLoadingEligibility, isFetched: isEligibilityFetched } = useQuery<{ adsWatchedSinceLastWithdrawal: number; canWithdraw: boolean }>({
     queryKey: ['/api/withdrawal-eligibility'],
@@ -240,7 +274,8 @@ export default function Withdraw() {
   const withdrawMutation = useMutation({
     mutationFn: async () => {
       let withdrawalData: any = {
-        method: selectedMethod
+        method: selectedMethod,
+        withdrawalPackage: selectedPackage
       };
 
       const response = await apiRequest('POST', '/api/withdrawals', withdrawalData);
@@ -266,6 +301,7 @@ export default function Withdraw() {
       ]);
       
       setSelectedMethod('TON');
+      setSelectedPackage('FULL');
     },
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to submit withdrawal request";
@@ -337,8 +373,9 @@ export default function Withdraw() {
       return;
     }
 
-    if (usdBalance <= 0) {
-      showNotification("Insufficient balance for withdrawal", "error");
+    const withdrawAmount = getWithdrawalUsdAmount();
+    if (withdrawAmount <= 0 || usdBalance < withdrawAmount) {
+      showNotification("Insufficient balance for this withdrawal package", "error");
       return;
     }
 
@@ -350,7 +387,22 @@ export default function Withdraw() {
   
   const calculateWithdrawalAmount = () => {
     const feePercent = selectedPaymentSystem?.fee || 5;
-    return usdBalance * (1 - feePercent / 100);
+    const withdrawAmount = getWithdrawalUsdAmount();
+    return withdrawAmount * (1 - feePercent / 100);
+  };
+  
+  // Check if user can afford a package
+  const canAffordPackage = (pkgUsd: number | 'FULL') => {
+    if (pkgUsd === 'FULL') return usdBalance > 0;
+    return usdBalance >= pkgUsd;
+  };
+  
+  // Check if user has enough BUG for a package - use consistent bugPerUsd calculation
+  const hasEnoughBugForPackage = (pkgUsd: number | 'FULL') => {
+    if (!withdrawalBugRequirementEnabled) return true;
+    const usdAmount = pkgUsd === 'FULL' ? usdBalance : pkgUsd;
+    const required = getBugRequirementForAmount(usdAmount);
+    return bugBalance >= required;
   };
 
   const getStatusIcon = (status: string) => {
@@ -469,44 +521,101 @@ export default function Withdraw() {
                 ))}
               </div>
 
-              <div className="p-4 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] space-y-3">
-                <div>
-                  <div className="text-xs text-[#aaa]">You will receive</div>
-                  <div className="text-2xl font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
+              <div className="p-4 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] space-y-4">
+                <div className="text-xs text-[#aaa] mb-2">Select Withdrawal Package</div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  {withdrawalPackages.map((pkg) => {
+                    const isSelected = selectedPackage === pkg.usd;
+                    const canAfford = canAffordPackage(pkg.usd);
+                    const hasBug = hasEnoughBugForPackage(pkg.usd);
+                    const bugRequired = getBugRequirementForAmount(pkg.usd);
+                    const isDisabled = !canAfford;
+                    
+                    return (
+                      <button
+                        key={pkg.usd}
+                        onClick={() => !isDisabled && setSelectedPackage(pkg.usd)}
+                        disabled={isDisabled}
+                        className={`p-3 rounded-lg border-2 transition-all text-left ${
+                          isSelected
+                            ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
+                            : isDisabled
+                              ? 'border-[#2a2a2a] bg-[#1a1a1a] opacity-50 cursor-not-allowed'
+                              : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
+                        }`}
+                      >
+                        <div className="text-lg font-bold text-white">${pkg.usd.toFixed(2)}</div>
+                        <div className={`text-xs flex items-center gap-1 ${hasBug ? 'text-green-400' : 'text-red-400'}`}>
+                          <Bug className="w-3 h-3" />
+                          {bugRequired.toLocaleString()} BUG
+                        </div>
+                        {!canAfford && (
+                          <div className="text-xs text-red-400 mt-1">Insufficient balance</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => usdBalance > 0 && setSelectedPackage('FULL')}
+                    disabled={usdBalance <= 0}
+                    className={`p-3 rounded-lg border-2 transition-all text-left col-span-2 ${
+                      selectedPackage === 'FULL'
+                        ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
+                        : usdBalance <= 0
+                          ? 'border-[#2a2a2a] bg-[#1a1a1a] opacity-50 cursor-not-allowed'
+                          : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-lg font-bold text-white">FULL (${usdBalance.toFixed(2)})</div>
+                        <div className={`text-xs flex items-center gap-1 ${hasEnoughBugForPackage('FULL') ? 'text-green-400' : 'text-red-400'}`}>
+                          <Bug className="w-3 h-3" />
+                          {Math.ceil(usdBalance * bugPerUsd).toLocaleString()} BUG
+                        </div>
+                      </div>
+                      {selectedPackage === 'FULL' && <Check className="w-5 h-5 text-[#4cd3ff]" />}
+                    </div>
+                  </button>
                 </div>
-                <div className="text-xs text-[#aaa]">
-                  Full balance withdrawal ({selectedPaymentSystem?.fee}% fee deducted)
-                </div>
-                <div className="text-xs text-yellow-400/80">
-                  Withdrawal method: {selectedMethod}
-                </div>
                 
-                {withdrawalBugRequirementEnabled && usdBalance > 0 && (
-                  <div className={`flex items-center gap-2 text-xs ${hasEnoughBug ? 'text-green-400' : 'text-red-400'}`}>
-                    <Bug className="w-4 h-4" />
-                    <span>BUG Required: {minimumBugForWithdrawal.toLocaleString()} (You have: {Math.floor(bugBalance).toLocaleString()})</span>
-                    {hasEnoughBug && <Check className="w-3 h-3" />}
+                <div className="pt-3 border-t border-[#2a2a2a] space-y-2">
+                  <div>
+                    <div className="text-xs text-[#aaa]">You will receive</div>
+                    <div className="text-2xl font-bold text-white">${calculateWithdrawalAmount().toFixed(2)}</div>
                   </div>
-                )}
-                
-                {withdrawalInviteRequirementEnabled && (
-                  <div className={`flex items-center gap-2 text-xs ${hasEnoughReferrals ? 'text-green-400' : 'text-red-400'}`}>
-                    <UserPlus className="w-4 h-4" />
-                    <span>To withdraw you need: {MINIMUM_VALID_REFERRALS_REQUIRED} friend{MINIMUM_VALID_REFERRALS_REQUIRED !== 1 ? 's' : ''}</span>
-                    {hasEnoughReferrals && <Check className="w-3 h-3" />}
+                  <div className="text-xs text-[#aaa]">
+                    {selectedPackage === 'FULL' ? 'Full balance' : `$${(selectedPackage as number).toFixed(2)}`} withdrawal ({selectedPaymentSystem?.fee}% fee deducted)
                   </div>
-                )}
-                
-                {withdrawalAdRequirementEnabled && (
-                  <div className={`flex items-center gap-2 text-xs ${hasWatchedEnoughAds ? 'text-green-400' : 'text-red-400'}`}>
-                    <PlayCircle className="w-4 h-4" />
-                    <span>To withdraw you need: {MINIMUM_ADS_FOR_WITHDRAWAL} ads</span>
-                    {hasWatchedEnoughAds && <Check className="w-3 h-3" />}
+                  <div className="text-xs text-yellow-400/80">
+                    Withdrawal method: {selectedMethod}
                   </div>
-                )}
-                
-                <div className="text-xs text-cyan-400/80 pt-2 border-t border-[#2a2a2a]">
-                  Minimum: ${(selectedPaymentSystem?.minWithdrawal || 0.10).toFixed(2)} USD
+                  
+                  {withdrawalBugRequirementEnabled && getWithdrawalUsdAmount() > 0 && (
+                    <div className={`flex items-center gap-2 text-xs ${hasEnoughBug ? 'text-green-400' : 'text-red-400'}`}>
+                      <Bug className="w-4 h-4" />
+                      <span>BUG Required: {minimumBugForWithdrawal.toLocaleString()} (You have: {Math.floor(bugBalance).toLocaleString()})</span>
+                      {hasEnoughBug && <Check className="w-3 h-3" />}
+                    </div>
+                  )}
+                  
+                  {withdrawalInviteRequirementEnabled && (
+                    <div className={`flex items-center gap-2 text-xs ${hasEnoughReferrals ? 'text-green-400' : 'text-red-400'}`}>
+                      <UserPlus className="w-4 h-4" />
+                      <span>To withdraw you need: {MINIMUM_VALID_REFERRALS_REQUIRED} friend{MINIMUM_VALID_REFERRALS_REQUIRED !== 1 ? 's' : ''}</span>
+                      {hasEnoughReferrals && <Check className="w-3 h-3" />}
+                    </div>
+                  )}
+                  
+                  {withdrawalAdRequirementEnabled && (
+                    <div className={`flex items-center gap-2 text-xs ${hasWatchedEnoughAds ? 'text-green-400' : 'text-red-400'}`}>
+                      <PlayCircle className="w-4 h-4" />
+                      <span>To withdraw you need: {MINIMUM_ADS_FOR_WITHDRAWAL} ads</span>
+                      {hasWatchedEnoughAds && <Check className="w-3 h-3" />}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -526,7 +635,8 @@ export default function Withdraw() {
                   withdrawMutation.isPending || 
                   hasPendingWithdrawal || 
                   !isTonWalletSet || 
-                  usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.10) ||
+                  usdBalance < getWithdrawalUsdAmount() ||
+                  getWithdrawalUsdAmount() <= 0 ||
                   !hasEnoughReferrals ||
                   !hasWatchedEnoughAds ||
                   !hasEnoughBug
@@ -538,7 +648,7 @@ export default function Withdraw() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </>
-                ) : !isTonWalletSet ? 'Set Up Wallet First' : usdBalance < (selectedPaymentSystem?.minWithdrawal || 0.10) ? `Minimum $${(selectedPaymentSystem?.minWithdrawal || 0.10).toFixed(2)} Required` : (!hasEnoughReferrals || !hasWatchedEnoughAds || !hasEnoughBug) ? 'Requirements Not Met' : `Withdraw via ${selectedMethod}`}
+                ) : !isTonWalletSet ? 'Set Up Wallet First' : getWithdrawalUsdAmount() <= 0 ? 'Select a Package' : usdBalance < getWithdrawalUsdAmount() ? 'Insufficient Balance' : (!hasEnoughReferrals || !hasWatchedEnoughAds || !hasEnoughBug) ? 'Requirements Not Met' : `Withdraw $${getWithdrawalUsdAmount().toFixed(2)} via ${selectedMethod}`}
               </Button>
             </div>
             </>
