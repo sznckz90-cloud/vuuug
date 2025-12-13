@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppNotification from "@/components/AppNotification";
-import { useEffect, lazy, Suspense, useState, memo, useCallback } from "react";
+import { useEffect, lazy, Suspense, useState, memo, useCallback, useRef } from "react";
 import { setupDeviceTracking } from "@/lib/deviceId";
 import BanScreen from "@/components/BanScreen";
 import CountryBlockedScreen from "@/components/CountryBlockedScreen";
@@ -11,6 +11,12 @@ import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import MandatoryJoinScreen from "@/components/MandatoryJoinScreen";
+
+declare global {
+  interface Window {
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+  }
+}
 
 const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
@@ -59,6 +65,50 @@ function AppContent() {
   const [showSeasonEnd, setShowSeasonEnd] = useState(false);
   const [seasonLockActive, setSeasonLockActive] = useState(false);
   const { isAdmin } = useAdmin();
+  const inAppAdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const inAppAdInitialized = useRef(false);
+
+  useEffect(() => {
+    if (inAppAdInitialized.current) return;
+    inAppAdInitialized.current = true;
+
+    const showInAppAd = () => {
+      if (typeof window.show_10306459 === 'function') {
+        console.log('🎬 Showing In-App Interstitial ad...');
+        window.show_10306459({
+          type: 'inApp',
+          inAppSettings: {
+            frequency: 999,
+            capping: 24,
+            interval: 15,
+            timeout: 0,
+            everyPage: false
+          }
+        }).then(() => {
+          console.log('✅ In-App Interstitial ad shown');
+        }).catch((error) => {
+          console.log('⚠️ In-App Interstitial ad error:', error);
+        });
+      } else {
+        console.log('⚠️ Monetag SDK not available for In-App ads');
+      }
+    };
+
+    const initialDelay = setTimeout(() => {
+      showInAppAd();
+      
+      inAppAdIntervalRef.current = setInterval(() => {
+        showInAppAd();
+      }, 15000);
+    }, 5000);
+
+    return () => {
+      clearTimeout(initialDelay);
+      if (inAppAdIntervalRef.current) {
+        clearInterval(inAppAdIntervalRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const checkSeasonStatus = () => {
