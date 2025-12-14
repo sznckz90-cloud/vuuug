@@ -6,12 +6,25 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
+import { AnimatePresence, motion } from "framer-motion";
+
+interface UnifiedTask {
+  id: string;
+  type: 'admin' | 'daily';
+  taskType: string;
+  title: string;
+  link: string | null;
+  rewardPAD: number;
+  rewardType: string;
+  isAdminTask: boolean;
+  priority: number;
+}
 
 declare global {
   interface Window {
@@ -68,27 +81,30 @@ export default function Home() {
     retry: false,
   });
 
-  const { data: taskStatus } = useQuery({
-    queryKey: ['/api/tasks/daily/status'],
+  const { data: unifiedTasksData, isLoading: isLoadingTasks } = useQuery<{
+    success: boolean;
+    tasks: UnifiedTask[];
+    completedTaskIds: string[];
+    referralCode?: string;
+  }>({
+    queryKey: ['/api/tasks/home/unified'],
     queryFn: async () => {
-      const res = await fetch('/api/tasks/daily/status', { credentials: 'include' });
-      if (!res.ok) return { completedTasks: [] };
+      const res = await fetch('/api/tasks/home/unified', { credentials: 'include' });
+      if (!res.ok) return { success: true, tasks: [], completedTaskIds: [] };
       return res.json();
     },
     retry: false,
   });
 
   useEffect(() => {
-    if (taskStatus?.completedTasks) {
-      setCompletedTasks(new Set(taskStatus.completedTasks));
+    if (unifiedTasksData?.completedTaskIds) {
+      setCompletedTasks(new Set(unifiedTasksData.completedTaskIds));
     } else {
       setCompletedTasks(new Set());
     }
-  }, [taskStatus]);
+  }, [unifiedTasksData]);
 
-  const shareTaskRewardPAD = appSettings?.shareTaskReward || 1000;
-  const channelTaskRewardPAD = appSettings?.channelTaskRewardPAD || 1000;
-  const communityTaskRewardPAD = appSettings?.communityTaskReward || 1000;
+  const currentTask = unifiedTasksData?.tasks?.[0] || null;
 
   React.useEffect(() => {
     const updateTimer = () => {
@@ -245,9 +261,8 @@ export default function Home() {
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks/daily/status'] });
-      const rewardAmount = Number(data.reward ?? shareTaskRewardPAD);
-      showNotification(`+${rewardAmount.toLocaleString()} PAD`, 'success');
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
+      showNotification(`+${data.reward?.toLocaleString() || '1000'} PAD`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
@@ -267,9 +282,8 @@ export default function Home() {
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks/daily/status'] });
-      const rewardAmount = Number(data.reward ?? channelTaskRewardPAD);
-      showNotification(`+${rewardAmount.toLocaleString()} PAD`, 'success');
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
+      showNotification(`+${data.reward?.toLocaleString() || '1000'} PAD`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
@@ -289,54 +303,88 @@ export default function Home() {
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks/daily/status'] });
-      const rewardAmount = Number(data.reward ?? communityTaskRewardPAD);
-      showNotification(`+${rewardAmount.toLocaleString()} PAD`, 'success');
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
+      showNotification(`+${data.reward?.toLocaleString() || '1000'} PAD`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
     },
   });
 
-  const handleShareTask = () => {
-    if (completedTasks.has('share-friends')) return;
-    const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
-    const referralLink = (user as User)?.referralCode 
-      ? `https://t.me/${botUsername}?start=${(user as User).referralCode}`
-      : '';
-    if (!referralLink) {
-      showNotification('Unable to generate referral link', 'error');
-      return;
-    }
-    const shareText = `Earn PAD in Telegram!`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
-    if ((window as any).Telegram?.WebApp?.openTelegramLink) {
-      (window as any).Telegram.WebApp.openTelegramLink(shareUrl);
+  const adminTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/tasks/${taskId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to complete task');
+      return data;
+    },
+    onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
+      showNotification(`+${data.reward?.toLocaleString() || '1750'} PAD`, 'success');
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to complete task', 'error');
+    },
+  });
+
+  const handleUnifiedTask = (task: UnifiedTask) => {
+    if (!task) return;
+    
+    if (task.isAdminTask) {
+      if (task.link) {
+        window.open(task.link, '_blank');
+        setTimeout(() => adminTaskMutation.mutate(task.id), 2000);
+      } else {
+        adminTaskMutation.mutate(task.id);
+      }
     } else {
-      window.open(shareUrl, '_blank');
+      if (task.id === 'share-friends') {
+        const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+        const referralCode = unifiedTasksData?.referralCode || (user as User)?.referralCode;
+        const referralLink = referralCode 
+          ? `https://t.me/${botUsername}?start=${referralCode}`
+          : '';
+        if (!referralLink) {
+          showNotification('Unable to generate referral link', 'error');
+          return;
+        }
+        const shareText = `Earn PAD in Telegram!`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+        if ((window as any).Telegram?.WebApp?.openTelegramLink) {
+          (window as any).Telegram.WebApp.openTelegramLink(shareUrl);
+        } else {
+          window.open(shareUrl, '_blank');
+        }
+        shareTaskMutation.mutate();
+      } else if (task.id === 'check-updates') {
+        window.open(task.link || 'https://t.me/PaidAdsNews', '_blank');
+        setTimeout(() => channelTaskMutation.mutate(), 2000);
+      } else if (task.id === 'join-community') {
+        window.open(task.link || 'https://t.me/PaidAdsCommunity', '_blank');
+        setTimeout(() => communityTaskMutation.mutate(), 2000);
+      }
     }
-    shareTaskMutation.mutate();
   };
 
-  const handleChannelTask = () => {
-    if (completedTasks.has('check-updates')) return;
-    window.open('https://t.me/PaidAdsNews', '_blank');
-    setTimeout(() => channelTaskMutation.mutate(), 2000);
+  const getTaskIcon = (task: UnifiedTask) => {
+    if (task.isAdminTask) {
+      return task.taskType === 'channel' ? <Send className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />;
+    }
+    switch (task.id) {
+      case 'share-friends': return <Gift className="w-4 h-4" />;
+      case 'check-updates': return <Send className="w-4 h-4" />;
+      case 'join-community': return <Users className="w-4 h-4" />;
+      default: return <Gift className="w-4 h-4" />;
+    }
   };
 
-  const handleCommunityTask = () => {
-    if (completedTasks.has('join-community')) return;
-    window.open('https://t.me/PaidAdsCommunity', '_blank');
-    setTimeout(() => communityTaskMutation.mutate(), 2000);
-  };
-
-  const tasksList = [
-    { id: 'share-friends', icon: <Gift className="w-4 h-4" />, title: 'Share with Friends', reward: shareTaskRewardPAD, handler: handleShareTask, isPending: shareTaskMutation.isPending },
-    { id: 'check-updates', icon: <Send className="w-4 h-4" />, title: 'Check for Updates', reward: channelTaskRewardPAD, handler: handleChannelTask, isPending: channelTaskMutation.isPending },
-    { id: 'join-community', icon: <Users className="w-4 h-4" />, title: 'Join Community', reward: communityTaskRewardPAD, handler: handleCommunityTask, isPending: communityTaskMutation.isPending },
-  ];
-
-  const currentTask = tasksList.find(task => !completedTasks.has(task.id));
+  const isTaskPending = shareTaskMutation.isPending || channelTaskMutation.isPending || 
+    communityTaskMutation.isPending || adminTaskMutation.isPending;
 
   const showAdsgramAd = (): Promise<boolean> => {
     return new Promise(async (resolve) => {
@@ -657,45 +705,86 @@ export default function Home() {
               <div className="w-6 h-6 rounded-lg bg-[#4cd3ff]/20 flex items-center justify-center">
                 <Flame className="w-3.5 h-3.5 text-[#4cd3ff]" />
               </div>
-              <span className="text-sm font-semibold text-white">Daily Tasks</span>
+              <span className="text-sm font-semibold text-white">
+                {currentTask?.isAdminTask ? 'Featured Task' : 'Daily Tasks'}
+              </span>
+              {currentTask?.isAdminTask && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full font-medium">Priority</span>
+              )}
             </div>
             
-            {currentTask ? (
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-[#4cd3ff]/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-[#4cd3ff]">{currentTask.icon}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-medium text-sm truncate">{currentTask.title}</h3>
-                      <div className="flex items-center gap-1">
-                        <DiamondIcon size={12} />
-                        <span className="text-xs text-[#4cd3ff] font-semibold">+{currentTask.reward.toLocaleString()} PAD</span>
+            <AnimatePresence mode="wait">
+              {isLoadingTasks ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
+                >
+                  <Loader2 className="w-5 h-5 text-[#4cd3ff] animate-spin mx-auto" />
+                </motion.div>
+              ) : currentTask ? (
+                <motion.div
+                  key={currentTask.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-[#1a1a1a] rounded-lg p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        currentTask.isAdminTask ? 'bg-yellow-500/20' : 'bg-[#4cd3ff]/20'
+                      }`}>
+                        <span className={currentTask.isAdminTask ? 'text-yellow-400' : 'text-[#4cd3ff]'}>
+                          {getTaskIcon(currentTask)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-medium text-sm truncate">{currentTask.title}</h3>
+                        <div className="flex items-center gap-1">
+                          <DiamondIcon size={12} />
+                          <span className={`text-xs font-semibold ${
+                            currentTask.isAdminTask ? 'text-yellow-400' : 'text-[#4cd3ff]'
+                          }`}>+{currentTask.rewardPAD.toLocaleString()} PAD</span>
+                        </div>
                       </div>
                     </div>
+                    <Button
+                      onClick={() => handleUnifiedTask(currentTask)}
+                      disabled={isTaskPending}
+                      className={`h-8 px-4 text-xs font-semibold rounded-lg text-black ${
+                        currentTask.isAdminTask 
+                          ? 'bg-yellow-400 hover:bg-yellow-300' 
+                          : 'bg-[#4cd3ff] hover:bg-[#6ddeff]'
+                      }`}
+                    >
+                      {isTaskPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        "Start"
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    onClick={currentTask.handler}
-                    disabled={currentTask.isPending}
-                    className="h-8 px-4 text-xs font-semibold rounded-lg bg-[#4cd3ff] hover:bg-[#6ddeff] text-black"
-                  >
-                    {currentTask.isPending ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      "Start"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-[#1a1a1a] rounded-lg p-4 text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <Check className="w-4 h-4 text-green-400" />
-                  <span className="text-gray-400 text-sm">All tasks completed</span>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="completed"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Check className="w-4 h-4 text-green-400" />
+                    <span className="text-gray-400 text-sm">All tasks completed</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </main>
