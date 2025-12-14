@@ -1767,15 +1767,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   
-  // ===== TASK SYSTEM DISABLED =====
-  // Middleware to block all task-related API endpoints
-  app.use('/api/tasks', (req, res, next) => {
-    res.status(403).json({
-      success: false,
-      message: 'Task feature has been disabled'
-    });
-  });
-  
   // Get user's daily tasks (new system) - DISABLED
   app.get('/api/tasks/daily', authenticateTelegram, async (req: any, res) => {
     try {
@@ -1898,51 +1889,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Unified home tasks API - combines daily tasks + advertiser tasks (same as Mission page)
-  // IMPORTANT: Uses getActiveTasksForUser - the SAME data source as /api/advertiser-tasks (Mission page)
+  // Unified home tasks API - shows ONLY advertiser/user-created tasks (no daily tasks)
+  // Uses getActiveTasksForUser - same data source as Mission page (/api/advertiser-tasks)
   app.get('/api/tasks/home/unified', async (req: any, res) => {
     try {
-      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      let userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      // In development mode, use test user if no session
+      if (!userId && process.env.NODE_ENV === 'development') {
+        userId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+      }
       
       if (!userId) {
         return res.json({ success: true, tasks: [], completedTaskIds: [], totalAvailableTasks: 0 });
       }
 
-      // Get user's daily task completion status
+      // Get user info for referral code
       const [user] = await db
         .select({
-          taskShareCompleted: users.taskShareCompletedToday,
-          taskChannelCompleted: users.taskChannelCompletedToday,
-          taskCommunityCompleted: users.taskCommunityCompletedToday,
           referralCode: users.referralCode
         })
         .from(users)
         .where(eq(users.id, userId));
 
-      const completedTaskIds: string[] = [];
-      if (user?.taskShareCompleted) completedTaskIds.push('share-friends');
-      if (user?.taskChannelCompleted) completedTaskIds.push('check-updates');
-      if (user?.taskCommunityCompleted) completedTaskIds.push('join-community');
-
-      // Get app settings for reward amounts
-      const shareRewardSetting = await storage.getAppSetting('shareTaskReward', '1000');
-      const channelRewardSetting = await storage.getAppSetting('channelTaskRewardPAD', '1000');
-      const communityRewardSetting = await storage.getAppSetting('communityTaskReward', '1000');
-      
-      // Get reward settings for advertiser task types
+      // Get reward settings for advertiser task types from admin settings
       const channelTaskReward = await storage.getAppSetting('channelTaskReward', '30');
       const botTaskReward = await storage.getAppSetting('botTaskReward', '20');
       const partnerTaskReward = await storage.getAppSetting('partnerTaskReward', '5');
+      const bugRewardPerTask = await storage.getAppSetting('bug_reward_per_task', '10');
 
-      // CRITICAL FIX: Use getActiveTasksForUser - the SAME data source as Mission page (/api/advertiser-tasks)
-      // This includes ALL approved public tasks (admin-created AND user-created after admin approval)
+      // Get ALL approved public tasks (admin-created AND user-created after admin approval)
       // Task eligibility: status = 'running' (approved/active), user hasn't completed, not their own task
       const advertiserTasks = await storage.getActiveTasksForUser(userId);
       
-      // Format advertiser tasks (priority 2 - shown after daily tasks)
-      // These include both admin-created and user-created tasks that have been approved
-      const formattedAdvertiserTasks = advertiserTasks.map(task => {
-        // Determine reward based on task type
+      // Format advertiser tasks with PAD and BUG rewards from admin settings
+      const formattedTasks = advertiserTasks.map(task => {
         let rewardPAD = 0;
         if (task.taskType === 'channel') {
           rewardPAD = parseInt(channelTaskReward);
@@ -1951,7 +1932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (task.taskType === 'partner') {
           rewardPAD = parseInt(partnerTaskReward);
         } else {
-          rewardPAD = 20; // Default reward
+          rewardPAD = 20;
         }
         
         return {
@@ -1961,69 +1942,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: task.title,
           link: task.link,
           rewardPAD,
+          rewardBUG: parseInt(bugRewardPerTask),
           rewardType: 'PAD',
           isAdminTask: false,
           isAdvertiserTask: true,
-          priority: 2
+          priority: 1
         };
       });
 
-      // Format daily tasks (priority 1 - shown first after daily reset)
-      const dailyTasks = [
-        {
-          id: 'share-friends',
-          type: 'daily',
-          taskType: 'share',
-          title: 'Share with Friends',
-          link: null,
-          rewardPAD: parseInt(shareRewardSetting),
-          rewardType: 'PAD',
-          isAdminTask: false,
-          isAdvertiserTask: false,
-          priority: 1
-        },
-        {
-          id: 'check-updates',
-          type: 'daily',
-          taskType: 'channel',
-          title: 'Check for Updates',
-          link: 'https://t.me/PaidAdsNews',
-          rewardPAD: parseInt(channelRewardSetting),
-          rewardType: 'PAD',
-          isAdminTask: false,
-          isAdvertiserTask: false,
-          priority: 1
-        },
-        {
-          id: 'join-community',
-          type: 'daily',
-          taskType: 'community',
-          title: 'Join Community',
-          link: 'https://t.me/PaidAdsCommunity',
-          rewardPAD: parseInt(communityRewardSetting),
-          rewardType: 'PAD',
-          isAdminTask: false,
-          isAdvertiserTask: false,
-          priority: 1
-        }
-      ];
-
-      // Filter out completed daily tasks
-      const availableDailyTasks = dailyTasks.filter(task => !completedTaskIds.includes(task.id));
-
-      // Combine daily tasks first (priority 1), then advertiser tasks (priority 2)
-      const allTasks = [...availableDailyTasks, ...formattedAdvertiserTasks]
-        .sort((a, b) => a.priority - b.priority);
-
-      // Calculate total available tasks for proper "All tasks complete" logic
-      const totalAvailableTasks = allTasks.length;
-
       res.json({
         success: true,
-        tasks: allTasks,
-        completedTaskIds,
+        tasks: formattedTasks,
+        completedTaskIds: [],
         referralCode: user?.referralCode,
-        totalAvailableTasks
+        totalAvailableTasks: formattedTasks.length
       });
       
     } catch (error) {
@@ -4891,7 +4823,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const userIsAdmin = userData.telegram_id === process.env.TELEGRAM_ADMIN_ID;
+      const userIsAdmin = userData.telegram_id === process.env.TELEGRAM_ADMIN_ID || 
+                          (process.env.NODE_ENV === 'development' && userData.telegram_id === '123456789');
 
       // Partner tasks can only be created by admin
       if (taskType === "partner" && !userIsAdmin) {
