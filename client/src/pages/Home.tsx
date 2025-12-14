@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -300,7 +300,7 @@ export default function Home() {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          await window.Adsgram.init({ blockId: "int-19149" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
@@ -690,6 +690,17 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Static Create Task Button - Only on Home Page */}
+      <div className="fixed bottom-6 right-4 z-50">
+        <button
+          onClick={() => setLocation('/task/create')}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-black text-white font-semibold text-sm border border-gray-700"
+        >
+          <Plus className="w-4 h-4" />
+          Create Task
+        </button>
+      </div>
 
       {promoPopupOpen && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
