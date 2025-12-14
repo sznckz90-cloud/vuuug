@@ -1898,6 +1898,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Unified home tasks API - combines admin tasks + daily tasks with priority order
+  app.get('/api/tasks/home/unified', async (req: any, res) => {
+    try {
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
+      
+      if (!userId) {
+        return res.json({ success: true, tasks: [], completedTaskIds: [] });
+      }
+
+      // Get user's daily task completion status
+      const [user] = await db
+        .select({
+          taskShareCompleted: users.taskShareCompletedToday,
+          taskChannelCompleted: users.taskChannelCompletedToday,
+          taskCommunityCompleted: users.taskCommunityCompletedToday,
+          referralCode: users.referralCode
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      const completedTaskIds: string[] = [];
+      if (user?.taskShareCompleted) completedTaskIds.push('share-friends');
+      if (user?.taskChannelCompleted) completedTaskIds.push('check-updates');
+      if (user?.taskCommunityCompleted) completedTaskIds.push('join-community');
+
+      // Get app settings for reward amounts
+      const shareRewardSetting = await storage.getAppSetting('shareTaskReward', '1000');
+      const channelRewardSetting = await storage.getAppSetting('channelTaskRewardPAD', '1000');
+      const communityRewardSetting = await storage.getAppSetting('communityTaskReward', '1000');
+
+      // Get running admin tasks that user hasn't completed
+      const adminTasks = await storage.getRunningTasksForUser(userId);
+      
+      // Format admin tasks
+      const formattedAdminTasks = adminTasks.map(task => ({
+        id: task.id,
+        type: 'admin',
+        taskType: task.taskType,
+        title: task.title,
+        link: task.link,
+        rewardPAD: task.rewardPAD || 1750,
+        rewardType: 'PAD',
+        isAdminTask: true,
+        priority: 1
+      }));
+
+      // Format daily tasks
+      const dailyTasks = [
+        {
+          id: 'share-friends',
+          type: 'daily',
+          taskType: 'share',
+          title: 'Share with Friends',
+          link: null,
+          rewardPAD: parseInt(shareRewardSetting),
+          rewardType: 'PAD',
+          isAdminTask: false,
+          priority: 2
+        },
+        {
+          id: 'check-updates',
+          type: 'daily',
+          taskType: 'channel',
+          title: 'Check for Updates',
+          link: 'https://t.me/PaidAdsNews',
+          rewardPAD: parseInt(channelRewardSetting),
+          rewardType: 'PAD',
+          isAdminTask: false,
+          priority: 2
+        },
+        {
+          id: 'join-community',
+          type: 'daily',
+          taskType: 'community',
+          title: 'Join Community',
+          link: 'https://t.me/PaidAdsCommunity',
+          rewardPAD: parseInt(communityRewardSetting),
+          rewardType: 'PAD',
+          isAdminTask: false,
+          priority: 2
+        }
+      ];
+
+      // Filter out completed daily tasks
+      const availableDailyTasks = dailyTasks.filter(task => !completedTaskIds.includes(task.id));
+
+      // Combine admin tasks first (priority 1), then daily tasks (priority 2)
+      const allTasks = [...formattedAdminTasks, ...availableDailyTasks]
+        .sort((a, b) => a.priority - b.priority);
+
+      res.json({
+        success: true,
+        tasks: allTasks,
+        completedTaskIds,
+        referralCode: user?.referralCode
+      });
+      
+    } catch (error) {
+      console.error('Error fetching unified home tasks:', error);
+      res.json({ success: true, tasks: [], completedTaskIds: [] });
+    }
+  });
+
   // New simplified task completion endpoints with daily tracking
   app.post('/api/tasks/complete/share', async (req: any, res) => {
     try {

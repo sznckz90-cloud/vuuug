@@ -3392,6 +3392,33 @@ export class DatabaseStorage implements IStorage {
       return false;
     }
   }
+
+  async getRunningTasksForUser(userId: string): Promise<any[]> {
+    const runningTasks = await db
+      .select()
+      .from(advertiserTasks)
+      .where(eq(advertiserTasks.status, 'running'))
+      .orderBy(desc(advertiserTasks.createdAt));
+
+    const completedClicksResult = await db
+      .select({ taskId: taskClicks.taskId })
+      .from(taskClicks)
+      .where(eq(taskClicks.publisherId, userId));
+
+    const completedTaskIds = new Set(completedClicksResult.map(c => c.taskId));
+
+    return runningTasks
+      .filter(task => 
+        task.advertiserId !== userId && 
+        !completedTaskIds.has(task.id) &&
+        task.currentClicks < task.totalClicksRequired
+      )
+      .map(task => ({
+        ...task,
+        isAdminTask: true,
+        rewardPAD: Math.round(parseFloat(task.costPerClick || '0.0001750') * 10000000),
+      }));
+  }
 }
 
 export const storage = new DatabaseStorage();
