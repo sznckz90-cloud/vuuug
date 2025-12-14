@@ -2451,7 +2451,7 @@ function TaskManagementSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -2470,6 +2470,12 @@ function TaskManagementSection() {
             All Tasks ({allTasks.length})
           </Button>
         </div>
+        <Link href="/task/create">
+          <Button size="sm" className="text-xs bg-[#4cd3ff] hover:bg-[#6ddeff] text-black">
+            <i className="fas fa-plus mr-1.5"></i>
+            Create Task
+          </Button>
+        </Link>
       </div>
 
       {(activeTaskFilter === 'pending' ? pendingLoading : allLoading) ? (
