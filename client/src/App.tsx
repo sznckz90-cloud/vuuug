@@ -10,7 +10,8 @@ import CountryBlockedScreen from "@/components/CountryBlockedScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
-import MandatoryJoinScreen from "@/components/MandatoryJoinScreen";
+import ChannelJoinPopup from "@/components/ChannelJoinPopup";
+import FloatingTaskButton from "@/components/FloatingTaskButton";
 
 declare global {
   interface Window {
@@ -145,6 +146,7 @@ function AppContent() {
       <AppNotification />
       {shouldShowSeasonEnd && <SeasonEndOverlay onClose={handleCloseSeasonEnd} isLocked={seasonLockActive} />}
       <Router />
+      <FloatingTaskButton />
     </SeasonEndContext.Provider>
   );
 }
@@ -158,6 +160,7 @@ function App() {
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingCountry, setIsCheckingCountry] = useState(true);
   const [isCheckingMembership, setIsCheckingMembership] = useState(true);
+  const [showJoinPopup, setShowJoinPopup] = useState(false);
   
   const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
@@ -278,7 +281,7 @@ function App() {
     if (isDevMode) {
       console.log('Development mode: Skipping Telegram authentication');
       setTelegramId('dev-user-123');
-      setIsChannelGroupVerified(true);
+      setIsChannelGroupVerified(false);
       setIsCheckingMembership(false);
       return;
     }
@@ -366,6 +369,19 @@ function App() {
     setIsChannelGroupVerified(true);
   }, []);
 
+  useEffect(() => {
+    if (!isChannelGroupVerified && telegramId) {
+      setShowJoinPopup(true);
+    } else {
+      setShowJoinPopup(false);
+    }
+  }, [isChannelGroupVerified, telegramId]);
+
+  const handlePopupVerified = useCallback(() => {
+    setShowJoinPopup(false);
+    setIsChannelGroupVerified(true);
+  }, []);
+
   if (isCheckingCountry) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
@@ -398,32 +414,34 @@ function App() {
     );
   }
 
-  if (!isChannelGroupVerified) {
-    if (telegramId) {
-      return <MandatoryJoinScreen telegramId={telegramId} onVerified={handleMembershipVerified} />;
-    } else {
-      return (
-        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-6">
-          <div className="text-center max-w-sm">
-            <div className="w-20 h-20 mx-auto mb-8 rounded-full border-2 border-white/20 flex items-center justify-center">
-              <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-              </svg>
-            </div>
-            <h1 className="text-2xl font-semibold text-white mb-4 tracking-tight">Open in Telegram</h1>
-            <p className="text-white/60 text-base leading-relaxed">
-              Please open this app from Telegram to continue.
-            </p>
+  if (!telegramId && !isDevMode) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 mx-auto mb-8 rounded-full border-2 border-white/20 flex items-center justify-center">
+            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
           </div>
+          <h1 className="text-2xl font-semibold text-white mb-4 tracking-tight">Open in Telegram</h1>
+          <p className="text-white/60 text-base leading-relaxed">
+            Please open this app from Telegram to continue.
+          </p>
         </div>
-      );
-    }
+      </div>
+    );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppContent />
+        {showJoinPopup && telegramId && (
+          <ChannelJoinPopup 
+            telegramId={telegramId} 
+            onVerified={handlePopupVerified}
+          />
+        )}
       </TooltipProvider>
     </QueryClientProvider>
   );
