@@ -92,7 +92,7 @@ export default function Missions() {
     staleTime: 30000,
   });
 
-  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
   const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
   const referralLink = user?.referralCode 
     ? `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`

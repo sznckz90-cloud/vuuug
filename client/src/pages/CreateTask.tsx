@@ -802,7 +802,7 @@ export default function CreateTask() {
                 Subscription verification is available for Telegram channels and chats.
               </p>
               <p className="text-sm font-semibold text-white">
-                In order for verification to work, <a href="https://t.me/Paid_Adzbot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">add our bot to your group/channel.</a>
+                In order for verification to work, <a href="https://t.me/PaidAdzbot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">add our bot to your group/channel.</a>
               </p>
             </div>
             <DrawerFooter>
