@@ -16,13 +16,14 @@ import { AnimatePresence, motion } from "framer-motion";
 
 interface UnifiedTask {
   id: string;
-  type: 'admin' | 'daily';
+  type: 'admin' | 'daily' | 'advertiser';
   taskType: string;
   title: string;
   link: string | null;
   rewardPAD: number;
   rewardType: string;
   isAdminTask: boolean;
+  isAdvertiserTask?: boolean;
   priority: number;
 }
 
@@ -332,10 +333,39 @@ export default function Home() {
     },
   });
 
+  const advertiserTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/advertiser-tasks/${taskId}/click`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to complete task');
+      return data;
+    },
+    onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
+      const padReward = Number(data.reward ?? 0);
+      showNotification(`+${padReward.toLocaleString()} PAD`, 'success');
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to complete task', 'error');
+    },
+  });
+
   const handleUnifiedTask = (task: UnifiedTask) => {
     if (!task) return;
     
-    if (task.isAdminTask) {
+    if (task.isAdvertiserTask) {
+      if (task.link) {
+        window.open(task.link, '_blank');
+        setTimeout(() => advertiserTaskMutation.mutate(task.id), 2000);
+      } else {
+        advertiserTaskMutation.mutate(task.id);
+      }
+    } else if (task.isAdminTask) {
       if (task.link) {
         window.open(task.link, '_blank');
         setTimeout(() => adminTaskMutation.mutate(task.id), 2000);
@@ -372,8 +402,10 @@ export default function Home() {
   };
 
   const getTaskIcon = (task: UnifiedTask) => {
-    if (task.isAdminTask) {
-      return task.taskType === 'channel' ? <Send className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />;
+    if (task.isAdvertiserTask || task.isAdminTask) {
+      return task.taskType === 'channel' ? <Send className="w-4 h-4" /> : 
+             task.taskType === 'bot' ? <ExternalLink className="w-4 h-4" /> :
+             <ExternalLink className="w-4 h-4" />;
     }
     switch (task.id) {
       case 'share-friends': return <Gift className="w-4 h-4" />;
@@ -384,7 +416,7 @@ export default function Home() {
   };
 
   const isTaskPending = shareTaskMutation.isPending || channelTaskMutation.isPending || 
-    communityTaskMutation.isPending || adminTaskMutation.isPending;
+    communityTaskMutation.isPending || adminTaskMutation.isPending || advertiserTaskMutation.isPending;
 
   const showAdsgramAd = (): Promise<boolean> => {
     return new Promise(async (resolve) => {
@@ -706,10 +738,12 @@ export default function Home() {
                 <Flame className="w-3.5 h-3.5 text-[#4cd3ff]" />
               </div>
               <span className="text-sm font-semibold text-white">
-                {currentTask?.isAdminTask ? 'Featured Task' : 'Daily Tasks'}
+                {currentTask?.isAdvertiserTask ? 'Mission Task' : currentTask?.isAdminTask ? 'Featured Task' : 'Daily Tasks'}
               </span>
-              {currentTask?.isAdminTask && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full font-medium">Priority</span>
+              {(currentTask?.isAdminTask || currentTask?.isAdvertiserTask) && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full font-medium">
+                  {currentTask?.isAdvertiserTask ? 'Public' : 'Priority'}
+                </span>
               )}
             </div>
             
@@ -736,9 +770,9 @@ export default function Home() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        currentTask.isAdminTask ? 'bg-yellow-500/20' : 'bg-[#4cd3ff]/20'
+                        currentTask.isAdvertiserTask ? 'bg-green-500/20' : currentTask.isAdminTask ? 'bg-yellow-500/20' : 'bg-[#4cd3ff]/20'
                       }`}>
-                        <span className={currentTask.isAdminTask ? 'text-yellow-400' : 'text-[#4cd3ff]'}>
+                        <span className={currentTask.isAdvertiserTask ? 'text-green-400' : currentTask.isAdminTask ? 'text-yellow-400' : 'text-[#4cd3ff]'}>
                           {getTaskIcon(currentTask)}
                         </span>
                       </div>
@@ -747,7 +781,7 @@ export default function Home() {
                         <div className="flex items-center gap-1">
                           <DiamondIcon size={12} />
                           <span className={`text-xs font-semibold ${
-                            currentTask.isAdminTask ? 'text-yellow-400' : 'text-[#4cd3ff]'
+                            currentTask.isAdvertiserTask ? 'text-green-400' : currentTask.isAdminTask ? 'text-yellow-400' : 'text-[#4cd3ff]'
                           }`}>+{currentTask.rewardPAD.toLocaleString()} PAD</span>
                         </div>
                       </div>
@@ -756,9 +790,11 @@ export default function Home() {
                       onClick={() => handleUnifiedTask(currentTask)}
                       disabled={isTaskPending}
                       className={`h-8 px-4 text-xs font-semibold rounded-lg text-black ${
-                        currentTask.isAdminTask 
-                          ? 'bg-yellow-400 hover:bg-yellow-300' 
-                          : 'bg-[#4cd3ff] hover:bg-[#6ddeff]'
+                        currentTask.isAdvertiserTask
+                          ? 'bg-green-400 hover:bg-green-300'
+                          : currentTask.isAdminTask 
+                            ? 'bg-yellow-400 hover:bg-yellow-300' 
+                            : 'bg-[#4cd3ff] hover:bg-[#6ddeff]'
                       }`}
                     >
                       {isTaskPending ? (
