@@ -11,7 +11,6 @@ import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import ChannelJoinPopup from "@/components/ChannelJoinPopup";
-import FloatingTaskButton from "@/components/FloatingTaskButton";
 
 declare global {
   interface Window {
@@ -146,7 +145,6 @@ function AppContent() {
       <AppNotification />
       {shouldShowSeasonEnd && <SeasonEndOverlay onClose={handleCloseSeasonEnd} isLocked={seasonLockActive} />}
       <Router />
-      <FloatingTaskButton />
     </SeasonEndContext.Provider>
   );
 }
