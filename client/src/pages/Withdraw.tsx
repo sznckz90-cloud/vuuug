@@ -521,10 +521,10 @@ export default function Withdraw() {
                 ))}
               </div>
 
-              <div className="p-4 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] space-y-4">
-                <div className="text-xs text-[#aaa] mb-2">Select Withdrawal Package</div>
+              <div className="p-3 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] space-y-3">
+                <div className="text-xs text-[#aaa]">Select Withdrawal Package</div>
                 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {withdrawalPackages.map((pkg) => {
                     const isSelected = selectedPackage === pkg.usd;
                     const canAfford = canAffordPackage(pkg.usd);
@@ -537,49 +537,52 @@ export default function Withdraw() {
                         key={pkg.usd}
                         onClick={() => !isDisabled && setSelectedPackage(pkg.usd)}
                         disabled={isDisabled}
-                        className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        className={`relative p-2 rounded-lg border transition-all text-center ${
                           isSelected
-                            ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
+                            ? 'border-[#4cd3ff] bg-[#4cd3ff]/10 ring-1 ring-[#4cd3ff]/50'
                             : isDisabled
-                              ? 'border-[#2a2a2a] bg-[#1a1a1a] opacity-50 cursor-not-allowed'
-                              : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
+                              ? 'border-[#2a2a2a] bg-[#0d0d0d] opacity-40 cursor-not-allowed'
+                              : 'border-[#2a2a2a] bg-[#0d0d0d] hover:border-[#4cd3ff]/50'
                         }`}
                       >
-                        <div className="text-lg font-bold text-white">${pkg.usd.toFixed(2)}</div>
-                        <div className={`text-xs flex items-center gap-1 ${hasBug ? 'text-green-400' : 'text-red-400'}`}>
-                          <Bug className="w-3 h-3" />
-                          {bugRequired.toLocaleString()} BUG
-                        </div>
-                        {!canAfford && (
-                          <div className="text-xs text-red-400 mt-1">Insufficient balance</div>
+                        {isSelected && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#4cd3ff] rounded-full flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-black" />
+                          </div>
                         )}
+                        <div className="text-sm font-bold text-white">${pkg.usd.toFixed(2)}</div>
+                        <div className={`text-[10px] flex items-center justify-center gap-0.5 ${hasBug ? 'text-green-400' : 'text-red-400'}`}>
+                          <Bug className="w-2.5 h-2.5" />
+                          {bugRequired.toLocaleString()}
+                        </div>
                       </button>
                     );
                   })}
-                  
-                  <button
-                    onClick={() => usdBalance > 0 && setSelectedPackage('FULL')}
-                    disabled={usdBalance <= 0}
-                    className={`p-3 rounded-lg border-2 transition-all text-left col-span-2 ${
-                      selectedPackage === 'FULL'
-                        ? 'border-[#4cd3ff] bg-[#4cd3ff]/10'
-                        : usdBalance <= 0
-                          ? 'border-[#2a2a2a] bg-[#1a1a1a] opacity-50 cursor-not-allowed'
-                          : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#4cd3ff]/50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-lg font-bold text-white">FULL (${usdBalance.toFixed(2)})</div>
-                        <div className={`text-xs flex items-center gap-1 ${hasEnoughBugForPackage('FULL') ? 'text-green-400' : 'text-red-400'}`}>
-                          <Bug className="w-3 h-3" />
-                          {Math.ceil(usdBalance * bugPerUsd).toLocaleString()} BUG
-                        </div>
-                      </div>
-                      {selectedPackage === 'FULL' && <Check className="w-5 h-5 text-[#4cd3ff]" />}
-                    </div>
-                  </button>
                 </div>
+                  
+                <button
+                  onClick={() => usdBalance > 0 && setSelectedPackage('FULL')}
+                  disabled={usdBalance <= 0}
+                  className={`relative w-full p-2 rounded-lg border transition-all text-center ${
+                    selectedPackage === 'FULL'
+                      ? 'border-[#4cd3ff] bg-[#4cd3ff]/10 ring-1 ring-[#4cd3ff]/50'
+                      : usdBalance <= 0
+                        ? 'border-[#2a2a2a] bg-[#0d0d0d] opacity-40 cursor-not-allowed'
+                        : 'border-[#2a2a2a] bg-[#0d0d0d] hover:border-[#4cd3ff]/50'
+                  }`}
+                >
+                  {selectedPackage === 'FULL' && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#4cd3ff] rounded-full flex items-center justify-center">
+                      <Check className="w-2.5 h-2.5 text-black" />
+                    </div>
+                  )}
+                  <div className="text-sm font-bold text-white">FULL BALANCE</div>
+                  <div className="text-[10px] text-gray-400">${usdBalance.toFixed(2)}</div>
+                  <div className={`text-[10px] flex items-center justify-center gap-0.5 ${hasEnoughBugForPackage('FULL') ? 'text-green-400' : 'text-red-400'}`}>
+                    <Bug className="w-2.5 h-2.5" />
+                    {Math.ceil(usdBalance * bugPerUsd).toLocaleString()} BUG
+                  </div>
+                </button>
                 
                 <div className="pt-3 border-t border-[#2a2a2a] space-y-2">
                   <div>
