@@ -100,7 +100,7 @@ function AppContent() {
       
       inAppAdIntervalRef.current = setInterval(() => {
         showInAppAd();
-      }, 30000);
+      }, 60000);
     }, 5000);
 
     return () => {
