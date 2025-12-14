@@ -1931,7 +1931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get running admin tasks that user hasn't completed
       const adminTasks = await storage.getRunningTasksForUser(userId);
       
-      // Format admin tasks
+      // Format admin tasks (priority 2 - shown after daily tasks are completed)
       const formattedAdminTasks = adminTasks.map(task => ({
         id: task.id,
         type: 'admin',
@@ -1941,10 +1941,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rewardPAD: task.rewardPAD || 1750,
         rewardType: 'PAD',
         isAdminTask: true,
-        priority: 1
+        priority: 2
       }));
 
-      // Format daily tasks
+      // Format daily tasks (priority 1 - shown first after daily reset)
       const dailyTasks = [
         {
           id: 'share-friends',
@@ -1955,7 +1955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rewardPAD: parseInt(shareRewardSetting),
           rewardType: 'PAD',
           isAdminTask: false,
-          priority: 2
+          priority: 1
         },
         {
           id: 'check-updates',
@@ -1966,7 +1966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rewardPAD: parseInt(channelRewardSetting),
           rewardType: 'PAD',
           isAdminTask: false,
-          priority: 2
+          priority: 1
         },
         {
           id: 'join-community',
@@ -1977,15 +1977,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rewardPAD: parseInt(communityRewardSetting),
           rewardType: 'PAD',
           isAdminTask: false,
-          priority: 2
+          priority: 1
         }
       ];
 
       // Filter out completed daily tasks
       const availableDailyTasks = dailyTasks.filter(task => !completedTaskIds.includes(task.id));
 
-      // Combine admin tasks first (priority 1), then daily tasks (priority 2)
-      const allTasks = [...formattedAdminTasks, ...availableDailyTasks]
+      // Combine daily tasks first (priority 1), then admin tasks (priority 2)
+      const allTasks = [...availableDailyTasks, ...formattedAdminTasks]
         .sort((a, b) => a.priority - b.priority);
 
       res.json({
