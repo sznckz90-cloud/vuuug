@@ -341,6 +341,10 @@ export async function sendSharePhotoToChat(
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
+  const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
+  const channelUrl = process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/PaidAdzApp';
+  const groupUrl = process.env.TELEGRAM_GROUP_URL || 'https://t.me/PaidAdzGroup';
+  
   const message = `💁🏻‍♂️ Paid Adz lets every ad you watch turn into real money and complete simple tasks, it's that easy.
 
 ✅ Fast, reliable, and affordable, offering a truly real earning experience.`;
@@ -350,19 +354,19 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
       [
         {
           text: "🚀 Let's Go",
-          url: "https://t.me/PaidAdzbot/GetPaid"
+          url: `https://t.me/${botUsername}/GetPaid`
         }
       ],
       [
         {
           text: "🤝 Announce",
-          url: "https://t.me/PaidAdzApp"
+          url: channelUrl
         }
       ],
       [
         {
           text: "💬 Group Chat",
-          url: "https://t.me/PaidAdsCommunity"
+          url: groupUrl
         }
       ]
     ]

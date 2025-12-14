@@ -865,7 +865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Add referral link with fallback bot username - use WebApp format for direct app opening
-      const botUsername = process.env.BOT_USERNAME || "Paid_Adzbot";
+      const botUsername = process.env.BOT_USERNAME || "PaidAdzbot";
       const webAppName = process.env.WEBAPP_NAME || "app";
       const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
       
@@ -5443,7 +5443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Check if our bot is in the admin list
-        const botUsername = 'Paid_Adzbot';
+        const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
         const isAdmin = data.result.some((admin: any) => 
           admin.user?.username?.toLowerCase() === botUsername.toLowerCase()
         );
@@ -6016,7 +6016,7 @@ ${walletAddress}
 💸 Amount: ${newWithdrawal.withdrawnAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${currentDate}
-🤖 Bot: @Paid_Adzbot`;
+🤖 Bot: @PaidAdzbot`;
 
       // Create inline keyboard with Approve and Reject buttons
       const inlineKeyboard = {
@@ -7899,7 +7899,7 @@ ${walletAddress}
         return res.status(500).json({ error: 'Bot not configured' });
       }
 
-      const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'Paid_Adzbot';
+      const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
       const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
       const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
       
@@ -8010,7 +8010,7 @@ ${walletAddress}
         return res.status(400).json({ error: 'Referral code not found' });
       }
 
-      const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'Paid_Adzbot';
+      const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
       const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
       const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
 

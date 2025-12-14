@@ -9,19 +9,21 @@ export const config = {
   // 3. It will show the channel ID (looks like: -1001234567890)
   telegram: {
     // Channel settings (environment variables required)
-    channelId: process.env.TELEGRAM_CHANNEL_ID || '-1002480439556',
-    channelUrl: process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/PaidAdsNews',
-    channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Paid Adz Community',
+    channelId: process.env.TELEGRAM_CHANNEL_ID || '@PaidAdzApp',
+    channelUrl: process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/PaidAdzApp',
+    channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Paid Adz App',
     // Group settings (environment variables required)
-    groupId: process.env.TELEGRAM_GROUP_ID || '-1002769424144',
-    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/PaidAdsCommunity',
-    groupName: process.env.TELEGRAM_GROUP_NAME || 'Paid Adz Chat',
+    groupId: process.env.TELEGRAM_GROUP_ID || '@PaidAdzGroup',
+    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/PaidAdzGroup',
+    groupName: process.env.TELEGRAM_GROUP_NAME || 'Paid Adz Group',
   },
   
   // Bot configuration
   bot: {
     token: process.env.TELEGRAM_BOT_TOKEN || '',
     adminId: process.env.TELEGRAM_ADMIN_ID || '',
+    username: process.env.BOT_USERNAME || 'PaidAdzbot',
+    botUrl: process.env.TELEGRAM_BOT_URL || 'https://t.me/PaidAdzbot',
   },
 };
 
@@ -34,5 +36,7 @@ export function getChannelConfig() {
     groupId: config.telegram.groupId,
     groupUrl: config.telegram.groupUrl,
     groupName: config.telegram.groupName,
+    botUsername: config.bot.username,
+    botUrl: config.bot.botUrl,
   };
 }
