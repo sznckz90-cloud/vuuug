@@ -394,14 +394,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isDevMode = process.env.NODE_ENV === 'development';
       const channelConfig = getChannelConfig();
       
-      // Skip all verification in development mode
+      // In dev mode, return not verified to test popup
       if (isDevMode) {
-        console.log('🔧 Development mode: Skipping channel/group verification');
+        console.log('🔧 Development mode: Testing channel join popup');
         return res.json({
           success: true,
-          isVerified: true,
-          channelMember: true,
-          groupMember: true,
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
           channelUrl: channelConfig.channelUrl,
           groupUrl: channelConfig.groupUrl,
           channelName: channelConfig.channelName,
@@ -511,15 +511,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const telegramId = sessionUser?.telegram_id;
       const isDevMode = process.env.NODE_ENV === 'development';
       
-      // Skip all verification in development mode
+      // In development mode, return not verified to test popup
       if (isDevMode) {
-        console.log('🔧 Development mode: Skipping channel/group verification');
+        console.log('🔧 Development mode: Testing channel join popup');
         const channelConfig = getChannelConfig();
         return res.json({
           success: true,
-          isVerified: true,
-          channelMember: true,
-          groupMember: true,
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
           channelUrl: channelConfig.channelUrl,
           groupUrl: channelConfig.groupUrl,
           channelName: channelConfig.channelName,

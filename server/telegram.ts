@@ -341,37 +341,28 @@ export async function sendSharePhotoToChat(
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
-  const message = `👋 Welcome to Paid Adz
+  const message = `💁🏻‍♂️ Paid Adz lets every ad you watch turn into real money and complete simple tasks, it's that easy.
 
-🚀 Earn PAD Tokens by watching ads or completing tasks — your gateway to real rewards.
-
-📈 Start earning and growing your balance today!`;
-
-  const appUrl = process.env.RENDER_EXTERNAL_URL || 
-                (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : "https://vuuug.onrender.com");
+✅ Fast, reliable, and affordable, offering a truly real earning experience.`;
 
   const inlineKeyboard = {
     inline_keyboard: [
       [
         {
           text: "🚀 Let's Go",
-          web_app: { url: appUrl }
+          url: "https://t.me/PaidAdzbot/GetPaid"
         }
       ],
       [
         {
-          text: "🤝🏻 Announce",
-          url: "https://t.me/PaidADsNews"
-        },
+          text: "🤝 Announce",
+          url: "https://t.me/PaidAdzApp"
+        }
+      ],
+      [
         {
           text: "💬 Group Chat",
           url: "https://t.me/PaidAdsCommunity"
-        }
-      ],
-      [
-        {
-          text: "⁉️ FAQ",
-          url: "https://telegra.ph/What-is-PAD-11-30"
         }
       ]
     ]
@@ -467,7 +458,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
     }
 
     // Build the referral link
-    const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'Paid_Adzbot';
+    const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'PaidAdzbot';
     const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
     const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
     
@@ -595,7 +586,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           const user = await storage.getUserByTelegramId(chatId);
           
           if (user && user.referralCode) {
-            const botUsername = process.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+            const botUsername = process.env.VITE_BOT_USERNAME || 'PaidAdzbot';
             const webAppName = process.env.WEBAPP_NAME || 'app';
             const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
             
@@ -881,7 +872,7 @@ ${walletAddress}
 💸 Amount: ${netAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${createdAt}
-🤖 Bot: @Paid_Adzbot`;
+🤖 Bot: @PaidAdzbot`;
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
               method: 'POST',
@@ -1061,7 +1052,7 @@ ${walletAddress}
 💸 Amount: ${netAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${currentDate}
-🤖 Bot: @Paid_Adzbot`;
+🤖 Bot: @PaidAdzbot`;
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
               method: 'POST',
@@ -1227,7 +1218,8 @@ ${walletAddress}
             const walletAddress = withdrawalDetails?.paymentDetails || withdrawalDetails?.walletAddress || withdrawalDetails?.tonWalletAddress || '';
             
             if (walletAddress && walletAddress.length > 10) {
-              const transactionUrl = `https://tonscan.org/address/${walletAddress}`;
+              // Fixed transaction URL as per requirements
+              const transactionUrl = `https://tonscan.org/address/UQAiuvbhsGT8EEHl2koLD6vex4mWVFFun3fLfunLJ2y_Xj0-`;
               
               // Answer callback and open URL
               await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
@@ -1395,19 +1387,13 @@ ${walletAddress}
         const appUrl = process.env.RENDER_EXTERNAL_URL || 
                       (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : 'https://vuuug.onrender.com');
         
-        // Create inline buttons for broadcast message (stacked vertically)
+        // Create inline buttons for broadcast message - webapp link only
         const broadcastButtons = {
           inline_keyboard: [
             [
               {
                 text: "🚀 Open App",
                 web_app: { url: appUrl }
-              }
-            ],
-            [
-              {
-                text: "🤝 Join Community",
-                url: "https://t.me/PaidAdsNews"
               }
             ]
           ]
@@ -1417,10 +1403,10 @@ ${walletAddress}
           `📢 Broadcasting message to ${dedupedUsers.length} unique users...\n\nPlease wait...`
         );
         
-        // Send message to each unique user with batching for rate limiting
-        // Telegram allows ~30 messages per second, so we batch in chunks of 25
-        const BATCH_SIZE = 25;
-        const BATCH_DELAY_MS = 1000; // 1 second between batches
+        // Send message to each unique user with faster batching
+        // Telegram allows ~30 messages per second, so we batch in chunks of 30
+        const BATCH_SIZE = 30;
+        const BATCH_DELAY_MS = 500; // 0.5 second between batches for faster sending
         
         for (let i = 0; i < dedupedUsers.length; i++) {
           const user = dedupedUsers[i];
@@ -1454,8 +1440,8 @@ ${walletAddress}
               console.log(`📦 Batch ${Math.floor((i + 1) / BATCH_SIZE)} sent, pausing for rate limit...`);
               await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
             } else {
-              // Small delay between individual messages within a batch
-              await new Promise(resolve => setTimeout(resolve, 40));
+              // Small delay between individual messages within a batch - faster
+              await new Promise(resolve => setTimeout(resolve, 20));
             }
           } catch (error) {
             console.error(`Failed to send to ${user.telegramId}:`, error);
