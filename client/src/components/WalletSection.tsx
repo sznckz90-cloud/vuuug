@@ -90,7 +90,7 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          await window.Adsgram.init({ blockId: "int-19149" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
