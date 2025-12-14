@@ -18,8 +18,11 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
   const [isChecking, setIsChecking] = useState(false);
   const [membershipStatus, setMembershipStatus] = useState<MembershipStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  const checkMembership = async () => {
+  const checkMembership = async (isInitialCheck = false) => {
+    if (isChecking) return;
+    
     setIsChecking(true);
     setError(null);
     
@@ -41,21 +44,26 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
         channelMember: data.channelMember || false,
         groupMember: data.groupMember || false,
         channelUrl: data.channelUrl || "https://t.me/PaidAdzApp",
-        groupUrl: data.groupUrl || "https://t.me/PaidAdsCommunity",
+        groupUrl: data.groupUrl || "https://t.me/PaidAdzGroup",
         channelName: data.channelName || "Paid Adz App",
-        groupName: data.groupName || "Paid Adz Community"
+        groupName: data.groupName || "Paid Adz Group"
       });
     } catch (err) {
       console.error("Membership check error:", err);
-      setError("Failed to check membership. Please try again.");
+      if (!isInitialCheck) {
+        setError("Failed to check membership. Please try again.");
+      }
     } finally {
       setIsChecking(false);
+      setHasInitialized(true);
     }
   };
 
   useEffect(() => {
-    checkMembership();
-  }, [telegramId]);
+    if (!hasInitialized) {
+      checkMembership(true);
+    }
+  }, [telegramId, hasInitialized]);
 
   const openChannel = () => {
     const url = membershipStatus?.channelUrl || "https://t.me/PaidAdzApp";
@@ -66,9 +74,20 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
     }
   };
 
-  const handleContinue = () => {
-    checkMembership();
+  const openGroup = () => {
+    const url = membershipStatus?.groupUrl || "https://t.me/PaidAdzGroup";
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.openTelegramLink(url);
+    } else {
+      window.open(url, "_blank");
+    }
   };
+
+  const handleContinue = () => {
+    checkMembership(false);
+  };
+
+  const bothJoined = membershipStatus?.channelMember && membershipStatus?.groupMember;
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -82,10 +101,10 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
           </div>
           
           <h2 className="text-xl font-semibold text-white mb-2">
-            Join Our Channel
+            Join Our Community
           </h2>
           <p className="text-white/50 text-sm mb-6">
-            Join our announcement channel to stay updated
+            Join our channel and group to continue
           </p>
 
           {error && (
@@ -94,9 +113,10 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
             </div>
           )}
 
+          {/* Channel Join Button */}
           <button
             onClick={openChannel}
-            className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all mb-4 ${
+            className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all mb-3 ${
               membershipStatus?.channelMember
                 ? "bg-[#4cd3ff]/10 border-[#4cd3ff]/30"
                 : "bg-white/5 border-white/10 hover:border-[#4cd3ff]/50"
@@ -105,7 +125,7 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#4cd3ff]/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#4cd3ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                 </svg>
               </div>
               <div className="text-left">
@@ -114,6 +134,35 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
               </div>
             </div>
             {membershipStatus?.channelMember ? (
+              <svg className="w-5 h-5 text-[#4cd3ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <span className="text-[#4cd3ff] text-xs font-medium">JOIN</span>
+            )}
+          </button>
+
+          {/* Group Join Button */}
+          <button
+            onClick={openGroup}
+            className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all mb-4 ${
+              membershipStatus?.groupMember
+                ? "bg-[#4cd3ff]/10 border-[#4cd3ff]/30"
+                : "bg-white/5 border-white/10 hover:border-[#4cd3ff]/50"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#4cd3ff]/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#4cd3ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-white font-medium text-sm">Join Group</p>
+                <p className="text-white/40 text-xs">{membershipStatus?.groupName || "Paid Adz Group"}</p>
+              </div>
+            </div>
+            {membershipStatus?.groupMember ? (
               <svg className="w-5 h-5 text-[#4cd3ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
@@ -135,10 +184,10 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
                 </svg>
                 Checking...
               </span>
-            ) : membershipStatus?.channelMember ? (
+            ) : bothJoined ? (
               "Continue"
             ) : (
-              "I've Joined"
+              "I've Joined Both"
             )}
           </button>
         </div>

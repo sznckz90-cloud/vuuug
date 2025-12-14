@@ -187,7 +187,7 @@ export default function TaskSection() {
   const handleShareTask = () => {
     if (completedTasks.has('share-friends')) return;
     
-    const botUsername = import.meta.env.VITE_BOT_USERNAME || 'Paid_Adzbot';
+    const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
     const referralLink = user?.referralCode 
       ? `https://t.me/${botUsername}?start=${user.referralCode}`
       : '';
