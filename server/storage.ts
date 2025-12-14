@@ -2981,7 +2981,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  // Get active tasks for a user (excludes tasks they've already completed and their own tasks)
+  // Get active tasks for a user (excludes tasks they've already completed, their own tasks, and tasks that hit click limit)
   async getActiveTasksForUser(userId: string): Promise<any[]> {
     const result = await db
       .select()
@@ -2989,6 +2989,7 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(advertiserTasks.status, 'running'),
         sql`${advertiserTasks.advertiserId} != ${userId}`,
+        sql`${advertiserTasks.currentClicks} < ${advertiserTasks.totalClicksRequired}`,
         sql`NOT EXISTS (
           SELECT 1 FROM task_clicks 
           WHERE task_clicks.task_id = ${advertiserTasks.id} 

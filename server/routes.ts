@@ -1898,13 +1898,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Unified home tasks API - combines admin tasks + daily tasks with priority order
+  // Unified home tasks API - combines daily tasks + advertiser tasks (same as Mission page)
+  // IMPORTANT: Uses getActiveTasksForUser - the SAME data source as /api/advertiser-tasks (Mission page)
   app.get('/api/tasks/home/unified', async (req: any, res) => {
     try {
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
       
       if (!userId) {
-        return res.json({ success: true, tasks: [], completedTaskIds: [] });
+        return res.json({ success: true, tasks: [], completedTaskIds: [], totalAvailableTasks: 0 });
       }
 
       // Get user's daily task completion status
@@ -1927,22 +1928,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shareRewardSetting = await storage.getAppSetting('shareTaskReward', '1000');
       const channelRewardSetting = await storage.getAppSetting('channelTaskRewardPAD', '1000');
       const communityRewardSetting = await storage.getAppSetting('communityTaskReward', '1000');
-
-      // Get running admin tasks that user hasn't completed
-      const adminTasks = await storage.getRunningTasksForUser(userId);
       
-      // Format admin tasks (priority 2 - shown after daily tasks are completed)
-      const formattedAdminTasks = adminTasks.map(task => ({
-        id: task.id,
-        type: 'admin',
-        taskType: task.taskType,
-        title: task.title,
-        link: task.link,
-        rewardPAD: task.rewardPAD || 1750,
-        rewardType: 'PAD',
-        isAdminTask: true,
-        priority: 2
-      }));
+      // Get reward settings for advertiser task types
+      const channelTaskReward = await storage.getAppSetting('channelTaskReward', '30');
+      const botTaskReward = await storage.getAppSetting('botTaskReward', '20');
+      const partnerTaskReward = await storage.getAppSetting('partnerTaskReward', '5');
+
+      // CRITICAL FIX: Use getActiveTasksForUser - the SAME data source as Mission page (/api/advertiser-tasks)
+      // This includes ALL approved public tasks (admin-created AND user-created after admin approval)
+      // Task eligibility: status = 'running' (approved/active), user hasn't completed, not their own task
+      const advertiserTasks = await storage.getActiveTasksForUser(userId);
+      
+      // Format advertiser tasks (priority 2 - shown after daily tasks)
+      // These include both admin-created and user-created tasks that have been approved
+      const formattedAdvertiserTasks = advertiserTasks.map(task => {
+        // Determine reward based on task type
+        let rewardPAD = 0;
+        if (task.taskType === 'channel') {
+          rewardPAD = parseInt(channelTaskReward);
+        } else if (task.taskType === 'bot') {
+          rewardPAD = parseInt(botTaskReward);
+        } else if (task.taskType === 'partner') {
+          rewardPAD = parseInt(partnerTaskReward);
+        } else {
+          rewardPAD = 20; // Default reward
+        }
+        
+        return {
+          id: task.id,
+          type: 'advertiser',
+          taskType: task.taskType,
+          title: task.title,
+          link: task.link,
+          rewardPAD,
+          rewardType: 'PAD',
+          isAdminTask: false,
+          isAdvertiserTask: true,
+          priority: 2
+        };
+      });
 
       // Format daily tasks (priority 1 - shown first after daily reset)
       const dailyTasks = [
@@ -1955,6 +1979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rewardPAD: parseInt(shareRewardSetting),
           rewardType: 'PAD',
           isAdminTask: false,
+          isAdvertiserTask: false,
           priority: 1
         },
         {
@@ -1966,6 +1991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rewardPAD: parseInt(channelRewardSetting),
           rewardType: 'PAD',
           isAdminTask: false,
+          isAdvertiserTask: false,
           priority: 1
         },
         {
@@ -1977,6 +2003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rewardPAD: parseInt(communityRewardSetting),
           rewardType: 'PAD',
           isAdminTask: false,
+          isAdvertiserTask: false,
           priority: 1
         }
       ];
@@ -1984,20 +2011,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Filter out completed daily tasks
       const availableDailyTasks = dailyTasks.filter(task => !completedTaskIds.includes(task.id));
 
-      // Combine daily tasks first (priority 1), then admin tasks (priority 2)
-      const allTasks = [...availableDailyTasks, ...formattedAdminTasks]
+      // Combine daily tasks first (priority 1), then advertiser tasks (priority 2)
+      const allTasks = [...availableDailyTasks, ...formattedAdvertiserTasks]
         .sort((a, b) => a.priority - b.priority);
+
+      // Calculate total available tasks for proper "All tasks complete" logic
+      const totalAvailableTasks = allTasks.length;
 
       res.json({
         success: true,
         tasks: allTasks,
         completedTaskIds,
-        referralCode: user?.referralCode
+        referralCode: user?.referralCode,
+        totalAvailableTasks
       });
       
     } catch (error) {
       console.error('Error fetching unified home tasks:', error);
-      res.json({ success: true, tasks: [], completedTaskIds: [] });
+      res.json({ success: true, tasks: [], completedTaskIds: [], totalAvailableTasks: 0 });
     }
   });
 
