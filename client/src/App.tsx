@@ -49,6 +49,7 @@ function Router() {
         <Route path="/tasks" component={Missions} />
         <Route path="/missions" component={Missions} />
         <Route path="/task/create" component={CreateTask} />
+        <Route path="/create-task" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/withdraw" component={Withdraw} />
         <Route path="/profile" component={Landing} />
@@ -67,9 +68,27 @@ function AppContent() {
   const { isAdmin } = useAdmin();
   const inAppAdIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const inAppAdInitialized = useRef(false);
+  const [popupAdsEnabled, setPopupAdsEnabled] = useState(true);
+  const [popupAdInterval, setPopupAdInterval] = useState(60);
+  
+  const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
   useEffect(() => {
+    if (isDevMode) return;
+    // Fetch popup ad settings
+    fetch("/api/app-settings")
+      .then(res => res.json())
+      .then(settings => {
+        setPopupAdsEnabled(settings.popupAdsEnabled !== false);
+        setPopupAdInterval(settings.popupAdInterval || 60);
+      })
+      .catch(() => {});
+  }, [isDevMode]);
+
+  useEffect(() => {
+    if (isDevMode) return;
     if (inAppAdInitialized.current) return;
+    if (!popupAdsEnabled) return;
     inAppAdInitialized.current = true;
 
     const showInAppAd = () => {
@@ -94,12 +113,13 @@ function AppContent() {
       }
     };
 
+    const intervalMs = popupAdInterval * 1000;
     const initialDelay = setTimeout(() => {
       showInAppAd();
       
       inAppAdIntervalRef.current = setInterval(() => {
         showInAppAd();
-      }, 60000);
+      }, intervalMs);
     }, 5000);
 
     return () => {
@@ -108,7 +128,7 @@ function AppContent() {
         clearInterval(inAppAdIntervalRef.current);
       }
     };
-  }, []);
+  }, [popupAdsEnabled, popupAdInterval]);
 
   useEffect(() => {
     const checkSeasonStatus = () => {
@@ -434,7 +454,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppContent />
-        {showJoinPopup && telegramId && (
+        {showJoinPopup && telegramId && !isDevMode && (
           <ChannelJoinPopup 
             telegramId={telegramId} 
             onVerified={handlePopupVerified}
