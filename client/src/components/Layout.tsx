@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { HeartHandshake, CircleDollarSign, User } from "lucide-react";
+import { HeartHandshake, CircleDollarSign, User, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
@@ -28,8 +28,9 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   const navItems = [
-    { href: "/affiliates", icon: HeartHandshake, label: "Referrals" },
-    { href: "/withdraw", icon: CircleDollarSign, label: "Payouts" },
+    { href: "/create-task", icon: Plus, label: "ADD TASK" },
+    { href: "/affiliates", icon: HeartHandshake, label: "INVITE" },
+    { href: "/withdraw", icon: CircleDollarSign, label: "PAYOUT" },
   ];
 
   // Get photo from Telegram WebApp first, then fallback to user data
@@ -88,7 +89,7 @@ export default function Layout({ children }: LayoutProps) {
                     </div>
                   )}
                   <span className={`text-[11px] font-medium ${isHomeActive ? 'font-semibold' : ''}`}>
-                    WATCH
+                    EARN
                   </span>
                 </button>
               </Link>

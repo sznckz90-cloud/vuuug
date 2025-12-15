@@ -116,49 +116,76 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     setIsShowingAds(true);
     sessionRewardedRef.current = false;
     
+    // Get ad source from admin settings (monetag, adsgram, both)
+    const adSource = appSettings?.adSource || 'both';
+    
     try {
-      // STEP 1: Show Monetag ad - User must watch at least 3 seconds
-      setCurrentAdStep('monetag');
-      const monetagResult = await showMonetagAd();
+      let monetagWatched = false;
+      let adsgramWatched = false;
       
-      // Handle Monetag unavailable
-      if (monetagResult.unavailable) {
-        showNotification("Ads not available. Please try again later.", "error");
+      // STEP 1: Show Monetag ad if enabled
+      if (adSource === 'monetag' || adSource === 'both') {
+        setCurrentAdStep('monetag');
+        const monetagResult = await showMonetagAd();
+        
+        if (monetagResult.unavailable && adSource === 'monetag') {
+          showNotification("Ads not available. Please try again later.", "error");
+          return;
+        }
+        
+        if (!monetagResult.unavailable) {
+          if (!monetagResult.watchedFully) {
+            showNotification("Claimed too fast!", "error");
+            return;
+          }
+          
+          if (!monetagResult.success) {
+            showNotification("Ad failed. Please try again.", "error");
+            return;
+          }
+          monetagWatched = true;
+        }
+      }
+      
+      // Small delay between ads if showing both
+      if ((adSource === 'both' || adSource === 'adsgram') && monetagWatched) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // STEP 2: Show AdGram ad if enabled
+      if (adSource === 'adsgram' || adSource === 'both') {
+        setCurrentAdStep('adsgram');
+        const adsgramSuccess = await showAdsgramAd();
+        
+        if (!adsgramSuccess && adSource === 'adsgram') {
+          showNotification("Ad failed. Please try again.", "error");
+          return;
+        }
+        
+        if (adSource === 'both' && !adsgramSuccess) {
+          showNotification("Please complete both ads to earn rewards.", "error");
+          return;
+        }
+        adsgramWatched = adsgramSuccess;
+      }
+      
+      // Check if required ads were watched
+      const requiredAdsWatched = 
+        (adSource === 'monetag' && monetagWatched) ||
+        (adSource === 'adsgram' && adsgramWatched) ||
+        (adSource === 'both' && monetagWatched && adsgramWatched);
+      
+      if (!requiredAdsWatched) {
+        showNotification("Please complete the ad to earn rewards.", "error");
         return;
       }
       
-      // Check if Monetag was closed before 3 seconds
-      if (!monetagResult.watchedFully) {
-        showNotification("Claimed too fast!", "error");
-        return;
-      }
-      
-      // Monetag was watched fully (at least 3 seconds)
-      if (!monetagResult.success) {
-        showNotification("Ad failed. Please try again.", "error");
-        return;
-      }
-      
-      // Small delay between ads
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // STEP 2: Show AdGram ad
-      setCurrentAdStep('adsgram');
-      const adsgramSuccess = await showAdsgramAd();
-      
-      // Both ads must be watched to get reward
-      if (!adsgramSuccess) {
-        showNotification("Please complete both ads to earn rewards.", "error");
-        return;
-      }
-      
-      // STEP 3: Grant reward after both ads complete successfully
+      // STEP 3: Grant reward after ads complete successfully
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
         sessionRewardedRef.current = true;
         
-        // Optimistic UI update - only ONE increment to progress
         const rewardAmount = appSettings?.rewardPerAd || 2;
         queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
           ...old,
@@ -166,11 +193,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           adsWatchedToday: (old?.adsWatchedToday || 0) + 1
         }));
         
-        // Sync with backend - single reward call
-        watchAdMutation.mutate('monetag+adsgram');
+        watchAdMutation.mutate(adSource === 'both' ? 'monetag+adsgram' : adSource);
       }
     } finally {
-      // Always reset state on completion or error
       setCurrentAdStep('idle');
       setIsShowingAds(false);
     }
