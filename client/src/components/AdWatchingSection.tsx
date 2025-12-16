@@ -8,11 +8,6 @@ import { showNotification } from "@/components/AppNotification";
 declare global {
   interface Window {
     show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
-    Adsgram: {
-      init: (config: { blockId: string }) => {
-        show: () => Promise<void>;
-      };
-    };
   }
 }
 
@@ -23,7 +18,7 @@ interface AdWatchingSectionProps {
 export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
   const [isShowingAds, setIsShowingAds] = useState(false);
-  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram' | 'verifying'>('idle');
+  const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'verifying'>('idle');
   const sessionRewardedRef = useRef(false);
   const monetagStartTimeRef = useRef<number>(0);
 
@@ -94,22 +89,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     });
   };
 
-  const showAdsgramAd = (): Promise<boolean> => {
-    return new Promise(async (resolve) => {
-      if (window.Adsgram) {
-        try {
-          await window.Adsgram.init({ blockId: "19148" }).show();
-          resolve(true);
-        } catch (error) {
-          console.error('Adsgram ad error:', error);
-          resolve(false);
-        }
-      } else {
-        resolve(false);
-      }
-    });
-  };
-
   const handleStartEarning = async () => {
     if (isShowingAds) return;
     
@@ -117,48 +96,29 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     sessionRewardedRef.current = false;
     
     try {
-      // STEP 1: Show Monetag ad - User must watch at least 3 seconds
       setCurrentAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
-      // Handle Monetag unavailable
       if (monetagResult.unavailable) {
         showNotification("Ads not available. Please try again later.", "error");
         return;
       }
       
-      // Check if Monetag was closed before 3 seconds
       if (!monetagResult.watchedFully) {
         showNotification("Claimed too fast!", "error");
         return;
       }
       
-      // Monetag was watched fully (at least 3 seconds)
       if (!monetagResult.success) {
         showNotification("Ad failed. Please try again.", "error");
         return;
       }
       
-      // Small delay between ads
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // STEP 2: Show AdGram ad
-      setCurrentAdStep('adsgram');
-      const adsgramSuccess = await showAdsgramAd();
-      
-      // Both ads must be watched to get reward
-      if (!adsgramSuccess) {
-        showNotification("Please complete both ads to earn rewards.", "error");
-        return;
-      }
-      
-      // STEP 3: Grant reward after both ads complete successfully
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
         sessionRewardedRef.current = true;
         
-        // Optimistic UI update - only ONE increment to progress
         const rewardAmount = appSettings?.rewardPerAd || 2;
         queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
           ...old,
@@ -166,11 +126,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           adsWatchedToday: (old?.adsWatchedToday || 0) + 1
         }));
         
-        // Sync with backend - single reward call
-        watchAdMutation.mutate('monetag+adsgram');
+        watchAdMutation.mutate('monetag');
       }
     } finally {
-      // Always reset state on completion or error
       setCurrentAdStep('idle');
       setIsShowingAds(false);
     }
@@ -202,8 +160,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
                   <Clock size={16} className="animate-spin" />
                 )}
                 <span className="text-sm font-semibold">
-                  {currentAdStep === 'monetag' ? 'Monetag...' : 
-                   currentAdStep === 'adsgram' ? 'AdGram...' :
+                  {currentAdStep === 'monetag' ? 'Watching...' : 
                    currentAdStep === 'verifying' ? 'Verifying...' : 'Loading...'}
                 </span>
               </>
@@ -216,7 +173,6 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
           </button>
         </div>
         
-        {/* Watched counter - Always visible */}
         <div className="text-center">
           <p className="text-xs text-muted-foreground">
             Watched: {adsWatchedToday}/{dailyLimit}

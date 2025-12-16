@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { showNotification } from '@/components/AppNotification';
-import { PlayCircle, Share2, Send, Users, Play, Check, Flame, Zap, Gift } from 'lucide-react';
+import { PlayCircle, Share2, Send, Users, Check, Flame, Zap, Gift, Loader2 } from 'lucide-react';
 
 interface User {
   referralCode?: string;
@@ -19,9 +19,18 @@ interface AppSettings {
   [key: string]: any;
 }
 
+type TaskStep = 'idle' | 'started' | 'countdown' | 'ready' | 'claiming' | 'completed';
+
 export default function TaskSection() {
   const queryClient = useQueryClient();
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  
+  const [shareStep, setShareStep] = useState<TaskStep>('idle');
+  const [shareCountdown, setShareCountdown] = useState(3);
+  const [channelStep, setChannelStep] = useState<TaskStep>('idle');
+  const [channelCountdown, setChannelCountdown] = useState(3);
+  const [communityStep, setCommunityStep] = useState<TaskStep>('idle');
+  const [communityCountdown, setCommunityCountdown] = useState(3);
+  const [streakCompleted, setStreakCompleted] = useState(false);
 
   const { data: user } = useQuery<User>({
     queryKey: ['/api/auth/user'],
@@ -33,12 +42,6 @@ export default function TaskSection() {
     retry: false,
   });
 
-  const streakRewardPAD = appSettings?.streakReward || 100;
-  const shareTaskRewardPAD = appSettings?.shareTaskReward || 1000;
-  const channelTaskRewardPAD = appSettings?.channelTaskRewardPAD || 1000;
-  const communityTaskRewardPAD = appSettings?.communityTaskReward || 1000;
-
-  // Fetch daily task completion status from backend
   const { data: taskStatus } = useQuery({
     queryKey: ['/api/tasks/daily/status'],
     queryFn: async () => {
@@ -51,12 +54,20 @@ export default function TaskSection() {
     retry: false,
   });
 
-  // Update completedTasks from backend data
   useEffect(() => {
     if (taskStatus?.completedTasks) {
-      setCompletedTasks(new Set(taskStatus.completedTasks));
+      const completed = new Set(taskStatus.completedTasks);
+      if (completed.has('claim-streak')) setStreakCompleted(true);
+      if (completed.has('share-friends')) setShareStep('completed');
+      if (completed.has('check-updates')) setChannelStep('completed');
+      if (completed.has('join-community')) setCommunityStep('completed');
     }
   }, [taskStatus]);
+
+  const streakRewardPAD = appSettings?.streakReward || 100;
+  const shareTaskRewardPAD = appSettings?.shareTaskReward || 1000;
+  const channelTaskRewardPAD = appSettings?.channelTaskRewardPAD || 1000;
+  const communityTaskRewardPAD = appSettings?.communityTaskReward || 1000;
 
   const claimStreakMutation = useMutation({
     mutationFn: async () => {
@@ -76,25 +87,24 @@ export default function TaskSection() {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
-        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
-      ]);
-      setCompletedTasks(prev => new Set([...prev, 'claim-streak']));
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/daily/status'] });
+      setStreakCompleted(true);
       const rewardAmount = parseFloat(data.rewardEarned || '0');
       if (rewardAmount > 0) {
         const rewardPAD = Math.round(rewardAmount);
         const message = data.isBonusDay 
-          ? `🔥 5-day streak bonus! You've claimed today's streak reward! +${rewardPAD.toLocaleString()} PAD`
-          : `✅ You've claimed today's streak reward! +${rewardPAD.toLocaleString()} PAD`;
+          ? `5-day streak bonus! +${rewardPAD.toLocaleString()} PAD`
+          : `Streak claimed! +${rewardPAD.toLocaleString()} PAD`;
         showNotification(message, 'success');
       } else {
-        showNotification("✅ You've claimed today's streak reward!", 'success');
+        showNotification("Streak claimed!", 'success');
       }
     },
     onError: (error: any) => {
-      const notificationType = error.isAlreadyClaimed ? "info" : "error";
-      showNotification(error.message || 'Failed to claim streak', notificationType);
+      if (error.isAlreadyClaimed) {
+        setStreakCompleted(true);
+      }
+      showNotification(error.message || 'Failed to claim streak', error.isAlreadyClaimed ? "info" : "error");
     },
   });
 
@@ -112,16 +122,14 @@ export default function TaskSection() {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
-        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
-      ]);
-      setCompletedTasks(prev => new Set([...prev, 'share-friends']));
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/daily/status'] });
+      setShareStep('completed');
       const rewardAmount = Number(data.reward ?? shareTaskRewardPAD);
-      showNotification(`You received ${rewardAmount.toLocaleString()} PAD on your balance`, 'success');
+      showNotification(`+${rewardAmount.toLocaleString()} PAD earned!`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
+      setShareStep('ready');
     },
   });
 
@@ -139,16 +147,14 @@ export default function TaskSection() {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
-        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
-      ]);
-      setCompletedTasks(prev => new Set([...prev, 'check-updates']));
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/daily/status'] });
+      setChannelStep('completed');
       const rewardAmount = Number(data.reward ?? channelTaskRewardPAD);
-      showNotification(`You received ${rewardAmount.toLocaleString()} PAD on your balance`, 'success');
+      showNotification(`+${rewardAmount.toLocaleString()} PAD earned!`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
+      setChannelStep('ready');
     },
   });
 
@@ -166,26 +172,24 @@ export default function TaskSection() {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['/api/auth/user'] }),
-        queryClient.refetchQueries({ queryKey: ['/api/user/stats'] })
-      ]);
-      setCompletedTasks(prev => new Set([...prev, 'join-community']));
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/daily/status'] });
+      setCommunityStep('completed');
       const rewardAmount = Number(data.reward ?? communityTaskRewardPAD);
-      showNotification(`You received ${rewardAmount.toLocaleString()} PAD on your balance`, 'success');
+      showNotification(`+${rewardAmount.toLocaleString()} PAD earned!`, 'success');
     },
     onError: (error: any) => {
       showNotification(error.message || 'Failed to complete task', 'error');
+      setCommunityStep('ready');
     },
   });
 
   const handleClaimStreak = () => {
-    if (completedTasks.has('claim-streak')) return;
+    if (streakCompleted || claimStreakMutation.isPending) return;
     claimStreakMutation.mutate();
   };
 
-  const handleShareTask = () => {
-    if (completedTasks.has('share-friends')) return;
+  const handleShareTask = useCallback(() => {
+    if (shareStep !== 'idle') return;
     
     const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
     const referralLink = user?.referralCode 
@@ -212,41 +216,137 @@ export default function TaskSection() {
       window.open(shareUrl, '_blank');
     }
     
+    setShareStep('countdown');
+    setShareCountdown(3);
+  }, [shareStep, user?.referralCode]);
+
+  const handleClaimShare = useCallback(() => {
+    if (shareTaskMutation.isPending || shareStep !== 'ready') return;
+    setShareStep('claiming');
     shareTaskMutation.mutate();
-  };
+  }, [shareTaskMutation, shareStep]);
 
-  const handleChannelTask = () => {
-    if (completedTasks.has('check-updates')) return;
+  const handleChannelTask = useCallback(() => {
+    if (channelStep !== 'idle') return;
     
-    window.open('https://t.me/PaidAdsNews', '_blank');
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsNews');
+    } else {
+      window.open('https://t.me/PaidAdsNews', '_blank');
+    }
     
-    setTimeout(() => {
-      channelTaskMutation.mutate();
-    }, 2000);
-  };
+    setChannelStep('countdown');
+    setChannelCountdown(3);
+  }, [channelStep]);
 
-  const handleCommunityTask = () => {
-    if (completedTasks.has('join-community')) return;
+  const handleClaimChannel = useCallback(() => {
+    if (channelTaskMutation.isPending || channelStep !== 'ready') return;
+    setChannelStep('claiming');
+    channelTaskMutation.mutate();
+  }, [channelTaskMutation, channelStep]);
+
+  const handleCommunityTask = useCallback(() => {
+    if (communityStep !== 'idle') return;
     
-    window.open('https://t.me/PaidAdsCommunity', '_blank');
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsCommunity');
+    } else {
+      window.open('https://t.me/PaidAdsCommunity', '_blank');
+    }
     
-    setTimeout(() => {
-      communityTaskMutation.mutate();
-    }, 2000);
-  };
+    setCommunityStep('countdown');
+    setCommunityCountdown(3);
+  }, [communityStep]);
+
+  const handleClaimCommunity = useCallback(() => {
+    if (communityTaskMutation.isPending || communityStep !== 'ready') return;
+    setCommunityStep('claiming');
+    communityTaskMutation.mutate();
+  }, [communityTaskMutation, communityStep]);
+
+  useEffect(() => {
+    if (shareStep === 'countdown' && shareCountdown > 0) {
+      const timer = setTimeout(() => setShareCountdown(prev => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (shareStep === 'countdown' && shareCountdown === 0) {
+      setShareStep('ready');
+    }
+  }, [shareStep, shareCountdown]);
+
+  useEffect(() => {
+    if (channelStep === 'countdown' && channelCountdown > 0) {
+      const timer = setTimeout(() => setChannelCountdown(prev => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (channelStep === 'countdown' && channelCountdown === 0) {
+      setChannelStep('ready');
+    }
+  }, [channelStep, channelCountdown]);
+
+  useEffect(() => {
+    if (communityStep === 'countdown' && communityCountdown > 0) {
+      const timer = setTimeout(() => setCommunityCountdown(prev => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (communityStep === 'countdown' && communityCountdown === 0) {
+      setCommunityStep('ready');
+    }
+  }, [communityStep, communityCountdown]);
 
   const renderTask = (
-    id: string,
     icon: React.ReactNode,
     iconBg: string,
     title: string,
     reward: string,
     rewardColor: string,
-    buttonText: string,
-    onClick: () => void,
-    isLoading: boolean
+    step: TaskStep,
+    countdown: number,
+    onStart: () => void,
+    onClaim: () => void,
+    isClaimPending: boolean
   ) => {
-    const isCompleted = completedTasks.has(id);
+    const isCompleted = step === 'completed';
+    
+    const getButtonContent = () => {
+      if (isCompleted) {
+        return (
+          <span className="flex items-center gap-1">
+            <Check className="w-3 h-3" />
+            Done
+          </span>
+        );
+      }
+      if (step === 'claiming' || isClaimPending) {
+        return <Loader2 className="w-4 h-4 animate-spin" />;
+      }
+      if (step === 'countdown') {
+        return `${countdown}s`;
+      }
+      if (step === 'ready') {
+        return 'Claim';
+      }
+      return 'Start';
+    };
+
+    const getButtonClass = () => {
+      if (isCompleted) {
+        return 'bg-gradient-to-r from-green-500 to-emerald-500';
+      }
+      if (step === 'countdown') {
+        return 'bg-gradient-to-r from-gray-500 to-gray-600';
+      }
+      if (step === 'ready') {
+        return 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600';
+      }
+      return 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600';
+    };
+
+    const handleClick = () => {
+      if (isCompleted || step === 'claiming' || isClaimPending || step === 'countdown') return;
+      if (step === 'ready') {
+        onClaim();
+      } else if (step === 'idle') {
+        onStart();
+      }
+    };
     
     return (
       <Card className="minimal-card mb-3 hover:bg-[#1A1A1A]/50 transition-all">
@@ -265,24 +365,11 @@ export default function TaskSection() {
               </div>
             </div>
             <Button
-              onClick={onClick}
-              disabled={isCompleted || isLoading}
-              className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl border-0 shadow-md ${
-                isCompleted 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600'
-              } text-white`}
+              onClick={handleClick}
+              disabled={isCompleted || step === 'countdown' || step === 'claiming' || isClaimPending}
+              className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl border-0 shadow-md ${getButtonClass()} text-white`}
             >
-              {isCompleted ? (
-                <span className="flex items-center gap-1">
-                  <Check className="w-3 h-3" />
-                  Done
-                </span>
-              ) : isLoading ? (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              ) : (
-                buttonText
-              )}
+              {getButtonContent()}
             </Button>
           </div>
         </CardContent>
@@ -305,51 +392,81 @@ export default function TaskSection() {
         </TabsList>
 
         <TabsContent value="main" className="space-y-0">
-          {renderTask(
-            'claim-streak',
-            <Flame className="w-5 h-5" />,
-            'bg-gradient-to-br from-orange-500 to-red-500',
-            'Claim Streak',
-            `+${streakRewardPAD.toLocaleString()} PAD`,
-            'text-orange-400',
-            'Claim',
-            handleClaimStreak,
-            claimStreakMutation.isPending
-          )}
+          <Card className="minimal-card mb-3 hover:bg-[#1A1A1A]/50 transition-all">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                    <span className="text-white"><Flame className="w-5 h-5" /></span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white font-semibold text-sm truncate">Claim Streak</h3>
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-orange-400" />
+                      <p className="text-xs font-bold text-orange-400">+{streakRewardPAD.toLocaleString()} PAD</p>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleClaimStreak}
+                  disabled={streakCompleted || claimStreakMutation.isPending}
+                  className={`h-9 px-4 text-xs flex-shrink-0 min-w-[75px] font-semibold rounded-xl border-0 shadow-md ${
+                    streakCompleted 
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                      : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600'
+                  } text-white`}
+                >
+                  {streakCompleted ? (
+                    <span className="flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      Done
+                    </span>
+                  ) : claimStreakMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Claim'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
           
           {renderTask(
-            'share-friends',
             <Gift className="w-5 h-5" />,
             'bg-gradient-to-br from-pink-500 to-rose-500',
             'Share with Friends',
             `+${shareTaskRewardPAD.toLocaleString()} PAD`,
             'text-pink-400',
-            'Share',
+            shareStep,
+            shareCountdown,
             handleShareTask,
+            handleClaimShare,
             shareTaskMutation.isPending
           )}
           
           {renderTask(
-            'check-updates',
             <Send className="w-5 h-5" />,
             'bg-gradient-to-br from-blue-500 to-cyan-500',
             'Check for Updates',
             `+${channelTaskRewardPAD.toLocaleString()} PAD`,
             'text-cyan-400',
-            'Start',
+            channelStep,
+            channelCountdown,
             handleChannelTask,
+            handleClaimChannel,
             channelTaskMutation.isPending
           )}
           
           {renderTask(
-            'join-community',
             <Users className="w-5 h-5" />,
             'bg-gradient-to-br from-purple-500 to-violet-500',
             'Join community',
             `+${communityTaskRewardPAD.toLocaleString()} PAD`,
             'text-purple-400',
-            'Join',
+            communityStep,
+            communityCountdown,
             handleCommunityTask,
+            handleClaimCommunity,
             communityTaskMutation.isPending
           )}
         </TabsContent>
