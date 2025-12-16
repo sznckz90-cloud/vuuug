@@ -59,6 +59,15 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 
 ## Recent Changes
 
+### December 2024 - Telegram Bot Notification Fixes
+- **Referral Notification**: Only ONE message sent on FIRST AD with USD reward from Admin Settings (uses `firstAdWatched` flag to prevent duplicate notifications)
+- **Commission Notification Removed**: Disabled spam notification on every ad watch - referral commission is still awarded but no Telegram notification is sent
+- **Ban Message Fix**: Telegram bot ban message uses inline button "Contact Support" pointing to https://t.me/PaidAdzGroup (no plain text URL)
+- **BanScreen Component**: Updated to redirect to https://t.me/PaidAdzGroup instead of PaidAdsCommunity
+- **Payout Approved Message**: Uses "Share in Group" inline button pointing to https://t.me/PaidAdzGroup
+- **Affiliate Page USD Balance**: Calculates totalUsdEarned as successfulInvitesCount * referralRewardUSD from admin settings (accurate real-time calculation)
+- **Group Notification for Withdrawals**: Sends notification to PaidAdzGroup (chat ID: -1003402950172) with exact same format as admin notification when withdrawal request is created
+
 ### December 2024 - Country Blocking System Fix
 - **Complete country blocking system**: Server-side middleware blocks users from restricted countries before serving the app.
 - **Admin panel improvements**: CountryControls.tsx now displays admin's current country/IP and has working toggle buttons.
