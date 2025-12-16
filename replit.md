@@ -59,6 +59,18 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 
 ## Recent Changes
 
+### December 2024 - Withdrawal Approval Bug Fix
+- **Fixed "Insufficient USD balance" error during admin approval**: Previously, balance was incorrectly deducted at withdrawal request time AND checked again during approval, causing approval to fail.
+- **Correct withdrawal flow now implemented**:
+  1. On withdrawal REQUEST: Only validates balance (checks if sufficient funds exist), does NOT deduct balance
+  2. On admin APPROVAL: Deducts both USD and BUG balance from user account
+  3. On admin REJECTION: Balance remains unchanged (since it was never deducted)
+- **Balance integrity**: User balance stays unchanged while withdrawal status is PENDING; balance is only deducted when admin approves
+- **Legacy withdrawal support**: Handles withdrawals created before this fix (where balance was already deducted at request time):
+  - APPROVAL: Detects legacy withdrawals (insufficient balance) and approves without deducting again
+  - REJECTION: Automatically refunds the balance that was deducted at request time
+- **Files modified**: `server/routes.ts` (removed balance deduction from request creation), `server/storage.ts` (approveWithdrawal and rejectWithdrawal now handle both new and legacy flows)
+
 ### December 2024 - Telegram Bot Notification Fixes
 - **Referral Notification**: Only ONE message sent on FIRST AD with USD reward from Admin Settings (uses `firstAdWatched` flag to prevent duplicate notifications)
 - **Commission Notification Removed**: Disabled spam notification on every ad watch - referral commission is still awarded but no Telegram notification is sent
