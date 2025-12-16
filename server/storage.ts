@@ -832,7 +832,8 @@ export class DatabaseStorage implements IStorage {
             console.log(`✅ Referral bonus: $${referralRewardUSD} USD awarded to ${referral.referrerId} from ${userId}'s ${referralAdsRequired} ad watches`);
           }
 
-          // CRITICAL: Send notification to referrer when their friend watches their first ad
+          // CRITICAL: Send ONLY ONE notification to referrer when their friend watches their first ad
+          // Uses USD reward amount from Admin Settings (no PAD/commission messages)
           try {
             const { sendReferralRewardNotification } = await import('./telegram');
             const referrer = await this.getUser(referral.referrerId);
@@ -840,12 +841,13 @@ export class DatabaseStorage implements IStorage {
             
             if (referrer && referrer.telegram_id && referredUser) {
               const referredName = referredUser.username || referredUser.firstName || 'your friend';
+              // Send notification with USD amount from Admin Settings (not PAD)
               await sendReferralRewardNotification(
                 referrer.telegram_id,
                 referredName,
-                String(referralRewardPAD)
+                String(referralRewardUSD) // USD amount from admin settings
               );
-              console.log(`📩 Referral reward notification sent to ${referrer.telegram_id}`);
+              console.log(`📩 Referral reward notification sent to ${referrer.telegram_id} with $${referralRewardUSD} USD`);
             }
           } catch (notifyError) {
             console.error('❌ Error sending referral reward notification:', notifyError);
@@ -1205,23 +1207,8 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`✅ Referral commission of ${commissionAmount} awarded to ${referralInfo.referrerId} from ${userId}'s ad earnings`);
       
-      // Send Telegram notification to referrer about the commission
-      try {
-        const { sendReferralCommissionNotification } = await import('./telegram');
-        const referrer = await this.getUser(referralInfo.referrerId);
-        const referredUser = await this.getUser(userId);
-        
-        if (referrer && referrer.telegram_id && referredUser) {
-          await sendReferralCommissionNotification(
-            referrer.telegram_id,
-            referredUser.username || referredUser.firstName || 'your friend',
-            commissionAmount
-          );
-        }
-      } catch (error) {
-        console.error('❌ Error sending referral commission notification:', error);
-        // Don't throw error to avoid disrupting the main earning process
-      }
+      // NOTE: Commission notifications removed to prevent spam on every ad watch
+      // Only first-ad referral notifications are sent via sendReferralRewardNotification in checkAndActivateReferralBonus
     } catch (error) {
       console.error('Error processing referral commission:', error);
       // Don't throw error to avoid disrupting the main earning process

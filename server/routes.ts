@@ -1472,9 +1472,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [bugRewardSetting] = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bug_reward_per_referral')).limit(1);
       const bugRewardPerReferral = parseInt(bugRewardSetting?.settingValue || '50');
       
-      // Calculate total BUG and USD earned from referrals
+      // Get referral_reward_usd setting from admin settings
+      const [usdRewardSetting] = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'referral_reward_usd')).limit(1);
+      const referralRewardUSD = parseFloat(usdRewardSetting?.settingValue || '0.03');
+      
+      // Calculate total BUG earned from referrals
       const totalBugEarned = successfulInvitesCount * bugRewardPerReferral;
-      const totalUsdEarned = parseFloat(user?.totalClaimedReferralBonus || '0') + parseFloat(user?.pendingReferralBonus || '0');
+      
+      // Calculate total USD earned from referrals:
+      // Use successful invites count * referral USD reward from admin settings
+      // This accurately reflects the USD earned when friends watch their first ad
+      const totalUsdEarned = successfulInvitesCount * referralRewardUSD;
       
       res.json({
         totalInvites: totalInvitesCount,
@@ -6067,7 +6075,7 @@ ${walletAddress}
         ]]
       };
 
-      // Send message with inline buttons
+      // Send message with inline buttons to admin
       if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_ID) {
         fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
@@ -6080,6 +6088,35 @@ ${walletAddress}
           })
         }).catch(err => {
           console.error('❌ Failed to send admin notification:', err);
+        });
+      }
+      
+      // Send notification to PaidAdzGroup for withdrawal requests (same format as admin notification)
+      if (process.env.TELEGRAM_BOT_TOKEN) {
+        const PAIDADZ_GROUP_CHAT_ID = '-1003402950172';
+        // Use the exact same format as admin message
+        const groupMessage = `💰 Withdrawal Request
+
+🗣 User: <a href="tg://user?id=${userTelegramId}">${userName}</a>
+🆔 User ID: ${userTelegramId}
+💳 Username: ${userTelegramUsername}
+🌐 Address:
+${walletAddress}
+💸 Amount: ${newWithdrawal.withdrawnAmount.toFixed(5)} USD
+🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
+📅 Date: ${currentDate}
+🤖 Bot: @PaidAdzbot`;
+
+        fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: PAIDADZ_GROUP_CHAT_ID,
+            text: groupMessage,
+            parse_mode: 'HTML'
+          })
+        }).catch(err => {
+          console.error('❌ Failed to send group notification for withdrawal:', err);
         });
       }
 

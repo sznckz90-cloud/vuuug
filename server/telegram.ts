@@ -291,10 +291,11 @@ function escapeHtml(text: string): string {
 }
 
 // Send notification to referrer when referred user watches their first ad
+// Uses USD reward from Admin Settings (referral_reward_usd)
 export async function sendReferralRewardNotification(
   referrerTelegramId: string,
   referredUserName: string,
-  rewardAmount: string
+  usdRewardAmount: string
 ): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
     console.error('❌ Telegram bot token not configured for referral reward notification');
@@ -303,12 +304,12 @@ export async function sendReferralRewardNotification(
 
   try {
     const safeName = escapeHtml(referredUserName);
-    const safeAmount = escapeHtml(rewardAmount);
+    const formattedUSD = parseFloat(usdRewardAmount).toFixed(2);
     
     const message = `🎉 <b>New Referral Activity!</b>
 
 Your friend <b>${safeName}</b> watched their first ad.
-💰 You earned <b>${safeAmount} PAD</b>.
+💰 You earned <b>$${formattedUSD}</b>
 
 Keep inviting more friends to earn more!`;
 
@@ -323,37 +324,18 @@ Keep inviting more friends to earn more!`;
   }
 }
 
-// Send notification to referrer when they earn commission from referred user's ad watch
+// DEPRECATED: Referral commission notification removed to prevent spam
+// Only the first-ad referral notification is sent (sendReferralRewardNotification)
+// This function is kept for backwards compatibility but does nothing
 export async function sendReferralCommissionNotification(
   referrerTelegramId: string,
   referredUserName: string,
   commissionAmount: string
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
-    console.error('❌ Telegram bot token not configured for referral commission notification');
-    return false;
-  }
-
-  try {
-    const safeName = escapeHtml(referredUserName);
-    const safeAmount = escapeHtml(commissionAmount);
-    
-    const message = `💰 <b>Referral Commission!</b>
-
-Your friend <b>${safeName}</b> watched an ad.
-You earned <b>${safeAmount} PAD</b> (10% commission).
-
-Keep growing your network to earn more!`;
-
-    const result = await sendUserTelegramNotification(referrerTelegramId, message);
-    if (!result) {
-      console.error(`❌ Failed to send referral commission notification to ${referrerTelegramId}`);
-    }
-    return result;
-  } catch (error) {
-    console.error('❌ Error sending referral commission notification:', error);
-    return false;
-  }
+  // Commission notifications disabled to prevent spam on every ad watch
+  // Only first-ad referral notifications are sent via sendReferralRewardNotification
+  console.log(`📭 Commission notification skipped (disabled) for ${referrerTelegramId}`);
+  return true;
 }
 
 export async function sendSharePhotoToChat(
@@ -1145,23 +1127,14 @@ ${walletAddress}
 💵 Amount: ${netAmount.toFixed(3)} USD
 🛂 Fee: ${feeAmount.toFixed(3)} (${feePercent}%)`;
               
-              // Check if TON payment and has valid address for transaction button
-              const isTONPayment = paymentSystemId === 'ton_coin' || method.toLowerCase().includes('ton');
-              const hasValidAddress = walletAddress && walletAddress !== 'N/A' && walletAddress.length > 10;
+              // Always show "Share in Group" button instead of transaction button
+              const shareInGroupButton = {
+                inline_keyboard: [[
+                  { text: '📢 Share in Group', url: 'https://t.me/PaidAdzGroup' }
+                ]]
+              };
               
-              if (isTONPayment && hasValidAddress) {
-                // Store withdrawal ID for callback-based link protection
-                // Send message with callback button that will open the URL when clicked
-                const transactionButton = {
-                  inline_keyboard: [[
-                    { text: '👉🏻 Transaction 👈🏻', callback_data: `tx_view_${result.withdrawal.id}` }
-                  ]]
-                };
-                
-                await sendUserTelegramNotification(userTelegramId, userConfirmationMessage, transactionButton);
-              } else {
-                await sendUserTelegramNotification(userTelegramId, userConfirmationMessage);
-              }
+              await sendUserTelegramNotification(userTelegramId, userConfirmationMessage, shareInGroupButton);
             }
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
@@ -1801,12 +1774,20 @@ ${walletAddress}
                   await sendWarningToMainAccount(selfReferralCheck.referrerId);
                 }
                 
-                await sendUserTelegramNotification(
-                  chatId,
-                  "Your account has been banned for violating our multi-account policy.\n\n" +
-                  "Reason: Self-referral attempt detected.\n\n" +
-                  "Please contact support if you believe this is a mistake: https://t.me/PaidAdsCommunity"
-                );
+                // Ban message with inline button for support (no text links)
+                const banMessage = `Your account has been banned for violating our multi-account policy.
+
+Reason: Self-referral attempt detected.
+
+Please contact support if you believe this is a mistake.`;
+                
+                const supportButton = {
+                  inline_keyboard: [[
+                    { text: '👉🏻 Contact Support', url: 'https://t.me/PaidAdzGroup' }
+                  ]]
+                };
+                
+                await sendUserTelegramNotification(chatId, banMessage, supportButton, 'HTML');
                 
                 return true;
               }
