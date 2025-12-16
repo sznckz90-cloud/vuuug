@@ -8,7 +8,7 @@ import { DiamondIcon } from "@/components/DiamondIcon";
 
 declare global {
   interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -69,15 +69,15 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
     },
   });
 
-  const showMonetagAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+  const showMonetagRewardedAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10013974 === 'function') {
-        window.show_10013974()
+      if (typeof window.show_10306459 === 'function') {
+        window.show_10306459()
           .then(() => {
             resolve({ success: true, unavailable: false });
           })
           .catch((error) => {
-            console.error('Monetag ad error:', error);
+            console.error('Monetag rewarded ad error:', error);
             resolve({ success: false, unavailable: false });
           });
       } else {
@@ -115,18 +115,12 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
     setIsShowingAds(true);
     
     try {
-      setCurrentAdStep('monetag');
-      const monetagResult = await showMonetagAd();
+      // Show AdsGram int-19149 first
+      setCurrentAdStep('adsgram');
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (monetagResult.unavailable) {
-        showNotification("Ads not available. Please try again later.", "error");
-        setCurrentAdStep('idle');
-        setIsShowingAds(false);
-        return;
-      }
-      
-      if (!monetagResult.success) {
-        showNotification("Ad failed. Please try again.", "error");
+      if (!adsgramSuccess) {
+        showNotification("Please complete the ad to convert.", "error");
         setCurrentAdStep('idle');
         setIsShowingAds(false);
         return;
@@ -134,11 +128,19 @@ export default function WalletSection({ padBalance, usdBalance, uid, isAdmin, on
       
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      setCurrentAdStep('adsgram');
-      const adsgramSuccess = await showAdsgramAd();
+      // Then show Monetag rewarded ad
+      setCurrentAdStep('monetag');
+      const monetagResult = await showMonetagRewardedAd();
       
-      if (!adsgramSuccess) {
-        showNotification("Please complete all ads to convert.", "error");
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
+        setCurrentAdStep('converting');
+        convertMutation.mutate(padBalance);
+        return;
+      }
+      
+      if (!monetagResult.success) {
+        showNotification("Please complete the ad to convert.", "error");
         setCurrentAdStep('idle');
         setIsShowingAds(false);
         return;

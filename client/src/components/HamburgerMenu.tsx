@@ -21,12 +21,7 @@ declare global {
         show: () => Promise<void>;
       };
     };
-  }
-}
-
-declare global {
-  interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
   }
 }
 
@@ -61,15 +56,15 @@ export default function HamburgerMenu() {
     },
   });
 
-  const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
+  const showMonetagRewardedAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10013974 === 'function') {
-        window.show_10013974()
+      if (typeof window.show_10306459 === 'function') {
+        window.show_10306459()
           .then(() => {
             resolve({ success: true, watchedFully: true, unavailable: false });
           })
           .catch((error) => {
-            console.error('Monetag ad error:', error);
+            console.error('Monetag rewarded ad error:', error);
             resolve({ success: false, watchedFully: false, unavailable: false });
           });
       } else {
@@ -82,7 +77,7 @@ export default function HamburgerMenu() {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          await window.Adsgram.init({ blockId: "int-19149" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
@@ -105,24 +100,26 @@ export default function HamburgerMenu() {
     setIsShowingAds(true);
     
     try {
-      const monetagResult = await showMonetagAd();
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (monetagResult.unavailable) {
-        showNotification("Ads not available. Please try again later.", "error");
-        setIsShowingAds(false);
-        return;
-      }
-      
-      if (!monetagResult.watchedFully) {
+      if (!adsgramSuccess) {
         showNotification("Please watch the ad completely to redeem!", "error");
         setIsShowingAds(false);
         return;
       }
       
-      const adsgramSuccess = await showAdsgramAd();
+      // Then show Monetag rewarded ad
+      const monetagResult = await showMonetagRewardedAd();
       
-      if (!adsgramSuccess) {
-        showNotification("Please complete all ads to redeem your code!", "error");
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
+        redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+        return;
+      }
+      
+      if (!monetagResult.watchedFully) {
+        showNotification("Please watch the ad completely to redeem!", "error");
         setIsShowingAds(false);
         return;
       }

@@ -133,15 +133,15 @@ export default function StreakCard({ user }: StreakCardProps) {
     });
   };
 
-  const showMonetagPopupAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+  const showMonetagRewardedAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
       if (typeof window.show_10306459 === 'function') {
-        window.show_10306459('pop')
+        window.show_10306459()
           .then(() => {
             resolve({ success: true, unavailable: false });
           })
           .catch((error) => {
-            console.error('Monetag popup ad error:', error);
+            console.error('Monetag rewarded ad error:', error);
             resolve({ success: false, unavailable: false });
           });
       } else {
@@ -156,20 +156,25 @@ export default function StreakCard({ user }: StreakCardProps) {
     setIsClaiming(true);
     
     try {
-      const popupResult = await showMonetagPopupAd();
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        const adSuccess = await showAdsgramAd();
-        if (!adSuccess) {
-          showNotification("Please watch the ad completely to claim your bonus.", "error");
-          setIsClaiming(false);
-          return;
-        }
+      if (!adsgramSuccess) {
+        showNotification("Please watch the ad completely to claim your bonus.", "error");
+        setIsClaiming(false);
+        return;
+      }
+      
+      // Then show Monetag rewarded ad
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
         claimStreakMutation.mutate();
         return;
       }
       
-      if (!popupResult.success) {
+      if (!monetagResult.success) {
         showNotification("Please watch the ad completely to claim your bonus.", "error");
         setIsClaiming(false);
         return;
