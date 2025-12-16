@@ -10,7 +10,6 @@ import CountryBlockedScreen from "@/components/CountryBlockedScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
-import ChannelJoinPopup from "@/components/ChannelJoinPopup";
 
 declare global {
   interface Window {
@@ -174,11 +173,9 @@ function App() {
   const [banReason, setBanReason] = useState<string>();
   const [isCountryBlocked, setIsCountryBlocked] = useState(false);
   const [userCountryCode, setUserCountryCode] = useState<string | null>(null);
-  const [isChannelGroupVerified, setIsChannelGroupVerified] = useState<boolean | null>(null);
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingCountry, setIsCheckingCountry] = useState(true);
-  const [isCheckingMembership, setIsCheckingMembership] = useState(true);
-  const [showJoinPopup, setShowJoinPopup] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
   
   const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
@@ -186,13 +183,11 @@ function App() {
     try {
       const headers: Record<string, string> = {};
       
-      // Send Telegram data for admin detection
       const tg = window.Telegram?.WebApp;
       if (tg?.initData) {
         headers['x-telegram-data'] = tg.initData;
       }
       
-      // Also send cached user ID if available
       const cachedUser = localStorage.getItem("tg_user");
       if (cachedUser) {
         try {
@@ -207,7 +202,6 @@ function App() {
       });
       const data = await response.json();
       
-      // Store user's country code for instant block detection
       if (data.country) {
         setUserCountryCode(data.country.toUpperCase());
       }
@@ -224,61 +218,20 @@ function App() {
     }
   }, []);
 
-  const checkMembership = useCallback(async () => {
-    try {
-      const headers: Record<string, string> = {};
-      
-      // Send Telegram initData for secure membership verification
-      // The backend will verify the signature to prevent spoofing
-      const tg = window.Telegram?.WebApp;
-      if (tg?.initData) {
-        headers['x-telegram-data'] = tg.initData;
-      } else {
-        // No Telegram data available - cannot verify membership securely
-        console.log('No Telegram initData available for membership check');
-        setIsChannelGroupVerified(false);
-        setIsCheckingMembership(false);
-        return;
-      }
-      
-      // Use secure check-membership endpoint
-      const response = await fetch('/api/check-membership', {
-        cache: 'no-store',
-        headers
-      });
-      const data = await response.json();
-      
-      if (data.success && data.isVerified) {
-        setIsChannelGroupVerified(true);
-      } else {
-        setIsChannelGroupVerified(false);
-      }
-    } catch (err) {
-      console.error("Membership check error:", err);
-      setIsChannelGroupVerified(false);
-    } finally {
-      setIsCheckingMembership(false);
-    }
-  }, []);
-
   useEffect(() => {
     checkCountry();
   }, [checkCountry]);
 
-  // Listen for real-time country block changes via WebSocket
   useEffect(() => {
     const handleCountryBlockChange = (event: CustomEvent) => {
       const { action, countryCode } = event.detail;
       
-      console.log(`🌍 Country block change: ${countryCode} - ${action}`);
+      console.log(`Country block change: ${countryCode} - ${action}`);
       
-      // If user's country matches the blocked country, update immediately
       if (userCountryCode && countryCode === userCountryCode) {
         if (action === 'blocked') {
-          console.log('🚫 Your country was just blocked!');
           setIsCountryBlocked(true);
         } else if (action === 'unblocked') {
-          console.log('✅ Your country was just unblocked!');
           setIsCountryBlocked(false);
         }
       }
@@ -299,8 +252,7 @@ function App() {
     if (isDevMode) {
       console.log('Development mode: Skipping Telegram authentication');
       setTelegramId('dev-user-123');
-      setIsChannelGroupVerified(false);
-      setIsCheckingMembership(false);
+      setIsAuthenticating(false);
       return;
     }
     
@@ -364,43 +316,20 @@ function App() {
           if (data.banned) {
             setIsBanned(true);
             setBanReason(data.reason);
-            setIsCheckingMembership(false);
           } else if (userTelegramId) {
             setTelegramId(userTelegramId);
-            checkMembership();
-          } else {
-            setIsCheckingMembership(false);
-            setIsChannelGroupVerified(false);
           }
+          setIsAuthenticating(false);
         })
         .catch(() => {
-          setIsCheckingMembership(false);
-          setIsChannelGroupVerified(false);
+          setIsAuthenticating(false);
         });
     } else {
-      setIsCheckingMembership(false);
-      setIsChannelGroupVerified(false);
+      setIsAuthenticating(false);
     }
-  }, [checkMembership, isDevMode, isCheckingCountry, isCountryBlocked]);
+  }, [isDevMode, isCheckingCountry, isCountryBlocked]);
 
-  const handleMembershipVerified = useCallback(() => {
-    setIsChannelGroupVerified(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isChannelGroupVerified && telegramId) {
-      setShowJoinPopup(true);
-    } else {
-      setShowJoinPopup(false);
-    }
-  }, [isChannelGroupVerified, telegramId]);
-
-  const handlePopupVerified = useCallback(() => {
-    setShowJoinPopup(false);
-    setIsChannelGroupVerified(true);
-  }, []);
-
-  if (isCheckingCountry) {
+  if (isCheckingCountry || isAuthenticating) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="flex gap-1">
@@ -418,18 +347,6 @@ function App() {
 
   if (isBanned) {
     return <BanScreen reason={banReason} />;
-  }
-
-  if (isCheckingMembership) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="flex gap-1">
-          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
-          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
-          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
-        </div>
-      </div>
-    );
   }
 
   if (!telegramId && !isDevMode) {
@@ -454,12 +371,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppContent />
-        {showJoinPopup && telegramId && !isDevMode && (
-          <ChannelJoinPopup 
-            telegramId={telegramId} 
-            onVerified={handlePopupVerified}
-          />
-        )}
       </TooltipProvider>
     </QueryClientProvider>
   );
