@@ -329,18 +329,18 @@ export default function Home() {
     });
   };
 
-  const showMonetagPopupAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+  const showMonetagRewardedAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      console.log('🎬 Attempting to show Monetag popup ad...');
+      console.log('🎬 Attempting to show Monetag rewarded ad...');
       if (typeof window.show_10306459 === 'function') {
-        console.log('✅ Monetag SDK found, calling popup ad...');
-        window.show_10306459('pop')
+        console.log('✅ Monetag SDK found, calling rewarded ad...');
+        window.show_10306459()
           .then(() => {
-            console.log('✅ Monetag popup ad completed successfully');
+            console.log('✅ Monetag rewarded ad completed successfully');
             resolve({ success: true, unavailable: false });
           })
           .catch((error) => {
-            console.error('❌ Monetag popup ad error:', error);
+            console.error('❌ Monetag rewarded ad error:', error);
             resolve({ success: false, unavailable: false });
           });
       } else {
@@ -369,25 +369,36 @@ export default function Home() {
     if (isConverting || convertMutation.isPending) return;
     
     setIsConverting(true);
-    console.log('💱 Convert started, showing popup ad...');
+    console.log('💱 Convert started, showing AdsGram ad first...');
     
     try {
-      const popupResult = await showMonetagPopupAd();
-      console.log('📊 Popup ad result:', popupResult);
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        console.log('⚠️ Ads unavailable, proceeding with convert');
-        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
-        return;
-      }
-      
-      if (!popupResult.success) {
+      if (!adsgramSuccess) {
         showNotification("Please watch the ad to convert.", "error");
         setIsConverting(false);
         return;
       }
       
-      console.log('✅ Ad watched, converting');
+      // Then show Monetag rewarded ad
+      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
+        console.log('⚠️ Monetag unavailable, proceeding with convert');
+        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+        return;
+      }
+      
+      if (!monetagResult.success) {
+        showNotification("Please watch the ad to convert.", "error");
+        setIsConverting(false);
+        return;
+      }
+      
+      console.log('✅ Both ads watched, converting');
       convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
       
     } catch (error) {
@@ -404,20 +415,25 @@ export default function Home() {
     setIsClaimingStreak(true);
     
     try {
-      const popupResult = await showMonetagPopupAd();
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        const adSuccess = await showAdsgramAd();
-        if (!adSuccess) {
-          showNotification("Please watch the ad completely to claim your bonus.", "error");
-          setIsClaimingStreak(false);
-          return;
-        }
+      if (!adsgramSuccess) {
+        showNotification("Please watch the ad completely to claim your bonus.", "error");
+        setIsClaimingStreak(false);
+        return;
+      }
+      
+      // Then show Monetag rewarded ad
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
         claimStreakMutation.mutate();
         return;
       }
       
-      if (!popupResult.success) {
+      if (!monetagResult.success) {
         showNotification("Please watch the ad completely to claim your bonus.", "error");
         setIsClaimingStreak(false);
         return;
@@ -440,25 +456,36 @@ export default function Home() {
     if (isApplyingPromo || redeemPromoMutation.isPending) return;
     
     setIsApplyingPromo(true);
-    console.log('🎫 Promo code claim started, showing popup ad...');
+    console.log('🎫 Promo code claim started, showing AdsGram ad first...');
     
     try {
-      const popupResult = await showMonetagPopupAd();
-      console.log('📊 Popup ad result:', popupResult);
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        console.log('⚠️ Ads unavailable, proceeding with promo claim');
-        redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
-        return;
-      }
-      
-      if (!popupResult.success) {
+      if (!adsgramSuccess) {
         showNotification("Please watch the ad to claim your promo code.", "error");
         setIsApplyingPromo(false);
         return;
       }
       
-      console.log('✅ Ad watched, claiming promo code');
+      // Then show Monetag rewarded ad
+      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
+        console.log('⚠️ Monetag unavailable, proceeding with promo claim');
+        redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+        return;
+      }
+      
+      if (!monetagResult.success) {
+        showNotification("Please watch the ad to claim your promo code.", "error");
+        setIsApplyingPromo(false);
+        return;
+      }
+      
+      console.log('✅ Both ads watched, claiming promo code');
       redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
     } catch (error) {
       console.error('Promo claim error:', error);
