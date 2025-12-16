@@ -1182,21 +1182,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Process 10% referral commission for referrer (if user was referred)
+        // NOTE: user.referredBy stores the referrer's REFERRAL CODE, not their user ID
         if (user.referredBy) {
           try {
-            // CRITICAL: Validate referrer exists before adding commission
-            const referrer = await storage.getUser(user.referredBy);
+            // CRITICAL: Look up referrer by referral code (not user ID!)
+            const referrer = await storage.getUserByReferralCode(user.referredBy);
             if (referrer) {
               const referralCommissionPAD = Math.round(adRewardPAD * 0.1);
               await storage.addEarning({
-                userId: user.referredBy,
+                userId: referrer.id, // Use the referrer's actual user ID
                 amount: String(referralCommissionPAD),
                 source: 'referral_commission',
                 description: `10% commission from ${user.username || user.telegram_id}'s ad watch`,
               });
+              console.log(`💰 Referral commission: ${referralCommissionPAD} PAD credited to referrer ${referrer.id} (code: ${user.referredBy})`);
             } else {
               // Referrer no longer exists - clean up orphaned reference
-              console.warn(`⚠️ Referrer ${user.referredBy} no longer exists, clearing orphaned referral for user ${userId}`);
+              console.warn(`⚠️ Referrer with code ${user.referredBy} no longer exists, clearing orphaned referral for user ${userId}`);
               await storage.clearOrphanedReferral(userId);
             }
           } catch (commissionError) {
