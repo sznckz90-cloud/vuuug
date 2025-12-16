@@ -21,7 +21,7 @@ export default function BanScreen({ reason }: BanScreenProps) {
   }, []);
 
   const handleContactSupport = () => {
-    window.open('https://t.me/PaidAdsCommunity', '_blank');
+    window.open('https://t.me/PaidAdzGroup', '_blank');
   };
 
   const handleSelfUnban = async () => {
