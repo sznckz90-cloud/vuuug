@@ -701,16 +701,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { initData, startParam } = req.body;
       
+      const refererUrl = req.headers['referer'] || req.headers['referrer'] || '';
+      console.log(`🔐 Auth request received - initData: ${initData ? 'YES' : 'NO'}, startParam: ${startParam || 'NONE'}, referer: ${refererUrl}`);
+      
+      let effectiveStartParam = startParam;
+      if (!effectiveStartParam && refererUrl) {
+        try {
+          const refUrl = new URL(refererUrl);
+          effectiveStartParam = refUrl.searchParams.get('startapp') || refUrl.searchParams.get('tgWebAppStartParam') || undefined;
+          if (effectiveStartParam) {
+            console.log(`📎 Extracted startParam from referer URL: ${effectiveStartParam}`);
+          }
+        } catch (e) {}
+      }
+      
       if (!initData) {
         console.log('⚠️ No initData provided - checking for cached user_id in headers');
         const cachedUserId = req.headers['x-user-id'];
         
         if (cachedUserId) {
           console.log('✅ Using cached user_id from headers:', cachedUserId);
-          // Note: Returning users clicking referral links won't create new referrals
-          // Referrals are only created for NEW users with valid initData
-          if (startParam) {
-            console.log(`ℹ️ Returning user has startParam=${startParam} but referrals only apply to new users`);
+          
+          if (effectiveStartParam) {
+            console.log(`🔄 Returning user has startParam=${effectiveStartParam} - attempting referral bind for existing user`);
+            try {
+              const existingUser = await storage.getUserByTelegramId(cachedUserId);
+              if (existingUser && !existingUser.referredBy) {
+                const referrer = await storage.getUserByReferralCode(effectiveStartParam);
+                if (referrer && referrer.id !== existingUser.id) {
+                  const existingReferral = await storage.getReferralByUsers(referrer.id, existingUser.id);
+                  if (!existingReferral) {
+                    await storage.createReferral(referrer.id, existingUser.id);
+                    console.log(`✅ Late referral created for returning user: ${referrer.id} -> ${existingUser.id}`);
+                    return res.json({ success: true, user: cachedUserId, referralProcessed: true });
+                  }
+                }
+              }
+            } catch (lateRefErr) {
+              console.error('⚠️ Late referral processing failed:', lateRefErr);
+            }
           }
           return res.json({ success: true, user: cachedUserId, referralProcessed: false });
         }
@@ -763,14 +792,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process referral if startParam (referral code) was provided
       // CRITICAL FIX: Process referrals for BOTH new users AND existing users who don't have a referrer yet
       let referralProcessed = false;
-      if (startParam && startParam !== telegramUser.id.toString()) {
-        console.log(`🔄 Processing Mini App referral: referralCode=${startParam}, user=${telegramUser.id}, isNewUser=${isNewUser}`);
+      const finalStartParam = effectiveStartParam || startParam;
+      if (finalStartParam && finalStartParam !== telegramUser.id.toString()) {
+        console.log(`🔄 Processing Mini App referral: referralCode=${finalStartParam}, user=${telegramUser.id}, isNewUser=${isNewUser}`);
         try {
           // First, find the referrer by referral code
-          const referrer = await storage.getUserByReferralCode(startParam);
+          const referrer = await storage.getUserByReferralCode(finalStartParam);
           
           if (!referrer) {
-            console.log(`❌ Invalid referral code from Mini App: ${startParam}`);
+            console.log(`❌ Invalid referral code from Mini App: ${finalStartParam}`);
           } else if (referrer.id === upsertedUser.id) {
             console.log(`⚠️ Self-referral prevented: ${upsertedUser.id}`);
           } else {
@@ -875,10 +905,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(users.id, userId));
       }
       
-      // Add referral link with fallback bot username - use WebApp format for direct app opening
+      // Add referral link with fallback bot username - use /start flow for reliable referral tracking
       const botUsername = process.env.BOT_USERNAME || "PaidAdzbot";
-      const webAppName = process.env.WEBAPP_NAME || "app";
-      const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       res.json({
         ...user,
@@ -2083,8 +2112,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null) ||
                     'https://vuuug.onrender.com';
       
-      // Build the WebApp URL with referral code
-      const webAppUrl = `${appUrl}?startapp=${user.referralCode}`;
+      // Build the referral URL using /start flow for reliable referral tracking
+      const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
+      const webAppUrl = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       // Get share banner image URL
       const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
@@ -7911,8 +7941,7 @@ ${walletAddress}
       }
 
       const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
-      const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
-      const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       const appUrl = process.env.RENDER_EXTERNAL_URL || 
                     (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
@@ -7920,7 +7949,7 @@ ${walletAddress}
                     'https://vuuug.onrender.com';
 
       const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
-      const webAppUrl = `${appUrl}?startapp=${user.referralCode}`;
+      const webAppUrl = referralLink;
 
       console.log(`📤 Preparing share message for user ${userId}`);
       console.log(`   Image URL: ${shareImageUrl}`);
@@ -7929,6 +7958,7 @@ ${walletAddress}
 
       // Use savePreparedInlineMessage (Bot API 8.0+) to prepare the message
       // This creates a prepared message that can be shared via WebApp.shareMessage()
+      // Use regular URL button to trigger /start command for reliable referral tracking
       const inlineResult = {
         type: 'photo',
         id: `share_${user.referralCode}_${Date.now()}`,
@@ -7943,7 +7973,7 @@ ${walletAddress}
             [
               {
                 text: '🚀 Start Earning',
-                web_app: { url: webAppUrl }
+                url: referralLink
               }
             ]
           ]
@@ -8022,8 +8052,7 @@ ${walletAddress}
       }
 
       const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
-      const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
-      const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+      const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
       // Return just the referral link for the new share flow
       return res.json({ 

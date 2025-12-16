@@ -360,7 +360,7 @@ export async function sendSharePhotoToChat(
   chatId: string,
   imageUrl: string,
   caption: string,
-  webAppUrl: string,
+  referralUrl: string,
   buttonText: string = 'Start Earning'
 ): Promise<{ success: boolean; messageId?: number; error?: string }> {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -371,7 +371,7 @@ export async function sendSharePhotoToChat(
   try {
     console.log(`📷 Sending share photo to chat ${chatId}...`);
     console.log(`   Image URL: ${imageUrl}`);
-    console.log(`   WebApp URL: ${webAppUrl}`);
+    console.log(`   Referral URL: ${referralUrl}`);
 
     const payload = {
       chat_id: chatId,
@@ -383,7 +383,7 @@ export async function sendSharePhotoToChat(
           [
             {
               text: buttonText,
-              web_app: { url: webAppUrl }
+              url: referralUrl
             }
           ]
         ]
@@ -536,12 +536,11 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
       return true;
     }
 
-    // Build the referral link
+    // Build the referral link - use /start flow for reliable referral tracking
     const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'PaidAdzbot';
-    const webAppName = process.env.VITE_WEBAPP_NAME || process.env.WEBAPP_NAME || 'app';
-    const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+    const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
     
-    // Get the app URL for the WebApp button
+    // Get the app URL for the share banner image
     const appUrl = process.env.RENDER_EXTERNAL_URL || 
                   (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : null) ||
                   (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null) ||
@@ -565,14 +564,10 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
     // Get the share banner image URL - use public URL
     const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
     
-    // Build WebApp URL with referral code (opens the Mini App directly)
-    const webAppUrl = `${appUrl}?startapp=${user.referralCode}`;
-    
     console.log(`📷 Share image URL: ${shareImageUrl}`);
-    console.log(`🔗 WebApp URL: ${webAppUrl}`);
     console.log(`🔗 Referral Link: ${referralLink}`);
 
-    // Create inline query result with photo + WebApp button
+    // Create inline query result with photo + URL button (triggers /start for referral tracking)
     const results = [
       {
         type: 'photo',
@@ -588,7 +583,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
             [
               {
                 text: '🚀 Start Earning',
-                web_app: { url: webAppUrl }
+                url: referralLink
               }
             ]
           ]
@@ -666,8 +661,7 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
           
           if (user && user.referralCode) {
             const botUsername = process.env.VITE_BOT_USERNAME || 'PaidAdzbot';
-            const webAppName = process.env.WEBAPP_NAME || 'app';
-            const referralLink = `https://t.me/${botUsername}/${webAppName}?startapp=${user.referralCode}`;
+            const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
             
             const inviteMessage = `👫🏼 <b>Invite Your Friends!</b>
 
