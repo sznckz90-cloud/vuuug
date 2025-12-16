@@ -758,30 +758,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error sending welcome message:', welcomeError);
           // Don't fail authentication if welcome message fails
         }
-        
-        // Process referral if startParam (referral code) was provided for new users
-        let referralProcessed = false;
-        if (startParam && startParam !== telegramUser.id.toString()) {
-          console.log(`🔄 Processing Mini App referral: referralCode=${startParam}, newUser=${telegramUser.id}`);
-          try {
-            const referrer = await storage.getUserByReferralCode(startParam);
-            if (referrer && referrer.id !== upsertedUser.id) {
+      }
+      
+      // Process referral if startParam (referral code) was provided
+      // CRITICAL FIX: Process referrals for BOTH new users AND existing users who don't have a referrer yet
+      let referralProcessed = false;
+      if (startParam && startParam !== telegramUser.id.toString()) {
+        console.log(`🔄 Processing Mini App referral: referralCode=${startParam}, user=${telegramUser.id}, isNewUser=${isNewUser}`);
+        try {
+          // First, find the referrer by referral code
+          const referrer = await storage.getUserByReferralCode(startParam);
+          
+          if (!referrer) {
+            console.log(`❌ Invalid referral code from Mini App: ${startParam}`);
+          } else if (referrer.id === upsertedUser.id) {
+            console.log(`⚠️ Self-referral prevented: ${upsertedUser.id}`);
+          } else {
+            // CANONICAL CHECK: Use referrals table as source of truth to check if referral exists
+            const existingReferral = await storage.getReferralByUsers(referrer.id, upsertedUser.id);
+            
+            if (existingReferral) {
+              console.log(`ℹ️ Referral already exists in referrals table: ${referrer.id} -> ${upsertedUser.id}`);
+            } else {
               console.log(`👤 Found referrer via Mini App: ${referrer.id} (${referrer.firstName || 'No name'})`);
               await storage.createReferral(referrer.id, upsertedUser.id);
               console.log(`✅ Referral created via Mini App: ${referrer.id} -> ${upsertedUser.id}`);
               referralProcessed = true;
-            } else if (!referrer) {
-              console.log(`❌ Invalid referral code from Mini App: ${startParam}`);
             }
-          } catch (referralError) {
-            console.error('❌ Mini App referral processing failed:', referralError);
-            // Don't fail authentication if referral processing fails
           }
+        } catch (referralError) {
+          console.error('❌ Mini App referral processing failed:', referralError);
+          // Don't fail authentication if referral processing fails
         }
-        return res.json({ ...upsertedUser, referralProcessed });
       }
       
-      res.json(upsertedUser);
+      res.json({ ...upsertedUser, referralProcessed });
     } catch (error) {
       console.error('Telegram authentication error:', error);
       res.status(500).json({ message: 'Authentication failed' });

@@ -281,6 +281,81 @@ export async function sendUserTelegramNotification(userId: string, message: stri
   }
 }
 
+// Escape HTML special characters to prevent Telegram parsing errors
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Send notification to referrer when referred user watches their first ad
+export async function sendReferralRewardNotification(
+  referrerTelegramId: string,
+  referredUserName: string,
+  rewardAmount: string
+): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('❌ Telegram bot token not configured for referral reward notification');
+    return false;
+  }
+
+  try {
+    const safeName = escapeHtml(referredUserName);
+    const safeAmount = escapeHtml(rewardAmount);
+    
+    const message = `🎉 <b>New Referral Activity!</b>
+
+Your friend <b>${safeName}</b> watched their first ad.
+💰 You earned <b>${safeAmount} PAD</b>.
+
+Keep inviting more friends to earn more!`;
+
+    const result = await sendUserTelegramNotification(referrerTelegramId, message);
+    if (!result) {
+      console.error(`❌ Failed to send referral reward notification to ${referrerTelegramId}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('❌ Error sending referral reward notification:', error);
+    return false;
+  }
+}
+
+// Send notification to referrer when they earn commission from referred user's ad watch
+export async function sendReferralCommissionNotification(
+  referrerTelegramId: string,
+  referredUserName: string,
+  commissionAmount: string
+): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('❌ Telegram bot token not configured for referral commission notification');
+    return false;
+  }
+
+  try {
+    const safeName = escapeHtml(referredUserName);
+    const safeAmount = escapeHtml(commissionAmount);
+    
+    const message = `💰 <b>Referral Commission!</b>
+
+Your friend <b>${safeName}</b> watched an ad.
+You earned <b>${safeAmount} PAD</b> (10% commission).
+
+Keep growing your network to earn more!`;
+
+    const result = await sendUserTelegramNotification(referrerTelegramId, message);
+    if (!result) {
+      console.error(`❌ Failed to send referral commission notification to ${referrerTelegramId}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('❌ Error sending referral commission notification:', error);
+    return false;
+  }
+}
+
 export async function sendSharePhotoToChat(
   chatId: string,
   imageUrl: string,
@@ -1694,9 +1769,10 @@ ${walletAddress}
       // Extract referral code if present (e.g., /start REF123)
       const referralCode = parameter;
       
-      // Process referral if referral code was provided (only for new users)
-      if (isNewUser && referralCode && referralCode !== chatId) {
-        console.log(`🔄 Processing referral: referralCode=${referralCode}, newUser=${chatId}, isNewUser=${isNewUser}`);
+      // CRITICAL FIX: Process referral for BOTH new users AND existing users without a referrer
+      // This fixes the bug where users who visited before and then clicked a referral link weren't tracked
+      if (referralCode && referralCode !== chatId) {
+        console.log(`🔄 Processing referral: referralCode=${referralCode}, user=${chatId}, isNewUser=${isNewUser}`);
         try {
           // Find the referrer by referral_code (NOT telegram_id or user_id)
           const referrer = await storage.getUserByReferralCode(referralCode);
@@ -1741,41 +1817,25 @@ ${walletAddress}
                 return true;
               }
               
-              console.log(`💾 Creating referral relationship: ${referrer.id} -> ${dbUser.id}`);
-              const createdReferral = await storage.createReferral(referrer.id, dbUser.id);
-              console.log(`✅ Referral created successfully in database:`, {
-                referralId: createdReferral.id,
-                referrerId: createdReferral.referrerId,
-                refereeId: createdReferral.refereeId,
-                status: createdReferral.status,
-                rewardAmount: createdReferral.rewardAmount
-              });
+              // CANONICAL CHECK: Use referrals table as source of truth to check if referral exists
+              const existingReferral = await storage.getReferralByUsers(referrer.id, dbUser.id);
               
-              // Verify the referral was saved by querying it back
-              const verifyReferral = await storage.getReferralByUsers(referrer.id, dbUser.id);
-              if (verifyReferral) {
-                console.log(`✅ Referral verification successful - found in database`);
+              if (existingReferral) {
+                console.log(`ℹ️ Referral already exists in referrals table: ${referrer.id} -> ${dbUser.id}`);
               } else {
-                console.error(`❌ Referral verification failed - not found in database after creation`);
+                console.log(`💾 Creating referral relationship: ${referrer.id} -> ${dbUser.id}`);
+                const createdReferral = await storage.createReferral(referrer.id, dbUser.id);
+                console.log(`✅ Referral created successfully in database:`, {
+                  referralId: createdReferral.id,
+                  referrerId: createdReferral.referrerId,
+                  refereeId: createdReferral.refereeId,
+                  status: createdReferral.status,
+                  rewardAmount: createdReferral.rewardAmount
+                });
               }
-              
-              // Referral notifications removed - only withdrawal notifications are sent via Telegram
-              console.log(`ℹ️ Referral created for ${referrer.telegram_id}, no notification sent (feature disabled)`);
-
             }
           } else {
             console.log(`❌ Invalid referral code: ${referralCode} - no user found with this referral code`);
-            // Let's also check what referral codes exist in the database
-            console.log(`🔍 Debugging: Let's check existing referral codes...`);
-            try {
-              const allUsers = await storage.getAllUsers(); // We'll need to implement this
-              console.log(`📋 Total users in database: ${allUsers.length}`);
-              allUsers.forEach(user => {
-                console.log(`  - User ${user.id}: RefCode="${user.referralCode}", TelegramID=${user.telegram_id}`);
-              });
-            } catch (debugError) {
-              console.error('❌ Failed to fetch users for debugging:', debugError);
-            }
           }
         } catch (error) {
           console.error('❌ Referral processing failed:', error);
@@ -1790,9 +1850,6 @@ ${walletAddress}
           });
         }
       } else {
-        if (!isNewUser) {
-          console.log(`ℹ️  Skipping referral - user ${chatId} already exists`);
-        }
         if (!referralCode) {
           console.log(`ℹ️  No referral code provided in /start command`);
         }

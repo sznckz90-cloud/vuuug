@@ -831,6 +831,26 @@ export class DatabaseStorage implements IStorage {
             );
             console.log(`✅ Referral bonus: $${referralRewardUSD} USD awarded to ${referral.referrerId} from ${userId}'s ${referralAdsRequired} ad watches`);
           }
+
+          // CRITICAL: Send notification to referrer when their friend watches their first ad
+          try {
+            const { sendReferralRewardNotification } = await import('./telegram');
+            const referrer = await this.getUser(referral.referrerId);
+            const referredUser = await this.getUser(userId);
+            
+            if (referrer && referrer.telegram_id && referredUser) {
+              const referredName = referredUser.username || referredUser.firstName || 'your friend';
+              await sendReferralRewardNotification(
+                referrer.telegram_id,
+                referredName,
+                String(referralRewardPAD)
+              );
+              console.log(`📩 Referral reward notification sent to ${referrer.telegram_id}`);
+            }
+          } catch (notifyError) {
+            console.error('❌ Error sending referral reward notification:', notifyError);
+            // Don't throw - notification failure shouldn't block the referral process
+          }
         }
       }
     } catch (error) {
