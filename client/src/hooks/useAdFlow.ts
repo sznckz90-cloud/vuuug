@@ -43,7 +43,7 @@ export function useAdFlow() {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "19148" }).show();
+          await window.Adsgram.init({ blockId: "int-19149" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
@@ -59,24 +59,32 @@ export function useAdFlow() {
     setIsShowingAds(true);
     
     try {
+      // Show AdsGram int-19149 first
+      setAdStep('adsgram');
+      const adsgramSuccess = await showAdsgramAd();
+      
+      if (!adsgramSuccess) {
+        return { success: false, monetagWatched: false, adsgramWatched: false };
+      }
+      
+      // Then show Monetag rewarded ad
       setAdStep('monetag');
       const monetagResult = await showMonetagAd();
       
       if (monetagResult.unavailable) {
-        return { success: false, monetagWatched: false, adsgramWatched: false };
+        // If Monetag unavailable, succeed with just AdsGram
+        setAdStep('complete');
+        return { success: true, monetagWatched: false, adsgramWatched: true };
       }
       
       if (!monetagResult.watchedFully) {
-        return { success: false, monetagWatched: false, adsgramWatched: false };
+        return { success: false, monetagWatched: false, adsgramWatched: true };
       }
-      
-      setAdStep('adsgram');
-      const adsgramSuccess = await showAdsgramAd();
       
       setAdStep('complete');
       
       return { 
-        success: monetagResult.success && adsgramSuccess, 
+        success: true, 
         monetagWatched: monetagResult.watchedFully,
         adsgramWatched: adsgramSuccess 
       };
