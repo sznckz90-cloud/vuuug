@@ -1416,25 +1416,41 @@ export class DatabaseStorage implements IStorage {
       const currency = 'USD';
       const userBalance = parseFloat(user.usdBalance || '0');
 
-      // Verify user has sufficient balance
-      if (userBalance < totalToDeduct) {
-        return { success: false, message: `User has insufficient USD balance for withdrawal` };
+      // Handle balance deduction with support for legacy withdrawals
+      // Legacy withdrawals (created before the fix) already had balance deducted at request time
+      // New withdrawals have balance deducted only on approval
+      const bugDeducted = withdrawalDetails?.bugDeducted ? parseFloat(withdrawalDetails.bugDeducted) : 0;
+      const currentBugBalance = parseFloat(user.bugBalance || '0');
+      
+      if (userBalance >= totalToDeduct) {
+        // User has sufficient balance - this is a NEW withdrawal (or user earned more since request)
+        // Deduct balance now on approval
+        console.log(`💰 Deducting USD balance now for approved withdrawal`);
+        console.log(`💰 Net amount: $${withdrawalAmount}, Total to deduct (with fee): $${totalToDeduct}`);
+        console.log(`💰 Previous USD balance: ${userBalance}, New balance: ${(userBalance - totalToDeduct).toFixed(10)}`);
+
+        const newUsdBalance = (userBalance - totalToDeduct).toFixed(10);
+        const newBugBalance = Math.max(0, currentBugBalance - bugDeducted).toFixed(10);
+        
+        await db
+          .update(users)
+          .set({
+            usdBalance: newUsdBalance,
+            bugBalance: newBugBalance,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
+        console.log(`✅ USD balance deducted: ${userBalance} → ${newUsdBalance}`);
+        if (bugDeducted > 0) {
+          console.log(`✅ BUG balance deducted: ${currentBugBalance} → ${newBugBalance}`);
+        }
+      } else {
+        // User doesn't have sufficient balance - this is a LEGACY withdrawal
+        // Balance was already deducted at request time (old flow), so just approve without deducting again
+        console.log(`⚠️ Legacy withdrawal detected - balance was already deducted at request time`);
+        console.log(`💰 Current USD balance: ${userBalance}, Required: ${totalToDeduct}`);
+        console.log(`✅ Approving without additional balance deduction (legacy flow)`);
       }
-
-      console.log(`💰 Deducting USD balance now for approved withdrawal`);
-      console.log(`💰 Net amount: $${withdrawalAmount}, Total to deduct (with fee): $${totalToDeduct}`);
-      console.log(`💰 Previous USD balance: ${userBalance}, New balance: ${(userBalance - totalToDeduct).toFixed(10)}`);
-
-      // Deduct the TOTAL amount (including fee) from USD balance
-      const newUsdBalance = (userBalance - totalToDeduct).toFixed(10);
-      await db
-        .update(users)
-        .set({
-          usdBalance: newUsdBalance,
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, withdrawal.userId));
-      console.log(`✅ USD balance deducted: ${userBalance} → ${newUsdBalance}`);
 
       // Record withdrawal in earnings history for proper stats tracking
       const paymentSystemName = withdrawal.method;
@@ -1489,10 +1505,48 @@ export class DatabaseStorage implements IStorage {
         return { success: false, message: 'Withdrawal is not pending' };
       }
 
-      // No refund needed - balance was never deducted (it's only deducted on approval)
+      // Get user and withdrawal details for potential refund
+      const user = await this.getUser(withdrawal.userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+      
       const withdrawalAmount = parseFloat(withdrawal.amount);
-      console.log(`❌ Withdrawal #${withdrawalId} rejected - no refund needed (balance was never deducted)`);
-      console.log(`💡 User balance remains unchanged at: ${withdrawal.amount} TON will stay available`);
+      const withdrawalDetails = withdrawal.details as any;
+      const totalToRefund = withdrawalDetails?.totalDeducted 
+        ? parseFloat(withdrawalDetails.totalDeducted) 
+        : withdrawalAmount;
+      const bugToRefund = withdrawalDetails?.bugDeducted ? parseFloat(withdrawalDetails.bugDeducted) : 0;
+      const currentUsdBalance = parseFloat(user.usdBalance || '0');
+      const currentBugBalance = parseFloat(user.bugBalance || '0');
+      
+      // Check if this is a LEGACY withdrawal (balance was already deducted at request time)
+      // Legacy withdrawals have insufficient balance because it was already taken
+      // We detect this by checking if the user's balance is lower than expected
+      // For legacy withdrawals, we need to REFUND the balance
+      if (currentUsdBalance < totalToRefund) {
+        // LEGACY withdrawal - refund the balance that was already deducted
+        console.log(`⚠️ Legacy withdrawal detected - refunding balance that was deducted at request time`);
+        const newUsdBalance = (currentUsdBalance + totalToRefund).toFixed(10);
+        const newBugBalance = (currentBugBalance + bugToRefund).toFixed(10);
+        
+        await db
+          .update(users)
+          .set({
+            usdBalance: newUsdBalance,
+            bugBalance: newBugBalance,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, withdrawal.userId));
+        console.log(`💰 USD balance refunded: ${currentUsdBalance} → ${newUsdBalance}`);
+        if (bugToRefund > 0) {
+          console.log(`💰 BUG balance refunded: ${currentBugBalance} → ${newBugBalance}`);
+        }
+      } else {
+        // NEW withdrawal - balance was never deducted, nothing to refund
+        console.log(`❌ Withdrawal #${withdrawalId} rejected - no refund needed (balance was never deducted)`);
+        console.log(`💡 User balance remains unchanged`);
+      }
 
       // Update withdrawal status to rejected
       const updateData: any = { 

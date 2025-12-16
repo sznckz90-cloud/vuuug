@@ -5976,8 +5976,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Store package info if applicable
           if (packageUsdAmount !== null) {
             withdrawalDetails.withdrawalPackage = packageUsdAmount;
-            withdrawalDetails.bugDeducted = minimumBugForWithdrawal;
           }
+          // Always store BUG deduction amount for approval processing (both package and FULL withdrawals)
+          withdrawalDetails.bugDeducted = minimumBugForWithdrawal;
           
           // Store wallet address based on method
           if (method === 'TON') {
@@ -6009,17 +6010,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const [withdrawal] = await tx.insert(withdrawals).values(withdrawalData).returning();
         
-        // Deduct BOTH USD and BUG balances on withdrawal request
-        await tx
-          .update(users)
-          .set({
-            usdBalance: sql`GREATEST(COALESCE(${users.usdBalance}, '0')::numeric - ${usdToDeduct}, 0)`,
-            bugBalance: sql`GREATEST(COALESCE(${users.bugBalance}, '0')::numeric - ${minimumBugForWithdrawal}, 0)`,
-            updatedAt: new Date()
-          })
-          .where(eq(users.id, userId));
-        
-        console.log(`💵 Deducted $${usdToDeduct.toFixed(2)} USD and ${minimumBugForWithdrawal} BUG from user ${userId} for withdrawal`);
+        // NOTE: Balance is NOT deducted here - it will be deducted ONLY when admin approves the withdrawal
+        // This prevents "insufficient balance" errors during approval when balance was already deducted at request time
+        console.log(`📋 Withdrawal request created for $${usdToDeduct.toFixed(2)} USD (balance will be deducted on admin approval)`);
         
         return { 
           withdrawal, 
