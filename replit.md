@@ -71,6 +71,12 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 - **Middleware flow**: IP detection via x-forwarded-for → ip-api.com lookup → database check → block with HTML page or allow.
 - **Database table**: `blocked_countries` stores blocked country codes.
 
+### December 2024 - Referral Notification System Fix
+- **Added missing notification functions**: Implemented `sendReferralRewardNotification` and `sendReferralCommissionNotification` in telegram.ts.
+- **Referral activation notifications**: Referrers now receive Telegram notifications when their invited friends watch their first ad.
+- **HTML escaping**: All user-provided names are properly sanitized before being included in notification messages to prevent Telegram parsing errors.
+- **Notification format**: "New Referral Activity! Your friend watched their first ad. You earned X PAD."
+
 ### December 2024 - Promo Code Bug Fix
 - **Fixed double-reward bug**: Removed duplicate `addEarning()` call from `storage.usePromoCode()` since `routes.ts` already handles balance updates for different reward types (PAD, TON, USD).
 - **Fixed return format**: `usePromoCode()` now returns just the reward amount string, not "amount currency" format.
