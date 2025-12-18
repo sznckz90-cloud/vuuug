@@ -805,10 +805,14 @@ export class DatabaseStorage implements IStorage {
 
         // Activate each pending referral
         for (const referral of pendingReferrals) {
-          // Update referral status to completed
+          // Update referral status to completed AND STORE the reward amounts at time of earning
           await db
             .update(referrals)
-            .set({ status: 'completed' })
+            .set({ 
+              status: 'completed',
+              usdRewardAmount: String(referralRewardUSD),
+              bugRewardAmount: String(referralRewardUSD === '0' ? '0' : (parseFloat(String(referralRewardUSD)) * 50).toFixed(10))
+            })
             .where(eq(referrals.id, referral.id));
 
           // Award PAD referral bonus to referrer (uses admin-configured amount)
@@ -830,6 +834,16 @@ export class DatabaseStorage implements IStorage {
               `Referral bonus - friend watched ${referralAdsRequired} ads (+$${referralRewardUSD} USD)`
             );
             console.log(`✅ Referral bonus: $${referralRewardUSD} USD awarded to ${referral.referrerId} from ${userId}'s ${referralAdsRequired} ad watches`);
+
+            // CRITICAL FIX: Also credit BUG balance for referral bonus
+            const bugRewardAmount = parseFloat(String(referralRewardUSD)) * 50; // Calculate BUG from USD
+            await this.addBUGBalance(
+              referral.referrerId,
+              String(bugRewardAmount),
+              'referral',
+              `Referral bonus - BUG earned (+${bugRewardAmount} BUG)`
+            );
+            console.log(`✅ Referral bonus: ${bugRewardAmount} BUG awarded to ${referral.referrerId}`);
           }
 
           // CRITICAL: Send ONLY ONE notification to referrer when their friend watches their first ad
@@ -3347,6 +3361,101 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error(`Error adding USD balance:`, error);
       throw error;
+    }
+  }
+
+  // Add BUG balance to user (CRITICAL FIX for referral earnings)
+  async addBUGBalance(userId: string, amount: string, source: string, description: string): Promise<void> {
+    try {
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Invalid BUG amount');
+      }
+
+      // Get current BUG balance
+      const [user] = await db
+        .select({ bugBalance: users.bugBalance })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const currentBugBalance = parseFloat(user.bugBalance || '0');
+      const newBugBalance = (currentBugBalance + amountNum).toFixed(10);
+
+      // Update user's BUG balance
+      await db
+        .update(users)
+        .set({
+          bugBalance: newBugBalance,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+
+      // Log the transaction
+      await this.logTransaction({
+        userId,
+        amount: amount,
+        type: 'credit',
+        source: source,
+        description: description,
+        metadata: { rewardType: 'BUG' }
+      });
+
+      console.log(`✅ Added ${amountNum} BUG to user ${userId}. New balance: ${newBugBalance}`);
+    } catch (error) {
+      console.error(`Error adding BUG balance:`, error);
+      throw error;
+    }
+  }
+
+  // Backfill BUG rewards for existing referrals (fix for users who earned before the update)
+  async backfillExistingReferralBUGRewards(): Promise<void> {
+    try {
+      console.log('🔄 Starting backfill of BUG rewards for existing referrals...');
+      
+      // Get all completed referrals that don't have bugRewardAmount set
+      const referralsNeedingBugCredit = await db
+        .select()
+        .from(referrals)
+        .where(and(
+          eq(referrals.status, 'completed'),
+          eq(referrals.bugRewardAmount, '0')
+        ));
+
+      console.log(`📊 Found ${referralsNeedingBugCredit.length} referrals needing BUG credit backfill`);
+
+      for (const ref of referralsNeedingBugCredit) {
+        try {
+          // Calculate BUG from USD amount (if stored) or use default
+          const usdAmount = parseFloat(ref.usdRewardAmount || '0.03');
+          const bugAmount = usdAmount * 50;
+
+          // Update referral record with BUG amount
+          await db
+            .update(referrals)
+            .set({ bugRewardAmount: String(bugAmount) })
+            .where(eq(referrals.id, ref.id));
+
+          // Credit BUG to referrer's balance
+          await this.addBUGBalance(
+            ref.referrerId,
+            String(bugAmount),
+            'referral_backfill',
+            `Backfilled BUG from referral reward (+${bugAmount} BUG)`
+          );
+
+          console.log(`✅ Backfilled ${bugAmount} BUG for referral ${ref.id} to user ${ref.referrerId}`);
+        } catch (error) {
+          console.error(`⚠️ Failed to backfill referral ${ref.id}:`, error);
+        }
+      }
+
+      console.log(`✅ Backfill of BUG rewards completed!`);
+    } catch (error) {
+      console.error('❌ Error during BUG rewards backfill:', error);
     }
   }
 

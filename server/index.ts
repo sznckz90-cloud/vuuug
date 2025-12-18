@@ -15,6 +15,9 @@ console.log('✅ Database schema verified, starting server setup...');
 try {
   const { storage } = await import('./storage');
   await storage.ensureAdminUserExists();
+  
+  // CRITICAL FIX: Backfill BUG rewards for users who earned referrals before the update
+  await storage.backfillExistingReferralBUGRewards();
 } catch (error) {
   console.log('⚠️ Could not ensure system setup:', error);
   // Continue server startup even if setup fails

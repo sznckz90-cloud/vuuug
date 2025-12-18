@@ -1468,21 +1468,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get SUCCESSFUL invites (users who watched 1+ ad AND are not banned)
       const successfulInvitesCount = await storage.getValidReferralCount(userId);
       
-      // Get reward settings from admin settings
-      const [bugRewardSetting] = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bug_reward_per_referral')).limit(1);
-      const bugRewardPerReferral = parseInt(bugRewardSetting?.settingValue || '50');
+      // CRITICAL FIX: Calculate from stored historical referral rewards, NOT current admin settings
+      // This ensures admin setting changes do NOT retroactively change past earnings
+      const completedReferrals = await db
+        .select()
+        .from(referrals)
+        .where(and(
+          eq(referrals.referrerId, userId),
+          eq(referrals.status, 'completed')
+        ));
       
-      // Get referral_reward_usd setting from admin settings
-      const [usdRewardSetting] = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'referral_reward_usd')).limit(1);
-      const referralRewardUSD = parseFloat(usdRewardSetting?.settingValue || '0.03');
+      // Sum all historical USD rewards stored at time of earning
+      let totalUsdEarned = 0;
+      let totalBugEarned = 0;
+      for (const ref of completedReferrals) {
+        totalUsdEarned += parseFloat(ref.usdRewardAmount || '0');
+        totalBugEarned += parseFloat(ref.bugRewardAmount || '0');
+      }
       
-      // Calculate total BUG earned from referrals
-      const totalBugEarned = successfulInvitesCount * bugRewardPerReferral;
-      
-      // Calculate total USD earned from referrals:
-      // Use successful invites count * referral USD reward from admin settings
-      // This accurately reflects the USD earned when friends watch their first ad
-      const totalUsdEarned = successfulInvitesCount * referralRewardUSD;
+      // Fallback to admin settings for pending referrals (not yet earned)
+      // This ensures consistency but doesn't affect already-completed earnings
+      const pendingCount = completedReferrals.length < successfulInvitesCount ? 
+        successfulInvitesCount - completedReferrals.length : 0;
       
       res.json({
         totalInvites: totalInvitesCount,
