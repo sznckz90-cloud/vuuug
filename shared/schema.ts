@@ -147,6 +147,8 @@ export const referrals = pgTable("referrals", {
   referrerId: varchar("referrer_id").references(() => users.id).notNull(),
   refereeId: varchar("referee_id").references(() => users.id).notNull(),
   rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).default("0.50"),
+  usdRewardAmount: decimal("usd_reward_amount", { precision: 30, scale: 10 }).default("0"),
+  bugRewardAmount: decimal("bug_reward_amount", { precision: 30, scale: 10 }).default("0"),
   status: varchar("status").default('pending'),
   createdAt: timestamp("created_at").defaultNow(),
 });
