@@ -3431,6 +3431,7 @@ export class DatabaseStorage implements IStorage {
         SELECT id, referrer_id, status, usd_reward_amount, bug_reward_amount 
         FROM referrals 
         WHERE status = 'completed' AND (bug_reward_amount = '0' OR bug_reward_amount IS NULL)
+        AND usd_reward_amount > 0
       `);
 
       const rows = referralsNeedingBugCredit.rows || [];
@@ -3438,26 +3439,42 @@ export class DatabaseStorage implements IStorage {
 
       for (const ref of rows) {
         try {
-          // Calculate BUG from USD amount (if stored) or use default
-          const usdAmount = parseFloat(ref.usd_reward_amount || '0.03');
+          // Parse USD amount with strict validation
+          const usdReward = ref.usd_reward_amount;
+          if (!usdReward || usdReward === null) {
+            console.log(`⏭️ Skipping referral ${ref.id} - no USD reward amount stored`);
+            continue;
+          }
+
+          const usdAmount = parseFloat(String(usdReward));
+          if (isNaN(usdAmount) || usdAmount <= 0) {
+            console.log(`⏭️ Skipping referral ${ref.id} - invalid USD amount: ${usdReward}`);
+            continue;
+          }
+
+          // Calculate BUG from USD amount (50 BUG per USD)
           const bugAmount = usdAmount * 50;
+          if (isNaN(bugAmount) || bugAmount <= 0) {
+            console.log(`⏭️ Skipping referral ${ref.id} - calculated BUG amount is invalid: ${bugAmount}`);
+            continue;
+          }
 
           // Update referral record with BUG amount
           await db.execute(sql`
             UPDATE referrals 
-            SET bug_reward_amount = ${String(bugAmount)}
+            SET bug_reward_amount = ${bugAmount.toFixed(10)}
             WHERE id = ${ref.id}
           `);
 
           // Credit BUG to referrer's balance
           await this.addBUGBalance(
             ref.referrer_id,
-            String(bugAmount),
+            bugAmount.toFixed(10),
             'referral_backfill',
-            `Backfilled BUG from referral reward (+${bugAmount} BUG)`
+            `Backfilled BUG from referral reward (+${bugAmount.toFixed(2)} BUG)`
           );
 
-          console.log(`✅ Backfilled ${bugAmount} BUG for referral ${ref.id} to user ${ref.referrer_id}`);
+          console.log(`✅ Backfilled ${bugAmount.toFixed(2)} BUG for referral ${ref.id} to user ${ref.referrer_id}`);
         } catch (error) {
           console.error(`⚠️ Failed to backfill referral ${ref.id}:`, error);
         }
