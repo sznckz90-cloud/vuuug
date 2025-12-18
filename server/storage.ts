@@ -3416,38 +3416,48 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log('🔄 Starting backfill of BUG rewards for existing referrals...');
       
+      // First, ensure columns exist
+      try {
+        await db.execute(sql`
+          ALTER TABLE referrals ADD COLUMN IF NOT EXISTS usd_reward_amount DECIMAL(30, 10) DEFAULT '0';
+          ALTER TABLE referrals ADD COLUMN IF NOT EXISTS bug_reward_amount DECIMAL(30, 10) DEFAULT '0';
+        `);
+      } catch (error) {
+        console.log('ℹ️ Referral columns already exist');
+      }
+      
       // Get all completed referrals that don't have bugRewardAmount set
-      const referralsNeedingBugCredit = await db
-        .select()
-        .from(referrals)
-        .where(and(
-          eq(referrals.status, 'completed'),
-          eq(referrals.bugRewardAmount, '0')
-        ));
+      const referralsNeedingBugCredit = await db.execute(sql`
+        SELECT id, referrer_id, status, usd_reward_amount, bug_reward_amount 
+        FROM referrals 
+        WHERE status = 'completed' AND (bug_reward_amount = '0' OR bug_reward_amount IS NULL)
+      `);
 
-      console.log(`📊 Found ${referralsNeedingBugCredit.length} referrals needing BUG credit backfill`);
+      const rows = referralsNeedingBugCredit.rows || [];
+      console.log(`📊 Found ${rows.length} referrals needing BUG credit backfill`);
 
-      for (const ref of referralsNeedingBugCredit) {
+      for (const ref of rows) {
         try {
           // Calculate BUG from USD amount (if stored) or use default
-          const usdAmount = parseFloat(ref.usdRewardAmount || '0.03');
+          const usdAmount = parseFloat(ref.usd_reward_amount || '0.03');
           const bugAmount = usdAmount * 50;
 
           // Update referral record with BUG amount
-          await db
-            .update(referrals)
-            .set({ bugRewardAmount: String(bugAmount) })
-            .where(eq(referrals.id, ref.id));
+          await db.execute(sql`
+            UPDATE referrals 
+            SET bug_reward_amount = ${String(bugAmount)}
+            WHERE id = ${ref.id}
+          `);
 
           // Credit BUG to referrer's balance
           await this.addBUGBalance(
-            ref.referrerId,
+            ref.referrer_id,
             String(bugAmount),
             'referral_backfill',
             `Backfilled BUG from referral reward (+${bugAmount} BUG)`
           );
 
-          console.log(`✅ Backfilled ${bugAmount} BUG for referral ${ref.id} to user ${ref.referrerId}`);
+          console.log(`✅ Backfilled ${bugAmount} BUG for referral ${ref.id} to user ${ref.referrer_id}`);
         } catch (error) {
           console.error(`⚠️ Failed to backfill referral ${ref.id}:`, error);
         }
