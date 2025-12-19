@@ -3230,11 +3230,12 @@ export class DatabaseStorage implements IStorage {
       const rewardPAD = task.taskType === 'partner' ? partnerReward : 
                         parseInt(rewardSetting[0]?.settingValue || (task.taskType === 'bot' ? '20' : '30'));
 
-      // Insert click record
+      // Insert click record (but don't give reward yet - user must claim separately)
       await db.insert(taskClicks).values({
         taskId: taskId,
         publisherId: publisherId,
         rewardAmount: rewardPAD.toString(),
+        claimedAt: null  // Mark as not claimed yet
       });
 
       // Increment current clicks on the task
@@ -3251,37 +3252,13 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(advertiserTasks.id, taskId));
 
-      // Add reward to user's balance
-      const [publisher] = await db
-        .select({ balance: users.balance })
-        .from(users)
-        .where(eq(users.id, publisherId));
-
-      const currentBalance = parseInt(publisher?.balance || '0');
-      const newBalance = currentBalance + rewardPAD;
-
-      await db
-        .update(users)
-        .set({
-          balance: newBalance.toString(),
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, publisherId));
-
-      // Record the earning
-      await db.insert(earnings).values({
-        userId: publisherId,
-        amount: rewardPAD.toString(),
-        source: 'task_completion',
-        description: `Completed ${task.taskType} task: ${task.title}`,
-      });
-
-      console.log(`✅ Task click recorded: ${taskId} by ${publisherId} - Reward: ${rewardPAD} PAD`);
+      console.log(`✅ Task click recorded: ${taskId} by ${publisherId} - Reward ${rewardPAD} PAD ready to claim`);
 
       return {
         success: true,
-        message: "Task click recorded successfully",
+        message: "Task started! Click the claim button to earn your reward.",
         reward: rewardPAD,
+        canClaim: true,
         task: {
           ...task,
           currentClicks: newClickCount,
