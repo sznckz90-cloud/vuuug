@@ -59,6 +59,14 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 
 ## Recent Changes
 
+### December 19, 2024 - Task Verification and Claim System Fixes
+- **Channel/Group Join Task Verification**: Added Telegram bot verification to `/api/tasks/complete/channel` and `/api/tasks/complete/community` endpoints. Users must now verify they joined the channel/group before receiving the reward.
+- **Advertiser Task Claim System**: Modified advertiser tasks to require explicit claim step:
+  - `/api/advertiser-tasks/:taskId/click` now only records the click without giving reward (shows "Task started! Click the claim button to earn your reward.")
+  - New endpoint `/api/advertiser-tasks/:taskId/claim` for users to claim their earned reward after completing the task
+  - Task clicks stored with `claimedAt` field to track claim status
+  - Prevents auto-reward and ensures user intentionally claims after task completion
+
 ### December 2024 - Withdrawal Approval Bug Fix
 - **Fixed "Insufficient USD balance" error during admin approval**: Previously, balance was incorrectly deducted at withdrawal request time AND checked again during approval, causing approval to fail.
 - **Correct withdrawal flow now implemented**:
