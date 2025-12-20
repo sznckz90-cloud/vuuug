@@ -10,6 +10,7 @@ import CountryBlockedScreen from "@/components/CountryBlockedScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
+import ChannelJoinPopup from "@/components/ChannelJoinPopup";
 
 declare global {
   interface Window {
@@ -173,6 +174,8 @@ function App() {
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingCountry, setIsCheckingCountry] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [isMembershipVerified, setIsMembershipVerified] = useState(false);
+  const [isCheckingMembership, setIsCheckingMembership] = useState(true);
   
   const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
@@ -218,6 +221,44 @@ function App() {
   useEffect(() => {
     checkCountry();
   }, [checkCountry]);
+
+  const checkMembership = useCallback(async () => {
+    if (!telegramId || isCountryBlocked || isCheckingCountry) {
+      setIsCheckingMembership(false);
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {};
+      const tg = window.Telegram?.WebApp;
+      if (tg?.initData) {
+        headers['x-telegram-data'] = tg.initData;
+      }
+
+      const response = await fetch('/api/check-membership', { 
+        headers,
+        cache: 'no-store'
+      });
+      const data = await response.json();
+
+      if (data.success && data.isVerified && data.channelMember && data.groupMember) {
+        setIsMembershipVerified(true);
+      } else {
+        setIsMembershipVerified(false);
+      }
+    } catch (err) {
+      console.error("Membership check error:", err);
+      setIsMembershipVerified(false);
+    } finally {
+      setIsCheckingMembership(false);
+    }
+  }, [telegramId, isCountryBlocked, isCheckingCountry]);
+
+  useEffect(() => {
+    if (!isCheckingCountry && !isAuthenticating && telegramId) {
+      checkMembership();
+    }
+  }, [telegramId, isCheckingCountry, isAuthenticating, checkMembership]);
 
   useEffect(() => {
     const handleCountryBlockChange = (event: CustomEvent) => {
@@ -362,6 +403,25 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  if (isCheckingMembership) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="flex gap-1">
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isMembershipVerified && telegramId) {
+    return <ChannelJoinPopup telegramId={telegramId} onVerified={() => {
+      setIsMembershipVerified(true);
+      checkMembership();
+    }} />;
   }
 
   return (
