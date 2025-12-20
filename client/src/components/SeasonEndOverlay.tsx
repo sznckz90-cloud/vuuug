@@ -34,10 +34,10 @@ export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEn
             <div className="mb-6">
               <div className="text-6xl mb-4">⚠️</div>
               <h1 className="text-3xl font-bold text-white mb-2">
-                Season 2 Airdrop Ended
+                Season 3.O Airdrop Ended
               </h1>
               <p className="text-xl text-white/90 font-semibold">
-                Season 3 is Coming Soon!
+                Season 4 is Coming Soon!
               </p>
             </div>
 
@@ -45,11 +45,11 @@ export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEn
               <p className="text-white text-sm leading-relaxed">
                 {isLocked ? (
                   <>
-                    Season 2 has ended and the app is temporarily locked. Please wait for Season 3 announcement. The app will be available again once Season 3 begins.
+                    Season 3.O has ended and the app is temporarily locked. Please wait for Season 4 announcement. The app will be available again once Season 4 begins.
                   </>
                 ) : (
                   <>
-                    Thank you for participating in Season 2! We're preparing exciting new features and rewards for Season 3. Stay tuned for announcements!
+                    Thank you for participating in Season 3.O! We're preparing exciting new features and rewards for Season 4. Stay tuned for announcements!
                   </>
                 )}
               </p>
