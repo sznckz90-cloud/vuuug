@@ -28,8 +28,8 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   const navItems = [
-    { href: "/create-task", icon: Plus, label: "ADD TASK" },
     { href: "/affiliates", icon: HeartHandshake, label: "INVITE" },
+    { href: "/", icon: User, label: "EARN" },
     { href: "/withdraw", icon: CircleDollarSign, label: "PAYOUT" },
   ];
 
@@ -64,36 +64,6 @@ export default function Layout({ children }: LayoutProps) {
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-[#1A1A1A] pb-[env(safe-area-inset-bottom,12px)]">
           <div className="max-w-md mx-auto px-4">
             <div className="flex justify-around items-center py-2.5 pb-3">
-              {/* WATCH with Profile Photo */}
-              <Link href="/">
-                <button
-                  className={`flex flex-col items-center justify-center min-w-[60px] min-h-[52px] transition-all ${
-                    isHomeActive 
-                      ? "text-[#007BFF]" 
-                      : "text-[#AAAAAA] hover:text-[#FFFFFF]"
-                  }`}
-                >
-                  {userPhotoUrl ? (
-                    <img 
-                      src={userPhotoUrl} 
-                      alt="Profile" 
-                      className={`w-7 h-7 rounded-full object-cover transition-all mb-[8px] ${
-                        isHomeActive ? "ring-2 ring-[#007BFF]" : ""
-                      }`}
-                    />
-                  ) : (
-                    <div className={`w-7 h-7 rounded-full bg-[#2a2a2a] flex items-center justify-center mb-[8px] ${
-                      isHomeActive ? "ring-2 ring-[#007BFF]" : ""
-                    }`}>
-                      <User className="w-4 h-4" />
-                    </div>
-                  )}
-                  <span className={`text-[11px] font-medium ${isHomeActive ? 'font-semibold' : ''}`}>
-                    EARN
-                  </span>
-                </button>
-              </Link>
-
               {navItems.map((item) => {
                 const isActive = location === item.href;
                 const Icon = item.icon;
@@ -107,10 +77,30 @@ export default function Layout({ children }: LayoutProps) {
                           : "text-[#AAAAAA] hover:text-[#FFFFFF]"
                       }`}
                     >
-                      <Icon 
-                        className="w-7 h-7 transition-all mb-[8px]"
-                        strokeWidth={isActive ? 2.5 : 2}
-                      />
+                      {item.label === "EARN" && userPhotoUrl && !isActive ? (
+                        <img 
+                          src={userPhotoUrl} 
+                          alt="Profile" 
+                          className="w-7 h-7 rounded-full object-cover transition-all mb-[8px]"
+                        />
+                      ) : item.label === "EARN" && isActive && userPhotoUrl ? (
+                        <img 
+                          src={userPhotoUrl} 
+                          alt="Profile" 
+                          className="w-7 h-7 rounded-full object-cover transition-all mb-[8px] ring-2 ring-[#007BFF]"
+                        />
+                      ) : item.label === "EARN" ? (
+                        <div className={`w-7 h-7 rounded-full bg-[#2a2a2a] flex items-center justify-center mb-[8px] ${
+                          isActive ? "ring-2 ring-[#007BFF]" : ""
+                        }`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <Icon 
+                          className="w-7 h-7 transition-all mb-[8px]"
+                          strokeWidth={isActive ? 2.5 : 2}
+                        />
+                      )}
                       <span className={`text-[11px] font-medium ${isActive ? 'font-semibold' : ''}`}>
                         {item.label}
                       </span>
