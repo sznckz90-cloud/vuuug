@@ -22,7 +22,6 @@ const Home = lazy(() => import("@/pages/Home"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
-const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
 const Store = lazy(() => import("@/pages/Store"));
@@ -45,8 +44,6 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={Home} />
-        <Route path="/task/create" component={CreateTask} />
-        <Route path="/create-task" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/withdraw" component={Withdraw} />
         <Route path="/profile" component={Landing} />
@@ -417,7 +414,7 @@ function App() {
     );
   }
 
-  if (!isMembershipVerified && telegramId) {
+  if (!isMembershipVerified && telegramId && !isDevMode) {
     return <ChannelJoinPopup telegramId={telegramId} onVerified={() => {
       setIsMembershipVerified(true);
       checkMembership();
