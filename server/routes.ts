@@ -8525,5 +8525,45 @@ ${walletAddress}
     }
   });
 
+  // POST /api/mining/purchase - Purchase a booster
+  app.post('/api/mining/purchase', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { boosterId, boosterName, price, durationHours, maxProfit } = req.body;
+
+      if (!boosterId || !price || !durationHours || !maxProfit) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const { purchaseBooster } = await import('./mining');
+      const result = await purchaseBooster(userId, boosterId, boosterName, price, durationHours, maxProfit);
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ Mining purchase error:', error);
+      res.status(400).json({ error: error.message || 'Purchase failed' });
+    }
+  });
+
+  // POST /api/mining/claim - Claim mined TON
+  app.post('/api/mining/claim', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { minedAmount } = req.body;
+
+      if (!minedAmount || minedAmount <= 0) {
+        return res.status(400).json({ error: 'Invalid mined amount' });
+      }
+
+      const { claimMining } = await import('./mining');
+      const result = await claimMining(userId, minedAmount);
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ Mining claim error:', error);
+      res.status(400).json({ error: error.message || 'Claim failed' });
+    }
+  });
+
   return httpServer;
 }
