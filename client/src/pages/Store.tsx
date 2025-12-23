@@ -1,5 +1,6 @@
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
+import CryptoConversionWidget from "@/components/CryptoConversionWidget";
 import { 
   Zap,
   TrendingUp,
@@ -165,6 +166,8 @@ export default function Store() {
           <h1 className="text-2xl font-black text-white mb-1">Booster Shop</h1>
           <p className="text-gray-400 text-sm">Supercharge your earnings</p>
         </div>
+
+        <CryptoConversionWidget />
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           {boosters.map((booster) => (
