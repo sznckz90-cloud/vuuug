@@ -320,6 +320,46 @@ export const blockedCountries = pgTable("blocked_countries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Scratch game history
+export const scratchGameHistory = pgTable("scratch_game_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  values: jsonb("values").notNull(),
+  matched: boolean("matched").default(false),
+  rewardAmount: decimal("reward_amount", { precision: 20, scale: 0 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Scratch game daily plays
+export const scratchGameDaily = pgTable("scratch_game_daily", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  playsRemaining: integer("plays_remaining").default(8),
+  lastResetDate: varchar("last_reset_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Pick and Earn game history
+export const pickGameHistory = pgTable("pick_game_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  cards: jsonb("cards").notNull(),
+  picks: jsonb("picks").notNull(),
+  totalReward: decimal("total_reward", { precision: 20, scale: 0 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Pick and Earn game daily plays
+export const pickGameDaily = pgTable("pick_game_daily", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  attemptsRemaining: integer("attempts_remaining").default(2),
+  lastResetDate: varchar("last_reset_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
@@ -339,6 +379,10 @@ export const insertSpinDataSchema = createInsertSchema(spinData).omit({ id: true
 export const insertSpinHistorySchema = createInsertSchema(spinHistory).omit({ id: true, createdAt: true });
 export const insertDailyMissionSchema = createInsertSchema(dailyMissions).omit({ id: true, createdAt: true });
 export const insertBlockedCountrySchema = createInsertSchema(blockedCountries).omit({ id: true, createdAt: true });
+export const insertScratchGameHistorySchema = createInsertSchema(scratchGameHistory).omit({ id: true, createdAt: true });
+export const insertScratchGameDailySchema = createInsertSchema(scratchGameDaily).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPickGameHistorySchema = createInsertSchema(pickGameHistory).omit({ id: true, createdAt: true });
+export const insertPickGameDailySchema = createInsertSchema(pickGameDaily).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -377,3 +421,11 @@ export type DailyMission = typeof dailyMissions.$inferSelect;
 export type InsertDailyMission = z.infer<typeof insertDailyMissionSchema>;
 export type BlockedCountry = typeof blockedCountries.$inferSelect;
 export type InsertBlockedCountry = z.infer<typeof insertBlockedCountrySchema>;
+export type ScratchGameHistory = typeof scratchGameHistory.$inferSelect;
+export type InsertScratchGameHistory = z.infer<typeof insertScratchGameHistorySchema>;
+export type ScratchGameDaily = typeof scratchGameDaily.$inferSelect;
+export type InsertScratchGameDaily = z.infer<typeof insertScratchGameDailySchema>;
+export type PickGameHistory = typeof pickGameHistory.$inferSelect;
+export type InsertPickGameHistory = z.infer<typeof insertPickGameHistorySchema>;
+export type PickGameDaily = typeof pickGameDaily.$inferSelect;
+export type InsertPickGameDaily = z.infer<typeof insertPickGameDailySchema>;
