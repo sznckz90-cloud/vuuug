@@ -8526,7 +8526,7 @@ ${walletAddress}
   });
 
   // Game API Endpoints
-  const { scratchGameHistory, scratchGameDaily, pickGameHistory, pickGameDaily } = await import("../shared/schema");
+  const { scratchGameHistory, scratchGameDaily, pickGameHistory, pickGameDaily, luckyGameHistory } = await import("../shared/schema");
 
   // GET /api/games/state - Get game state for user
   app.get('/api/games/state', optionalAuth, async (req: any, res) => {
@@ -8760,6 +8760,116 @@ ${walletAddress}
     } catch (error) {
       console.error('Error claiming pick reward:', error);
       res.status(500).json({ error: 'Failed to claim reward' });
+    }
+  });
+
+  // POST /api/games/lucky/play - Play luck game
+  app.post('/api/games/lucky/play', authenticateTelegram, async (req: any, res) => {
+    try {
+      const userId = req.user?.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { predictedValue, betType, chipType, playAmount } = req.body;
+
+      // Validate inputs
+      if (typeof predictedValue !== 'number' || predictedValue < 0 || predictedValue > 100) {
+        return res.status(400).json({ message: 'Invalid predicted value' });
+      }
+      if (!['higher', 'lower'].includes(betType)) {
+        return res.status(400).json({ message: 'Invalid bet type' });
+      }
+      if (!['PAD', 'BUG'].includes(chipType)) {
+        return res.status(400).json({ message: 'Invalid chip type' });
+      }
+      if (typeof playAmount !== 'number' || playAmount <= 0) {
+        return res.status(400).json({ message: 'Invalid play amount' });
+      }
+
+      // Get user and check balance
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: 'User not found' });
+
+      const balance = chipType === 'PAD' 
+        ? parseInt(user.balance || '0')
+        : parseInt(user.bugBalance || '0');
+
+      if (balance < playAmount) {
+        return res.status(400).json({ message: 'Insufficient balance' });
+      }
+
+      // Generate lucky number (0-99)
+      const luckyNumber = Math.floor(Math.random() * 100);
+
+      // Determine if user won
+      let won = false;
+      if (betType === 'higher') {
+        won = luckyNumber > predictedValue;
+      } else {
+        won = luckyNumber < predictedValue;
+      }
+
+      // Calculate multiplier based on win probability
+      let multiplier = 1;
+      if (betType === 'higher') {
+        multiplier = 1 + (100 - predictedValue) / 100;
+      } else {
+        multiplier = 1 + predictedValue / 100;
+      }
+
+      // Calculate reward
+      const reward = won ? Math.floor(playAmount * multiplier) : 0;
+
+      // Update user balance
+      if (won) {
+        // Add reward
+        if (chipType === 'PAD') {
+          await db.update(users)
+            .set({ balance: sql`${users.balance} + ${reward}` })
+            .where(eq(users.id, userId));
+        } else {
+          await db.update(users)
+            .set({ bugBalance: sql`${users.bugBalance} + ${reward}` })
+            .where(eq(users.id, userId));
+        }
+      } else {
+        // Deduct loss
+        if (chipType === 'PAD') {
+          await db.update(users)
+            .set({ balance: sql`${users.balance} - ${playAmount}` })
+            .where(eq(users.id, userId));
+        } else {
+          await db.update(users)
+            .set({ bugBalance: sql`${users.bugBalance} - ${playAmount}` })
+            .where(eq(users.id, userId));
+        }
+      }
+
+      // Record game history
+      await db.insert(luckyGameHistory).values({
+        userId,
+        predictedValue,
+        betType,
+        chipType,
+        playAmount: String(playAmount),
+        luckyNumber,
+        won,
+        rewardAmount: String(reward),
+        multiplier: String(multiplier),
+      });
+
+      res.json({
+        predictedValue,
+        betType,
+        chipType,
+        playAmount,
+        luckyNumber,
+        won,
+        reward,
+        multiplier,
+      });
+    } catch (error) {
+      console.error('Error playing lucky game:', error);
+      res.status(500).json({ error: 'Failed to play game', message: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
