@@ -8525,5 +8525,243 @@ ${walletAddress}
     }
   });
 
+  // Game API Endpoints
+  const { scratchGameHistory, scratchGameDaily, pickGameHistory, pickGameDaily } = await import("../shared/schema");
+
+  // GET /api/games/state - Get game state for user
+  app.get('/api/games/state', optionalAuth, async (req: any, res) => {
+    try {
+      let userId = req.user?.user?.id;
+      
+      // Fallback for development mode - check session directly
+      if (!userId && req.session?.user?.user?.id) {
+        userId = req.session.user.user.id;
+      }
+      
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const scratchDaily = await db.query.scratchGameDaily.findFirst({
+        where: (table) => eq(table.userId, userId),
+      });
+
+      const pickDaily = await db.query.pickGameDaily.findFirst({
+        where: (table) => eq(table.userId, userId),
+      });
+
+      res.json({
+        scratchGame: scratchDaily || { playsRemaining: 8 },
+        pickGame: pickDaily || { attemptsRemaining: 2 },
+      });
+    } catch (error) {
+      console.error('Error fetching game state:', error);
+      res.status(500).json({ error: 'Failed to fetch game state' });
+    }
+  });
+
+  // POST /api/games/scratch/play - Start a scratch game
+  app.post('/api/games/scratch/play', optionalAuth, async (req: any, res) => {
+    try {
+      let userId = req.user?.user?.id;
+      
+      // Fallback for development mode - check session directly
+      if (!userId && req.session?.user?.user?.id) {
+        userId = req.session.user.user.id;
+      }
+      
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const today = new Date().toISOString().split('T')[0];
+      let daily = await db.query.scratchGameDaily.findFirst({
+        where: (table) => eq(table.userId, userId),
+      });
+
+      // Create daily record if it doesn't exist or reset if date changed
+      if (!daily || daily.lastResetDate !== today) {
+        if (daily) {
+          await db.update(scratchGameDaily)
+            .set({ playsRemaining: 8, lastResetDate: today })
+            .where(eq(scratchGameDaily.userId, userId));
+        } else {
+          await db.insert(scratchGameDaily).values({
+            userId,
+            playsRemaining: 8,
+            lastResetDate: today,
+          });
+        }
+        daily = { playsRemaining: 8, lastResetDate: today };
+      }
+
+      if (daily.playsRemaining <= 0) {
+        return res.status(400).json({ error: 'No plays remaining today' });
+      }
+
+      const values = [
+        Math.floor(Math.random() * 100) + 1,
+        Math.floor(Math.random() * 100) + 1,
+        Math.floor(Math.random() * 100) + 1,
+      ];
+
+      res.json({ values });
+    } catch (error) {
+      console.error('Error starting scratch game:', error);
+      res.status(500).json({ error: 'Failed to start game' });
+    }
+  });
+
+  // POST /api/games/scratch/claim - Claim scratch game reward
+  app.post('/api/games/scratch/claim', optionalAuth, async (req: any, res) => {
+    try {
+      let userId = req.user?.user?.id;
+      
+      // Fallback for development mode - check session directly
+      if (!userId && req.session?.user?.user?.id) {
+        userId = req.session.user.user.id;
+      }
+      
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { values, matched, reward } = req.body;
+      const today = new Date().toISOString().split('T')[0];
+
+      await db.insert(scratchGameHistory).values({
+        userId,
+        values: JSON.stringify(values),
+        matched,
+        rewardAmount: matched ? reward : 0,
+      });
+
+      let daily = await db.query.scratchGameDaily.findFirst({
+        where: (table) => eq(table.userId, userId),
+      });
+
+      if (!daily) {
+        daily = (await db.insert(scratchGameDaily).values({
+          userId,
+          playsRemaining: 7,
+          lastResetDate: today,
+        }).returning())[0];
+      } else {
+        await db.update(scratchGameDaily)
+          .set({ playsRemaining: daily.playsRemaining - 1 })
+          .where(eq(scratchGameDaily.userId, userId));
+      }
+
+      if (matched) {
+        await storage.addEarning(userId, reward, 'scratch_game', `Scratch game win: ${reward} PAD`);
+      }
+
+      res.json({ success: true, reward: matched ? reward : 0 });
+    } catch (error) {
+      console.error('Error claiming scratch reward:', error);
+      res.status(500).json({ error: 'Failed to claim reward' });
+    }
+  });
+
+  // POST /api/games/pick/start - Start pick and earn game
+  app.post('/api/games/pick/start', optionalAuth, async (req: any, res) => {
+    try {
+      let userId = req.user?.user?.id;
+      
+      // Fallback for development mode - check session directly
+      if (!userId && req.session?.user?.user?.id) {
+        userId = req.session.user.user.id;
+      }
+      
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const today = new Date().toISOString().split('T')[0];
+      let daily = await db.query.pickGameDaily.findFirst({
+        where: (table) => eq(table.userId, userId),
+      });
+
+      // Create daily record if it doesn't exist or reset if date changed
+      if (!daily || daily.lastResetDate !== today) {
+        if (daily) {
+          await db.update(pickGameDaily)
+            .set({ attemptsRemaining: 2, lastResetDate: today })
+            .where(eq(pickGameDaily.userId, userId));
+        } else {
+          await db.insert(pickGameDaily).values({
+            userId,
+            attemptsRemaining: 2,
+            lastResetDate: today,
+          });
+        }
+        daily = { attemptsRemaining: 2, lastResetDate: today };
+      }
+
+      if (daily.attemptsRemaining <= 0) {
+        return res.status(400).json({ error: 'No attempts remaining today' });
+      }
+
+      const cards = [
+        { value: Math.random() > 0.5 ? Math.floor(Math.random() * 100) + 1 : 0, revealed: false },
+        { value: Math.random() > 0.5 ? Math.floor(Math.random() * 100) + 1 : 0, revealed: false },
+        { value: Math.random() > 0.5 ? Math.floor(Math.random() * 100) + 1 : 0, revealed: false },
+        { value: Math.random() > 0.5 ? Math.floor(Math.random() * 100) + 1 : 0, revealed: false },
+      ];
+
+      res.json({ cards });
+    } catch (error) {
+      console.error('Error starting pick game:', error);
+      res.status(500).json({ error: 'Failed to start game' });
+    }
+  });
+
+  // POST /api/games/pick/claim - Claim pick and earn rewards
+  app.post('/api/games/pick/claim', optionalAuth, async (req: any, res) => {
+    try {
+      let userId = req.user?.user?.id;
+      
+      // Fallback for development mode - check session directly
+      if (!userId && req.session?.user?.user?.id) {
+        userId = req.session.user.user.id;
+      }
+      
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { picks, cards } = req.body;
+      const today = new Date().toISOString().split('T')[0];
+
+      const totalReward = picks.reduce((sum: number, idx: number) => {
+        return sum + (cards[idx]?.value || 0);
+      }, 0);
+
+      await db.insert(pickGameHistory).values({
+        userId,
+        cards: JSON.stringify(cards),
+        picks: JSON.stringify(picks),
+        totalReward,
+      });
+
+      let daily = await db.query.pickGameDaily.findFirst({
+        where: (table) => eq(table.userId, userId),
+      });
+
+      if (!daily) {
+        daily = (await db.insert(pickGameDaily).values({
+          userId,
+          attemptsRemaining: 1,
+          lastResetDate: today,
+        }).returning())[0];
+      } else {
+        await db.update(pickGameDaily)
+          .set({ attemptsRemaining: daily.attemptsRemaining - 1 })
+          .where(eq(pickGameDaily.userId, userId));
+      }
+
+      if (totalReward > 0) {
+        await storage.addEarning(userId, totalReward, 'pick_game', `Pick and Earn game: ${totalReward} PAD`);
+      }
+
+      res.json({ success: true, reward: totalReward });
+    } catch (error) {
+      console.error('Error claiming pick reward:', error);
+      res.status(500).json({ error: 'Failed to claim reward' });
+    }
+  });
+
   return httpServer;
 }
