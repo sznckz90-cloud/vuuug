@@ -23,9 +23,8 @@ export default function Game() {
   const [betType, setBetType] = useState<"higher" | "lower" | null>(null);
   const [chipType, setChipType] = useState<"PAD" | "BUG" | null>(null);
   const [playAmount, setPlayAmount] = useState("");
-  const [showResult, setShowResult] = useState(false);
-  const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [isRevealing, setIsRevealing] = useState(false);
+  const [luckyNumberDisplay, setLuckyNumberDisplay] = useState<number | null>(null);
 
   const { data: currentUser, refetch: refetchUser } = useQuery({
     queryKey: ["/api/auth/user"],
@@ -83,21 +82,31 @@ export default function Game() {
     },
     onSuccess: (data) => {
       setIsRevealing(true);
+      setLuckyNumberDisplay(data.luckyNumber);
       
       setTimeout(() => {
-        setGameResult({
-          predictedValue: data.predictedValue,
-          betType: data.betType,
-          chipType: data.chipType,
-          playAmount: data.playAmount,
-          luckyNumber: data.luckyNumber,
-          won: data.won,
-          reward: data.reward,
-          multiplier: data.multiplier,
-        });
         setIsRevealing(false);
-        setShowResult(true);
-      }, 1500);
+        
+        if (data.won) {
+          toast({
+            description: `🎉 You Won! +${data.reward} ${data.chipType}`,
+            variant: "default",
+          });
+        } else {
+          toast({
+            description: `❌ You Lost ${data.playAmount} ${data.chipType}`,
+            variant: "destructive",
+          });
+        }
+        
+        // Reset game and refetch user
+        setBetType(null);
+        setChipType(null);
+        setPlayAmount("");
+        setSliderValue(50);
+        setLuckyNumberDisplay(null);
+        refetchUser();
+      }, 2000);
     },
     onError: (error) => {
       toast({
@@ -121,15 +130,6 @@ export default function Game() {
   const amount = parseInt(playAmount) || 0;
   const isValidAmount = amount > 0 && amount <= availableBalance;
 
-  const handleCloseResult = () => {
-    setShowResult(false);
-    setGameResult(null);
-    setBetType(null);
-    setChipType(null);
-    setPlayAmount("");
-    setSliderValue(50);
-    refetchUser();
-  };
 
   return (
     <Layout>
@@ -140,27 +140,11 @@ export default function Game() {
             <Dices className="w-6 h-6 text-[#4cd3ff]" />
             <h1 className="text-2xl font-bold text-white">GAME</h1>
           </div>
-          <p className="text-gray-400 text-sm">Slider-Based Luck Game</p>
+          <p className="text-gray-400 text-sm">Control the slider to move the predicted value, then bet whether the lucky number will be higher or lower than the predicted value. A lucky number will be randomly generated from 0 to 99. If your prediction is correct, you win the reward.</p>
         </div>
 
         {/* Main Container */}
         <div className="max-w-md mx-auto">
-          {/* Balance Badges */}
-          <div className="flex gap-3 mb-8">
-            <div className="flex-1 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 rounded-full px-4 py-3 text-center">
-              <div className="text-xs text-[#4cd3ff] font-semibold">PAD</div>
-              <div className="text-xl font-bold text-white">
-                {Math.round(parseInt(currentUser?.balance || "0"))}
-              </div>
-            </div>
-            <div className="flex-1 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#ADFF2F]/30 rounded-full px-4 py-3 text-center">
-              <div className="text-xs text-[#ADFF2F] font-semibold">BUG</div>
-              <div className="text-xl font-bold text-white">
-                {Math.round(parseInt(currentUser?.bugBalance || "0"))}
-              </div>
-            </div>
-          </div>
-
           {/* Game Card */}
           <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] space-y-5">
             {/* Slider Section */}
@@ -174,7 +158,23 @@ export default function Game() {
 
               {/* Slider */}
               <div className="relative mb-4">
-                <div className="h-8 bg-gradient-to-r from-red-600 via-gray-400 to-yellow-400 rounded-full shadow-lg"></div>
+                <div className="h-8 bg-gradient-to-r from-[#00d4ff] via-[#6366f1] to-[#ec4899] rounded-full shadow-lg shadow-[#4cd3ff]/50"></div>
+                
+                {/* Lucky Number Indicator ON Slider */}
+                {isRevealing && luckyNumberDisplay !== null && (
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center"
+                    style={{
+                      left: `calc(${luckyNumberDisplay}% - 18px)`,
+                      zIndex: 10,
+                    }}
+                  >
+                    <div className="text-white text-xs font-bold bg-[#4cd3ff] rounded-full w-9 h-9 flex items-center justify-center animate-pulse border-2 border-white">
+                      {luckyNumberDisplay}
+                    </div>
+                  </div>
+                )}
+                
                 <input
                   type="range"
                   min="0"
@@ -218,30 +218,6 @@ export default function Game() {
               </div>
             </div>
 
-            {/* Info Cards */}
-            {betType && (
-              <div className="grid grid-cols-3 gap-3 bg-[#0a0a0a] rounded-lg p-3">
-                <div className="text-center">
-                  <div className="text-white text-xs font-semibold mb-1">Multiplier</div>
-                  <div className="text-[#4cd3ff] font-bold text-lg">
-                    {multiplier.toFixed(2)} X
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-white text-xs font-semibold mb-1">Roll Over</div>
-                  <div className="text-[#ADFF2F] font-bold text-lg">
-                    {Math.ceil(winChance * availableBalance)}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-white text-xs font-semibold mb-1">Win %</div>
-                  <div className="text-[#4cd3ff] font-bold text-lg">
-                    {(winChance * 100).toFixed(1)}%
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Bet Type Selection */}
             <div>
               <div className="text-white text-sm font-bold mb-2">Bet Type</div>
@@ -250,8 +226,8 @@ export default function Game() {
                   onClick={() => setBetType("higher")}
                   className={`py-3 rounded-lg font-bold text-base transition-all ${
                     betType === "higher"
-                      ? "bg-gradient-to-br from-[#4cd3ff] to-[#00a0d2] text-black shadow-lg shadow-[#4cd3ff]/50"
-                      : "bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 text-white hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10"
+                      ? "bg-[#007BFF] text-white shadow-lg"
+                      : "bg-[#1a1a1a] border border-[#333333] text-white hover:border-[#007BFF]"
                   }`}
                 >
                   Higher
@@ -260,8 +236,8 @@ export default function Game() {
                   onClick={() => setBetType("lower")}
                   className={`py-3 rounded-lg font-bold text-base transition-all ${
                     betType === "lower"
-                      ? "bg-gradient-to-br from-[#4cd3ff] to-[#00a0d2] text-black shadow-lg shadow-[#4cd3ff]/50"
-                      : "bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 text-white hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10"
+                      ? "bg-[#007BFF] text-white shadow-lg"
+                      : "bg-[#1a1a1a] border border-[#333333] text-white hover:border-[#007BFF]"
                   }`}
                 >
                   Lower
@@ -269,30 +245,28 @@ export default function Game() {
               </div>
             </div>
 
-            {/* Chip Selection */}
+            {/* Token Selection */}
             <div>
-              <div className="text-white text-sm font-bold mb-2">Select Chip</div>
+              <div className="text-white text-sm font-bold mb-2">Select Token</div>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setChipType("PAD")}
-                  className={`py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${
+                  className={`py-3 rounded-lg font-bold transition-all ${
                     chipType === "PAD"
-                      ? "bg-gradient-to-br from-[#4cd3ff] to-[#00a0d2] text-black ring-2 ring-[#4cd3ff]"
-                      : "bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 text-white hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10"
+                      ? "bg-[#007BFF] text-white shadow-lg"
+                      : "bg-[#1a1a1a] border border-[#333333] text-white hover:border-[#007BFF]"
                   }`}
                 >
-                  <div className="w-5 h-5 bg-gradient-to-br from-[#b8b8b8] to-[#666666] rounded-full"></div>
                   PAD
                 </button>
                 <button
                   onClick={() => setChipType("BUG")}
-                  className={`py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${
+                  className={`py-3 rounded-lg font-bold transition-all ${
                     chipType === "BUG"
-                      ? "bg-gradient-to-br from-[#ADFF2F] to-[#7FFF00] text-black ring-2 ring-[#ADFF2F]"
-                      : "bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#ADFF2F]/30 text-white hover:border-[#ADFF2F] hover:bg-[#ADFF2F]/10"
+                      ? "bg-[#007BFF] text-white shadow-lg"
+                      : "bg-[#1a1a1a] border border-[#333333] text-white hover:border-[#007BFF]"
                   }`}
                 >
-                  <div className="w-5 h-5 bg-gradient-to-br from-[#ADFF2F] to-[#7FFF00] rounded-full"></div>
                   BUG
                 </button>
               </div>
@@ -300,30 +274,30 @@ export default function Game() {
 
             {/* Play Amount */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-white text-sm font-bold">Play Amount</label>
-                <div className="flex gap-2">
+              <label className="text-white text-sm font-bold mb-2 block">Play Amount</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={playAmount}
+                  onChange={(e) => setPlayAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full bg-[#0d0d0d] text-white rounded-lg px-4 py-3 pr-24 text-base border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
                   <button
-                    onClick={() => setPlayAmount(String(Math.floor(availableBalance * 0.5)))}
-                    className="text-[#4cd3ff] text-xs hover:underline font-semibold"
+                    onClick={() => setPlayAmount(String(Math.max(1, Math.floor((parseInt(playAmount) || 0) / 2))))}
+                    className="bg-[#333333] hover:bg-[#444444] text-white px-2 py-1 rounded text-xs font-semibold"
                   >
-                    1/2
+                    ½
                   </button>
                   <button
-                    onClick={() => setPlayAmount(String(availableBalance))}
-                    className="text-[#4cd3ff] text-xs hover:underline font-semibold"
+                    onClick={() => setPlayAmount(String((parseInt(playAmount) || 1) * 2))}
+                    className="bg-[#333333] hover:bg-[#444444] text-white px-2 py-1 rounded text-xs font-semibold"
                   >
-                    Max
+                    2×
                   </button>
                 </div>
               </div>
-              <input
-                type="number"
-                value={playAmount}
-                onChange={(e) => setPlayAmount(e.target.value)}
-                placeholder="Enter amount"
-                className="w-full bg-[#0d0d0d] text-white rounded-lg px-4 py-3 text-base border border-[#4cd3ff]/30 focus:border-[#4cd3ff] focus:outline-none focus:ring-2 focus:ring-[#4cd3ff]/30"
-              />
               {playAmount && !isValidAmount && (
                 <div className="text-red-500 text-xs mt-1 font-semibold">
                   Insufficient balance
@@ -335,26 +309,17 @@ export default function Game() {
             <button
               onClick={() => playMutation.mutate()}
               disabled={!canPlay || !isValidAmount}
-              className="w-full bg-gradient-to-br from-[#4cd3ff] to-[#00a0d2] hover:from-[#5ce6ff] hover:to-[#00b5e5] text-black font-bold py-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg shadow-lg hover:shadow-[#4cd3ff]/50"
+              className="w-full bg-[#007BFF] hover:bg-[#0056b3] text-white font-bold py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
-              {playMutation.isPending ? "Playing..." : "PLAY"}
+              {playMutation.isPending ? "Playing..." : "Play"}
             </button>
 
             {/* Potential Payout */}
             {playAmount && isValidAmount && betType && (
-              <div className="bg-[#0a0a0a] rounded-lg p-4 border border-[#4cd3ff]/30">
+              <div>
                 <div className="text-gray-400 text-xs mb-1">Potential Payout</div>
-                <div className="flex items-center gap-3">
-                  <div className="text-white font-bold text-2xl">
-                    {(amount * multiplier).toFixed(0)}
-                  </div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                    chipType === "PAD" 
-                      ? "bg-gradient-to-br from-[#b8b8b8] to-[#666666]"
-                      : "bg-gradient-to-br from-[#ADFF2F] to-[#7FFF00]"
-                  }`}>
-                    {chipType === "PAD" ? "P" : "B"}
-                  </div>
+                <div className="text-white font-bold text-2xl">
+                  {(amount * multiplier).toFixed(0)}
                 </div>
               </div>
             )}
@@ -362,96 +327,6 @@ export default function Game() {
         </div>
       </div>
 
-      {/* Result Popup */}
-      {showResult && gameResult && (
-        <Dialog open={true} onOpenChange={(open) => !open && handleCloseResult()}>
-          <DialogContent className="bg-black border-[#2a2a2a] max-w-sm mx-auto p-0 overflow-hidden">
-            <div className="bg-black px-6 py-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-white">Game Result</h2>
-                <button
-                  onClick={handleCloseResult}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Lucky Number Reveal */}
-              <div className="text-center mb-6">
-                {isRevealing ? (
-                  <div className="text-6xl font-bold text-white animate-pulse">?</div>
-                ) : (
-                  <>
-                    <div className="text-sm text-gray-400 mb-2">Lucky Number</div>
-                    <div className="text-7xl font-bold text-[#4cd3ff] drop-shadow-lg">
-                      {gameResult.luckyNumber}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {!isRevealing && (
-                <>
-                  {/* Game Details */}
-                  <div className="space-y-3 mb-6 bg-[#0a0a0a] rounded-lg p-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Your Prediction</span>
-                      <span className="text-white font-bold">
-                        {gameResult.predictedValue}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Bet Type</span>
-                      <span className="text-white font-bold capitalize">
-                        {gameResult.betType}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Result</span>
-                      <span
-                        className={`font-bold text-lg ${
-                          gameResult.won ? "text-[#4cd3ff]" : "text-red-500"
-                        }`}
-                      >
-                        {gameResult.won ? "WIN" : "LOSE"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Reward Display */}
-                  {gameResult.won && (
-                    <div className="bg-gradient-to-r from-[#4cd3ff]/20 to-[#00a0d2]/20 border border-[#4cd3ff]/30 rounded-lg p-5 mb-5 text-center">
-                      <div className="text-sm text-[#4cd3ff] font-semibold mb-1">You Won</div>
-                      <div className="text-4xl font-bold text-white">
-                        +{gameResult.reward}
-                      </div>
-                      <div className="text-xs text-[#4cd3ff] mt-1">{gameResult.chipType}</div>
-                    </div>
-                  )}
-
-                  {!gameResult.won && (
-                    <div className="bg-gradient-to-r from-red-600/20 to-red-700/20 border border-red-500/30 rounded-lg p-5 mb-5 text-center">
-                      <div className="text-lg font-bold text-white">Oops! You lost</div>
-                      <div className="text-sm text-red-300 mt-2">
-                        -{gameResult.playAmount} {gameResult.chipType}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Close Button */}
-                  <button
-                    onClick={handleCloseResult}
-                    className="w-full bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 text-white font-bold py-3 rounded-lg transition-all shadow-lg hover:shadow-[#4cd3ff]/50"
-                  >
-                    Play Again
-                  </button>
-                </>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </Layout>
   );
 }
