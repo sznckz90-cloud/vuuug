@@ -320,44 +320,19 @@ export const blockedCountries = pgTable("blocked_countries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Scratch game history
-export const scratchGameHistory = pgTable("scratch_game_history", {
+// Lucky game history - tracks all luck game results
+export const luckyGameHistory = pgTable("lucky_game_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  values: jsonb("values").notNull(),
-  matched: boolean("matched").default(false),
-  rewardAmount: decimal("reward_amount", { precision: 20, scale: 0 }).default("0"),
+  predictedValue: integer("predicted_value").notNull(), // User's slider selection (0-100)
+  betType: varchar("bet_type").notNull(), // 'higher' or 'lower'
+  chipType: varchar("chip_type").notNull(), // 'PAD' or 'BUG'
+  playAmount: decimal("play_amount", { precision: 30, scale: 10 }).notNull(),
+  luckyNumber: integer("lucky_number").notNull(), // Generated lucky number (0-99)
+  won: boolean("won").notNull(),
+  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).default("0"),
+  multiplier: decimal("multiplier", { precision: 10, scale: 4 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Scratch game daily plays
-export const scratchGameDaily = pgTable("scratch_game_daily", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull().unique(),
-  playsRemaining: integer("plays_remaining").default(8),
-  lastResetDate: varchar("last_reset_date"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Pick and Earn game history
-export const pickGameHistory = pgTable("pick_game_history", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  cards: jsonb("cards").notNull(),
-  picks: jsonb("picks").notNull(),
-  totalReward: decimal("total_reward", { precision: 20, scale: 0 }).default("0"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Pick and Earn game daily plays
-export const pickGameDaily = pgTable("pick_game_daily", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull().unique(),
-  attemptsRemaining: integer("attempts_remaining").default(2),
-  lastResetDate: varchar("last_reset_date"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Insert schemas
@@ -379,10 +354,7 @@ export const insertSpinDataSchema = createInsertSchema(spinData).omit({ id: true
 export const insertSpinHistorySchema = createInsertSchema(spinHistory).omit({ id: true, createdAt: true });
 export const insertDailyMissionSchema = createInsertSchema(dailyMissions).omit({ id: true, createdAt: true });
 export const insertBlockedCountrySchema = createInsertSchema(blockedCountries).omit({ id: true, createdAt: true });
-export const insertScratchGameHistorySchema = createInsertSchema(scratchGameHistory).omit({ id: true, createdAt: true });
-export const insertScratchGameDailySchema = createInsertSchema(scratchGameDaily).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPickGameHistorySchema = createInsertSchema(pickGameHistory).omit({ id: true, createdAt: true });
-export const insertPickGameDailySchema = createInsertSchema(pickGameDaily).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLuckyGameHistorySchema = createInsertSchema(luckyGameHistory).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -421,11 +393,5 @@ export type DailyMission = typeof dailyMissions.$inferSelect;
 export type InsertDailyMission = z.infer<typeof insertDailyMissionSchema>;
 export type BlockedCountry = typeof blockedCountries.$inferSelect;
 export type InsertBlockedCountry = z.infer<typeof insertBlockedCountrySchema>;
-export type ScratchGameHistory = typeof scratchGameHistory.$inferSelect;
-export type InsertScratchGameHistory = z.infer<typeof insertScratchGameHistorySchema>;
-export type ScratchGameDaily = typeof scratchGameDaily.$inferSelect;
-export type InsertScratchGameDaily = z.infer<typeof insertScratchGameDailySchema>;
-export type PickGameHistory = typeof pickGameHistory.$inferSelect;
-export type InsertPickGameHistory = z.infer<typeof insertPickGameHistorySchema>;
-export type PickGameDaily = typeof pickGameDaily.$inferSelect;
-export type InsertPickGameDaily = z.infer<typeof insertPickGameDailySchema>;
+export type LuckyGameHistory = typeof luckyGameHistory.$inferSelect;
+export type InsertLuckyGameHistory = z.infer<typeof insertLuckyGameHistorySchema>;
