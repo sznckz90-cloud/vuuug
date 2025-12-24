@@ -8528,8 +8528,13 @@ ${walletAddress}
   // POST /api/mining/purchase - Purchase a booster
   app.post('/api/mining/purchase', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.session.userId;
+      const userId = req.session.userId || req.session.user?.user?.id || req.user?.id;
+      
       const { boosterId, boosterName, price, durationHours, maxProfit } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
       if (!boosterId || !price || !durationHours || !maxProfit) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -8548,8 +8553,12 @@ ${walletAddress}
   // POST /api/mining/claim - Claim mined TON
   app.post('/api/mining/claim', authenticateTelegram, async (req: any, res) => {
     try {
-      const userId = req.session.userId;
+      const userId = req.session.userId || req.session.user?.user?.id || req.user?.id;
       const { minedAmount } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
       if (!minedAmount || minedAmount <= 0) {
         return res.status(400).json({ error: 'Invalid mined amount' });
