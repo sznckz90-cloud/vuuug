@@ -25,6 +25,8 @@ const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
 const Store = lazy(() => import("@/pages/Store"));
+const Game = lazy(() => import("@/pages/Game"));
+const Missions = lazy(() => import("@/pages/Missions"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -46,6 +48,8 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/withdraw" component={Withdraw} />
+        <Route path="/games" component={Game} />
+        <Route path="/missions" component={Missions} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
