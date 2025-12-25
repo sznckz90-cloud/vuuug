@@ -4,6 +4,7 @@ import Layout from "@/components/Layout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Bug, Info, ArrowUp, ArrowDown, Dices } from "lucide-react";
+import { showNotification } from "@/components/AppNotification";
 
 interface GameResult {
   predictedValue: number;
@@ -25,12 +26,12 @@ export default function Game() {
   const [luckyNumberDisplay, setLuckyNumberDisplay] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
 
-  // Calculate roll over (chance of winning)
+  // Calculate roll over (chance of winning) - clamped between 2% and 98%
   const rollOverChance = betType === "higher" 
     ? 100 - sliderValue 
     : sliderValue;
   
-  const winChance = rollOverChance;
+  const winChance = Math.max(2, Math.min(98, rollOverChance));
 
   const { data: currentUser, refetch: refetchUser } = useQuery({
     queryKey: ["/api/auth/user"],
@@ -40,29 +41,40 @@ export default function Game() {
   const calculateMultiplier = (predicted: number, bet: "higher" | "lower" | null) => {
     if (!bet) return 1;
     
-    let winProbability = 0;
+    let winChance = 0;
     
     if (bet === "higher") {
       // Win if luckyNumber > predictedValue
       // Lucky range is 0-99 (100 possible values)
       // Winning numbers: (predictedValue+1) to 99 = (99 - predictedValue) numbers
       // Probability = (99 - predictedValue) / 100
-      winProbability = (99 - predicted) / 100;
+      winChance = (99 - predicted) / 100;
     } else {
       // Win if luckyNumber < predictedValue
       // Lucky range is 0-99
       // Winning numbers: 0 to (predictedValue-1) = predictedValue numbers
       // Probability = predictedValue / 100
-      winProbability = predicted / 100;
+      winChance = predicted / 100;
     }
     
-    // Pure multiplier formula: 1 / Win Chance
-    // No house edge applied here - dynamic based on win probability only
-    if (winProbability <= 0) {
-      return 99; // Impossible to win
-    }
+    // Clamp win chance between 2% and 98%
+    winChance = Math.max(0.02, Math.min(0.98, winChance));
     
-    return Math.max(1.01, 1 / winProbability);
+    // Calculate multiplier based on win chance
+    // At 98% chance: multiplier = 0.9693 (minimum)
+    // At 2% chance: multiplier = 45.75 (Higher) or 47.5 (Lower)
+    // Linear interpolation between these points
+    
+    if (winChance >= 0.98) {
+      return 0.9693;
+    } else if (winChance <= 0.02) {
+      return bet === "higher" ? 45.75 : 47.5;
+    } else {
+      // Interpolate between 0.98 and 0.02
+      const maxMultiplier = bet === "higher" ? 45.75 : 47.5;
+      const slope = (maxMultiplier - 0.9693) / (0.02 - 0.98);
+      return slope * (winChance - 0.98) + 0.9693;
+    }
   };
 
   const multiplier = calculateMultiplier(sliderValue, betType);
@@ -107,11 +119,12 @@ export default function Game() {
       setTimeout(() => {
         setIsRevealing(false);
         
-        // Use app's default reward notification system for both wins and losses
+        // Show notification in same format as ad watch notifications (always success)
+        const tokenName = chipType === "PAD" ? "PAD" : "BUG";
         if (data.won) {
-          window.dispatchEvent(new CustomEvent('showReward', { detail: { amount: data.reward } }));
+          showNotification(`+${data.reward} ${tokenName} earned!`, "success");
         } else {
-          window.dispatchEvent(new CustomEvent('showReward', { detail: { amount: -data.playAmount } }));
+          showNotification(`-${data.playAmount} ${tokenName} lost!`, "success");
         }
         
         // Reset game and refetchUser
@@ -128,10 +141,10 @@ export default function Game() {
     },
   });
 
-  // Format multiplier: remove trailing .00 but keep decimals for fractional values
+  // Format multiplier: remove trailing zeros and decimal point if not needed
   const formatMultiplier = (num: number): string => {
     const formatted = num.toFixed(4);
-    return parseFloat(formatted).toString();
+    return formatted.replace(/\.?0+$/, '');
   };
 
   // Check for invalid bet cases (100% guaranteed wins - prevent reward farming)
@@ -170,18 +183,32 @@ export default function Game() {
 
           <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] space-y-5 shadow-xl">
             <div>
-              <div className="flex justify-between text-white text-sm font-bold mb-3">
+              <div className="flex justify-between text-white text-sm font-bold mb-2">
                   {[0, 25, 50, 75, 100].map((mark) => (
                     <span key={mark}>{mark}</span>
                   ))}
                 </div>
+                
+                {/* Roll Over / Roll Under Label */}
+                <div className="text-center text-gray-400 text-xs font-semibold mb-2">
+                  {betType === "higher" ? "Roll Over" : betType === "lower" ? "Roll Under" : "Select Bet Type"}
+                </div>
 
                 <div className="relative mb-6">
-                  {/* Simple Stick Style Slider Track with Red (left) and Gray (right) */}
-                  <div className="h-3 rounded-sm overflow-hidden flex bg-gray-500">
+                  {/* Dynamic Two-Color Slider Track */}
+                  <div className="h-3 rounded-sm overflow-hidden flex bg-transparent border border-gray-600">
+                    {/* Left side color */}
                     <div 
-                      className="bg-red-500 transition-all duration-200"
+                      className={`transition-all duration-200 ${
+                        betType === "higher" ? "bg-red-500" : betType === "lower" ? "bg-blue-500" : "bg-gray-500"
+                      }`}
                       style={{ width: `${sliderValue}%` }}
+                    ></div>
+                    {/* Right side color */}
+                    <div 
+                      className={`transition-all duration-200 flex-1 ${
+                        betType === "higher" ? "bg-blue-500" : betType === "lower" ? "bg-red-500" : "bg-gray-500"
+                      }`}
                     ></div>
                   </div>
                   
@@ -223,7 +250,12 @@ export default function Game() {
                     min="0"
                     max="100"
                     value={sliderValue}
-                    onChange={(e) => setSliderValue(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      let value = parseInt(e.target.value);
+                      if (value === 0) value = 2;
+                      if (value === 100) value = 98;
+                      setSliderValue(value);
+                    }}
                     className="absolute top-1/2 -translate-y-1/2 w-full h-6 appearance-none bg-transparent cursor-pointer"
                     style={{
                       WebkitAppearance: "none",
@@ -317,75 +349,62 @@ export default function Game() {
                   <div className="text-white text-sm sm:text-base font-bold truncate">{formatMultiplier(multiplier)} X</div>
                 </div>
                 <div className="text-center min-w-0">
-                  <div className="text-white text-xs sm:text-sm font-bold truncate">Roll Over</div>
-                  <div className="text-white text-sm sm:text-base font-bold truncate">{sliderValue.toFixed(2)}</div>
+                  <div className="text-white text-xs sm:text-sm font-bold truncate">{betType === "higher" ? "Roll Over" : betType === "lower" ? "Roll Under" : "Roll Over"}</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{sliderValue.toFixed(2).replace(/\.?0+$/, '')}</div>
                 </div>
                 <div className="text-center min-w-0">
                   <div className="text-white text-xs sm:text-sm font-bold truncate">Win Chance</div>
-                  <div className="text-white text-sm sm:text-base font-bold truncate">{winChance.toFixed(4)} %</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{winChance.toFixed(4).replace(/\.?0+$/, '')} %</div>
                 </div>
               </div>
 
               <div>
                 <label className="text-white text-sm font-bold mb-2 block">Play Amount</label>
                 <div className="flex gap-2 w-full min-w-0">
-                  {/* Amount Input with Token Selector */}
+                  {/* Amount Input */}
                   <div className="relative flex-1 min-w-0">
                     <input
                       type="number"
                       value={playAmount}
                       onChange={(e) => setPlayAmount(e.target.value)}
-                      placeholder="20"
-                      className="w-full bg-[#0d0d0d] text-white rounded-lg px-3 py-2 pr-20 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
+                      className="w-full bg-[#0d0d0d] text-white rounded-lg px-3 py-2 pr-12 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
                     />
-                    {/* Token Selector Buttons Inside Input */}
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 items-center">
-                      <button
-                        onClick={() => setChipType("PAD")}
-                        className={`flex items-center justify-center p-1 rounded transition-all ${
-                          chipType === "PAD"
-                            ? "bg-[#007BFF] text-white"
-                            : "bg-[#1a1a1a] text-gray-400 hover:bg-[#2a2a2a]"
-                        }`}
-                        title="PAD"
-                      >
-                        <DiamondIcon size={13} withGlow={chipType === "PAD"} />
-                      </button>
-                      <button
-                        onClick={() => setChipType("BUG")}
-                        className={`flex items-center justify-center p-1 rounded transition-all ${
-                          chipType === "BUG"
-                            ? "bg-[#007BFF] text-white"
-                            : "bg-[#1a1a1a] text-green-400 hover:bg-[#2a2a2a]"
-                        }`}
-                        title="BUG"
-                      >
-                        <Bug className="w-3 h-3" />
-                      </button>
+                    {/* Token Icon */}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {chipType === "PAD" ? (
+                        <DiamondIcon size={16} withGlow={true} />
+                      ) : (
+                        <Bug className="w-4 h-4 text-green-400" />
+                      )}
                     </div>
                   </div>
                   
-                  {/* Multiplier Buttons */}
+                  {/* Token Selector Buttons */}
                   <div className="flex gap-2 shrink-0">
                     <button
-                      onClick={() => setPlayAmount(String(Math.max(20, Math.floor((parseInt(playAmount) || 20) / 2))))}
-                      className="bg-[#1a1a1a] border border-[#333333] hover:border-[#007BFF] text-white px-3 py-2 rounded text-sm font-semibold transition-all"
+                      onClick={() => setChipType("PAD")}
+                      className={`flex items-center justify-center p-2 rounded transition-all ${
+                        chipType === "PAD"
+                          ? "bg-[#007BFF] text-white"
+                          : "bg-[#1a1a1a] text-gray-400 border border-[#333333] hover:bg-[#2a2a2a]"
+                      }`}
+                      title="PAD"
                     >
-                      ½
+                      <DiamondIcon size={14} withGlow={chipType === "PAD"} />
                     </button>
                     <button
-                      onClick={() => setPlayAmount(String((parseInt(playAmount) || 20) * 2))}
-                      className="bg-[#1a1a1a] border border-[#333333] hover:border-[#007BFF] text-white px-3 py-2 rounded text-sm font-semibold transition-all"
+                      onClick={() => setChipType("BUG")}
+                      className={`flex items-center justify-center p-2 rounded transition-all ${
+                        chipType === "BUG"
+                          ? "bg-[#007BFF] text-white"
+                          : "bg-[#1a1a1a] text-green-400 border border-[#333333] hover:bg-[#2a2a2a]"
+                      }`}
+                      title="BUG"
                     >
-                      2×
+                      <Bug className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-                {playAmount && !isValidAmount && (
-                  <div className="text-red-500 text-xs mt-1 font-semibold">
-                    Insufficient balance
-                  </div>
-                )}
                 {isInvalidCase && (
                   <div className="text-red-500 text-xs mt-1 font-semibold">
                     {betType === "higher" ? "Prediction too high - guaranteed win not allowed" : "Prediction too low - guaranteed win not allowed"}
@@ -398,14 +417,14 @@ export default function Game() {
                 disabled={!canPlay || !isValidAmount}
                 className="w-full bg-[#007BFF] hover:bg-[#0056b3] text-white font-bold py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
-                {playMutation.isPending ? "Playing..." : "Play"}
+                {playMutation.isPending ? "Playing..." : !isValidAmount && playAmount ? "Insufficient Balance" : "Play"}
               </button>
 
-              <div>
+              <div className="mt-2">
                 <div className="text-gray-400 text-xs font-bold mb-1">Potential Payout</div>
                 <div className="bg-[#0d0d0d] p-2 rounded-lg border border-[#2a2a2a] flex items-center justify-between gap-3">
                   <div className="text-white font-bold text-2xl">
-                    {betType && amount > 0 ? Math.floor(amount * multiplier).toString() : "0"}
+                    {betType && amount > 0 && !isInvalidCase ? Math.floor(amount * multiplier).toString() : "0"}
                   </div>
                   <div>
                     {chipType === "PAD" ? (
