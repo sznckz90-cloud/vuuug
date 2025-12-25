@@ -8808,12 +8808,20 @@ ${walletAddress}
         won = luckyNumber < predictedValue;
       }
 
-      // Calculate multiplier based on win probability
-      let multiplier = 1;
+      // Calculate multiplier based on win probability with house edge
+      const houseEdge = 0.05;
+      let winProbability = 0;
       if (betType === 'higher') {
-        multiplier = 1 + (100 - predictedValue) / 100;
+        winProbability = (100 - predictedValue) / 100;
       } else {
-        multiplier = 1 + predictedValue / 100;
+        winProbability = predictedValue / 100;
+      }
+      
+      let multiplier = 1.01;
+      if (winProbability > 0) {
+        multiplier = Math.max(1.01, (1 / winProbability) * (1 - houseEdge));
+      } else {
+        multiplier = 99; // Cap for extremely low probability
       }
 
       // Calculate reward
@@ -8844,18 +8852,23 @@ ${walletAddress}
         }
       }
 
-      // Record game history
-      await db.insert(luckyGameHistory).values({
-        userId,
-        predictedValue,
-        betType,
-        chipType,
-        playAmount: String(playAmount),
-        luckyNumber,
-        won,
-        rewardAmount: String(reward),
-        multiplier: String(multiplier),
-      });
+      // Record game history (Optional - don't block game if this fails)
+      try {
+        await db.insert(luckyGameHistory).values({
+          userId,
+          predictedValue,
+          betType,
+          chipType,
+          playAmount: String(playAmount),
+          luckyNumber,
+          won,
+          rewardAmount: String(reward),
+          multiplier: String(multiplier),
+        });
+      } catch (historyError) {
+        console.error('Failed to record game history, but game outcome was successful:', historyError);
+        // We continue because the balance was already updated
+      }
 
       res.json({
         predictedValue,
