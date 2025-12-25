@@ -130,15 +130,15 @@ export default function Game() {
     !playMutation.isPending;
 
   const availableBalance = chipType === "PAD" 
-    ? parseInt(currentUser?.balance || "0")
-    : parseInt(currentUser?.bugBalance || "0");
+    ? parseInt((currentUser as any)?.balance || "0")
+    : parseInt((currentUser as any)?.bugBalance || "0");
 
   const amount = parseInt(playAmount) || 0;
   const isValidAmount = amount > 0 && amount <= availableBalance;
 
   return (
     <Layout>
-      <div className="bg-black pt-6 pb-24 px-4">
+      <div className="bg-black pt-6 px-4">
         <div className="max-w-md mx-auto">
             <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] space-y-5 shadow-xl">
               <div>
@@ -148,45 +148,42 @@ export default function Game() {
                   ))}
                 </div>
 
-                <div className="relative mb-4">
-                  {/* Slider Track with Red (left) and Gray (right) */}
-                  <div className="h-8 rounded-full overflow-hidden shadow-lg flex">
+                <div className="relative mb-6">
+                  {/* Simple Stick Style Slider Track with Red (left) and Gray (right) */}
+                  <div className="h-3 rounded-sm overflow-hidden flex bg-gray-500">
                     <div 
                       className="bg-red-500 transition-all duration-200"
                       style={{ width: `${sliderValue}%` }}
                     ></div>
-                    <div 
-                      className="bg-gray-500 transition-all duration-200"
-                      style={{ width: `${100 - sliderValue}%` }}
-                    ></div>
                   </div>
                   
-                  {/* Predicted Number Indicator ON Slider */}
+                  {/* Predicted Number Indicator - Clearly Visible */}
                   {!isRevealing && (
                     <div 
-                      className="absolute top-[-45px] transition-all duration-200 ease-out flex flex-col items-center"
+                      className="absolute top-[-55px] transition-all duration-200 ease-out flex flex-col items-center pointer-events-none"
                       style={{
-                        left: `calc(${sliderValue}% - 18px)`,
+                        left: `calc(${sliderValue}% - 20px)`,
                         zIndex: 25,
                       }}
                     >
-                      <div className="bg-white border-2 border-blue-500 text-black text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg">
+                      <div className="bg-blue-500 text-white text-base font-bold px-3 py-2 rounded shadow-lg min-w-[44px] text-center">
                         {sliderValue}
                       </div>
-                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white"></div>
+                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-500"></div>
                     </div>
                   )}
 
-                  {/* Lucky Number Indicator ON Slider */}
+                  {/* Lucky Number Animation - Moves and Stops */}
                   {isRevealing && luckyNumberDisplay !== null && (
                     <div 
-                      className="absolute top-[-60px] transition-all duration-1000 ease-out flex flex-col items-center"
+                      className="absolute top-[-55px] flex flex-col items-center pointer-events-none"
                       style={{
-                        left: `calc(${luckyNumberDisplay}% - 22px)`,
+                        left: `calc(${luckyNumberDisplay}% - 20px)`,
                         zIndex: 30,
+                        animation: `slideToNumber 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
                       }}
                     >
-                      <div className="bg-yellow-400 text-black text-lg font-bold px-4 py-2 rounded-xl shadow-lg shadow-yellow-400/50 animate-pulse border-2 border-yellow-300">
+                      <div className="bg-yellow-400 text-black text-lg font-bold px-4 py-2 rounded shadow-lg shadow-yellow-400/50 border-2 border-yellow-300 min-w-[52px] text-center">
                         {luckyNumberDisplay}
                       </div>
                       <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-yellow-400"></div>
@@ -199,40 +196,49 @@ export default function Game() {
                     max="100"
                     value={sliderValue}
                     onChange={(e) => setSliderValue(parseInt(e.target.value))}
-                    className="absolute top-1/2 -translate-y-1/2 w-full h-8 rounded-full appearance-none bg-transparent cursor-pointer"
+                    className="absolute top-1/2 -translate-y-1/2 w-full h-6 appearance-none bg-transparent cursor-pointer"
                     style={{
                       WebkitAppearance: "none",
                       background: "transparent",
                     }}
                   />
                   <style>{`
+                    @keyframes slideToNumber {
+                      from {
+                        opacity: 0;
+                        transform: scale(0.8);
+                      }
+                      to {
+                        opacity: 1;
+                        transform: scale(1);
+                      }
+                    }
                     input[type="range"]::-webkit-slider-thumb {
                       appearance: none;
-                      width: 20px;
-                      height: 28px;
+                      width: 18px;
+                      height: 24px;
                       background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
                       cursor: pointer;
                       pointer-events: all;
                       border: 2px solid #60a5fa;
-                      border-radius: 4px;
-                      box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+                      border-radius: 3px;
+                      box-shadow: 0 0 10px rgba(37, 99, 235, 0.7);
                       z-index: 20;
                       position: relative;
                     }
                     input[type="range"]::-webkit-slider-runnable-track {
                       background: transparent;
-                      height: 32px;
-                      border-radius: 16px;
+                      height: 12px;
                       border: none;
                     }
                     input[type="range"]::-moz-range-thumb {
-                      width: 20px;
-                      height: 28px;
+                      width: 18px;
+                      height: 24px;
                       background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
                       cursor: pointer;
                       border: 2px solid #60a5fa;
-                      border-radius: 4px;
-                      box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+                      border-radius: 3px;
+                      box-shadow: 0 0 10px rgba(37, 99, 235, 0.7);
                       z-index: 20;
                       position: relative;
                     }
@@ -242,26 +248,9 @@ export default function Game() {
                     }
                     input[type="range"]::-moz-range-progress {
                       background: transparent;
-                      height: 32px;
-                      border-radius: 16px;
+                      height: 12px;
                     }
                   `}</style>
-                </div>
-              </div>
-
-              {/* Stats Section */}
-              <div className="grid grid-cols-3 gap-2 bg-[#0d0d0d] p-4 rounded-lg border border-[#2a2a2a]">
-                <div className="text-center">
-                  <div className="text-white text-sm font-bold">Multiplier</div>
-                  <div className="text-white text-base font-bold">{multiplier.toFixed(4)} X</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-white text-sm font-bold">Roll Over</div>
-                  <div className="text-white text-base font-bold">{sliderValue.toFixed(2)}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-white text-sm font-bold">Win Chance</div>
-                  <div className="text-white text-base font-bold">{winChance.toFixed(3)} %</div>
                 </div>
               </div>
 
@@ -293,54 +282,72 @@ export default function Game() {
                 </div>
               </div>
 
-              <div>
-                <div className="text-white text-sm font-bold mb-3">Select Token</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setChipType("PAD")}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold transition-all border ${
-                      chipType === "PAD"
-                        ? "bg-[#007BFF] border-[#007BFF] text-white shadow-lg"
-                        : "bg-[#1a1a1a] border-[#333333] text-white hover:border-[#007BFF]"
-                    }`}
-                  >
-                    <DiamondIcon size={16} withGlow={chipType === "PAD"} />
-                    <span>PAD</span>
-                  </button>
-                  <button
-                    onClick={() => setChipType("BUG")}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold transition-all border ${
-                      chipType === "BUG"
-                        ? "bg-[#007BFF] border-[#007BFF] text-white shadow-lg"
-                        : "bg-[#1a1a1a] border-[#333333] text-white hover:border-[#007BFF]"
-                    }`}
-                  >
-                    <Bug className={`w-4 h-4 ${chipType === "BUG" ? "text-white" : "text-green-400"}`} />
-                    <span>BUG</span>
-                  </button>
+              {/* Stats Section */}
+              <div className="grid grid-cols-3 gap-3 bg-[#0d0d0d] p-4 rounded-lg border border-[#2a2a2a] w-full">
+                <div className="text-center min-w-0">
+                  <div className="text-white text-xs sm:text-sm font-bold truncate">Multiplier</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{multiplier.toFixed(4)} X</div>
+                </div>
+                <div className="text-center min-w-0">
+                  <div className="text-white text-xs sm:text-sm font-bold truncate">Roll Over</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{sliderValue.toFixed(2)}</div>
+                </div>
+                <div className="text-center min-w-0">
+                  <div className="text-white text-xs sm:text-sm font-bold truncate">Win Chance</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{winChance.toFixed(3)} %</div>
                 </div>
               </div>
 
               <div>
                 <label className="text-white text-sm font-bold mb-2 block">Play Amount</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={playAmount}
-                    onChange={(e) => setPlayAmount(e.target.value)}
-                    placeholder="20"
-                    className="w-full bg-[#0d0d0d] text-white rounded-lg px-3 py-2 pr-20 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                <div className="flex gap-2 w-full min-w-0">
+                  {/* Amount Input with Token Selector */}
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="number"
+                      value={playAmount}
+                      onChange={(e) => setPlayAmount(e.target.value)}
+                      placeholder="20"
+                      className="w-full bg-[#0d0d0d] text-white rounded-lg px-3 py-2 pr-20 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
+                    />
+                    {/* Token Selector Buttons Inside Input */}
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 items-center">
+                      <button
+                        onClick={() => setChipType("PAD")}
+                        className={`flex items-center justify-center p-1 rounded transition-all ${
+                          chipType === "PAD"
+                            ? "bg-[#007BFF] text-white"
+                            : "bg-[#1a1a1a] text-gray-400 hover:bg-[#2a2a2a]"
+                        }`}
+                        title="PAD"
+                      >
+                        <DiamondIcon size={13} withGlow={chipType === "PAD"} />
+                      </button>
+                      <button
+                        onClick={() => setChipType("BUG")}
+                        className={`flex items-center justify-center p-1 rounded transition-all ${
+                          chipType === "BUG"
+                            ? "bg-[#007BFF] text-white"
+                            : "bg-[#1a1a1a] text-green-400 hover:bg-[#2a2a2a]"
+                        }`}
+                        title="BUG"
+                      >
+                        <Bug className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Multiplier Buttons */}
+                  <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => setPlayAmount(String(Math.max(20, Math.floor((parseInt(playAmount) || 20) / 2))))}
-                      className="bg-[#333333] hover:bg-[#444444] text-white px-2 py-1 rounded text-xs font-semibold"
+                      className="bg-[#1a1a1a] border border-[#333333] hover:border-[#007BFF] text-white px-3 py-2 rounded text-sm font-semibold transition-all"
                     >
                       ½
                     </button>
                     <button
                       onClick={() => setPlayAmount(String((parseInt(playAmount) || 20) * 2))}
-                      className="bg-[#333333] hover:bg-[#444444] text-white px-2 py-1 rounded text-xs font-semibold"
+                      className="bg-[#1a1a1a] border border-[#333333] hover:border-[#007BFF] text-white px-3 py-2 rounded text-sm font-semibold transition-all"
                     >
                       2×
                     </button>
