@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiamondIcon } from "@/components/DiamondIcon";
-import { Bug, Info, ArrowUp, ArrowDown } from "lucide-react";
+import { Bug, Info, ArrowUp, ArrowDown, Dices } from "lucide-react";
 
 interface GameResult {
   predictedValue: number;
@@ -158,9 +158,19 @@ export default function Game() {
     <Layout>
       <div className="bg-black pt-6 px-4">
         <div className="max-w-md mx-auto">
-            <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] space-y-5 shadow-xl">
-              <div>
-                <div className="flex justify-between text-white text-sm font-bold mb-3">
+          <div className="mb-6 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-lg bg-[#007BFF] flex items-center justify-center">
+                <Dices className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-white">Dice</h1>
+            </div>
+            <p className="text-gray-400 text-sm">Double your $PADs or $BUGs</p>
+          </div>
+
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] space-y-5 shadow-xl">
+            <div>
+              <div className="flex justify-between text-white text-sm font-bold mb-3">
                   {[0, 25, 50, 75, 100].map((mark) => (
                     <span key={mark}>{mark}</span>
                   ))}
