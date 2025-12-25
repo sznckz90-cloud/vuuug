@@ -3,9 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiamondIcon } from "@/components/DiamondIcon";
-import { Bug, Info, ArrowUp, ArrowDown, Dices, Receipt, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Bug, ArrowUp, ArrowDown, Dices } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
-import { format } from "date-fns";
 
 interface GameResult {
   id: string;
@@ -42,51 +41,32 @@ export default function Game() {
     retry: false,
   });
 
-  const { data: gameHistory } = useQuery<GameResult[]>({
-    queryKey: ["/api/games/lucky/history"],
-    retry: false,
-  });
 
   const calculateMultiplier = (predicted: number, bet: "higher" | "lower" | null) => {
     if (!bet) return 1;
     
-    // Multiplier calculation must be between 2 and 98
-    // Clamping predicted value to ensure it's never 1 or 100
+    // Clamp predicted value between 2-98 to match backend validation
     const clampedPredicted = Math.max(2, Math.min(98, predicted));
     
-    let winChance = 0;
+    // Calculate win probability based on bet type (matches backend exactly)
+    let winProbability = 0;
     if (bet === "higher") {
-      // Predicted: 2 -> Win Chance: (99-2)/100 = 0.97 (Min Multiplier)
-      // Predicted: 98 -> Win Chance: (99-98)/100 = 0.01 (Max Multiplier)
-      winChance = (99 - clampedPredicted) / 100;
+      // Roll Over: win if lucky number > predicted
+      // Win Chance = 100 - Selected Number
+      winProbability = (100 - clampedPredicted) / 100;
     } else {
-      // Predicted: 98 -> Win Chance: 98/100 = 0.98 (Min Multiplier)
-      // Predicted: 2 -> Win Chance: 2/100 = 0.02 (Max Multiplier)
-      winChance = clampedPredicted / 100;
+      // Roll Under: win if lucky number < predicted
+      // Win Chance = Selected Number
+      winProbability = clampedPredicted / 100;
     }
     
-    // Multiplier calculation strictly between 2 and 98
-    winChance = Math.max(0.01, Math.min(0.98, winChance));
+    // Multiplier formula: (1 / winProbability) * (1 - houseEdge)
+    // At reference point: Selected=50, WinChance=50%, Multiplier=1.9x
+    // Verification: (1/0.5) * (1-0.05) = 2 * 0.95 = 1.9 ✓
+    const houseEdge = 0.05;
+    const multiplier = (1 / winProbability) * (1 - houseEdge);
     
-    if (bet === "higher") {
-      if (clampedPredicted <= 2) return 0.9693;
-      if (clampedPredicted >= 98) return 45.75;
-      
-      // Interpolate for Higher
-      // Chance at 2: 0.97, Multiplier: 0.9693
-      // Chance at 98: 0.01, Multiplier: 45.75
-      const slope = (45.75 - 0.9693) / (0.01 - 0.97);
-      return slope * (winChance - 0.97) + 0.9693;
-    } else {
-      if (clampedPredicted >= 98) return 0.9693;
-      if (clampedPredicted <= 2) return 47.5;
-      
-      // Interpolate for Lower
-      // Chance at 98: 0.98, Multiplier: 0.9693
-      // Chance at 2: 0.02, Multiplier: 47.5
-      const slope = (47.5 - 0.9693) / (0.02 - 0.98);
-      return slope * (winChance - 0.98) + 0.9693;
-    }
+    return multiplier;
   };
 
   const multiplier = calculateMultiplier(sliderValue, betType);
@@ -145,7 +125,6 @@ export default function Game() {
         // Only reset temporary UI state, keep game selection as requested by user
         setLuckyNumberDisplay(null);
         refetchUser();
-        queryClient.invalidateQueries({ queryKey: ["/api/games/lucky/history"] });
       }, 3000);
     },
     onError: (error) => {
@@ -159,10 +138,8 @@ export default function Game() {
     return formatted.replace(/\.?0+$/, '');
   };
 
-  // Check for invalid bet cases (100% guaranteed wins - prevent reward farming)
-  const isInvalidCase = 
-    (betType === "higher" && sliderValue >= 99) || 
-    (betType === "lower" && sliderValue <= 0);
+  // Strict limit enforcement: Selected number must be strictly between 2-98 (no 0, 1, 99, 100)
+  const isInvalidCase = sliderValue < 2 || sliderValue > 98;
 
   const canPlay =
     sliderValue !== undefined &&
@@ -181,7 +158,7 @@ export default function Game() {
 
   return (
     <Layout>
-      <main className="max-w-md mx-auto px-4 pt-3 pb-16">
+      <main className="max-w-md mx-auto px-4 pt-3">
         <div className="flex items-center gap-2 mb-4">
           <Dices className="w-5 h-5 text-[#4cd3ff]" />
           <h1 className="text-lg font-bold text-white">Dice</h1>
@@ -411,7 +388,7 @@ export default function Game() {
                   </div>
                   {isInvalidCase && (
                     <div className="text-red-500 text-[10px] mt-1 font-semibold">
-                      {betType === "higher" ? "Prediction too high - guaranteed win not allowed" : "Prediction too low - guaranteed win not allowed"}
+                      Selected number must be between 2 and 98
                     </div>
                   )}
                 </div>
@@ -442,56 +419,28 @@ export default function Game() {
               </div>
             </div>
 
-            {/* History Section */}
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center gap-2 px-1">
-                <Receipt className="w-4 h-4 text-[#4cd3ff]" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Game History</h2>
+            {/* How to Play & Rules */}
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="bg-[#0d0d0d] rounded-lg p-3 border border-[#2a2a2a]">
+                <h3 className="text-white font-bold mb-2">📖 How to Play</h3>
+                <ol className="text-gray-400 space-y-1 list-decimal list-inside">
+                  <li>Select a number (2-98) on the slider</li>
+                  <li>Choose "Higher" or "Lower"</li>
+                  <li>Set your bet amount</li>
+                  <li>Click Play to roll the dice</li>
+                  <li>Win if result matches your prediction!</li>
+                </ol>
               </div>
 
-              <div className="space-y-2">
-                {gameHistory && gameHistory.length > 0 ? (
-                  gameHistory.map((game) => (
-                    <div 
-                      key={game.id} 
-                      className="bg-[#111] rounded-xl p-3 border border-white/5 flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                          game.won ? 'bg-green-500/10' : 'bg-red-500/10'
-                        }`}>
-                          {game.won ? (
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-white text-sm font-medium">
-                            {game.won ? 'Won' : 'Lost'} {game.playAmount} {game.chipType}
-                          </p>
-                          <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                            <Clock className="w-3 h-3" />
-                            {format(new Date(game.createdAt), "MMM d, HH:mm")}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-bold ${game.won ? 'text-green-500' : 'text-red-500'}`}>
-                          {game.won ? `+${game.reward}` : `-${game.playAmount}`}
-                        </p>
-                        <p className="text-[10px] text-gray-500">
-                          {game.betType === 'higher' ? 'Over' : 'Under'} {game.predictedValue} (Roll: {game.luckyNumber})
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="bg-[#111] rounded-xl p-8 border border-white/5 text-center">
-                    <Clock className="w-8 h-8 text-gray-600 mx-auto mb-2 opacity-20" />
-                    <p className="text-gray-500 text-xs">No game history yet</p>
-                  </div>
-                )}
+              <div className="bg-[#0d0d0d] rounded-lg p-3 border border-[#2a2a2a]">
+                <h3 className="text-white font-bold mb-2">⚡ Rules</h3>
+                <ul className="text-gray-400 space-y-1">
+                  <li>• Range: 2–98 only (0, 1, 99, 100 blocked)</li>
+                  <li>• Win % = 100 − number (Higher)</li>
+                  <li>• Win % = number (Lower)</li>
+                  <li>• Multiplier = 1/chance × 0.95</li>
+                  <li>• Min bet: 20 PAD/BUG</li>
+                </ul>
               </div>
             </div>
       </main>
