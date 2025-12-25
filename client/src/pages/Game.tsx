@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiamondIcon } from "@/components/DiamondIcon";
-import { Bug, ArrowUp, ArrowDown, Dices } from "lucide-react";
+import { Bug, ArrowUp, ArrowDown, Dices, BookOpen } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
 
 interface GameResult {
@@ -341,50 +341,39 @@ export default function Game() {
 
                 <div>
                   <label className="text-white text-xs font-bold mb-1.5 block">Play Amount</label>
-                  <div className="flex gap-2 w-full min-w-0">
+                  <div className="flex gap-2 w-full">
                     {/* Amount Input */}
-                    <div className="relative flex-1 min-w-0">
-                      <input
-                        type="number"
-                        value={playAmount}
-                        onChange={(e) => setPlayAmount(e.target.value)}
-                        className="w-full bg-[#0d0d0d] text-white rounded-lg px-3 py-2 pr-12 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
-                      />
-                      {/* Token Icon */}
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
-                        {chipType === "PAD" ? (
-                          <DiamondIcon size={16} withGlow={true} />
-                        ) : (
-                          <Bug className="w-4 h-4 text-green-400" />
-                        )}
-                      </div>
-                    </div>
+                    <input
+                      type="number"
+                      value={playAmount}
+                      onChange={(e) => setPlayAmount(e.target.value)}
+                      className="flex-1 max-w-[120px] bg-[#0d0d0d] text-white rounded-lg px-3 py-2 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
+                      placeholder="Amount"
+                    />
                     
                     {/* Token Selector Buttons */}
-                    <div className="flex gap-1.5 shrink-0">
-                      <button
-                        onClick={() => setChipType("PAD")}
-                        className={`flex items-center justify-center p-2 rounded transition-all ${
-                          chipType === "PAD"
-                            ? "bg-[#007BFF] text-white"
-                            : "bg-[#1a1a1a] text-gray-400 border border-[#333333] hover:bg-[#2a2a2a]"
-                        }`}
-                        title="PAD"
-                      >
-                        <DiamondIcon size={14} withGlow={chipType === "PAD"} />
-                      </button>
-                      <button
-                        onClick={() => setChipType("BUG")}
-                        className={`flex items-center justify-center p-2 rounded transition-all ${
-                          chipType === "BUG"
-                            ? "bg-[#007BFF] text-white"
-                            : "bg-[#1a1a1a] text-green-400 border border-[#333333] hover:bg-[#2a2a2a]"
-                        }`}
-                        title="BUG"
-                      >
-                        <Bug className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setChipType("PAD")}
+                      className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-semibold text-sm transition-all ${
+                        chipType === "PAD"
+                          ? "bg-[#007BFF] text-white"
+                          : "bg-[#1a1a1a] text-gray-400 border border-[#333333] hover:bg-[#2a2a2a]"
+                      }`}
+                    >
+                      <DiamondIcon size={16} withGlow={chipType === "PAD"} />
+                      <span>PAD</span>
+                    </button>
+                    <button
+                      onClick={() => setChipType("BUG")}
+                      className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-semibold text-sm transition-all ${
+                        chipType === "BUG"
+                          ? "bg-[#007BFF] text-white"
+                          : "bg-[#1a1a1a] text-green-400 border border-[#333333] hover:bg-[#2a2a2a]"
+                      }`}
+                    >
+                      <Bug className="w-4 h-4" />
+                      <span>BUG</span>
+                    </button>
                   </div>
                   {isInvalidCase && (
                     <div className="text-red-500 text-[10px] mt-1 font-semibold">
@@ -419,10 +408,13 @@ export default function Game() {
               </div>
             </div>
 
-            {/* How to Play & Rules */}
+            {/* How to Play */}
             <div className="mt-4 space-y-3 text-xs">
               <div className="bg-[#0d0d0d] rounded-lg p-3 border border-[#2a2a2a]">
-                <h3 className="text-white font-bold mb-2">📖 How to Play</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="w-4 h-4 text-[#4cd3ff]" />
+                  <h3 className="text-white font-bold">How to Play</h3>
+                </div>
                 <ol className="text-gray-400 space-y-1 list-decimal list-inside">
                   <li>Select a number (2-98) on the slider</li>
                   <li>Choose "Higher" or "Lower"</li>
@@ -430,17 +422,6 @@ export default function Game() {
                   <li>Click Play to roll the dice</li>
                   <li>Win if result matches your prediction!</li>
                 </ol>
-              </div>
-
-              <div className="bg-[#0d0d0d] rounded-lg p-3 border border-[#2a2a2a]">
-                <h3 className="text-white font-bold mb-2">⚡ Rules</h3>
-                <ul className="text-gray-400 space-y-1">
-                  <li>• Range: 2–98 only (0, 1, 99, 100 blocked)</li>
-                  <li>• Win % = 100 − number (Higher)</li>
-                  <li>• Win % = number (Lower)</li>
-                  <li>• Multiplier = 1/chance × 0.95</li>
-                  <li>• Min bet: 20 PAD/BUG</li>
-                </ul>
               </div>
             </div>
       </main>

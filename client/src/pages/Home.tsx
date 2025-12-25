@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Megaphone, ChevronRight } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -544,25 +544,57 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-2">
-          <Button
+          <div 
+            className="bg-[#111] rounded-xl p-3 cursor-pointer active:scale-[0.98] transition-transform"
             onClick={() => setPromoPopupOpen(true)}
-            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-purple-500/30 hover:border-purple-500 hover:bg-purple-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <Gift className="w-4 h-4 text-purple-400" />
-            <span className="text-white font-medium text-xs">Promo</span>
-          </Button>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                <Gift className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-white font-semibold text-sm">Promo</h3>
+                <p className="text-gray-400 text-xs">Get free rewards</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            </div>
+          </div>
 
-          <Button
+          <div 
+            className="bg-[#111] rounded-xl p-3 cursor-pointer active:scale-[0.98] transition-transform"
             onClick={handleBoosterClick}
-            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <Rocket className="w-4 h-4 text-orange-400" />
-            <span className="text-white font-medium text-xs">Booster</span>
-          </Button>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+                <Rocket className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-white font-semibold text-sm">Booster</h3>
+                <p className="text-gray-400 text-xs">Speed up earnings</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            </div>
+          </div>
         </div>
 
         <div className="mt-3">
           <AdWatchingSection user={user as User} />
+        </div>
+
+        <div 
+          className="bg-[#111] rounded-xl p-3 mt-3 cursor-pointer active:scale-[0.98] transition-transform"
+          onClick={() => setLocation("/task/create")}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0">
+              <Megaphone className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-white font-semibold text-sm">Create My Task</h3>
+              <p className="text-gray-400 text-xs">Promote your channel or bot</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          </div>
         </div>
 
       </main>
