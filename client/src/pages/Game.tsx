@@ -4,7 +4,7 @@ import Layout from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiamondIcon } from "@/components/DiamondIcon";
-import { Bug, Info } from "lucide-react";
+import { Bug, Info, ArrowUp, ArrowDown } from "lucide-react";
 
 interface GameResult {
   predictedValue: number;
@@ -27,6 +27,13 @@ export default function Game() {
   const [isRevealing, setIsRevealing] = useState(false);
   const [luckyNumberDisplay, setLuckyNumberDisplay] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+
+  // Calculate roll over (chance of winning)
+  const rollOverChance = betType === "higher" 
+    ? 100 - sliderValue 
+    : sliderValue;
+  
+  const winChance = rollOverChance;
 
   const { data: currentUser, refetch: refetchUser } = useQuery({
     queryKey: ["/api/auth/user"],
@@ -77,21 +84,23 @@ export default function Game() {
     },
     onSuccess: (data) => {
       setIsRevealing(true);
-      setLuckyNumberDisplay(data.luckyNumber);
+      // Scale lucky number from 0-99 to 0-100 range for slider positioning
+      const scaledLuckyNumber = Math.round((data.luckyNumber / 99) * 100);
+      setLuckyNumberDisplay(scaledLuckyNumber);
       
       setTimeout(() => {
         setIsRevealing(false);
         
         if (data.won) {
           toast({
-            title: "🎉 You Won!",
-            description: `Congratulations! You won ${data.reward} ${data.chipType}`,
+            title: "🎉 Won!",
+            description: `+${data.reward} ${data.chipType}`,
             variant: "default",
           });
         } else {
           toast({
-            title: "❌ You Lost",
-            description: `The lucky number was ${data.luckyNumber}. You lost ${data.playAmount} ${data.chipType}`,
+            title: "❌ Lost",
+            description: `-${data.playAmount} ${data.chipType}`,
             variant: "destructive",
           });
         }
@@ -103,7 +112,7 @@ export default function Game() {
         setSliderValue(50);
         setLuckyNumberDisplay(null);
         refetchUser();
-      }, 2000);
+      }, 3000);
     },
     onError: (error) => {
       toast({
@@ -129,19 +138,28 @@ export default function Game() {
 
   return (
     <Layout>
-      <div className="flex flex-col bg-black overflow-hidden h-[calc(100vh-64px)]">
-        <div className="flex-1 overflow-y-auto pt-4 pb-24 px-4 custom-scrollbar">
-          <div className="max-w-md mx-auto">
+      <div className="bg-black pt-6 pb-24 px-4">
+        <div className="max-w-md mx-auto">
             <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] space-y-5 shadow-xl">
               <div>
                 <div className="flex justify-between text-white text-sm font-bold mb-3">
-                  {[0, 25, 50, 75, 99].map((mark) => (
+                  {[0, 25, 50, 75, 100].map((mark) => (
                     <span key={mark}>{mark}</span>
                   ))}
                 </div>
 
                 <div className="relative mb-4">
-                  <div className="h-8 bg-[#333333] rounded-full shadow-lg"></div>
+                  {/* Slider Track with Red (left) and Gray (right) */}
+                  <div className="h-8 rounded-full overflow-hidden shadow-lg flex">
+                    <div 
+                      className="bg-red-500 transition-all duration-200"
+                      style={{ width: `${sliderValue}%` }}
+                    ></div>
+                    <div 
+                      className="bg-gray-500 transition-all duration-200"
+                      style={{ width: `${100 - sliderValue}%` }}
+                    ></div>
+                  </div>
                   
                   {/* Predicted Number Indicator ON Slider */}
                   {!isRevealing && (
@@ -152,33 +170,33 @@ export default function Game() {
                         zIndex: 25,
                       }}
                     >
-                      <div className="bg-[#333333] border border-[#444444] text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg">
+                      <div className="bg-white border-2 border-blue-500 text-black text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg">
                         {sliderValue}
                       </div>
-                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-[#333333]"></div>
+                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white"></div>
                     </div>
                   )}
 
                   {/* Lucky Number Indicator ON Slider */}
                   {isRevealing && luckyNumberDisplay !== null && (
                     <div 
-                      className="absolute top-[-45px] transition-all duration-500 ease-out flex flex-col items-center"
+                      className="absolute top-[-60px] transition-all duration-1000 ease-out flex flex-col items-center"
                       style={{
-                        left: `calc(${luckyNumberDisplay}% - 18px)`,
+                        left: `calc(${luckyNumberDisplay}% - 22px)`,
                         zIndex: 30,
                       }}
                     >
-                      <div className="bg-[#4cd3ff] text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg shadow-[#4cd3ff]/30 animate-in fade-in zoom-in slide-in-from-bottom-2">
+                      <div className="bg-yellow-400 text-black text-lg font-bold px-4 py-2 rounded-xl shadow-lg shadow-yellow-400/50 animate-pulse border-2 border-yellow-300">
                         {luckyNumberDisplay}
                       </div>
-                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-[#4cd3ff]"></div>
+                      <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-yellow-400"></div>
                     </div>
                   )}
                   
                   <input
                     type="range"
                     min="0"
-                    max="99"
+                    max="100"
                     value={sliderValue}
                     onChange={(e) => setSliderValue(parseInt(e.target.value))}
                     className="absolute top-1/2 -translate-y-1/2 w-full h-8 rounded-full appearance-none bg-transparent cursor-pointer"
@@ -190,26 +208,60 @@ export default function Game() {
                   <style>{`
                     input[type="range"]::-webkit-slider-thumb {
                       appearance: none;
-                      width: 4px;
-                      height: 36px;
-                      background: #ff0000;
+                      width: 20px;
+                      height: 28px;
+                      background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
                       cursor: pointer;
                       pointer-events: all;
-                      box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
+                      border: 2px solid #60a5fa;
+                      border-radius: 4px;
+                      box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
                       z-index: 20;
                       position: relative;
+                    }
+                    input[type="range"]::-webkit-slider-runnable-track {
+                      background: transparent;
+                      height: 32px;
+                      border-radius: 16px;
+                      border: none;
                     }
                     input[type="range"]::-moz-range-thumb {
-                      width: 4px;
-                      height: 36px;
-                      background: #ff0000;
+                      width: 20px;
+                      height: 28px;
+                      background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
                       cursor: pointer;
-                      border: none;
-                      box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
+                      border: 2px solid #60a5fa;
+                      border-radius: 4px;
+                      box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
                       z-index: 20;
                       position: relative;
                     }
+                    input[type="range"]::-moz-range-track {
+                      background: transparent;
+                      border: none;
+                    }
+                    input[type="range"]::-moz-range-progress {
+                      background: transparent;
+                      height: 32px;
+                      border-radius: 16px;
+                    }
                   `}</style>
+                </div>
+              </div>
+
+              {/* Stats Section */}
+              <div className="grid grid-cols-3 gap-2 bg-[#0d0d0d] p-4 rounded-lg border border-[#2a2a2a]">
+                <div className="text-center">
+                  <div className="text-white text-sm font-bold">Multiplier</div>
+                  <div className="text-white text-base font-bold">{multiplier.toFixed(4)} X</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-white text-sm font-bold">Roll Over</div>
+                  <div className="text-white text-base font-bold">{sliderValue.toFixed(2)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-white text-sm font-bold">Win Chance</div>
+                  <div className="text-white text-base font-bold">{winChance.toFixed(3)} %</div>
                 </div>
               </div>
 
@@ -218,23 +270,25 @@ export default function Game() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setBetType("higher")}
-                    className={`py-3 rounded-lg font-bold text-base transition-all ${
+                    className={`flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-base transition-all ${
                       betType === "higher"
                         ? "bg-[#007BFF] text-white shadow-lg"
                         : "bg-[#1a1a1a] border border-[#333333] text-white hover:border-[#007BFF]"
                     }`}
                   >
-                    Higher
+                    <ArrowUp className="w-5 h-5" />
+                    <span>Higher</span>
                   </button>
                   <button
                     onClick={() => setBetType("lower")}
-                    className={`py-3 rounded-lg font-bold text-base transition-all ${
+                    className={`flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-base transition-all ${
                       betType === "lower"
                         ? "bg-[#007BFF] text-white shadow-lg"
                         : "bg-[#1a1a1a] border border-[#333333] text-white hover:border-[#007BFF]"
                     }`}
                   >
-                    Lower
+                    <ArrowDown className="w-5 h-5" />
+                    <span>Lower</span>
                   </button>
                 </div>
               </div>
@@ -274,18 +328,18 @@ export default function Game() {
                     type="number"
                     value={playAmount}
                     onChange={(e) => setPlayAmount(e.target.value)}
-                    placeholder="Enter amount"
-                    className="w-full bg-[#0d0d0d] text-white rounded-lg px-4 py-3 pr-24 text-base border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
+                    placeholder="20"
+                    className="w-full bg-[#0d0d0d] text-white rounded-lg px-3 py-2 pr-20 text-sm border border-[#333333] focus:border-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
                     <button
-                      onClick={() => setPlayAmount(String(Math.max(1, Math.floor((parseInt(playAmount) || 0) / 2))))}
+                      onClick={() => setPlayAmount(String(Math.max(20, Math.floor((parseInt(playAmount) || 20) / 2))))}
                       className="bg-[#333333] hover:bg-[#444444] text-white px-2 py-1 rounded text-xs font-semibold"
                     >
                       ½
                     </button>
                     <button
-                      onClick={() => setPlayAmount(String((parseInt(playAmount) || 1) * 2))}
+                      onClick={() => setPlayAmount(String((parseInt(playAmount) || 20) * 2))}
                       className="bg-[#333333] hover:bg-[#444444] text-white px-2 py-1 rounded text-xs font-semibold"
                     >
                       2×
@@ -307,16 +361,22 @@ export default function Game() {
                 {playMutation.isPending ? "Playing..." : "Play"}
               </button>
 
-              {playAmount && isValidAmount && betType && (
-                <div>
-                  <div className="text-gray-400 text-xs mb-1">Potential Payout</div>
+              <div>
+                <div className="text-gray-400 text-xs font-bold mb-1">Potential Payout</div>
+                <div className="bg-[#0d0d0d] p-2 rounded-lg border border-[#2a2a2a] flex items-center justify-between gap-3">
                   <div className="text-white font-bold text-2xl">
-                    {(amount * multiplier).toFixed(0)}
+                    {betType && amount > 0 ? (amount * multiplier).toFixed(0) : "0"}
+                  </div>
+                  <div>
+                    {chipType === "PAD" ? (
+                      <DiamondIcon size={24} withGlow={true} />
+                    ) : (
+                      <Bug className="w-6 h-6 text-green-400" />
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
         </div>
 
         <button
