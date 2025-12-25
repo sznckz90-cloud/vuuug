@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
-import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Bug, Info, ArrowUp, ArrowDown } from "lucide-react";
@@ -18,8 +17,6 @@ interface GameResult {
 }
 
 export default function Game() {
-  const { toast } = useToast();
-  
   const [sliderValue, setSliderValue] = useState(50);
   const [betType, setBetType] = useState<"higher" | "lower" | null>(null);
   const [chipType, setChipType] = useState<"PAD" | "BUG" | null>("PAD");
@@ -42,11 +39,30 @@ export default function Game() {
 
   const calculateMultiplier = (predicted: number, bet: "higher" | "lower" | null) => {
     if (!bet) return 1;
+    
+    let winProbability = 0;
+    
     if (bet === "higher") {
-      return 1 + (100 - predicted) / 100;
+      // Win if luckyNumber > predictedValue
+      // Lucky range is 0-99 (100 possible values)
+      // Winning numbers: (predictedValue+1) to 99 = (99 - predictedValue) numbers
+      // Probability = (99 - predictedValue) / 100
+      winProbability = (99 - predicted) / 100;
     } else {
-      return 1 + predicted / 100;
+      // Win if luckyNumber < predictedValue
+      // Lucky range is 0-99
+      // Winning numbers: 0 to (predictedValue-1) = predictedValue numbers
+      // Probability = predictedValue / 100
+      winProbability = predicted / 100;
     }
+    
+    // Pure multiplier formula: 1 / Win Chance
+    // No house edge applied here - dynamic based on win probability only
+    if (winProbability <= 0) {
+      return 99; // Impossible to win
+    }
+    
+    return Math.max(1.01, 1 / winProbability);
   };
 
   const multiplier = calculateMultiplier(sliderValue, betType);
@@ -91,18 +107,11 @@ export default function Game() {
       setTimeout(() => {
         setIsRevealing(false);
         
+        // Use app's default reward notification system for both wins and losses
         if (data.won) {
-          toast({
-            title: "🎉 Won!",
-            description: `+${data.reward} ${data.chipType}`,
-            variant: "default",
-          });
+          window.dispatchEvent(new CustomEvent('showReward', { detail: { amount: data.reward } }));
         } else {
-          toast({
-            title: "❌ Lost",
-            description: `-${data.playAmount} ${data.chipType}`,
-            variant: "destructive",
-          });
+          window.dispatchEvent(new CustomEvent('showReward', { detail: { amount: -data.playAmount } }));
         }
         
         // Reset game and refetchUser
@@ -115,19 +124,28 @@ export default function Game() {
       }, 3000);
     },
     onError: (error) => {
-      toast({
-        description: error instanceof Error ? error.message : "Failed to play game",
-        variant: "destructive",
-      });
+      console.error("Game error:", error instanceof Error ? error.message : "Failed to play game");
     },
   });
+
+  // Format multiplier: remove trailing .00 but keep decimals for fractional values
+  const formatMultiplier = (num: number): string => {
+    const formatted = num.toFixed(4);
+    return parseFloat(formatted).toString();
+  };
+
+  // Check for invalid bet cases (100% guaranteed wins - prevent reward farming)
+  const isInvalidCase = 
+    (betType === "higher" && sliderValue >= 99) || 
+    (betType === "lower" && sliderValue <= 0);
 
   const canPlay =
     sliderValue !== undefined &&
     betType &&
     chipType &&
     playAmount &&
-    !playMutation.isPending;
+    !playMutation.isPending &&
+    !isInvalidCase;
 
   const availableBalance = chipType === "PAD" 
     ? parseInt((currentUser as any)?.balance || "0")
@@ -286,7 +304,7 @@ export default function Game() {
               <div className="grid grid-cols-3 gap-3 bg-[#0d0d0d] p-4 rounded-lg border border-[#2a2a2a] w-full">
                 <div className="text-center min-w-0">
                   <div className="text-white text-xs sm:text-sm font-bold truncate">Multiplier</div>
-                  <div className="text-white text-sm sm:text-base font-bold truncate">{multiplier.toFixed(4)} X</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{formatMultiplier(multiplier)} X</div>
                 </div>
                 <div className="text-center min-w-0">
                   <div className="text-white text-xs sm:text-sm font-bold truncate">Roll Over</div>
@@ -294,7 +312,7 @@ export default function Game() {
                 </div>
                 <div className="text-center min-w-0">
                   <div className="text-white text-xs sm:text-sm font-bold truncate">Win Chance</div>
-                  <div className="text-white text-sm sm:text-base font-bold truncate">{winChance.toFixed(3)} %</div>
+                  <div className="text-white text-sm sm:text-base font-bold truncate">{winChance.toFixed(4)} %</div>
                 </div>
               </div>
 
@@ -358,6 +376,11 @@ export default function Game() {
                     Insufficient balance
                   </div>
                 )}
+                {isInvalidCase && (
+                  <div className="text-red-500 text-xs mt-1 font-semibold">
+                    {betType === "higher" ? "Prediction too high - guaranteed win not allowed" : "Prediction too low - guaranteed win not allowed"}
+                  </div>
+                )}
               </div>
 
               <button
@@ -372,7 +395,7 @@ export default function Game() {
                 <div className="text-gray-400 text-xs font-bold mb-1">Potential Payout</div>
                 <div className="bg-[#0d0d0d] p-2 rounded-lg border border-[#2a2a2a] flex items-center justify-between gap-3">
                   <div className="text-white font-bold text-2xl">
-                    {betType && amount > 0 ? (amount * multiplier).toFixed(0) : "0"}
+                    {betType && amount > 0 ? Math.floor(amount * multiplier).toString() : "0"}
                   </div>
                   <div>
                     {chipType === "PAD" ? (
