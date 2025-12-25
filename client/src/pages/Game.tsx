@@ -110,18 +110,17 @@ export default function Game() {
       // Scale lucky number from 0-99 to 0-100 range for slider positioning
       const scaledLuckyNumber = Math.round((data.luckyNumber / 99) * 100);
       setLuckyNumberDisplay(scaledLuckyNumber);
+
+      // Show notification in same format as ad watch notifications (always success)
+      const tokenName = chipType === "PAD" ? "PAD" : "BUG";
+      if (data.won) {
+        showNotification(`+${data.reward} ${tokenName} earned!`, "success");
+      } else {
+        showNotification(`-${data.playAmount} ${tokenName} lost!`, "success");
+      }
       
       setTimeout(() => {
         setIsRevealing(false);
-        
-        // Show notification in same format as ad watch notifications (always success)
-        const tokenName = chipType === "PAD" ? "PAD" : "BUG";
-        if (data.won) {
-          showNotification(`+${data.reward} ${tokenName} earned!`, "success");
-        } else {
-          showNotification(`-${data.playAmount} ${tokenName} lost!`, "success");
-        }
-        
         // Only reset temporary UI state, keep game selection as requested by user
         setLuckyNumberDisplay(null);
         refetchUser();

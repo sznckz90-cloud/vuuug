@@ -250,14 +250,8 @@ export default function Missions() {
     
     const adResult = await runAdFlow();
     
-    if (!adResult.monetagWatched) {
+    if (!adResult.monetagWatched && !adResult.adsgramWatched) {
       showNotification("Please watch the ads completely to claim!", "error");
-      setDailyCheckinStep('idle');
-      return;
-    }
-    
-    if (!adResult.adsgramWatched) {
-      showNotification("Please complete all ads to claim your reward!", "error");
       setDailyCheckinStep('idle');
       return;
     }
