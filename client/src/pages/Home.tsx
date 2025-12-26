@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Megaphone, ChevronRight, TrendingUp, BarChart3 } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -501,95 +501,68 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-2">
-          <div 
-            className="bg-[#111] rounded-2xl p-3 cursor-pointer active:scale-[0.98] transition-transform border border-white/5"
+          <Button
             onClick={handleConvertClick}
+            disabled={isConverting || convertMutation.isPending}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-500/20">
-                <RefreshCw className={`w-5 h-5 text-white ${isConverting || convertMutation.isPending ? 'animate-spin' : ''}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-black text-sm truncate uppercase tracking-tight">Convert</h3>
-                <p className="text-gray-500 text-[10px] font-bold truncate uppercase tracking-wider">PAD to USD</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-800 flex-shrink-0" />
-            </div>
-          </div>
+            {isConverting || convertMutation.isPending ? (
+              <>
+                <Clock className="w-4 h-4 text-[#4cd3ff] animate-spin" />
+                <span className="text-white font-medium text-xs">Converting...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 text-[#4cd3ff]" />
+                <span className="text-white font-medium text-xs">Convert</span>
+              </>
+            )}
+          </Button>
 
-          <div 
-            className={`bg-[#111] rounded-2xl p-3 cursor-pointer active:scale-[0.98] transition-transform border border-white/5 ${(!canClaimStreak || isClaimingStreak) ? 'opacity-50' : ''}`}
+          <Button
             onClick={handleClaimStreak}
+            disabled={isClaimingStreak || !canClaimStreak}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-[#4cd3ff]/30 hover:border-[#4cd3ff] hover:bg-[#4cd3ff]/10 transition-all rounded-full flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4cd3ff] to-[#00a8ff] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
-                {isClaimingStreak ? (
-                  <Loader2 className="w-5 h-5 text-white animate-spin" />
-                ) : (
-                  <Flame className="w-5 h-5 text-white" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-black text-sm truncate uppercase tracking-tight">Bonus</h3>
-                <p className="text-gray-500 text-[10px] font-bold truncate uppercase tracking-wider">{timeUntilNextClaim}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-800 flex-shrink-0" />
-            </div>
-          </div>
+            {isClaimingStreak ? (
+              <>
+                <Loader2 className="w-4 h-4 text-[#4cd3ff] animate-spin" />
+                <span className="text-white font-medium text-xs">Claiming...</span>
+              </>
+            ) : canClaimStreak ? (
+              <>
+                <Flame className="w-4 h-4 text-[#4cd3ff]" />
+                <span className="text-white font-medium text-xs">Claim Bonus</span>
+              </>
+            ) : (
+              <>
+                <Flame className="w-4 h-4 text-[#4cd3ff] opacity-50" />
+                <span className="text-white font-medium text-xs opacity-70">{timeUntilNextClaim}</span>
+              </>
+            )}
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-2">
-          <div 
-            className="bg-[#111] rounded-2xl p-3 cursor-pointer active:scale-[0.98] transition-transform border border-white/5"
+          <Button
             onClick={() => setPromoPopupOpen(true)}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-purple-500/30 hover:border-purple-500 hover:bg-purple-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20">
-                <Gift className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-black text-sm truncate uppercase tracking-tight">Promo</h3>
-                <p className="text-gray-500 text-[10px] font-bold truncate uppercase tracking-wider">Redeem Code</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-800 flex-shrink-0" />
-            </div>
-          </div>
+            <Gift className="w-4 h-4 text-purple-400" />
+            <span className="text-white font-medium text-xs">Promo</span>
+          </Button>
 
-          <div 
-            className="bg-[#111] rounded-2xl p-3 cursor-pointer active:scale-[0.98] transition-transform border border-white/5"
-            onClick={() => setLocation("/statistics")}
+          <Button
+            onClick={handleBoosterClick}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/20">
-                <BarChart3 className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-black text-sm truncate uppercase tracking-tight">Stats</h3>
-                <p className="text-gray-500 text-[10px] font-bold truncate uppercase tracking-wider">Live Analytics</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-800 flex-shrink-0" />
-            </div>
-          </div>
+            <Rocket className="w-4 h-4 text-orange-400" />
+            <span className="text-white font-medium text-xs">Booster</span>
+          </Button>
         </div>
 
         <div className="mt-3">
           <AdWatchingSection user={user as User} />
-        </div>
-
-        <div 
-          className="bg-[#111] rounded-xl p-3 mt-3 cursor-pointer active:scale-[0.98] transition-transform"
-          onClick={() => setLocation("/task/create")}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0">
-              <Megaphone className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-white font-semibold text-sm">Create My Task</h3>
-              <p className="text-gray-400 text-xs">Promote your channel or bot</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-gray-500" />
-          </div>
         </div>
 
       </main>

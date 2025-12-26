@@ -250,25 +250,19 @@ export default function Missions() {
     
     const adResult = await runAdFlow();
     
-    if (!adResult.monetagWatched && !adResult.adsgramWatched) {
+    if (!adResult.monetagWatched) {
       showNotification("Please watch the ads completely to claim!", "error");
       setDailyCheckinStep('idle');
       return;
     }
     
-    setDailyCheckinStep('countdown');
-    setDailyCheckinCountdown(3);
+    if (!adResult.adsgramWatched) {
+      showNotification("Please complete all ads to claim your reward!", "error");
+      setDailyCheckinStep('idle');
+      return;
+    }
     
-    const countdownInterval = setInterval(() => {
-      setDailyCheckinCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          setDailyCheckinStep('ready');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    setDailyCheckinStep('ready');
   }, [missionStatus?.dailyCheckin?.claimed, dailyCheckinStep, runAdFlow]);
 
   const handleCheckForUpdates = useCallback(() => {
@@ -276,11 +270,11 @@ export default function Missions() {
     
     const tgWebApp = window.Telegram?.WebApp as any;
     if (tgWebApp?.openTelegramLink) {
-      tgWebApp.openTelegramLink('https://t.me/PaidAdzapp');
+      tgWebApp.openTelegramLink('https://t.me/PaidADsNews');
     } else if (tgWebApp?.openLink) {
-      tgWebApp.openLink('https://t.me/PaidAdzapp');
+      tgWebApp.openLink('https://t.me/PaidADsNews');
     } else {
-      window.open('https://t.me/PaidAdzapp', '_blank');
+      window.open('https://t.me/PaidADsNews', '_blank');
     }
     
     setCheckForUpdatesStep('opened');
@@ -461,6 +455,22 @@ export default function Missions() {
           <h1 className="text-lg font-bold text-white">Missions</h1>
         </div>
 
+        <div 
+          className="bg-[#111] rounded-xl p-3 mb-3 cursor-pointer active:scale-[0.98] transition-transform"
+          onClick={() => setLocation("/task/create")}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-white font-semibold text-sm">Create My Task</h3>
+              <p className="text-gray-400 text-xs">Promote your channel or bot</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          </div>
+        </div>
+
         <div className="bg-[#111] rounded-xl p-3 mb-3">
           <div className="flex items-center gap-2 mb-2">
             <CalendarCheck className="w-4 h-4 text-yellow-400" />
@@ -470,12 +480,12 @@ export default function Missions() {
           <div className="space-y-2">
             <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
                   <Users className="w-4 h-4 text-white" />
                 </div>
                 <div>
                   <p className="text-white text-sm font-medium">Share with Friends</p>
-                  <p className="text-[#4cd3ff] text-xs font-bold">+5 PAD</p>
+                  <p className="text-green-400 text-xs font-bold">+5 PAD</p>
                 </div>
               </div>
               {missionStatus?.shareStory?.claimed ? (
@@ -497,20 +507,13 @@ export default function Missions() {
                 >
                   {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
                 </Button>
-              ) : shareWithFriendsStep === 'sharing' ? (
-                <Button
-                  disabled={true}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
-                >
-                  Check
-                </Button>
               ) : (
                 <Button
                   onClick={handleShareWithFriends}
                   disabled={!referralLink}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-[#007BFF] hover:bg-[#0056b3] text-white"
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
                 >
-                  Start
+                  Share
                 </Button>
               )}
             </div>
@@ -532,7 +535,7 @@ export default function Missions() {
               ) : dailyCheckinStep === 'ads' ? (
                 <Button
                   disabled={true}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
                 >
                   <Loader2 className="w-3 h-3 animate-spin" />
                 </Button>
@@ -554,9 +557,9 @@ export default function Missions() {
               ) : (
                 <Button
                   onClick={handleDailyCheckin}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-[#007BFF] hover:bg-[#0056b3] text-white"
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-cyan-500 hover:bg-cyan-600 text-black"
                 >
-                  Start
+                  Go
                 </Button>
               )}
             </div>
@@ -593,9 +596,9 @@ export default function Missions() {
               ) : (
                 <Button
                   onClick={handleCheckForUpdates}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-[#007BFF] hover:bg-[#0056b3] text-white"
+                  className="h-8 w-20 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
                 >
-                  Start
+                  Check
                 </Button>
               )}
             </div>
