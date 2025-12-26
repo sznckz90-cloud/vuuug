@@ -42,10 +42,10 @@ export default function Game() {
   });
 
   const availableBalance = chipType === "PAD" 
-    ? parseInt((currentUser as any)?.balance || "0")
-    : parseInt((currentUser as any)?.bugBalance || "0");
+    ? parseFloat((currentUser as any)?.balance || "0")
+    : parseFloat((currentUser as any)?.bugBalance || "0");
 
-  const amount = parseInt(playAmount) || 0;
+  const amount = parseFloat(playAmount) || 0;
 
   const calculateMultiplier = (predicted: number, bet: "higher" | "lower" | null, playAmt: number = 0, balance: number = 1) => {
     if (!bet) return 1;
@@ -84,11 +84,10 @@ export default function Game() {
     winProbability = Math.max(0.02, Math.min(0.98, winProbability));
     
     // Multiplier formula: (1 / winProbability) * (1 - houseEdge)
-    // At reference point: Selected=50, WinChance=50%, Multiplier=1.9x
-    // Verification: (1/0.5) * (1-0.05) = 2 * 0.95 = 1.9 ✓
     const houseEdge = 0.05;
     const multiplier = (1 / winProbability) * (1 - houseEdge);
     
+    // Return precise multiplier without rounding here
     return multiplier;
   };
 
@@ -100,11 +99,8 @@ export default function Game() {
         throw new Error("Missing game parameters");
       }
 
-      const amount = parseInt(playAmount);
-      if (amount < 1) {
-        throw new Error("Minimum play amount is 1");
-      }
-      if (amount <= 0) {
+      const amount = parseFloat(playAmount);
+      if (isNaN(amount) || amount <= 0) {
         throw new Error("Invalid amount");
       }
 
@@ -137,7 +133,9 @@ export default function Game() {
       // Show notification in same format as ad watch notifications (always success)
       const tokenName = chipType === "PAD" ? "PAD" : "BUG";
       if (data.won) {
-        showNotification(`+${data.reward} ${tokenName} earned!`, "success");
+        // Using a more precise format for reward to match wallet credit exactly
+        const exactReward = Number(data.reward).toFixed(8).replace(/\.?0+$/, "");
+        showNotification(`+${exactReward} ${tokenName} earned!`, "success");
       } else {
         showNotification(`-${data.playAmount} ${tokenName} lost!`, "success");
       }
@@ -411,7 +409,7 @@ export default function Game() {
                   <div className="text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Potential Payout</div>
                   <div className="bg-[#0d0d0d] px-3 py-2 rounded-lg border border-[#333333] flex items-center justify-between gap-3 h-[38px]">
                     <div className="text-white font-bold text-sm">
-                      {betType && amount > 0 && !isInvalidCase ? (amount * multiplier).toFixed(2).replace(/\.?0+$/, "") : "0"}
+                      {betType && amount > 0 && !isInvalidCase ? (amount * multiplier).toFixed(4).replace(/\.?0+$/, "") : "0"}
                     </div>
                     <div className="flex items-center">
                       {chipType === "PAD" ? (
