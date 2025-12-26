@@ -8831,8 +8831,39 @@ ${walletAddress}
         return res.status(400).json({ message: 'Insufficient balance' });
       }
 
+      // Determine bet size risk level based on user's balance
+      // This affects the actual win probability independent of predicted value
+      const balancePercentage = (playAmount / balance) * 100;
+      
+      // Risk level: Small bet (< 20% of balance) = Safe, Medium (20-50%) = Balanced, Large (> 50%) = High Risk
+      let betRiskMultiplier = 1.0; // 1.0 = normal odds
+      if (balancePercentage < 20) {
+        // Small bet - Safe Mode: increase win chance by biasing the lucky number
+        betRiskMultiplier = 1.35; // ~30% win chance when predicted is 50
+      } else if (balancePercentage <= 50) {
+        // Medium bet - Balanced: keep normal odds
+        betRiskMultiplier = 1.0;
+      } else {
+        // Large bet - High Risk: decrease win chance by biasing against the player
+        betRiskMultiplier = 0.25; // ~5% win chance when predicted is 50
+      }
+
       // Generate lucky number (0-99)
-      const luckyNumber = Math.floor(Math.random() * 100);
+      // Adjust lucky number based on bet size to implement the risk system
+      let rawLuckyNumber = Math.floor(Math.random() * 100);
+      
+      // Apply bet risk adjustment by shifting the lucky number
+      // For safe bets, we make lower numbers more likely (easier to win on "higher" bets)
+      // For risky bets, we make higher numbers more likely (harder to win on "higher" bets)
+      let luckyNumber = rawLuckyNumber;
+      if (betRiskMultiplier > 1.0) {
+        // Safe mode: bias towards lower numbers (easier wins on "higher" bets)
+        luckyNumber = Math.floor(rawLuckyNumber * (1 / betRiskMultiplier));
+      } else if (betRiskMultiplier < 1.0) {
+        // High risk mode: bias towards higher numbers (harder wins on "higher" bets)
+        const shiftAmount = Math.ceil(100 * (1 - betRiskMultiplier));
+        luckyNumber = Math.min(99, rawLuckyNumber + shiftAmount);
+      }
 
       // Determine if user won
       let won = false;
@@ -8850,6 +8881,11 @@ ${walletAddress}
       } else {
         winProbability = predictedValue / 100;
       }
+      
+      // Apply bet risk adjustment to multiplier
+      winProbability = winProbability * betRiskMultiplier;
+      // Clamp between 2% and 98%
+      winProbability = Math.max(0.02, Math.min(0.98, winProbability));
       
       let multiplier = 1.01;
       if (winProbability > 0) {
