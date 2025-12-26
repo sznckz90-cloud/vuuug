@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAdmin } from "@/hooks/useAdmin";
 import { motion, AnimatePresence } from "framer-motion";
-import { HeartHandshake, CircleDollarSign, User, Plus, Dices, ClipboardList } from "lucide-react";
+import { HeartHandshake, CircleDollarSign, User, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { useSeasonEnd } from "@/lib/SeasonEndContext";
@@ -29,9 +29,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/affiliates", icon: HeartHandshake, label: "INVITE" },
-    { href: "/games", icon: Dices, label: "GAME" },
     { href: "/", icon: User, label: "EARN" },
-    { href: "/missions", icon: ClipboardList, label: "TASK" },
     { href: "/withdraw", icon: CircleDollarSign, label: "PAYOUT" },
   ];
 
