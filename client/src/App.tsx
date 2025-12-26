@@ -2,7 +2,6 @@ import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Toaster } from "@/components/ui/toaster";
 import AppNotification from "@/components/AppNotification";
 import { useEffect, lazy, Suspense, useState, memo, useCallback, useRef } from "react";
 import { setupDeviceTracking } from "@/lib/deviceId";
@@ -25,10 +24,7 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
-const Game = lazy(() => import("@/pages/Game"));
-const Missions = lazy(() => import("@/pages/Missions"));
-const Statistics = lazy(() => import("@/pages/Statistics"));
-const CreateTask = lazy(() => import("@/pages/CreateTask"));
+const Store = lazy(() => import("@/pages/Store"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -50,13 +46,10 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/withdraw" component={Withdraw} />
-        <Route path="/games" component={Game} />
-        <Route path="/missions" component={Missions} />
-        <Route path="/task/create" component={CreateTask} />
         <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
-        <Route path="/statistics" component={Statistics} />
+        <Route path="/store" component={Store} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
@@ -432,7 +425,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppContent />
-        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );
