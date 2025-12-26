@@ -19,12 +19,11 @@ declare global {
 }
 
 const Home = lazy(() => import("@/pages/Home"));
-const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
-const Store = lazy(() => import("@/pages/Store"));
+const Game = lazy(() => import("@/pages/Game"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -46,10 +45,9 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/withdraw" component={Withdraw} />
-        <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
-        <Route path="/store" component={Store} />
+        <Route path="/game" component={Game} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
