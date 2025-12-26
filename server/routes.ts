@@ -21,7 +21,7 @@ import {
   dailyMissions
 } from "../shared/schema";
 import { db } from "./db";
-import { eq, sql, desc, and, gte } from "drizzle-orm";
+import { eq, sql, desc, and, gte, sum, count, isNotNull } from "drizzle-orm";
 import crypto from "crypto";
 import { sendTelegramMessage, sendUserTelegramNotification, sendWelcomeMessage, handleTelegramMessage, setupTelegramWebhook, verifyChannelMembership, sendSharePhotoToChat } from "./telegram";
 import { authenticateTelegram, requireAuth, optionalAuth } from "./auth";
@@ -2777,6 +2777,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       success: false, 
       message: 'Test endpoint removed - bot uses inline buttons only'
     });
+  });
+
+  // Public app stats endpoint
+  app.get('/api/app-stats', async (req: any, res) => {
+    try {
+      const totalUsersCount = await db.select({ cnt: count() }).from(users);
+      const activeUsersCountResult = await db.select({ cnt: count() }).from(earnings).where(sql`DATE(${earnings.createdAt}) = CURRENT_DATE`);
+      const newUsersCountResult = await db.select({ cnt: count() }).from(users).where(sql`DATE(${users.createdAt}) >= CURRENT_DATE - INTERVAL '1 day'`);
+      const completedTasksCount = await db.select({ cnt: count() }).from(taskClicks).where(isNotNull(taskClicks.claimedAt));
+      const createdTasksCount = await db.select({ cnt: count() }).from(advertiserTasks);
+      const pendingWithdrawalsCount = await db.select({ cnt: count() }).from(withdrawals).where(eq(withdrawals.status, 'pending'));
+      const approvedWithdrawalsCount = await db.select({ cnt: count() }).from(withdrawals).where(sql`${withdrawals.status} IN ('completed', 'success', 'paid', 'Approved')`);
+      const rejectedWithdrawalsCount = await db.select({ cnt: count() }).from(withdrawals).where(eq(withdrawals.status, 'rejected'));
+
+      res.json({
+        totalUsers: totalUsersCount[0]?.cnt || 0,
+        activeUsersToday: activeUsersCountResult[0]?.cnt || 0,
+        newUsersLast24h: newUsersCountResult[0]?.cnt || 0,
+        totalEarnings: '0',
+        totalBugEarned: '0',
+        totalWithdrawn: '0',
+        totalReferralEarnings: '0',
+        tasksCompleted: completedTasksCount[0]?.cnt || 0,
+        tasksCreated: createdTasksCount[0]?.cnt || 0,
+        withdrawalRequests: {
+          pending: pendingWithdrawalsCount[0]?.cnt || 0,
+          approved: approvedWithdrawalsCount[0]?.cnt || 0,
+          rejected: rejectedWithdrawalsCount[0]?.cnt || 0,
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching app stats:", error);
+      res.status(500).json({ message: "Failed to fetch app stats" });
+    }
   });
 
   // Admin stats endpoint
