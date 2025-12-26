@@ -6,13 +6,27 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "framer-motion";
+
+interface UnifiedTask {
+  id: string;
+  type: 'advertiser';
+  taskType: string;
+  title: string;
+  link: string | null;
+  rewardPAD: number;
+  rewardBUG?: number;
+  rewardType: string;
+  isAdminTask: boolean;
+  isAdvertiserTask?: boolean;
+  priority: number;
+}
 
 declare global {
   interface Window {
@@ -55,7 +69,7 @@ export default function Home() {
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
   const [convertPopupOpen, setConvertPopupOpen] = useState(false);
   const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
-  const [convertAmount, setConvertAmount] = useState<string>("");
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
   const { data: leaderboardData } = useQuery<{
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
@@ -69,6 +83,30 @@ export default function Home() {
     retry: false,
   });
 
+  const { data: unifiedTasksData, isLoading: isLoadingTasks } = useQuery<{
+    success: boolean;
+    tasks: UnifiedTask[];
+    completedTaskIds: string[];
+    referralCode?: string;
+  }>({
+    queryKey: ['/api/tasks/home/unified'],
+    queryFn: async () => {
+      const res = await fetch('/api/tasks/home/unified', { credentials: 'include' });
+      if (!res.ok) return { success: true, tasks: [], completedTaskIds: [] };
+      return res.json();
+    },
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (unifiedTasksData?.completedTaskIds) {
+      setCompletedTasks(new Set(unifiedTasksData.completedTaskIds));
+    } else {
+      setCompletedTasks(new Set());
+    }
+  }, [unifiedTasksData]);
+
+  const currentTask = unifiedTasksData?.tasks?.[0] || null;
 
   React.useEffect(() => {
     const updateTimer = () => {
@@ -212,6 +250,51 @@ export default function Home() {
     },
   });
 
+  const advertiserTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/advertiser-tasks/${taskId}/click`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to complete task');
+      return data;
+    },
+    onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
+      const padReward = Number(data.reward ?? 0);
+      const bugReward = Number(data.bugReward ?? 0);
+      if (bugReward > 0) {
+        showNotification(`+${padReward.toLocaleString()} PAD, +${bugReward} BUG`, 'success');
+      } else {
+        showNotification(`+${padReward.toLocaleString()} PAD`, 'success');
+      }
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to complete task', 'error');
+    },
+  });
+
+  const handleUnifiedTask = (task: UnifiedTask) => {
+    if (!task) return;
+    
+    if (task.link) {
+      window.open(task.link, '_blank');
+      setTimeout(() => advertiserTaskMutation.mutate(task.id), 2000);
+    } else {
+      advertiserTaskMutation.mutate(task.id);
+    }
+  };
+
+  const getTaskIcon = (task: UnifiedTask) => {
+    return task.taskType === 'channel' ? <Send className="w-4 h-4" /> : 
+           task.taskType === 'bot' ? <ExternalLink className="w-4 h-4" /> :
+           <ExternalLink className="w-4 h-4" />;
+  };
+
+  const isTaskPending = advertiserTaskMutation.isPending;
 
   const showAdsgramAd = (): Promise<boolean> => {
     return new Promise(async (resolve) => {
@@ -246,18 +329,18 @@ export default function Home() {
     });
   };
 
-  const showMonetagRewardedAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+  const showMonetagPopupAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      console.log('🎬 Attempting to show Monetag rewarded ad...');
+      console.log('🎬 Attempting to show Monetag popup ad...');
       if (typeof window.show_10306459 === 'function') {
-        console.log('✅ Monetag SDK found, calling rewarded ad...');
-        window.show_10306459()
+        console.log('✅ Monetag SDK found, calling popup ad...');
+        window.show_10306459('pop')
           .then(() => {
-            console.log('✅ Monetag rewarded ad completed successfully');
+            console.log('✅ Monetag popup ad completed successfully');
             resolve({ success: true, unavailable: false });
           })
           .catch((error) => {
-            console.error('❌ Monetag rewarded ad error:', error);
+            console.error('❌ Monetag popup ad error:', error);
             resolve({ success: false, unavailable: false });
           });
       } else {
@@ -272,25 +355,13 @@ export default function Home() {
   };
 
   const handleConvertConfirm = async () => {
-    const amount = parseFloat(convertAmount) || 0;
-    
-    if (!convertAmount.trim() || amount <= 0) {
-      showNotification("Please enter a valid amount", "error");
-      return;
-    }
-    
-    if (amount > balancePAD) {
-      showNotification("Insufficient balance", "error");
-      return;
-    }
-
     const minimumConvertPAD = selectedConvertType === 'USD' 
       ? (appSettings?.minimumConvertPAD || 10000)
       : selectedConvertType === 'TON'
         ? (appSettings?.minimumConvertPadToTon || 10000)
         : (appSettings?.minimumConvertPadToBug || 1000);
     
-    if (amount < minimumConvertPAD) {
+    if (balancePAD < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
       return;
     }
@@ -298,37 +369,26 @@ export default function Home() {
     if (isConverting || convertMutation.isPending) return;
     
     setIsConverting(true);
-    console.log('💱 Convert started, showing AdsGram ad first...');
+    console.log('💱 Convert started, showing popup ad...');
     
     try {
-      // Show AdsGram int-19149 first
-      const adsgramSuccess = await showAdsgramAd();
+      const popupResult = await showMonetagPopupAd();
+      console.log('📊 Popup ad result:', popupResult);
       
-      if (!adsgramSuccess) {
+      if (popupResult.unavailable) {
+        console.log('⚠️ Ads unavailable, proceeding with convert');
+        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+        return;
+      }
+      
+      if (!popupResult.success) {
         showNotification("Please watch the ad to convert.", "error");
         setIsConverting(false);
         return;
       }
       
-      // Then show Monetag rewarded ad
-      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
-      const monetagResult = await showMonetagRewardedAd();
-      
-      if (monetagResult.unavailable) {
-        // If Monetag unavailable, proceed with just AdsGram
-        console.log('⚠️ Monetag unavailable, proceeding with convert');
-        convertMutation.mutate({ amount, convertTo: selectedConvertType });
-        return;
-      }
-      
-      if (!monetagResult.success) {
-        showNotification("Please watch the ad to convert.", "error");
-        setIsConverting(false);
-        return;
-      }
-      
-      console.log('✅ Both ads watched, converting');
-      convertMutation.mutate({ amount, convertTo: selectedConvertType });
+      console.log('✅ Ad watched, converting');
+      convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
       
     } catch (error) {
       console.error('Convert error:', error);
@@ -344,25 +404,20 @@ export default function Home() {
     setIsClaimingStreak(true);
     
     try {
-      // Show AdsGram int-19149 first
-      const adsgramSuccess = await showAdsgramAd();
+      const popupResult = await showMonetagPopupAd();
       
-      if (!adsgramSuccess) {
-        showNotification("Please watch the ad completely to claim your bonus.", "error");
-        setIsClaimingStreak(false);
-        return;
-      }
-      
-      // Then show Monetag rewarded ad
-      const monetagResult = await showMonetagRewardedAd();
-      
-      if (monetagResult.unavailable) {
-        // If Monetag unavailable, proceed with just AdsGram
+      if (popupResult.unavailable) {
+        const adSuccess = await showAdsgramAd();
+        if (!adSuccess) {
+          showNotification("Please watch the ad completely to claim your bonus.", "error");
+          setIsClaimingStreak(false);
+          return;
+        }
         claimStreakMutation.mutate();
         return;
       }
       
-      if (!monetagResult.success) {
+      if (!popupResult.success) {
         showNotification("Please watch the ad completely to claim your bonus.", "error");
         setIsClaimingStreak(false);
         return;
@@ -385,36 +440,25 @@ export default function Home() {
     if (isApplyingPromo || redeemPromoMutation.isPending) return;
     
     setIsApplyingPromo(true);
-    console.log('🎫 Promo code claim started, showing AdsGram ad first...');
+    console.log('🎫 Promo code claim started, showing popup ad...');
     
     try {
-      // Show AdsGram int-19149 first
-      const adsgramSuccess = await showAdsgramAd();
+      const popupResult = await showMonetagPopupAd();
+      console.log('📊 Popup ad result:', popupResult);
       
-      if (!adsgramSuccess) {
-        showNotification("Please watch the ad to claim your promo code.", "error");
-        setIsApplyingPromo(false);
-        return;
-      }
-      
-      // Then show Monetag rewarded ad
-      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
-      const monetagResult = await showMonetagRewardedAd();
-      
-      if (monetagResult.unavailable) {
-        // If Monetag unavailable, proceed with just AdsGram
-        console.log('⚠️ Monetag unavailable, proceeding with promo claim');
+      if (popupResult.unavailable) {
+        console.log('⚠️ Ads unavailable, proceeding with promo claim');
         redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
         return;
       }
       
-      if (!monetagResult.success) {
+      if (!popupResult.success) {
         showNotification("Please watch the ad to claim your promo code.", "error");
         setIsApplyingPromo(false);
         return;
       }
       
-      console.log('✅ Both ads watched, claiming promo code');
+      console.log('✅ Ad watched, claiming promo code');
       redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
     } catch (error) {
       console.error('Promo claim error:', error);
@@ -565,8 +609,98 @@ export default function Home() {
           <AdWatchingSection user={user as User} />
         </div>
 
+        <div className="mt-3 px-0">
+          <div className="bg-[#0d0d0d] rounded-xl border border-[#1a1a1a] p-3">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg bg-[#4cd3ff]/20 flex items-center justify-center">
+                <Flame className="w-3.5 h-3.5 text-[#4cd3ff]" />
+              </div>
+              <span className="text-sm font-semibold text-white">Tasks</span>
+            </div>
+            
+            <AnimatePresence mode="wait">
+              {isLoadingTasks ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
+                >
+                  <Loader2 className="w-5 h-5 text-[#4cd3ff] animate-spin mx-auto" />
+                </motion.div>
+              ) : currentTask ? (
+                <motion.div
+                  key={currentTask.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-[#1a1a1a] rounded-lg p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-500/20">
+                        <span className="text-green-400">
+                          {getTaskIcon(currentTask)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-medium text-sm truncate">{currentTask.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <DiamondIcon size={12} />
+                            <span className="text-xs font-semibold text-[#4cd3ff]">+{currentTask.rewardPAD.toLocaleString()}</span>
+                          </div>
+                          {currentTask.rewardBUG && currentTask.rewardBUG > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Bug className="w-3 h-3 text-purple-400" />
+                              <span className="text-xs font-semibold text-purple-400">+{currentTask.rewardBUG}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleUnifiedTask(currentTask)}
+                      disabled={isTaskPending}
+                      className="h-8 px-4 text-xs font-semibold rounded-lg text-black bg-green-400 hover:bg-green-300"
+                    >
+                      {isTaskPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        "Start"
+                      )}
+                    </Button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="no-tasks"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
+                >
+                  <span className="text-gray-400 text-sm">No tasks available</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </main>
 
+      {/* Static Create Task Button - Only on Home Page */}
+      <div className="fixed bottom-6 right-4 z-50">
+        <button
+          onClick={() => setLocation('/task/create')}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-black text-white font-semibold text-sm border border-gray-700"
+        >
+          <Plus className="w-4 h-4" />
+          Create Task
+        </button>
+      </div>
 
       {promoPopupOpen && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
@@ -620,19 +754,11 @@ export default function Home() {
             <div className="flex items-center justify-center gap-1.5 mb-4">
               <DiamondIcon size={14} />
               <p className="text-gray-400 text-sm">
-                Available: {balancePAD.toLocaleString()} PAD
+                {balancePAD.toLocaleString()} PAD
               </p>
             </div>
             
             <div className="space-y-2 mb-4">
-              <Input
-                type="number"
-                placeholder="Enter amount"
-                value={convertAmount}
-                onChange={(e) => setConvertAmount(e.target.value)}
-                className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 focus:border-[#4cd3ff] focus:ring-0 mb-3"
-              />
-              
               <button
                 onClick={() => setSelectedConvertType('USD')}
                 className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
@@ -679,10 +805,7 @@ export default function Home() {
             
             <div className="flex gap-3">
               <Button
-                onClick={() => {
-                  setConvertPopupOpen(false);
-                  setConvertAmount("");
-                }}
+                onClick={() => setConvertPopupOpen(false)}
                 className="flex-1 h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white font-semibold rounded-xl border border-[#2a2a2a]"
               >
                 Close
