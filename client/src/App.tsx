@@ -11,6 +11,7 @@ import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import ChannelJoinPopup from "@/components/ChannelJoinPopup";
+import { LanguageProvider } from "@/hooks/useLanguage";
 
 declare global {
   interface Window {
@@ -420,11 +421,13 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppContent />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AppContent />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }
 
