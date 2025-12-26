@@ -8803,7 +8803,7 @@ ${walletAddress}
       const userId = req.user?.user?.id;
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const { predictedValue, betType, chipType, playAmount } = req.body;
+      const { predictedValue, betType, chipType, playAmount: rawPlayAmount } = req.body;
 
       // Validate inputs
       if (typeof predictedValue !== 'number' || predictedValue < 0 || predictedValue > 100) {
@@ -8815,7 +8815,9 @@ ${walletAddress}
       if (!['PAD', 'BUG'].includes(chipType)) {
         return res.status(400).json({ message: 'Invalid chip type' });
       }
-      if (typeof playAmount !== 'number' || playAmount <= 0) {
+      
+      const playAmount = parseFloat(rawPlayAmount);
+      if (isNaN(playAmount) || playAmount <= 0) {
         return res.status(400).json({ message: 'Invalid play amount' });
       }
 
@@ -8824,11 +8826,22 @@ ${walletAddress}
       if (!user) return res.status(401).json({ error: 'User not found' });
 
       const balance = chipType === 'PAD' 
-        ? parseInt(user.balance || '0')
-        : parseInt(user.bugBalance || '0');
+        ? parseFloat(user.balance || '0')
+        : parseFloat(user.bugBalance || '0');
 
       if (balance < playAmount) {
         return res.status(400).json({ message: 'Insufficient balance' });
+      }
+
+      // Deduct play amount immediately before the game
+      if (chipType === 'PAD') {
+        await db.update(users)
+          .set({ balance: sql`${users.balance} - ${playAmount}` })
+          .where(eq(users.id, userId));
+      } else {
+        await db.update(users)
+          .set({ bugBalance: sql`${users.bugBalance} - ${playAmount}` })
+          .where(eq(users.id, userId));
       }
 
       // Determine bet size risk level based on user's balance
@@ -8889,38 +8902,32 @@ ${walletAddress}
       
       let multiplier = 1.01;
       if (winProbability > 0) {
-        multiplier = Math.max(1.01, (1 / winProbability) * (1 - houseEdge));
+        multiplier = (1 / winProbability) * (1 - houseEdge);
       } else {
         multiplier = 99; // Cap for extremely low probability
       }
 
-      // Calculate reward
-      const reward = won ? Math.floor(playAmount * multiplier) : 0;
+      // Calculate reward (STRICT: BET AMOUNT * MULTIPLIER, no rounding up, no minimum return, no stake refund)
+      // Multiplier can have decimals, reward can have decimals.
+      const reward = won ? Number((playAmount * multiplier).toFixed(8)) : 0;
 
       // Update user balance
       if (won) {
-        // Add reward
+        // Add reward (Strictly BET AMOUNT * MULTIPLIER)
+        // NOTE: The playAmount was already deducted before the game started.
+        // We ONLY add the reward. If user bet 1 and multiplier is 0.97, balance increases by 0.97.
+        // Using string template for precise decimal handling in SQL
         if (chipType === 'PAD') {
           await db.update(users)
-            .set({ balance: sql`${users.balance} + ${reward}` })
+            .set({ balance: sql`${users.balance} + ${reward.toFixed(8)}` })
             .where(eq(users.id, userId));
         } else {
           await db.update(users)
-            .set({ bugBalance: sql`${users.bugBalance} + ${reward}` })
-            .where(eq(users.id, userId));
-        }
-      } else {
-        // Deduct loss
-        if (chipType === 'PAD') {
-          await db.update(users)
-            .set({ balance: sql`${users.balance} - ${playAmount}` })
-            .where(eq(users.id, userId));
-        } else {
-          await db.update(users)
-            .set({ bugBalance: sql`${users.bugBalance} - ${playAmount}` })
+            .set({ bugBalance: sql`${users.bugBalance} + ${reward.toFixed(8)}` })
             .where(eq(users.id, userId));
         }
       }
+      // Loss already handled by initial deduction
 
       // Record game history (Optional - don't block game if this fails)
       try {
