@@ -1625,21 +1625,13 @@ function SettingsSection() {
       const result = await response.json();
       
       if (result.success) {
-        toast({
-          title: "Settings Updated",
-          description: "App settings have been updated successfully",
-        });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
         queryClient.invalidateQueries({ queryKey: ["/api/app-settings"] });
       } else {
         throw new Error(result.message || 'Failed to update settings');
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update settings",
-        variant: "destructive",
-      });
+      // Silent error - no notification
     } finally {
       setIsSaving(false);
     }

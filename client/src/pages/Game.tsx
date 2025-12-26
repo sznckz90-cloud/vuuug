@@ -24,7 +24,7 @@ export default function Game() {
   const [sliderValue, setSliderValue] = useState(50);
   const [betType, setBetType] = useState<"higher" | "lower" | null>(null);
   const [chipType, setChipType] = useState<"PAD" | "BUG" | null>("PAD");
-  const [playAmount, setPlayAmount] = useState("20");
+  const [playAmount, setPlayAmount] = useState("1");
   const [isRevealing, setIsRevealing] = useState(false);
   const [luckyNumberDisplay, setLuckyNumberDisplay] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
@@ -41,8 +41,13 @@ export default function Game() {
     retry: false,
   });
 
+  const availableBalance = chipType === "PAD" 
+    ? parseInt((currentUser as any)?.balance || "0")
+    : parseInt((currentUser as any)?.bugBalance || "0");
 
-  const calculateMultiplier = (predicted: number, bet: "higher" | "lower" | null) => {
+  const amount = parseInt(playAmount) || 0;
+
+  const calculateMultiplier = (predicted: number, bet: "higher" | "lower" | null, playAmt: number = 0, balance: number = 1) => {
     if (!bet) return 1;
     
     // Clamp predicted value between 2-98 to match backend validation
@@ -60,6 +65,24 @@ export default function Game() {
       winProbability = clampedPredicted / 100;
     }
     
+    // Apply bet risk multiplier (same logic as backend)
+    let betRiskMultiplier = 1.0;
+    if (balance > 0 && playAmt > 0) {
+      const balancePercentage = (playAmt / balance) * 100;
+      if (balancePercentage < 20) {
+        betRiskMultiplier = 1.35; // Safe mode: easier to win
+      } else if (balancePercentage <= 50) {
+        betRiskMultiplier = 1.0; // Balanced: normal odds
+      } else {
+        betRiskMultiplier = 0.25; // High risk: harder to win
+      }
+    }
+    
+    // Apply bet risk adjustment to win probability
+    winProbability = winProbability * betRiskMultiplier;
+    // Clamp between 2% and 98%
+    winProbability = Math.max(0.02, Math.min(0.98, winProbability));
+    
     // Multiplier formula: (1 / winProbability) * (1 - houseEdge)
     // At reference point: Selected=50, WinChance=50%, Multiplier=1.9x
     // Verification: (1/0.5) * (1-0.05) = 2 * 0.95 = 1.9 ✓
@@ -69,7 +92,7 @@ export default function Game() {
     return multiplier;
   };
 
-  const multiplier = calculateMultiplier(sliderValue, betType);
+  const multiplier = calculateMultiplier(sliderValue, betType, amount, availableBalance);
 
   const playMutation = useMutation({
     mutationFn: async () => {
@@ -78,8 +101,8 @@ export default function Game() {
       }
 
       const amount = parseInt(playAmount);
-      if (amount < 20) {
-        throw new Error("Minimum play amount is 20");
+      if (amount < 1) {
+        throw new Error("Minimum play amount is 1");
       }
       if (amount <= 0) {
         throw new Error("Invalid amount");
@@ -148,11 +171,6 @@ export default function Game() {
     !playMutation.isPending &&
     !isInvalidCase;
 
-  const availableBalance = chipType === "PAD" 
-    ? parseInt((currentUser as any)?.balance || "0")
-    : parseInt((currentUser as any)?.bugBalance || "0");
-
-  const amount = parseInt(playAmount) || 0;
   const isValidAmount = amount > 0 && amount <= availableBalance;
 
   return (
