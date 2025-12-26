@@ -3,6 +3,8 @@ import { DiamondIcon } from "@/components/DiamondIcon";
 import { Bug, Settings } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useState } from "react";
+import { SettingsPopup } from "./SettingsPopup";
 
 export default function Header() {
   const { data: user } = useQuery<any>({
@@ -12,6 +14,7 @@ export default function Header() {
   
   const [, setLocation] = useLocation();
   const { isAdmin } = useAdmin();
+  const [showSettings, setShowSettings] = useState(false);
 
   const usdBalance = parseFloat(user?.usdBalance || "0");
   const rawBalance = parseFloat(user?.balance || "0");
@@ -54,17 +57,16 @@ export default function Header() {
         </div>
         
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <button
-              onClick={() => setLocation("/admin")}
-              className="p-2 hover:bg-[#1A1A1A] rounded-lg transition-colors"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5 text-[#4cd3ff] hover:text-[#6ddeff]" />
-            </button>
-          )}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 hover:bg-[#1A1A1A] rounded-lg transition-colors"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5 text-[#4cd3ff] hover:text-[#6ddeff]" />
+          </button>
         </div>
       </div>
+      {showSettings && <SettingsPopup onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
