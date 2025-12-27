@@ -24,7 +24,7 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
-const Game = lazy(() => import("@/pages/Game"));
+const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -48,7 +48,7 @@ function Router() {
         <Route path="/withdraw" component={Withdraw} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
-        <Route path="/game" component={Game} />
+        <Route path="/create-task" component={CreateTask} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
