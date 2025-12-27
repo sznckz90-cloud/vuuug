@@ -7,7 +7,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Gamepad2, Zap } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Zap } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -619,8 +619,8 @@ export default function Home() {
     }
   };
 
-  const handleBoosterClick = () => {
-    setLocation("/game");
+  const handleCreateTaskClick = () => {
+    setLocation("/create-task");
   };
 
   if (isLoading) {
@@ -745,11 +745,11 @@ export default function Home() {
           </Button>
 
           <Button
-            onClick={handleBoosterClick}
-            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-yellow-500/30 hover:border-yellow-500 hover:bg-yellow-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
+            onClick={handleCreateTaskClick}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <Gamepad2 className="w-4 h-4 text-yellow-400" />
-            <span className="text-white font-medium text-xs">Play Game</span>
+            <Megaphone className="w-4 h-4 text-blue-400" />
+            <span className="text-white font-medium text-xs">Create Task</span>
           </Button>
         </div>
 
@@ -757,21 +757,6 @@ export default function Home() {
           <AdWatchingSection user={user as User} />
         </div>
 
-        <div 
-          className="mt-3 bg-[#111] rounded-xl p-3 cursor-pointer active:scale-[0.98] transition-transform"
-          onClick={() => setLocation("/task/create")}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4cd3ff] to-[#007BFF] flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-white font-semibold text-sm">Create My Task</h3>
-              <p className="text-gray-400 text-xs">Promote your channel or bot</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-gray-500" />
-          </div>
-        </div>
 
         <div className="bg-[#111] rounded-xl p-3 mt-3">
           <div className="flex items-center gap-2 mb-2">
