@@ -127,7 +127,7 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
         });
         window.dispatchEvent(rewardEvent);
         
-        showNotification(`✅ Claimed +${rewardAmount} PAD!`, 'success');
+        showNotification(` Claimed +${rewardAmount} PAD!`, 'success');
         
         // Sync everything
         await Promise.all([
