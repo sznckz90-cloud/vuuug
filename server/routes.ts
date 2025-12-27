@@ -5194,8 +5194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(taskClicks)
         .where(and(
           eq(taskClicks.taskId, taskId),
-          eq(taskClicks.publisherId, userId),
-          eq(taskClicks.claimedAt, true)
+          eq(taskClicks.publisherId, userId)
         ))
         .limit(1);
 
@@ -5206,7 +5205,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const rewardPAD = parseInt(task.rewardPerUser || '0');
+      const rewardPAD = parseInt(task.costPerClick || '0'); // costPerClick is used as reward for users
+      if (task.taskType === 'partner') {
+         // Partner tasks have fixed reward from settings
+         const partnerRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'partner_task_reward')).limit(1);
+         const partnerReward = parseInt(partnerRewardSetting[0]?.settingValue || '5');
+         // We'll use the higher of the two or just partner reward
+      }
       
       // Mark as claimed
       try {
@@ -5215,13 +5220,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .values({
             taskId,
             publisherId: userId,
-            clickedAt: new Date(), // Use clickedAt as the primary timestamp if needed
-            claimedAt: new Date(),
             rewardAmount: rewardPAD.toString()
           })
           .onConflictDoUpdate({
             target: [taskClicks.taskId, taskClicks.publisherId],
-            set: { claimedAt: new Date() }
+            set: { rewardAmount: rewardPAD.toString() }
           });
       } catch (e) {
         // If insert fails, just continue with balance update
