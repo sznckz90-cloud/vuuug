@@ -26,7 +26,7 @@ declare global {
   }
 }
 
-function TasksDisplay({ userId }: { userId?: string }) {
+function TasksDisplay({ userId, appSettings }: { userId?: string; appSettings?: any }) {
   const { data: tasksData, isLoading: tasksLoading } = useQuery<{ success: boolean; tasks: any[] }>({
     queryKey: ["/api/advertiser-tasks"],
     retry: false,
@@ -39,51 +39,175 @@ function TasksDisplay({ userId }: { userId?: string }) {
 
   const tasks = tasksData?.tasks || [];
   
-  if (tasks.length === 0) {
-    return <div className="text-gray-400 text-sm text-center py-3">No tasks available</div>;
-  }
+  // Group tasks by type
+  const channelTasks = tasks.filter(t => t.taskType === 'channel');
+  const botTasks = tasks.filter(t => t.taskType === 'bot');
+  const partnerTasks = tasks.filter(t => t.taskType === 'partner');
+
+  const renderTaskSection = (taskList: any[], sectionTitle: string, emptyMessage: string) => {
+    if (taskList.length === 0) {
+      return (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-white text-xs font-semibold">{sectionTitle}</span>
+          </div>
+          <div className="text-gray-400 text-sm text-center py-3">{emptyMessage}</div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-white text-xs font-semibold">{sectionTitle}</span>
+        </div>
+        <div className="space-y-2">
+          {taskList.map((task) => (
+            <TaskItem key={task.id} task={task} appSettings={appSettings} />
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-2">
-      {tasks.map((task) => (
-        <TaskItem key={task.id} task={task} />
-      ))}
+    <div className="space-y-4">
+      {renderTaskSection(channelTasks, "Social Task", "No Social Task")}
+      {renderTaskSection(botTasks, "Game Task", "No Game Task")}
+      {renderTaskSection(partnerTasks, "Partner Task", "No Partner Task")}
     </div>
   );
 }
 
-function TaskItem({ task }: { task: any }) {
+function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
+  const [taskState, setTaskState] = useState<'idle' | 'visited' | 'checking' | 'completed' | 'claiming'>('idle');
+  const [isCheckingClicks, setIsCheckingClicks] = useState(false);
+  const [currentClickCount, setCurrentClickCount] = useState(task.currentClicks || 0);
+  const queryClient = useQueryClient();
+
   const getTaskIcon = () => {
-    if (task.taskType === 'channel') return <Share2 className="w-4 h-4 text-blue-400" />;
-    if (task.taskType === 'bot') return <Coins className="w-4 h-4 text-purple-400" />;
-    if (task.taskType === 'partner') return <Users className="w-4 h-4 text-green-400" />;
-    return <Coins className="w-4 h-4 text-yellow-400" />;
+    if (task.taskType === 'channel') return <Share2 className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'bot') return <Zap className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'partner') return <Users className="w-4 h-4 text-[#4cd3ff]" />;
+    return <Coins className="w-4 h-4 text-[#4cd3ff]" />;
   };
 
-  const getTaskColor = () => {
-    if (task.taskType === 'channel') return 'from-blue-500 to-blue-600';
-    if (task.taskType === 'bot') return 'from-purple-500 to-purple-600';
-    if (task.taskType === 'partner') return 'from-green-500 to-green-600';
-    return 'from-yellow-500 to-yellow-600';
+  const getRewardDisplay = () => {
+    let reward = 0;
+    if (task.taskType === 'channel') {
+      reward = parseInt(appSettings?.channelTaskReward) || 30;
+    } else if (task.taskType === 'bot') {
+      reward = parseInt(appSettings?.botTaskReward) || 20;
+    } else if (task.taskType === 'partner') {
+      reward = parseInt(appSettings?.partnerTaskReward) || 5;
+    }
+    return `${reward} PAD`;
+  };
+
+  const isTaskComplete = currentClickCount >= task.totalClicksRequired;
+
+  const handleStartTask = () => {
+    setTaskState('visited');
+    window.open(task.link, '_blank');
+  };
+
+  const handleCheckClicks = async () => {
+    setIsCheckingClicks(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
+      const tasksData = await queryClient.fetchQuery({ 
+        queryKey: ['/api/advertiser-tasks'],
+        queryFn: async () => {
+          const response = await apiRequest('/api/advertiser-tasks', 'GET');
+          return response;
+        }
+      });
+      
+      const updatedTask = tasksData.tasks?.find((t: any) => t.id === task.id);
+      if (updatedTask) {
+        setCurrentClickCount(updatedTask.currentClicks || 0);
+        if (updatedTask.currentClicks >= task.totalClicksRequired) {
+          setTaskState('completed');
+          showNotification('✅ All clicks recorded! Ready to claim', 'success');
+        } else {
+          setTaskState('visited');
+          showNotification(`Need ${task.totalClicksRequired - updatedTask.currentClicks} more clicks`, 'info');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking clicks:', error);
+      showNotification('Failed to check clicks', 'error');
+      setTaskState('visited');
+    } finally {
+      setIsCheckingClicks(false);
+    }
+  };
+
+  const handleClaimReward = async () => {
+    setTaskState('claiming');
+    try {
+      const response = await apiRequest(`/api/advertiser-tasks/${task.id}/claim`, 'POST');
+      if (response.success && response.reward) {
+        // Trigger reward notification event (same as ad rewards)
+        const rewardEvent = new CustomEvent('showReward', { 
+          detail: { amount: response.reward }
+        });
+        window.dispatchEvent(rewardEvent);
+        
+        // Sync balance and user data
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+        
+        setTaskState('idle');
+      } else {
+        showNotification(response.message || 'Failed to claim reward', 'error');
+        setTaskState('completed');
+      }
+    } catch (error) {
+      console.error('Error claiming reward:', error);
+      showNotification('Failed to claim reward', 'error');
+      setTaskState('completed');
+    }
   };
 
   return (
-    <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
-      <div className="flex items-center gap-2.5">
-        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getTaskColor()} flex items-center justify-center`}>
+    <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-2">
           {getTaskIcon()}
+          <p className="text-white text-sm font-medium truncate">{task.title}</p>
         </div>
-        <div className="flex-1">
-          <p className="text-white text-sm font-medium truncate">{task.title || task.taskType}</p>
-          <p className="text-gray-400 text-xs">Clicks: {task.currentClicks}/{task.totalClicksRequired}</p>
+        <div className="space-y-1 text-xs text-gray-400 ml-6">
+          <p>Clicks: <span className="text-white font-medium">{currentClickCount}/{task.totalClicksRequired}</span></p>
+          <p>Reward: <span className="text-white font-medium">{getRewardDisplay()}</span></p>
         </div>
       </div>
-      <Button
-        onClick={() => window.open(task.link, '_blank')}
-        className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
-      >
-        Go
-      </Button>
+      <div className="ml-3 flex-shrink-0">
+        {isTaskComplete && taskState !== 'claiming' ? (
+          <Button
+            onClick={handleClaimReward}
+            disabled={taskState === 'claiming'}
+            className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white disabled:opacity-50"
+          >
+            {taskState === 'claiming' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+          </Button>
+        ) : taskState === 'visited' ? (
+          <Button
+            onClick={handleCheckClicks}
+            disabled={isCheckingClicks}
+            className="h-8 w-20 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
+          >
+            {isCheckingClicks ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Check'}
+          </Button>
+        ) : (
+          <Button
+            onClick={handleStartTask}
+            className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            Start
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -826,126 +950,128 @@ export default function Home() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-white" />
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Share with Friends</p>
                 </div>
-                <div>
-                  <p className="text-white text-sm font-medium">Share with Friends</p>
-                  <p className="text-green-400 text-xs font-bold">+5 PAD</p>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
                 </div>
               </div>
-              {missionStatus?.shareStory?.claimed ? (
-                <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
-                  <Check className="w-4 h-4 text-green-400" />
-                </div>
-              ) : shareWithFriendsStep === 'ready' || shareWithFriendsStep === 'claiming' ? (
-                <Button
-                  onClick={handleClaimShareWithFriends}
-                  disabled={shareWithFriendsMutation.isPending}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
-                >
-                  {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleShareWithFriends}
-                  disabled={!referralLink}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
-                >
-                  Share
-                </Button>
-              )}
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.shareStory?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : shareWithFriendsStep === 'ready' || shareWithFriendsStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimShareWithFriends}
+                    disabled={shareWithFriendsMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleShareWithFriends}
+                    disabled={!referralLink}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Share
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                  <CalendarCheck className="w-4 h-4 text-white" />
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarCheck className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Daily Check-in</p>
                 </div>
-                <div>
-                  <p className="text-white text-sm font-medium">Daily Check-in</p>
-                  <p className="text-cyan-400 text-xs font-bold">+5 PAD</p>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
                 </div>
               </div>
-              {missionStatus?.dailyCheckin?.claimed ? (
-                <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
-                  <Check className="w-4 h-4 text-green-400" />
-                </div>
-              ) : dailyCheckinStep === 'ads' ? (
-                <Button
-                  disabled={true}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
-                >
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                </Button>
-              ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
-                <Button
-                  onClick={handleClaimDailyCheckin}
-                  disabled={dailyCheckinMutation.isPending}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
-                >
-                  {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleDailyCheckin}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-cyan-500 hover:bg-cyan-600 text-black"
-                >
-                  Go
-                </Button>
-              )}
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.dailyCheckin?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : dailyCheckinStep === 'ads' ? (
+                  <Button
+                    disabled={true}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
+                  >
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  </Button>
+                ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimDailyCheckin}
+                    disabled={dailyCheckinMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleDailyCheckin}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Go
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                  <Bell className="w-4 h-4 text-white" />
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Check for Updates</p>
                 </div>
-                <div>
-                  <p className="text-white text-sm font-medium">Check for Updates</p>
-                  <p className="text-orange-400 text-xs font-bold">+5 PAD</p>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
                 </div>
               </div>
-              {missionStatus?.checkForUpdates?.claimed ? (
-                <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
-                  <Check className="w-4 h-4 text-green-400" />
-                </div>
-              ) : checkForUpdatesStep === 'opened' ? (
-                <Button
-                  disabled={true}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
-                >
-                  {checkForUpdatesCountdown}s
-                </Button>
-              ) : checkForUpdatesStep === 'ready' || checkForUpdatesStep === 'claiming' ? (
-                <Button
-                  onClick={handleClaimCheckForUpdates}
-                  disabled={checkForUpdatesMutation.isPending}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
-                >
-                  {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleCheckForUpdates}
-                  className="h-8 w-20 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
-                >
-                  Check
-                </Button>
-              )}
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.checkForUpdates?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : checkForUpdatesStep === 'opened' ? (
+                  <Button
+                    disabled={true}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                  >
+                    {checkForUpdatesCountdown}s
+                  </Button>
+                ) : checkForUpdatesStep === 'ready' || checkForUpdatesStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimCheckForUpdates}
+                    disabled={checkForUpdatesMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCheckForUpdates}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    Check
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* USER TASKS SECTION - Advertiser Tasks */}
         <div className="bg-[#111] rounded-xl p-3 mt-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Megaphone className="w-4 h-4 text-blue-400" />
-            <span className="text-white text-sm font-semibold">User Tasks</span>
-          </div>
-          <TasksDisplay userId={(user as User)?.id} />
+          <TasksDisplay userId={(user as User)?.id} appSettings={appSettings} />
         </div>
 
       </main>
