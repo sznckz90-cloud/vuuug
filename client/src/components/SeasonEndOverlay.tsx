@@ -55,7 +55,7 @@ export default function SeasonEndOverlay({ onClose, isLocked = false }: SeasonEn
                   <div className="text-left">
                     <p className="text-white text-sm font-semibold mb-1">What's Happening?</p>
                     <p className="text-gray-300 text-xs leading-relaxed">
-                      We're performing scheduled maintenance to bring you exciting new features, better game mechanics, and improved security updates.
+                      We're performing scheduled maintenance to bring you exciting new features and improved security updates.
                     </p>
                   </div>
                 </div>

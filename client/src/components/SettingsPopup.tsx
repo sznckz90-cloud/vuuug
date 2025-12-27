@@ -31,11 +31,11 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">2. App Usage</h4>
-            <p>PaidAdz allows users to earn PAD / BUG tokens through tasks, games, ads, and activities. Tokens earned in the app do not represent real money unless withdrawn according to app rules.</p>
+            <p>PaidAdz allows users to earn PAD / BUG tokens through tasks, ads, and activities. Tokens earned in the app do not represent real money unless withdrawn according to app rules.</p>
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">3. Rewards & Withdrawals</h4>
-            <p>Rewards depend on task completion, game results, and system rules. Withdrawals are subject to verification and minimum limits. Any attempt to exploit, abuse, or manipulate rewards may result in account suspension.</p>
+            <p>Rewards depend on task completion and system rules. Withdrawals are subject to verification and minimum limits. Any attempt to exploit, abuse, or manipulate rewards may result in account suspension.</p>
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">4. Account Suspension</h4>
@@ -55,7 +55,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
           <p>PaidAdz respects your privacy.</p>
           <div>
             <h4 className="text-white font-bold mb-1">1. Information We Collect</h4>
-            <p>We may collect User ID (UID), device & app usage data, task/game activity, and withdrawal history.</p>
+            <p>We may collect User ID (UID), device & app usage data, task activity, and withdrawal history.</p>
             <p className="mt-2 text-rose-400 font-bold">⚠️ We do NOT collect: Passwords, personal banking details, or private messages.</p>
           </div>
           <div>
@@ -83,7 +83,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
             <ul className="list-disc pl-5 space-y-1">
               <li>Create multiple accounts</li>
               <li>Use bots, scripts, or automation</li>
-              <li>Exploit bugs or game mechanics</li>
+              <li>Exploit bugs</li>
               <li>Manipulate ads or tasks</li>
               <li>Attempt to hack or reverse-engineer the app</li>
             </ul>
@@ -94,7 +94,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">✅ Fair Play</h4>
-            <p>All games and rewards are based on predefined logic. Luck-based games do not guarantee winnings.</p>
+            <p>All rewards are based on predefined logic.</p>
           </div>
         </div>
       )
