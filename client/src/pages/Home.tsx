@@ -79,9 +79,8 @@ function TasksDisplay({ userId, appSettings }: { userId?: string; appSettings?: 
 }
 
 function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
-  const [taskState, setTaskState] = useState<'idle' | 'visited' | 'checking' | 'completed' | 'claiming'>('idle');
-  const [isCheckingClicks, setIsCheckingClicks] = useState(false);
-  const [currentClickCount, setCurrentClickCount] = useState(task.currentClicks || 0);
+  const [isStarted, setIsStarted] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
   const queryClient = useQueryClient();
 
   const getTaskIcon = () => {
@@ -103,54 +102,42 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
     return `${reward} PAD`;
   };
 
-  const isTaskComplete = currentClickCount >= task.totalClicksRequired;
-
   const handleStartTask = () => {
-    setTaskState('visited');
-    window.open(task.link, '_blank');
-  };
-
-  const handleCheckClicks = async () => {
-    setIsCheckingClicks(true);
     try {
-      // Mark task as completed and ready to claim
-      setTaskState('completed');
-      setCurrentClickCount(task.totalClicksRequired);
-      showNotification('✅ Task completed! Ready to claim reward', 'success');
+      window.open(task.link, '_blank');
+      setIsStarted(true);
+      showNotification('Task opened. Claim your reward when ready!', 'info');
     } catch (error) {
-      console.error('Error checking task:', error);
-      showNotification('Error completing task', 'error');
-      setTaskState('visited');
-    } finally {
-      setIsCheckingClicks(false);
+      console.error('Error starting task:', error);
+      showNotification('Error opening task', 'error');
     }
   };
 
   const handleClaimReward = async () => {
-    setTaskState('claiming');
+    setIsClaiming(true);
     try {
       const response = await apiRequest(`/api/advertiser-tasks/${task.id}/claim`, 'POST');
       if (response.success && response.reward) {
-        // Trigger reward notification event (same as ad rewards)
         const rewardEvent = new CustomEvent('showReward', { 
           detail: { amount: response.reward }
         });
         window.dispatchEvent(rewardEvent);
         
-        // Sync balance and user data
+        showNotification(`✅ Claimed +${response.reward} PAD!`, 'success');
+        
         queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
         queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
         queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
         
-        setTaskState('idle');
+        setIsStarted(false);
       } else {
         showNotification(response.message || 'Failed to claim reward', 'error');
-        setTaskState('completed');
       }
     } catch (error) {
       console.error('Error claiming reward:', error);
       showNotification('Failed to claim reward', 'error');
-      setTaskState('completed');
+    } finally {
+      setIsClaiming(false);
     }
   };
 
@@ -166,30 +153,23 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
         </div>
       </div>
       <div className="ml-3 flex-shrink-0">
-        {isTaskComplete && taskState !== 'claiming' ? (
-          <Button
-            onClick={handleClaimReward}
-            disabled={taskState === 'claiming'}
-            className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white disabled:opacity-50"
-          >
-            {taskState === 'claiming' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
-          </Button>
-        ) : taskState === 'visited' ? (
-          <Button
-            onClick={handleCheckClicks}
-            disabled={isCheckingClicks}
-            className="h-8 w-20 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
-          >
-            {isCheckingClicks ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Check'}
-          </Button>
-        ) : (
-          <Button
-            onClick={handleStartTask}
-            className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
-          >
-            Start
-          </Button>
-        )}
+        <Button
+          onClick={isStarted ? handleClaimReward : handleStartTask}
+          disabled={isClaiming}
+          className={`h-8 px-4 text-xs font-bold rounded-lg text-white transition-colors ${
+            isStarted
+              ? 'bg-green-500 hover:bg-green-600' 
+              : 'bg-blue-500 hover:bg-blue-600'
+          } disabled:opacity-50`}
+        >
+          {isClaiming ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : isStarted ? (
+            'Claim'
+          ) : (
+            'Start'
+          )}
+        </Button>
       </div>
     </div>
   );
