@@ -320,21 +320,6 @@ export const blockedCountries = pgTable("blocked_countries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Lucky game history - tracks all luck game results
-export const luckyGameHistory = pgTable("lucky_game_history", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  predictedValue: integer("predicted_value").notNull(), // User's slider selection (0-100)
-  betType: varchar("bet_type").notNull(), // 'higher' or 'lower'
-  chipType: varchar("chip_type").notNull(), // 'PAD' or 'BUG'
-  playAmount: decimal("play_amount", { precision: 30, scale: 10 }).notNull(),
-  luckyNumber: integer("lucky_number").notNull(), // Generated lucky number (0-99)
-  won: boolean("won").notNull(),
-  rewardAmount: decimal("reward_amount", { precision: 30, scale: 10 }).default("0"),
-  multiplier: decimal("multiplier", { precision: 10, scale: 4 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEarningSchema = createInsertSchema(earnings).omit({ createdAt: true });
@@ -354,7 +339,6 @@ export const insertSpinDataSchema = createInsertSchema(spinData).omit({ id: true
 export const insertSpinHistorySchema = createInsertSchema(spinHistory).omit({ id: true, createdAt: true });
 export const insertDailyMissionSchema = createInsertSchema(dailyMissions).omit({ id: true, createdAt: true });
 export const insertBlockedCountrySchema = createInsertSchema(blockedCountries).omit({ id: true, createdAt: true });
-export const insertLuckyGameHistorySchema = createInsertSchema(luckyGameHistory).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -393,5 +377,3 @@ export type DailyMission = typeof dailyMissions.$inferSelect;
 export type InsertDailyMission = z.infer<typeof insertDailyMissionSchema>;
 export type BlockedCountry = typeof blockedCountries.$inferSelect;
 export type InsertBlockedCountry = z.infer<typeof insertBlockedCountrySchema>;
-export type LuckyGameHistory = typeof luckyGameHistory.$inferSelect;
-export type InsertLuckyGameHistory = z.infer<typeof insertLuckyGameHistorySchema>;
