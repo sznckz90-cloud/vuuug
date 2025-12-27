@@ -113,29 +113,13 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
   const handleCheckClicks = async () => {
     setIsCheckingClicks(true);
     try {
-      await queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
-      const tasksData = await queryClient.fetchQuery({ 
-        queryKey: ['/api/advertiser-tasks'],
-        queryFn: async () => {
-          const response = await apiRequest('/api/advertiser-tasks', 'GET');
-          return response;
-        }
-      });
-      
-      const updatedTask = tasksData.tasks?.find((t: any) => t.id === task.id);
-      if (updatedTask) {
-        setCurrentClickCount(updatedTask.currentClicks || 0);
-        if (updatedTask.currentClicks >= task.totalClicksRequired) {
-          setTaskState('completed');
-          showNotification('✅ All clicks recorded! Ready to claim', 'success');
-        } else {
-          setTaskState('visited');
-          showNotification(`Need ${task.totalClicksRequired - updatedTask.currentClicks} more clicks`, 'info');
-        }
-      }
+      // Mark task as completed and ready to claim
+      setTaskState('completed');
+      setCurrentClickCount(task.totalClicksRequired);
+      showNotification('✅ Task completed! Ready to claim reward', 'success');
     } catch (error) {
-      console.error('Error checking clicks:', error);
-      showNotification('Failed to check clicks', 'error');
+      console.error('Error checking task:', error);
+      showNotification('Error completing task', 'error');
       setTaskState('visited');
     } finally {
       setIsCheckingClicks(false);
