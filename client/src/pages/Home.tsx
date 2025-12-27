@@ -94,11 +94,11 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
   const getRewardDisplay = () => {
     let reward = 0;
     if (task.taskType === 'channel') {
-      reward = parseInt(appSettings?.channelTaskReward) || 30;
+      reward = parseInt(appSettings?.channel_task_reward) || parseInt(appSettings?.channelTaskReward) || 30;
     } else if (task.taskType === 'bot') {
-      reward = parseInt(appSettings?.botTaskReward) || 20;
+      reward = parseInt(appSettings?.bot_task_reward) || parseInt(appSettings?.botTaskReward) || 20;
     } else if (task.taskType === 'partner') {
-      reward = parseInt(appSettings?.partnerTaskReward) || 5;
+      reward = parseInt(appSettings?.partner_task_reward) || parseInt(appSettings?.partnerTaskReward) || 5;
     }
     return `${reward} PAD`;
   };
