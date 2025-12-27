@@ -116,9 +116,10 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
   const handleClaimReward = async () => {
     setIsClaiming(true);
     try {
-      const response = await apiRequest(`/api/advertiser-tasks/${task.id}/claim`, 'POST');
-      if (response.success) {
-        const rewardAmount = response.reward || 0;
+      const response = await apiRequest('POST', `/api/advertiser-tasks/${task.id}/claim`);
+      const data = await response.json();
+      if (data.success) {
+        const rewardAmount = data.reward || 0;
         
         // Immediate UI feedback
         const rewardEvent = new CustomEvent('showReward', { 
@@ -138,7 +139,7 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
         
         setIsStarted(false);
       } else {
-        showNotification(response.message || 'Failed to claim reward', 'error');
+        showNotification(data.message || 'Failed to claim reward', 'error');
       }
     } catch (error) {
       console.error('Error claiming reward:', error);
