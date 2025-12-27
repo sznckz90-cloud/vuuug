@@ -7,7 +7,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Zap } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Zap, Share2 } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -24,6 +24,68 @@ declare global {
       };
     };
   }
+}
+
+function TasksDisplay({ userId }: { userId?: string }) {
+  const { data: tasksData, isLoading: tasksLoading } = useQuery<{ success: boolean; tasks: any[] }>({
+    queryKey: ["/api/advertiser-tasks"],
+    retry: false,
+    refetchInterval: 5000,
+  });
+
+  if (tasksLoading) {
+    return <div className="text-gray-400 text-sm text-center py-2">Loading tasks...</div>;
+  }
+
+  const tasks = tasksData?.tasks || [];
+  
+  if (tasks.length === 0) {
+    return <div className="text-gray-400 text-sm text-center py-3">No tasks available</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {tasks.map((task) => (
+        <TaskItem key={task.id} task={task} />
+      ))}
+    </div>
+  );
+}
+
+function TaskItem({ task }: { task: any }) {
+  const getTaskIcon = () => {
+    if (task.taskType === 'channel') return <Share2 className="w-4 h-4 text-blue-400" />;
+    if (task.taskType === 'bot') return <Coins className="w-4 h-4 text-purple-400" />;
+    if (task.taskType === 'partner') return <Users className="w-4 h-4 text-green-400" />;
+    return <Coins className="w-4 h-4 text-yellow-400" />;
+  };
+
+  const getTaskColor = () => {
+    if (task.taskType === 'channel') return 'from-blue-500 to-blue-600';
+    if (task.taskType === 'bot') return 'from-purple-500 to-purple-600';
+    if (task.taskType === 'partner') return 'from-green-500 to-green-600';
+    return 'from-yellow-500 to-yellow-600';
+  };
+
+  return (
+    <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-2.5">
+      <div className="flex items-center gap-2.5">
+        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getTaskColor()} flex items-center justify-center`}>
+          {getTaskIcon()}
+        </div>
+        <div className="flex-1">
+          <p className="text-white text-sm font-medium truncate">{task.title || task.taskType}</p>
+          <p className="text-gray-400 text-xs">Clicks: {task.currentClicks}/{task.totalClicksRequired}</p>
+        </div>
+      </div>
+      <Button
+        onClick={() => window.open(task.link, '_blank')}
+        className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+      >
+        Go
+      </Button>
+    </div>
+  );
 }
 
 interface User {
@@ -757,7 +819,6 @@ export default function Home() {
           <AdWatchingSection user={user as User} />
         </div>
 
-
         <div className="bg-[#111] rounded-xl p-3 mt-3">
           <div className="flex items-center gap-2 mb-2">
             <CalendarCheck className="w-4 h-4 text-yellow-400" />
@@ -876,6 +937,15 @@ export default function Home() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* USER TASKS SECTION - Advertiser Tasks */}
+        <div className="bg-[#111] rounded-xl p-3 mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Megaphone className="w-4 h-4 text-blue-400" />
+            <span className="text-white text-sm font-semibold">User Tasks</span>
+          </div>
+          <TasksDisplay userId={(user as User)?.id} />
         </div>
 
       </main>
