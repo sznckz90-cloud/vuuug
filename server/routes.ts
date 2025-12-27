@@ -5215,6 +5215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .values({
             taskId,
             publisherId: userId,
+            clickedAt: new Date(), // Use clickedAt as the primary timestamp if needed
             claimedAt: new Date(),
             rewardAmount: rewardPAD.toString()
           })
@@ -5229,8 +5230,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add reward to user's balance IMMEDIATELY
       await storage.addBalance(userId, rewardPAD.toString());
 
+      // Update BUG balance too
+      const bugRewardPerTaskSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bug_reward_per_task')).limit(1);
+      const bugRewardPerTask = parseInt(bugRewardPerTaskSetting[0]?.settingValue || '10');
+      
+      if (bugRewardPerTask > 0) {
+        await db
+          .update(users)
+          .set({
+            bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugRewardPerTask}`,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+      }
+
       // Record the earning
-      await db.insert(earnings).values({
+      await storage.addEarning({
         userId: userId,
         amount: rewardPAD.toString(),
         source: 'task_completion',
@@ -5242,6 +5257,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newBalance = updatedUser?.balance || '0';
 
       console.log(`✅ Task reward claimed INSTANTLY: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD - New Balance: ${newBalance}`);
+
+      // Send real-time update
+      try {
+        sendRealtimeUpdate(userId, {
+          type: 'task_reward',
+          amount: rewardPAD.toString(),
+          message: 'Task reward earned!',
+          timestamp: new Date().toISOString()
+        });
+      } catch (wsError) {
+        console.error("⚠️ WebSocket update failed:", wsError);
+      }
 
       res.json({
         success: true,
