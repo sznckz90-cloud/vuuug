@@ -2246,27 +2246,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Claim task reward
-  async claimPromotionReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
+  async claimTaskReward(userId: string, promotionId: string): Promise<{ success: boolean; message: string; rewardAmount?: string; newBalance?: string }> {
     try {
       const promotion = await this.getPromotion(promotionId);
       if (!promotion) {
-        console.error(`❌ Task not found: ${promotionId}`);
         return { success: false, message: 'Task not found' };
       }
 
-      // Check if user already claimed this task
-      const existingClick = await db
-        .select()
-        .from(taskClicks)
-        .where(and(
-          eq(taskClicks.taskId, promotionId),
-          eq(taskClicks.publisherId, userId)
-        ))
-        .limit(1);
+      const isDailyTask = ['channel_visit', 'share_link', 'invite_friend', 'ads_goal_mini', 'ads_goal_light', 'ads_goal_medium', 'ads_goal_hard'].includes(promotion.type);
+      const periodDate = isDailyTask ? this.getCurrentTaskDate() : undefined;
 
-      if (existingClick.length > 0) {
-        console.log(`⚠️ User ${userId} already claimed task ${promotionId}`);
-        return { success: false, message: 'You have already claimed the reward for this task' };
+      // Check current status
+      const currentStatus = await this.getTaskStatus(userId, promotionId, periodDate);
+      if (!currentStatus) {
+        return { success: false, message: 'Task status not found' };
+      }
+      
+      if (currentStatus.status === 'claimed') {
+        return { success: false, message: 'Task already claimed' };
+      }
+      
+      if (currentStatus.status !== 'claimable') {
+        return { success: false, message: 'Task not ready to claim' };
       }
 
       // Prevent users from claiming their own tasks
@@ -2276,21 +2277,26 @@ export class DatabaseStorage implements IStorage {
 
       const rewardAmount = promotion.rewardPerUser || '0';
       
-      // Mark as claimed using existing taskClicks table (matches advertiser endpoint approach)
-      try {
-        await db
-          .insert(taskClicks)
-          .values({
-            taskId: promotionId,
-            publisherId: userId,
-            rewardAmount: rewardAmount
-          })
-          .onConflictDoUpdate({
-            target: [taskClicks.taskId, taskClicks.publisherId],
-            set: { rewardAmount: rewardAmount }
-          });
-      } catch (insertError) {
-        console.error(`❌ Failed to record task click: ${insertError}`);
+      // Record claim in appropriate table
+      if (isDailyTask) {
+        await db.insert(dailyTaskCompletions).values({
+          promotionId,
+          userId,
+          taskType: promotion.type,
+          rewardAmount,
+          progress: 1,
+          required: 1,
+          completed: true,
+          claimed: true,
+          completionDate: periodDate!,
+        });
+      } else {
+        await db.insert(taskCompletions).values({
+          promotionId,
+          userId,
+          rewardAmount,
+          verified: true,
+        });
       }
 
       // Add reward to balance
@@ -2300,36 +2306,35 @@ export class DatabaseStorage implements IStorage {
       await this.addEarning({
         userId,
         amount: rewardAmount,
-        source: 'task_completion',
+        source: isDailyTask ? 'daily_task_completion' : 'task_completion',
         description: `Task completed: ${promotion.title}`,
       });
+
+      // Update task status to claimed
+      await this.setTaskStatus(userId, promotionId, 'claimed', periodDate);
 
       // Get updated balance
       const updatedBalance = await this.getUserBalance(userId);
 
-      console.log(`✅ TASK_CLAIM_SUCCESS: UserID=${userId}, TaskID=${promotionId}, Reward=${rewardAmount}, Title="${promotion.title}"`);
+      console.log(`📊 TASK_CLAIM_LOG: UserID=${userId}, TaskID=${promotionId}, AmountRewarded=${rewardAmount}, Status=SUCCESS, Title="${promotion.title}"`);
 
       // Send notification
       try {
         const { sendTaskCompletionNotification } = await import('./telegram');
         await sendTaskCompletionNotification(userId, rewardAmount);
       } catch (error) {
-        console.error('⚠️ Failed to send notification:', error);
-        // Don't fail the claim just because notification failed
+        console.error('Failed to send task completion notification:', error);
       }
 
       return { 
         success: true, 
-        message: `Reward claimed! +${rewardAmount}`,
+        message: 'Task claimed successfully!',
         rewardAmount,
         newBalance: updatedBalance?.balance || '0'
       };
     } catch (error) {
-      console.error(`❌ Error claiming task reward for user ${userId}, task ${promotionId}:`, error);
-      return { 
-        success: false, 
-        message: `Failed to claim reward: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      };
+      console.error('Error claiming task reward:', error);
+      return { success: false, message: 'Failed to claim task reward' };
     }
   }
 
