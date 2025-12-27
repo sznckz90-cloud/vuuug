@@ -7,7 +7,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Zap, Share2 } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Gamepad2, Handshake } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -85,9 +85,9 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
   const queryClient = useQueryClient();
 
   const getTaskIcon = () => {
-    if (task.taskType === 'channel') return <Share2 className="w-4 h-4 text-[#4cd3ff]" />;
-    if (task.taskType === 'bot') return <Zap className="w-4 h-4 text-[#4cd3ff]" />;
-    if (task.taskType === 'partner') return <Users className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'channel') return <Megaphone className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'bot') return <Gamepad2 className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'partner') return <Handshake className="w-4 h-4 text-[#4cd3ff]" />;
     return <Coins className="w-4 h-4 text-[#4cd3ff]" />;
   };
 
@@ -178,7 +178,6 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
           <p className="text-white text-sm font-medium truncate">{task.title}</p>
         </div>
         <div className="space-y-1 text-xs text-gray-400 ml-6">
-          <p>Clicks: <span className="text-white font-medium">{currentClickCount}/{task.totalClicksRequired}</span></p>
           <p>Reward: <span className="text-white font-medium">{getRewardDisplay()}</span></p>
         </div>
       </div>
@@ -547,11 +546,6 @@ export default function Home() {
     const adResult = await runAdFlow();
     if (!adResult.monetagWatched) {
       showNotification("Please watch the ads completely to claim!", "error");
-      setDailyCheckinStep('idle');
-      return;
-    }
-    if (!adResult.adsgramWatched) {
-      showNotification("Please complete all ads to claim your reward!", "error");
       setDailyCheckinStep('idle');
       return;
     }
