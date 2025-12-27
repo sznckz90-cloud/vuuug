@@ -6786,9 +6786,8 @@ ${walletAddress}
         res.status(400).json(result);
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error("❌ Error claiming task reward:", errorMsg, error);
-      res.status(500).json({ success: false, message: `Failed to claim reward: ${errorMsg}` });
+      console.error("Error claiming task reward:", error);
+      res.status(500).json({ success: false, message: "Failed to claim task reward" });
     }
   });
 
