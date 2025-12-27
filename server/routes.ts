@@ -5179,7 +5179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.user.id;
       const { taskId } = req.params;
 
-      // Get the task click record
+      // Get the task click record (if it exists)
       const taskClick = await db
         .select()
         .from(taskClicks)
@@ -5189,37 +5189,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ))
         .limit(1);
 
-      if (taskClick.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "You haven't clicked this task yet"
-        });
-      }
-
-      // Check if already claimed
-      if (taskClick[0].claimedAt) {
+      // If click record exists, check if already claimed
+      if (taskClick.length > 0 && taskClick[0].claimedAt) {
         return res.status(400).json({
           success: false,
           message: "You have already claimed the reward for this task"
         });
       }
 
-      const rewardPAD = parseInt(taskClick[0].rewardAmount || '0');
+      // Get task details and calculate reward
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          message: "Task not found"
+        });
+      }
+
+      const rewardPAD = taskClick.length > 0 
+        ? parseInt(taskClick[0].rewardAmount || '0')
+        : parseInt(task.rewardPerUser || '0');
       
-      // Mark as claimed
-      await db
-        .update(taskClicks)
-        .set({ claimedAt: new Date() })
-        .where(and(
-          eq(taskClicks.taskId, taskId),
-          eq(taskClicks.publisherId, userId)
-        ));
+      // Mark as claimed (if click record exists)
+      if (taskClick.length > 0) {
+        await db
+          .update(taskClicks)
+          .set({ claimedAt: new Date() })
+          .where(and(
+            eq(taskClicks.taskId, taskId),
+            eq(taskClicks.publisherId, userId)
+          ));
+      }
 
       // Add reward to user's balance using storage.addBalance to ensure all tables are synced
       await storage.addBalance(userId, rewardPAD.toString());
 
       // Record the earning
-      const task = await storage.getTaskById(taskId);
       await db.insert(earnings).values({
         userId: userId,
         amount: rewardPAD.toString(),
@@ -5227,7 +5232,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: `Completed ${task?.taskType || 'advertiser'} task: ${task?.title || 'Task'}`,
       });
 
-      console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD`);
+      // Get updated user balance
+      const updatedUser = await storage.getUser(userId);
+      const newBalance = updatedUser?.balance || '0';
+
+      console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD - New Balance: ${newBalance}`);
 
       res.json({
         success: true,
