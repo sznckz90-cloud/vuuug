@@ -5179,24 +5179,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.user.id;
       const { taskId } = req.params;
 
-      // Get the task click record (if it exists)
-      const taskClick = await db
-        .select()
-        .from(taskClicks)
-        .where(and(
-          eq(taskClicks.taskId, taskId),
-          eq(taskClicks.publisherId, userId)
-        ))
-        .limit(1);
-
-      // If click record exists, check if already claimed
-      if (taskClick.length > 0 && taskClick[0].claimedAt) {
-        return res.status(400).json({
-          success: false,
-          message: "You have already claimed the reward for this task"
-        });
-      }
-
       // Get task details and calculate reward
       const task = await storage.getTaskById(taskId);
       if (!task) {
@@ -5206,22 +5188,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const rewardPAD = taskClick.length > 0 
-        ? parseInt(taskClick[0].rewardAmount || '0')
-        : parseInt(task.rewardPerUser || '0');
-      
-      // Mark as claimed (if click record exists)
-      if (taskClick.length > 0) {
-        await db
-          .update(taskClicks)
-          .set({ claimedAt: new Date() })
-          .where(and(
-            eq(taskClicks.taskId, taskId),
-            eq(taskClicks.publisherId, userId)
-          ));
+      // Check if user already claimed this task
+      const existingClaim = await db
+        .select()
+        .from(taskClicks)
+        .where(and(
+          eq(taskClicks.taskId, taskId),
+          eq(taskClicks.publisherId, userId),
+          eq(taskClicks.claimedAt, true)
+        ))
+        .limit(1);
+
+      if (existingClaim.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "You have already claimed the reward for this task"
+        });
       }
 
-      // Add reward to user's balance using storage.addBalance to ensure all tables are synced
+      const rewardPAD = parseInt(task.rewardPerUser || '0');
+      
+      // Mark as claimed
+      try {
+        await db
+          .insert(taskClicks)
+          .values({
+            taskId,
+            publisherId: userId,
+            claimedAt: new Date(),
+            rewardAmount: rewardPAD.toString()
+          })
+          .onConflictDoUpdate({
+            target: [taskClicks.taskId, taskClicks.publisherId],
+            set: { claimedAt: new Date() }
+          });
+      } catch (e) {
+        // If insert fails, just continue with balance update
+      }
+
+      // Add reward to user's balance IMMEDIATELY
       await storage.addBalance(userId, rewardPAD.toString());
 
       // Record the earning
@@ -5236,7 +5241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.getUser(userId);
       const newBalance = updatedUser?.balance || '0';
 
-      console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD - New Balance: ${newBalance}`);
+      console.log(`✅ Task reward claimed INSTANTLY: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD - New Balance: ${newBalance}`);
 
       res.json({
         success: true,
