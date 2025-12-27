@@ -5215,22 +5215,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(taskClicks.publisherId, userId)
         ));
 
-      // Add reward to user's balance
-      const [user] = await db
-        .select({ balance: users.balance })
-        .from(users)
-        .where(eq(users.id, userId));
-
-      const currentBalance = parseInt(user?.balance || '0');
-      const newBalance = currentBalance + rewardPAD;
-
-      await db
-        .update(users)
-        .set({
-          balance: newBalance.toString(),
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, userId));
+      // Add reward to user's balance using storage.addBalance to ensure all tables are synced
+      await storage.addBalance(userId, rewardPAD.toString());
 
       // Record the earning
       const task = await storage.getTaskById(taskId);
