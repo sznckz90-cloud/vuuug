@@ -117,17 +117,24 @@ function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
     setIsClaiming(true);
     try {
       const response = await apiRequest(`/api/advertiser-tasks/${task.id}/claim`, 'POST');
-      if (response.success && response.reward) {
+      if (response.success) {
+        const rewardAmount = response.reward || 0;
+        
+        // Immediate UI feedback
         const rewardEvent = new CustomEvent('showReward', { 
-          detail: { amount: response.reward }
+          detail: { amount: rewardAmount }
         });
         window.dispatchEvent(rewardEvent);
         
-        showNotification(`✅ Claimed +${response.reward} PAD!`, 'success');
+        showNotification(`✅ Claimed +${rewardAmount} PAD!`, 'success');
         
-        queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
+        // Sync everything
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] })
+        ]);
         
         setIsStarted(false);
       } else {
