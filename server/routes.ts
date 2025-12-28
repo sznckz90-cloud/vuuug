@@ -5215,34 +5215,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(taskClicks.publisherId, userId)
         ));
 
-      // Add reward to user's balance
-      const [user] = await db
-        .select({ balance: users.balance })
-        .from(users)
-        .where(eq(users.id, userId));
-
-      const currentBalance = parseInt(user?.balance || '0');
-      const newBalance = currentBalance + rewardPAD;
-
-      // Use addBalance to ensure user_balances table is also updated
+      // Use storage methods for balance and earning to ensure all tables (users, user_balances, earnings, transactions) are synced
       await storage.addBalance(userId, rewardPAD.toString());
-
-      await db
-        .update(users)
-        .set({
-          balance: newBalance.toString(),
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, userId));
-
-      // Record the earning
+      
       const task = await storage.getTaskById(taskId);
-      await db.insert(earnings).values({
+      await storage.addEarning({
         userId: userId,
         amount: rewardPAD.toString(),
         source: 'task_completion',
         description: `Completed ${task?.taskType || 'advertiser'} task: ${task?.title || 'Task'}`,
       });
+
+      // Fetch updated balance for response
+      const [updatedUser] = await db
+        .select({ balance: users.balance })
+        .from(users)
+        .where(eq(users.id, userId));
 
       console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD`);
 
@@ -5250,7 +5238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         message: `Reward claimed! +${rewardPAD} PAD`,
         reward: rewardPAD,
-        newBalance: newBalance.toString()
+        newBalance: updatedUser?.balance || '0'
       });
     } catch (error) {
       console.error("Error claiming task reward:", error);
