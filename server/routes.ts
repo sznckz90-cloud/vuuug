@@ -2171,7 +2171,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/tasks/complete/channel', async (req: any, res) => {
     try {
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
-      const telegramUserId = req.user?.telegramUser?.id?.toString();
       
       if (!userId) {
         return res.json({ success: true, skipAuth: true });
@@ -2188,28 +2187,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false,
           message: 'Task already completed today'
         });
-      }
-      
-      // VERIFY CHANNEL MEMBERSHIP BEFORE GIVING REWARD
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const isDevMode = process.env.NODE_ENV === 'development';
-      
-      if (!isDevMode && botToken && telegramUserId) {
-        const isMember = await verifyChannelMembership(
-          parseInt(telegramUserId), 
-          config.telegram.channelId,
-          botToken
-        );
-        
-        if (!isMember) {
-          return res.status(403).json({
-            success: false,
-            message: `Please join the Telegram channel ${config.telegram.channelUrl || config.telegram.channelId} first to complete this task`,
-            requiresChannelJoin: true,
-            channelUsername: config.telegram.channelId,
-            channelUrl: config.telegram.channelUrl
-          });
-        }
       }
       
       // Reward: 0.0001 TON = 1,000 PAD
@@ -2258,7 +2235,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/tasks/complete/community', async (req: any, res) => {
     try {
       const userId = req.session?.user?.user?.id || req.user?.user?.id;
-      const telegramUserId = req.user?.telegramUser?.id?.toString();
       
       if (!userId) {
         return res.json({ success: true, skipAuth: true });
@@ -2275,28 +2251,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false,
           message: 'Task already completed today'
         });
-      }
-      
-      // VERIFY GROUP/COMMUNITY MEMBERSHIP BEFORE GIVING REWARD
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const isDevMode = process.env.NODE_ENV === 'development';
-      
-      if (!isDevMode && botToken && telegramUserId) {
-        const isMember = await verifyChannelMembership(
-          parseInt(telegramUserId), 
-          config.telegram.groupId,
-          botToken
-        );
-        
-        if (!isMember) {
-          return res.status(403).json({
-            success: false,
-            message: `Please join the Telegram group ${config.telegram.groupUrl || config.telegram.groupId} first to complete this task`,
-            requiresGroupJoin: true,
-            groupUsername: config.telegram.groupId,
-            groupUrl: config.telegram.groupUrl
-          });
-        }
       }
       
       // Reward: 0.0001 TON = 1,000 PAD
@@ -5155,91 +5109,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: "Failed to record task click" 
-      });
-    }
-  });
-
-  // Claim task reward (after user clicks on a task)
-  app.post('/api/advertiser-tasks/:taskId/claim', authenticateTelegram, async (req: any, res) => {
-    try {
-      const userId = req.user.user.id;
-      const { taskId } = req.params;
-
-      // Get the task click record
-      const taskClick = await db
-        .select()
-        .from(taskClicks)
-        .where(and(
-          eq(taskClicks.taskId, taskId),
-          eq(taskClicks.publisherId, userId)
-        ))
-        .limit(1);
-
-      if (taskClick.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "You haven't clicked this task yet"
-        });
-      }
-
-      // Check if already claimed
-      if (taskClick[0].claimedAt) {
-        return res.status(400).json({
-          success: false,
-          message: "You have already claimed the reward for this task"
-        });
-      }
-
-      const rewardPAD = parseInt(taskClick[0].rewardAmount || '0');
-      
-      // Mark as claimed
-      await db
-        .update(taskClicks)
-        .set({ claimedAt: new Date() })
-        .where(and(
-          eq(taskClicks.taskId, taskId),
-          eq(taskClicks.publisherId, userId)
-        ));
-
-      // Add reward to user's balance
-      const [user] = await db
-        .select({ balance: users.balance })
-        .from(users)
-        .where(eq(users.id, userId));
-
-      const currentBalance = parseInt(user?.balance || '0');
-      const newBalance = currentBalance + rewardPAD;
-
-      await db
-        .update(users)
-        .set({
-          balance: newBalance.toString(),
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, userId));
-
-      // Record the earning
-      const task = await storage.getTaskById(taskId);
-      await db.insert(earnings).values({
-        userId: userId,
-        amount: rewardPAD.toString(),
-        source: 'task_completion',
-        description: `Completed ${task?.taskType || 'advertiser'} task: ${task?.title || 'Task'}`,
-      });
-
-      console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD`);
-
-      res.json({
-        success: true,
-        message: `Reward claimed! +${rewardPAD} PAD`,
-        reward: rewardPAD,
-        newBalance: newBalance.toString()
-      });
-    } catch (error) {
-      console.error("Error claiming task reward:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to claim task reward" 
       });
     }
   });
