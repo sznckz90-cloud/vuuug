@@ -10,8 +10,6 @@ import CountryBlockedScreen from "@/components/CountryBlockedScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
-import ChannelJoinPopup from "@/components/ChannelJoinPopup";
-import { LanguageProvider } from "@/hooks/useLanguage";
 
 declare global {
   interface Window {
@@ -20,11 +18,13 @@ declare global {
 }
 
 const Home = lazy(() => import("@/pages/Home"));
+const Landing = lazy(() => import("@/pages/Landing"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
+const CreateTask = lazy(() => import("@/pages/CreateTask"));
 const Withdraw = lazy(() => import("@/pages/Withdraw"));
 const CountryControls = lazy(() => import("@/pages/CountryControls"));
-const CreateTask = lazy(() => import("@/pages/CreateTask"));
+const Store = lazy(() => import("@/pages/Store"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const PageLoader = memo(function PageLoader() {
@@ -44,11 +44,14 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/task/create" component={CreateTask} />
+        <Route path="/create-task" component={CreateTask} />
         <Route path="/affiliates" component={Affiliates} />
         <Route path="/withdraw" component={Withdraw} />
+        <Route path="/profile" component={Landing} />
         <Route path="/admin" component={Admin} />
         <Route path="/admin/country-controls" component={CountryControls} />
-        <Route path="/create-task" component={CreateTask} />
+        <Route path="/store" component={Store} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
@@ -170,8 +173,6 @@ function App() {
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingCountry, setIsCheckingCountry] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
-  const [isMembershipVerified, setIsMembershipVerified] = useState(false);
-  const [isCheckingMembership, setIsCheckingMembership] = useState(true);
   
   const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
@@ -217,44 +218,6 @@ function App() {
   useEffect(() => {
     checkCountry();
   }, [checkCountry]);
-
-  const checkMembership = useCallback(async () => {
-    if (!telegramId || isCountryBlocked || isCheckingCountry) {
-      setIsCheckingMembership(false);
-      return;
-    }
-
-    try {
-      const headers: Record<string, string> = {};
-      const tg = window.Telegram?.WebApp;
-      if (tg?.initData) {
-        headers['x-telegram-data'] = tg.initData;
-      }
-
-      const response = await fetch('/api/check-membership', { 
-        headers,
-        cache: 'no-store'
-      });
-      const data = await response.json();
-
-      if (data.success && data.isVerified && data.channelMember && data.groupMember) {
-        setIsMembershipVerified(true);
-      } else {
-        setIsMembershipVerified(false);
-      }
-    } catch (err) {
-      console.error("Membership check error:", err);
-      setIsMembershipVerified(false);
-    } finally {
-      setIsCheckingMembership(false);
-    }
-  }, [telegramId, isCountryBlocked, isCheckingCountry]);
-
-  useEffect(() => {
-    if (!isCheckingCountry && !isAuthenticating && telegramId) {
-      checkMembership();
-    }
-  }, [telegramId, isCheckingCountry, isAuthenticating, checkMembership]);
 
   useEffect(() => {
     const handleCountryBlockChange = (event: CustomEvent) => {
@@ -401,33 +364,12 @@ function App() {
     );
   }
 
-  if (isCheckingMembership) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="flex gap-1">
-          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }}></div>
-          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }}></div>
-          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }}></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isMembershipVerified && telegramId && !isDevMode) {
-    return <ChannelJoinPopup telegramId={telegramId} onVerified={() => {
-      setIsMembershipVerified(true);
-      checkMembership();
-    }} />;
-  }
-
   return (
-    <LanguageProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <AppContent />
-        </TooltipProvider>
-      </QueryClientProvider>
-    </LanguageProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AppContent />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }
 
