@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
+import MiningSection from "@/components/MiningSection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -424,11 +425,7 @@ export default function Home() {
   };
 
   const handleBoosterClick = () => {
-    if (isAdmin) {
-      setLocation("/store");
-    } else {
-      showNotification("Boosters are coming soon!", "info");
-    }
+    setLocation("/store");
   };
 
   if (isLoading) {
@@ -563,6 +560,10 @@ export default function Home() {
 
         <div className="mt-3">
           <AdWatchingSection user={user as User} />
+        </div>
+
+        <div className="mt-3">
+          <MiningSection user={user as User} onBoosterClick={handleBoosterClick} />
         </div>
 
       </main>
