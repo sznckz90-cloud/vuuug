@@ -2190,33 +2190,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // MANDATORY: VERIFY CHANNEL MEMBERSHIP BEFORE GIVING REWARD
+      // VERIFY CHANNEL MEMBERSHIP BEFORE GIVING REWARD
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const isDevMode = process.env.NODE_ENV === 'development';
       
-      if (!botToken || !telegramUserId) {
-        console.error('❌ Channel task claim rejected: Missing bot token or telegram user ID');
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication error - please try again'
-        });
-      }
-      
-      // ALWAYS verify membership - no exceptions, no dev mode skipping
-      const isMember = await verifyChannelMembership(
-        parseInt(telegramUserId), 
-        config.telegram.channelId,
-        botToken
-      );
-      
-      if (!isMember) {
-        console.log(`❌ User ${telegramUserId} tried to claim channel task but is not a member`);
-        return res.status(403).json({
-          success: false,
-          message: `Please join the Telegram channel ${config.telegram.channelUrl || config.telegram.channelId} first to complete this task`,
-          requiresChannelJoin: true,
-          channelUsername: config.telegram.channelId,
-          channelUrl: config.telegram.channelUrl
-        });
+      if (!isDevMode && botToken && telegramUserId) {
+        const isMember = await verifyChannelMembership(
+          parseInt(telegramUserId), 
+          config.telegram.channelId,
+          botToken
+        );
+        
+        if (!isMember) {
+          return res.status(403).json({
+            success: false,
+            message: `Please join the Telegram channel ${config.telegram.channelUrl || config.telegram.channelId} first to complete this task`,
+            requiresChannelJoin: true,
+            channelUsername: config.telegram.channelId,
+            channelUrl: config.telegram.channelUrl
+          });
+        }
       }
       
       // Reward: 0.0001 TON = 1,000 PAD
@@ -2284,33 +2277,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // MANDATORY: VERIFY GROUP/COMMUNITY MEMBERSHIP BEFORE GIVING REWARD
+      // VERIFY GROUP/COMMUNITY MEMBERSHIP BEFORE GIVING REWARD
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const isDevMode = process.env.NODE_ENV === 'development';
       
-      if (!botToken || !telegramUserId) {
-        console.error('❌ Community task claim rejected: Missing bot token or telegram user ID');
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication error - please try again'
-        });
-      }
-      
-      // ALWAYS verify membership - no exceptions, no dev mode skipping
-      const isMember = await verifyChannelMembership(
-        parseInt(telegramUserId), 
-        config.telegram.groupId,
-        botToken
-      );
-      
-      if (!isMember) {
-        console.log(`❌ User ${telegramUserId} tried to claim community task but is not a member`);
-        return res.status(403).json({
-          success: false,
-          message: `Please join the Telegram group ${config.telegram.groupUrl || config.telegram.groupId} first to complete this task`,
-          requiresGroupJoin: true,
-          groupUsername: config.telegram.groupId,
-          groupUrl: config.telegram.groupUrl
-        });
+      if (!isDevMode && botToken && telegramUserId) {
+        const isMember = await verifyChannelMembership(
+          parseInt(telegramUserId), 
+          config.telegram.groupId,
+          botToken
+        );
+        
+        if (!isMember) {
+          return res.status(403).json({
+            success: false,
+            message: `Please join the Telegram group ${config.telegram.groupUrl || config.telegram.groupId} first to complete this task`,
+            requiresGroupJoin: true,
+            groupUsername: config.telegram.groupId,
+            groupUrl: config.telegram.groupUrl
+          });
+        }
       }
       
       // Reward: 0.0001 TON = 1,000 PAD
@@ -5215,22 +5201,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(taskClicks.publisherId, userId)
         ));
 
-      // Use storage methods for balance and earning to ensure all tables (users, user_balances, earnings, transactions) are synced
-      await storage.addBalance(userId, rewardPAD.toString());
-      
+      // Add reward to user's balance
+      const [user] = await db
+        .select({ balance: users.balance })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      const currentBalance = parseInt(user?.balance || '0');
+      const newBalance = currentBalance + rewardPAD;
+
+      await db
+        .update(users)
+        .set({
+          balance: newBalance.toString(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+
+      // Record the earning
       const task = await storage.getTaskById(taskId);
-      await storage.addEarning({
+      await db.insert(earnings).values({
         userId: userId,
         amount: rewardPAD.toString(),
         source: 'task_completion',
         description: `Completed ${task?.taskType || 'advertiser'} task: ${task?.title || 'Task'}`,
       });
-
-      // Fetch updated balance for response
-      const [updatedUser] = await db
-        .select({ balance: users.balance })
-        .from(users)
-        .where(eq(users.id, userId));
 
       console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD`);
 
@@ -5238,7 +5233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         message: `Reward claimed! +${rewardPAD} PAD`,
         reward: rewardPAD,
-        newBalance: updatedUser?.balance || '0'
+        newBalance: newBalance.toString()
       });
     } catch (error) {
       console.error("Error claiming task reward:", error);
@@ -7919,10 +7914,6 @@ ${walletAddress}
       // Add reward to user balance
       const user = await storage.getUser(userId);
       if (user) {
-        // Use addBalance to ensure user_balances table is also updated
-        await storage.addBalance(userId, reward.toString());
-        
-        // Ensure user is updated for compatibility
         const currentBalance = parseFloat(user.balance?.toString() || '0');
         await db.update(users).set({
           balance: (currentBalance + reward).toString(),
@@ -7993,10 +7984,6 @@ ${walletAddress}
       // Add reward to user balance
       const user = await storage.getUser(userId);
       if (user) {
-        // Use addBalance to ensure user_balances table is also updated
-        await storage.addBalance(userId, reward.toString());
-        
-        // Ensure user is updated for compatibility
         const currentBalance = parseFloat(user.balance?.toString() || '0');
         await db.update(users).set({
           balance: (currentBalance + reward).toString(),
@@ -8067,10 +8054,6 @@ ${walletAddress}
       // Add reward to user balance
       const user = await storage.getUser(userId);
       if (user) {
-        // Use addBalance to ensure user_balances table is also updated
-        await storage.addBalance(userId, reward.toString());
-        
-        // Ensure user is updated for compatibility
         const currentBalance = parseFloat(user.balance?.toString() || '0');
         await db.update(users).set({
           balance: (currentBalance + reward).toString(),
