@@ -133,20 +133,6 @@ export function useWebSocket() {
               showNotification("Task deleted", "error");
               break;
               
-            case 'task_reward':
-              // Handle task reward and refresh UI
-              if (message.message) {
-                showNotification(message.message, "success");
-              }
-              // Force refresh task list and user data
-              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] });
-              
-              // Dispatch custom event for system-wide listening (Home.tsx uses this)
-              window.dispatchEvent(new CustomEvent('websocket-message', { detail: message }));
-              break;
-
             case 'task_removed':
               // Broadcast event for real-time task list updates
               const taskRemovedEvent = new CustomEvent('taskRemoved', { 
