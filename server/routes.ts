@@ -5173,23 +5173,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-      // Claim task reward (after user clicks on a task)
+  // Claim task reward (after user clicks on a task)
   app.post('/api/advertiser-tasks/:taskId/claim', authenticateTelegram, async (req: any, res) => {
     try {
       const userId = req.user.user.id;
       const { taskId } = req.params;
 
-      // Get task details and calculate reward
-      const task = await storage.getTaskById(taskId);
-      if (!task) {
-        return res.status(404).json({
-          success: false,
-          message: "Task not found"
-        });
-      }
-
-      // Check if user already claimed this task
-      const existingClaim = await db
+      // Get the task click record
+      const taskClick = await db
         .select()
         .from(taskClicks)
         .where(and(
@@ -5198,137 +5189,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ))
         .limit(1);
 
-      // CRITICAL FIX: If they exist in taskClicks, they have already "clicked" the task.
-      // If claimedAt is set, they've already received the reward.
-      // If claimedAt is null, they clicked but haven't claimed yet (this is the only case they should be here).
-      if (existingClaim.length > 0 && existingClaim[0].claimedAt) {
+      if (taskClick.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "You haven't clicked this task yet"
+        });
+      }
+
+      // Check if already claimed
+      if (taskClick[0].claimedAt) {
         return res.status(400).json({
           success: false,
           message: "You have already claimed the reward for this task"
         });
       }
 
-      // Ensure a click record exists before allowing claim
-      if (existingClaim.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "You must start the task before claiming the reward"
-        });
-      }
-
-      // Reward calculation logic
-      let finalReward = 0;
-      if (task.taskType === 'partner') {
-         const partnerRewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'partner_task_reward')).limit(1);
-         finalReward = parseInt(partnerRewardSetting[0]?.settingValue || '5');
-      } else {
-         // Default to costPerClick if not partner task
-         // costPerClick might be a decimal string like "0.0003", so we should handle it
-         const rewardVal = parseFloat(task.costPerClick || '0');
-         // If it's a very small number, it might be intended as PAD directly if > 1, or needs conversion
-         // Based on replit.md: 10,000 PAD = 1 USD. 
-         // If costPerClick is "5", it's 5 PAD.
-         finalReward = Math.round(rewardVal);
-      }
+      const rewardPAD = parseInt(taskClick[0].rewardAmount || '0');
       
-      // If reward is still 0, use a fallback from admin settings
-      if (finalReward <= 0) {
-        const rewardSettingKey = task.taskType === 'bot' ? 'bot_task_reward' : 'channel_task_reward';
-        const rewardSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, rewardSettingKey)).limit(1);
-        finalReward = parseInt(rewardSetting[0]?.settingValue || (task.taskType === 'bot' ? '20' : '30'));
-      }
-
-      // Record the reward amount and mark as claimed in task_clicks
+      // Mark as claimed
       await db
         .update(taskClicks)
-        .set({ 
-          rewardAmount: finalReward.toString(),
-          claimedAt: new Date()
-        })
+        .set({ claimedAt: new Date() })
         .where(and(
           eq(taskClicks.taskId, taskId),
           eq(taskClicks.publisherId, userId)
         ));
 
-      // IMPORTANT: Update the advertiser_tasks table currentClicks count
-      // This ensures the task owner sees the progress
-      const [{ count }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(taskClicks)
-        .where(eq(taskClicks.taskId, taskId));
-
-      // Check if task has reached its limit and update status if needed
-      if (task.totalClicksRequired > 0 && count >= task.totalClicksRequired) {
-        await db
-          .update(advertiserTasks)
-          .set({
-            currentClicks: count,
-            status: 'completed',
-            completedAt: new Date(),
-            updatedAt: new Date()
-          })
-          .where(eq(advertiserTasks.id, taskId));
-      } else {
-        await db
-          .update(advertiserTasks)
-          .set({
-            currentClicks: count,
-            updatedAt: new Date()
-          })
-          .where(eq(advertiserTasks.id, taskId));
-      }
-
       // Add reward to user's balance
-      await storage.addBalance(userId, finalReward.toString());
+      const [user] = await db
+        .select({ balance: users.balance })
+        .from(users)
+        .where(eq(users.id, userId));
 
-      // Update BUG balance
-      const bugRewardPerTaskSetting = await db.select().from(adminSettings).where(eq(adminSettings.settingKey, 'bug_reward_per_task')).limit(1);
-      const bugRewardPerTask = parseInt(bugRewardPerTaskSetting[0]?.settingValue || '10');
-      
-      if (bugRewardPerTask > 0) {
-        await storage.addBUGBalance(userId, bugRewardPerTask.toString(), 'task_completion', `BUG reward for completing task: ${task.title}`);
-      }
+      const currentBalance = parseInt(user?.balance || '0');
+      const newBalance = currentBalance + rewardPAD;
+
+      await db
+        .update(users)
+        .set({
+          balance: newBalance.toString(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
 
       // Record the earning
-      await storage.addEarning({
+      const task = await storage.getTaskById(taskId);
+      await db.insert(earnings).values({
         userId: userId,
-        amount: finalReward.toString(),
+        amount: rewardPAD.toString(),
         source: 'task_completion',
         description: `Completed ${task?.taskType || 'advertiser'} task: ${task?.title || 'Task'}`,
       });
 
-      // Fetch the most current user data to ensure frontend gets latest balance
-      const updatedUser = await storage.getUser(userId);
-      const newBalance = updatedUser?.balance || '0';
-
-      console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${finalReward} PAD - New Balance: ${newBalance}`);
-
-      // Send real-time update with a specific flag to force UI refresh
-      try {
-        sendRealtimeUpdate(userId, {
-          type: 'task_reward',
-          amount: finalReward.toString(),
-          message: `Task reward earned! +${finalReward} PAD`,
-          timestamp: new Date().toISOString(),
-          newBalance: newBalance.toString(),
-          taskId: taskId, // Include the task ID that was completed
-          forceRefresh: true // Hint to the frontend to refresh the task list
-        });
-        
-        // Also broadcast a general task update to ensure all users see updated progress
-        broadcastUpdate({
-          type: 'task:updated',
-          taskId: taskId,
-          currentClicks: count
-        });
-      } catch (wsError) {
-        console.error("⚠️ WebSocket update failed:", wsError);
-      }
+      console.log(`✅ Task reward claimed: ${taskId} by ${userId} - Reward: ${rewardPAD} PAD`);
 
       res.json({
         success: true,
-        message: `Reward claimed! +${finalReward} PAD`,
-        reward: finalReward,
+        message: `Reward claimed! +${rewardPAD} PAD`,
+        reward: rewardPAD,
         newBalance: newBalance.toString()
       });
     } catch (error) {
