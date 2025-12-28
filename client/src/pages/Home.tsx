@@ -7,7 +7,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Gamepad2, Handshake, Send, ExternalLink } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Gamepad2, Handshake } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -26,18 +26,175 @@ declare global {
   }
 }
 
-interface UnifiedTask {
-  id: string;
-  type: 'advertiser';
-  taskType: string;
-  title: string;
-  link: string | null;
-  rewardPAD: number;
-  rewardBUG?: number;
-  rewardType: string;
-  isAdminTask: boolean;
-  isAdvertiserTask?: boolean;
-  priority: number;
+function TasksDisplay({ userId, appSettings }: { userId?: string; appSettings?: any }) {
+  const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery<{ success: boolean; tasks: any[] }>({
+    queryKey: ["/api/advertiser-tasks"],
+    retry: false,
+    refetchInterval: 3000, // Reduced interval for faster updates
+  });
+
+  // Listen for WebSocket updates to force refetch
+  useEffect(() => {
+    const handleWebSocketMessage = (event: any) => {
+      const data = event.detail;
+      if (data?.type === 'task_reward' && data?.forceRefresh) {
+        console.log('🔄 Task completed, forcing task list refresh');
+        refetchTasks();
+      }
+    };
+
+    window.addEventListener('websocket-message', handleWebSocketMessage);
+    return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
+  }, [refetchTasks]);
+
+  if (tasksLoading) {
+    return <div className="text-gray-400 text-sm text-center py-2">Loading tasks...</div>;
+  }
+
+  const tasks = tasksData?.tasks || [];
+  
+  // Group tasks by type
+  const channelTasks = tasks.filter(t => t.taskType === 'channel');
+  const botTasks = tasks.filter(t => t.taskType === 'bot');
+  const partnerTasks = tasks.filter(t => t.taskType === 'partner');
+
+  const renderTaskSection = (taskList: any[], sectionTitle: string, emptyMessage: string) => {
+    if (taskList.length === 0) {
+      return (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-white text-xs font-semibold">{sectionTitle}</span>
+          </div>
+          <div className="text-gray-400 text-sm text-center py-3">{emptyMessage}</div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-white text-xs font-semibold">{sectionTitle}</span>
+        </div>
+        <div className="space-y-2">
+          {taskList.map((task) => (
+            <TaskItem key={task.id} task={task} appSettings={appSettings} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {renderTaskSection(channelTasks, "Social Task", "No Social Task")}
+      {renderTaskSection(botTasks, "Game Task", "No Game Task")}
+      {renderTaskSection(partnerTasks, "Partner Task", "No Partner Task")}
+    </div>
+  );
+}
+
+function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
+  const [isStarted, setIsStarted] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const queryClient = useQueryClient();
+
+  const getTaskIcon = () => {
+    if (task.taskType === 'channel') return <Megaphone className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'bot') return <Gamepad2 className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'partner') return <Handshake className="w-4 h-4 text-[#4cd3ff]" />;
+    return <Coins className="w-4 h-4 text-[#4cd3ff]" />;
+  };
+
+  const getRewardDisplay = () => {
+    let reward = 0;
+    if (task.taskType === 'channel') {
+      reward = parseInt(appSettings?.channel_task_reward) || parseInt(appSettings?.channelTaskReward) || 30;
+    } else if (task.taskType === 'bot') {
+      reward = parseInt(appSettings?.bot_task_reward) || parseInt(appSettings?.botTaskReward) || 20;
+    } else if (task.taskType === 'partner') {
+      reward = parseInt(appSettings?.partner_task_reward) || parseInt(appSettings?.partnerTaskReward) || 5;
+    }
+    return `${reward} PAD`;
+  };
+
+  const handleStartTask = () => {
+    try {
+      window.open(task.link, '_blank');
+      setIsStarted(true);
+      showNotification('Task opened. Claim your reward when ready!', 'info');
+    } catch (error) {
+      console.error('Error starting task:', error);
+      showNotification('Error opening task', 'error');
+    }
+  };
+
+  const handleClaimReward = async () => {
+    setIsClaiming(true);
+    try {
+      const response = await apiRequest('POST', `/api/advertiser-tasks/${task.id}/claim`);
+      const data = await response.json();
+      if (data.success) {
+        const rewardAmount = data.reward || 0;
+        
+        // Immediate UI feedback
+        const rewardEvent = new CustomEvent('showReward', { 
+          detail: { amount: rewardAmount }
+        });
+        window.dispatchEvent(rewardEvent);
+        
+        showNotification(` Claimed +${rewardAmount} PAD!`, 'success');
+        
+        // Sync everything
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] })
+        ]);
+        
+        setIsStarted(false);
+      } else {
+        showNotification(data.message || 'Failed to claim reward', 'error');
+      }
+    } catch (error) {
+      console.error('Error claiming reward:', error);
+      showNotification('Failed to claim reward', 'error');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-2">
+          {getTaskIcon()}
+          <p className="text-white text-sm font-medium truncate">{task.title}</p>
+        </div>
+        <div className="space-y-1 text-xs text-gray-400 ml-6">
+          <p>Reward: <span className="text-white font-medium">{getRewardDisplay()}</span></p>
+        </div>
+      </div>
+      <div className="ml-3 flex-shrink-0">
+        <Button
+          onClick={isStarted ? handleClaimReward : handleStartTask}
+          disabled={isClaiming}
+          className={`h-8 px-4 text-xs font-bold rounded-lg text-white transition-colors ${
+            isStarted
+              ? 'bg-green-500 hover:bg-green-600' 
+              : 'bg-blue-500 hover:bg-blue-600'
+          } disabled:opacity-50`}
+        >
+          {isClaiming ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : isStarted ? (
+            'Claim'
+          ) : (
+            'Start'
+          )}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 interface User {
@@ -78,7 +235,6 @@ export default function Home() {
   const [dailyCheckinCountdown, setDailyCheckinCountdown] = useState(3);
   const [checkForUpdatesStep, setCheckForUpdatesStep] = useState<'idle' | 'opened' | 'countdown' | 'ready' | 'claiming'>('idle');
   const [checkForUpdatesCountdown, setCheckForUpdatesCountdown] = useState(3);
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
   const { isShowingAds, adStep, runAdFlow } = useAdFlow();
 
@@ -111,30 +267,6 @@ export default function Home() {
     staleTime: 30000,
   });
 
-  const { data: unifiedTasksData, isLoading: isLoadingTasks } = useQuery<{
-    success: boolean;
-    tasks: UnifiedTask[];
-    completedTaskIds: string[];
-    referralCode?: string;
-  }>({
-    queryKey: ['/api/tasks/home/unified'],
-    queryFn: async () => {
-      const res = await fetch('/api/tasks/home/unified', { credentials: 'include' });
-      if (!res.ok) return { success: true, tasks: [], completedTaskIds: [] };
-      return res.json();
-    },
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (unifiedTasksData?.completedTaskIds) {
-      setCompletedTasks(new Set(unifiedTasksData.completedTaskIds));
-    } else {
-      setCompletedTasks(new Set());
-    }
-  }, [unifiedTasksData]);
-
-  const currentTask = unifiedTasksData?.tasks?.[0] || null;
 
   React.useEffect(() => {
     const updateTimer = () => {
@@ -277,51 +409,6 @@ export default function Home() {
       setIsApplyingPromo(false);
     },
   });
-
-  const advertiserTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const res = await fetch(`/api/advertiser-tasks/${taskId}/click`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to complete task');
-      return data;
-    },
-    onSuccess: async (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
-      const padReward = Number(data.reward ?? 0);
-      const bugReward = Number(data.bugReward ?? 0);
-      if (bugReward > 0) {
-        showNotification(`+${padReward.toLocaleString()} PAD, +${bugReward} BUG`, 'success');
-      } else {
-        showNotification(`+${padReward.toLocaleString()} PAD`, 'success');
-      }
-    },
-    onError: (error: any) => {
-      showNotification(error.message || 'Failed to complete task', 'error');
-    },
-  });
-
-  const handleUnifiedTask = (task: UnifiedTask) => {
-    if (!task) return;
-    if (task.link) {
-      window.open(task.link, '_blank');
-      setTimeout(() => advertiserTaskMutation.mutate(task.id), 2000);
-    } else {
-      advertiserTaskMutation.mutate(task.id);
-    }
-  };
-
-  const getTaskIcon = (task: UnifiedTask) => {
-    return task.taskType === 'channel' ? <Send className="w-4 h-4" /> : 
-           task.taskType === 'bot' ? <ExternalLink className="w-4 h-4" /> :
-           <ExternalLink className="w-4 h-4" />;
-  };
-
-  const isTaskPending = advertiserTaskMutation.isPending;
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
   const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
@@ -836,87 +923,6 @@ export default function Home() {
           <AdWatchingSection user={user as User} />
         </div>
 
-        <div className="mt-3 px-0">
-          <div className="bg-[#0d0d0d] rounded-xl border border-[#1a1a1a] p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-[#4cd3ff]/20 flex items-center justify-center">
-                <Flame className="w-3.5 h-3.5 text-[#4cd3ff]" />
-              </div>
-              <span className="text-sm font-semibold text-white">Tasks</span>
-            </div>
-            
-            <AnimatePresence mode="wait">
-              {isLoadingTasks ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
-                >
-                  <Loader2 className="w-5 h-5 text-[#4cd3ff] animate-spin mx-auto" />
-                </motion.div>
-              ) : currentTask ? (
-                <motion.div
-                  key={currentTask.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-[#1a1a1a] rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-500/20">
-                        <span className="text-green-400">
-                          {getTaskIcon(currentTask)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium text-sm truncate">{currentTask.title}</h3>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <DiamondIcon size={12} />
-                            <span className="text-xs font-semibold text-[#4cd3ff]">+{currentTask.rewardPAD.toLocaleString()}</span>
-                          </div>
-                          {currentTask.rewardBUG && currentTask.rewardBUG > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Bug className="w-3 h-3 text-purple-400" />
-                              <span className="text-xs font-semibold text-purple-400">+{currentTask.rewardBUG}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => handleUnifiedTask(currentTask)}
-                      disabled={isTaskPending}
-                      className="h-8 px-4 text-xs font-semibold rounded-lg text-black bg-green-400 hover:bg-green-300"
-                    >
-                      {isTaskPending ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        "Start"
-                      )}
-                    </Button>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="no-tasks"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
-                >
-                  <span className="text-gray-400 text-sm">No tasks available</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
         <div className="bg-[#111] rounded-xl p-3 mt-3">
           <div className="flex items-center gap-2 mb-2">
             <CalendarCheck className="w-4 h-4 text-yellow-400" />
@@ -1041,6 +1047,11 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* USER TASKS SECTION - Advertiser Tasks */}
+        <div className="bg-[#111] rounded-xl p-3 mt-3">
+          <TasksDisplay userId={(user as User)?.id} appSettings={appSettings} />
         </div>
 
       </main>
