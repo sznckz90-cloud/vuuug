@@ -2607,20 +2607,34 @@ export class DatabaseStorage implements IStorage {
 
   async addBalance(userId: string, amount: string): Promise<void> {
     try {
-      // First ensure the user has a balance record
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) return;
+
+      // Update canonical user_balances table
       let existingBalance = await this.getUserBalance(userId);
       if (!existingBalance) {
-        // Create new balance record with the amount if user not found
         await this.createOrUpdateUserBalance(userId, amount);
       } else {
-        // Add to existing balance
         await db.update(userBalances)
           .set({
-            balance: sql`${userBalances.balance} + ${amount}`,
+            balance: sql`COALESCE(${userBalances.balance}, 0) + ${amount}`,
             updatedAt: new Date(),
           })
           .where(eq(userBalances.userId, userId));
       }
+
+      // CRITICAL: Also update the users table as the frontend might be reading from it
+      await db.update(users)
+        .set({
+          balance: sql`COALESCE(${users.balance}, 0) + ${amount}`,
+          withdrawBalance: sql`COALESCE(${users.withdrawBalance}, 0) + ${amount}`,
+          totalEarned: sql`COALESCE(${users.totalEarned}, 0) + ${amount}`,
+          totalEarnings: sql`COALESCE(${users.totalEarnings}, 0) + ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+      
+      console.log(`✅ Added ${amount} PAD to user ${userId} balance (sync across all tables)`);
     } catch (error) {
       console.error('Error adding balance:', error);
       throw error;
@@ -3058,21 +3072,42 @@ export class DatabaseStorage implements IStorage {
 
   // Get active tasks for a user (excludes tasks they've already completed, their own tasks, and tasks that hit click limit)
   async getActiveTasksForUser(userId: string): Promise<any[]> {
-    const result = await db
+    console.log(`🔍 Fetching active tasks for user: ${userId}`);
+    
+    // 1. Get all task IDs this user has interacted with
+    const userInteractionRecords = await db
+      .select({ taskId: taskClicks.taskId })
+      .from(taskClicks)
+      .where(eq(taskClicks.publisherId, userId));
+    
+    const interactedTaskIds = userInteractionRecords.map(c => c.taskId);
+    console.log(`🚫 User ${userId} has already interacted with ${interactedTaskIds.length} tasks:`, interactedTaskIds);
+
+    // 2. Query all running tasks
+    const allRunningTasks = await db
       .select()
       .from(advertiserTasks)
       .where(and(
         eq(advertiserTasks.status, 'running'),
-        sql`${advertiserTasks.advertiserId} != ${userId}`,
-        sql`${advertiserTasks.currentClicks} < ${advertiserTasks.totalClicksRequired}`,
-        sql`NOT EXISTS (
-          SELECT 1 FROM task_clicks 
-          WHERE task_clicks.task_id = ${advertiserTasks.id} 
-          AND task_clicks.publisher_id = ${userId}
-        )`
+        sql`${advertiserTasks.advertiserId} != ${userId}`
       ))
       .orderBy(desc(advertiserTasks.createdAt));
-    return result;
+    
+    console.log(`📋 Found ${allRunningTasks.length} total running tasks (excluding user's own)`);
+
+    // 3. Perform a strict memory-based filter to exclude interacted tasks AND tasks at click limit
+    const filteredTasks = allRunningTasks.filter(task => {
+      const alreadyDone = interactedTaskIds.includes(task.id);
+      const isFull = task.currentClicks >= task.totalClicksRequired;
+      
+      if (alreadyDone) console.log(`⏭️ Filtering out task ${task.id} (already done by user)`);
+      if (isFull) console.log(`⏭️ Filtering out task ${task.id} (limit reached: ${task.currentClicks}/${task.totalClicksRequired})`);
+      
+      return !alreadyDone && !isFull;
+    });
+    
+    console.log(`✅ Returning ${filteredTasks.length} available tasks for user ${userId}`);
+    return filteredTasks;
   }
 
   // Get a specific task by ID
@@ -3201,7 +3236,11 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (existingClick.length > 0) {
-        return { success: false, message: "You have already completed this task" };
+        // If they already clicked, check if it was already claimed
+        if (existingClick[0].claimedAt) {
+          return { success: false, message: "You have already completed and claimed this task" };
+        }
+        return { success: false, message: "You have already started this task. Please claim your reward." };
       }
 
       // Check if task has reached its click limit
@@ -3238,21 +3277,25 @@ export class DatabaseStorage implements IStorage {
         claimedAt: null  // Mark as not claimed yet
       });
 
-      // Increment current clicks on the task
-      const newClickCount = task.currentClicks + 1;
-      const isCompleted = newClickCount >= task.totalClicksRequired;
+      // Get latest click count directly from DB to be accurate
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(taskClicks)
+        .where(eq(taskClicks.taskId, taskId));
+
+      const isCompleted = count >= task.totalClicksRequired;
 
       await db
         .update(advertiserTasks)
         .set({
-          currentClicks: newClickCount,
+          currentClicks: count,
           status: isCompleted ? 'completed' : 'running',
           completedAt: isCompleted ? new Date() : undefined,
           updatedAt: new Date()
         })
         .where(eq(advertiserTasks.id, taskId));
 
-      console.log(`✅ Task click recorded: ${taskId} by ${publisherId} - Reward ${rewardPAD} PAD ready to claim`);
+      console.log(`✅ Task click recorded: ${taskId} by ${publisherId} - Reward ${rewardPAD} PAD ready to claim. Total clicks: ${count}`);
 
       return {
         success: true,
@@ -3261,7 +3304,7 @@ export class DatabaseStorage implements IStorage {
         canClaim: true,
         task: {
           ...task,
-          currentClicks: newClickCount,
+          currentClicks: count,
           status: isCompleted ? 'completed' : 'running'
         }
       };
