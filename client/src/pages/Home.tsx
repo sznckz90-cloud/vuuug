@@ -495,7 +495,11 @@ export default function Home() {
   };
 
   const handleBoosterClick = () => {
-    setLocation("/create-task");
+    if (isAdmin) {
+      setLocation("/store");
+    } else {
+      showNotification("Boosters are coming soon!", "info");
+    }
   };
 
   if (isLoading) {
@@ -774,21 +778,12 @@ export default function Home() {
               <RefreshCw className="w-5 h-5 text-[#4cd3ff]" />
               <h2 className="text-lg font-bold text-white">Convert PAD</h2>
             </div>
-            <div className="flex items-center justify-center gap-1.5 mb-3">
+            <div className="flex items-center justify-center gap-1.5 mb-4">
               <DiamondIcon size={14} />
               <p className="text-gray-400 text-sm">
-                {balancePAD.toLocaleString()} PAD available
+                {balancePAD.toLocaleString()} PAD
               </p>
             </div>
-            
-            <Input
-              type="number"
-              placeholder="Enter amount to convert"
-              value={balancePAD}
-              onChange={(e) => {}}
-              disabled
-              className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 text-center text-lg font-semibold mb-4"
-            />
             
             <div className="space-y-2 mb-4">
               <button
@@ -812,27 +807,6 @@ export default function Home() {
                 </div>
               </button>
               
-              <button
-                onClick={() => setSelectedConvertType('TON')}
-                className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
-                  selectedConvertType === 'TON' 
-                    ? 'border-[#4cd3ff] bg-[#4cd3ff]/10' 
-                    : 'border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#3a3a3a]'
-                }`}
-              >
-                <div className="w-9 h-9 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden">
-                  <img src="/images/ton.png" alt="TON" className="w-full h-full object-cover" />
-                </div>
-                <div className="text-left flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <DiamondIcon size={12} />
-                    <span className="text-gray-400 text-xs">→</span>
-                    <span className="text-blue-400 font-bold text-xs">TON</span>
-                  </div>
-                  <p className="text-xs text-gray-500">Min: {(appSettings?.minimumConvertPadToTon || 10000).toLocaleString()} PAD</p>
-                </div>
-              </button>
-
               <button
                 onClick={() => setSelectedConvertType('BUG')}
                 className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${

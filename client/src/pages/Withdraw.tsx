@@ -623,6 +623,13 @@ export default function Withdraw() {
               </div>
             </div>
 
+            {!isTonWalletSet && (
+              <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg mb-4">
+                <p className="text-xs text-orange-400">
+                  Please set up your TON wallet before withdrawing.
+                </p>
+              </div>
+            )}
 
             <div className="mt-6">
               <Button
