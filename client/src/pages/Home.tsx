@@ -27,11 +27,25 @@ declare global {
 }
 
 function TasksDisplay({ userId, appSettings }: { userId?: string; appSettings?: any }) {
-  const { data: tasksData, isLoading: tasksLoading } = useQuery<{ success: boolean; tasks: any[] }>({
+  const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery<{ success: boolean; tasks: any[] }>({
     queryKey: ["/api/advertiser-tasks"],
     retry: false,
-    refetchInterval: 5000,
+    refetchInterval: 3000, // Reduced interval for faster updates
   });
+
+  // Listen for WebSocket updates to force refetch
+  useEffect(() => {
+    const handleWebSocketMessage = (event: any) => {
+      const data = event.detail;
+      if (data?.type === 'task_reward' && data?.forceRefresh) {
+        console.log('🔄 Task completed, forcing task list refresh');
+        refetchTasks();
+      }
+    };
+
+    window.addEventListener('websocket-message', handleWebSocketMessage);
+    return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
+  }, [refetchTasks]);
 
   if (tasksLoading) {
     return <div className="text-gray-400 text-sm text-center py-2">Loading tasks...</div>;
