@@ -1,18 +1,30 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Gamepad2, Handshake, Send, ExternalLink } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "framer-motion";
+
+declare global {
+  interface Window {
+    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    Adsgram: {
+      init: (config: { blockId: string }) => {
+        show: () => Promise<void>;
+      };
+    };
+  }
+}
 
 interface UnifiedTask {
   id: string;
@@ -26,17 +38,6 @@ interface UnifiedTask {
   isAdminTask: boolean;
   isAdvertiserTask?: boolean;
   priority: number;
-}
-
-declare global {
-  interface Window {
-    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
-    Adsgram: {
-      init: (config: { blockId: string }) => {
-        show: () => Promise<void>;
-      };
-    };
-  }
 }
 
 interface User {
@@ -69,7 +70,17 @@ export default function Home() {
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
   const [convertPopupOpen, setConvertPopupOpen] = useState(false);
   const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
+  const [convertAmount, setConvertAmount] = useState<string>("");
+  
+  const [shareWithFriendsStep, setShareWithFriendsStep] = useState<'idle' | 'sharing' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [shareCountdown, setShareCountdown] = useState(3);
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'ads' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [dailyCheckinCountdown, setDailyCheckinCountdown] = useState(3);
+  const [checkForUpdatesStep, setCheckForUpdatesStep] = useState<'idle' | 'opened' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [checkForUpdatesCountdown, setCheckForUpdatesCountdown] = useState(3);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+
+  const { isShowingAds, adStep, runAdFlow } = useAdFlow();
 
   const { data: leaderboardData } = useQuery<{
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
@@ -81,6 +92,23 @@ export default function Home() {
   const { data: appSettings } = useQuery<any>({
     queryKey: ['/api/app-settings'],
     retry: false,
+  });
+
+  interface MissionStatus {
+    shareStory: { completed: boolean; claimed: boolean };
+    dailyCheckin: { completed: boolean; claimed: boolean };
+    checkForUpdates: { completed: boolean; claimed: boolean };
+  }
+
+  const { data: missionStatus } = useQuery<{ success: boolean } & MissionStatus>({
+    queryKey: ['/api/missions/status'],
+    retry: false,
+  });
+
+  const { data: userData } = useQuery<{ referralCode?: string }>({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+    staleTime: 30000,
   });
 
   const { data: unifiedTasksData, isLoading: isLoadingTasks } = useQuery<{
@@ -279,7 +307,6 @@ export default function Home() {
 
   const handleUnifiedTask = (task: UnifiedTask) => {
     if (!task) return;
-    
     if (task.link) {
       window.open(task.link, '_blank');
       setTimeout(() => advertiserTaskMutation.mutate(task.id), 2000);
@@ -295,6 +322,171 @@ export default function Home() {
   };
 
   const isTaskPending = advertiserTaskMutation.isPending;
+
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
+  const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
+  const referralLink = userData?.referralCode 
+    ? `https://t.me/${botUsername}/${webAppName}?startapp=${userData.referralCode}`
+    : '';
+
+  const shareWithFriendsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/share-story/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setShareWithFriendsStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setShareWithFriendsStep('idle');
+    },
+  });
+
+  const dailyCheckinMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/daily-checkin/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setDailyCheckinStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setDailyCheckinStep('idle');
+    },
+  });
+
+  const checkForUpdatesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/check-for-updates/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setCheckForUpdatesStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setCheckForUpdatesStep('idle');
+    },
+  });
+
+  const handleShareWithFriends = useCallback(async () => {
+    if (missionStatus?.shareStory?.claimed || !referralLink) return;
+    setShareWithFriendsStep('sharing');
+    try {
+      const tgWebApp = window.Telegram?.WebApp as any;
+      if (tgWebApp?.shareMessage) {
+        try {
+          const response = await fetch('/api/share/prepare-message', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const data = await response.json();
+          if (data.success && data.messageId) {
+            tgWebApp.shareMessage(data.messageId, (success: boolean) => {
+              setShareWithFriendsStep('ready');
+            });
+            return;
+          } else if (data.fallbackUrl) {
+            tgWebApp.openTelegramLink(data.fallbackUrl);
+            setShareWithFriendsStep('ready');
+            return;
+          }
+        } catch (error) {
+          console.error('Prepare message error:', error);
+        }
+      }
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
+      setShareWithFriendsStep('ready');
+    } catch (error) {
+      console.error('Share error:', error);
+      setShareWithFriendsStep('ready');
+    }
+  }, [missionStatus?.shareStory?.claimed, referralLink]);
+
+  const handleClaimShareWithFriends = useCallback(() => {
+    if (shareWithFriendsMutation.isPending) return;
+    setShareWithFriendsStep('claiming');
+    shareWithFriendsMutation.mutate();
+  }, [shareWithFriendsMutation]);
+
+  const handleDailyCheckin = useCallback(async () => {
+    if (missionStatus?.dailyCheckin?.claimed || dailyCheckinStep !== 'idle') return;
+    setDailyCheckinStep('ads');
+    const adResult = await runAdFlow();
+    if (!adResult.monetagWatched) {
+      showNotification("Please watch the ads completely to claim!", "error");
+      setDailyCheckinStep('idle');
+      return;
+    }
+    setDailyCheckinStep('ready');
+  }, [missionStatus?.dailyCheckin?.claimed, dailyCheckinStep, runAdFlow]);
+
+  const handleClaimDailyCheckin = useCallback(() => {
+    if (dailyCheckinMutation.isPending) return;
+    setDailyCheckinStep('claiming');
+    dailyCheckinMutation.mutate();
+  }, [dailyCheckinMutation]);
+
+  const handleCheckForUpdates = useCallback(() => {
+    if (missionStatus?.checkForUpdates?.claimed || checkForUpdatesStep !== 'idle') return;
+    const tgWebApp = window.Telegram?.WebApp as any;
+    if (tgWebApp?.openTelegramLink) {
+      tgWebApp.openTelegramLink('https://t.me/PaidADsNews');
+    } else if (tgWebApp?.openLink) {
+      tgWebApp.openLink('https://t.me/PaidADsNews');
+    } else {
+      window.open('https://t.me/PaidADsNews', '_blank');
+    }
+    setCheckForUpdatesStep('opened');
+    setCheckForUpdatesCountdown(3);
+    const countdownInterval = setInterval(() => {
+      setCheckForUpdatesCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setCheckForUpdatesStep('ready');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [missionStatus?.checkForUpdates?.claimed, checkForUpdatesStep]);
+
+  const handleClaimCheckForUpdates = useCallback(() => {
+    if (checkForUpdatesMutation.isPending) return;
+    setCheckForUpdatesStep('claiming');
+    checkForUpdatesMutation.mutate();
+  }, [checkForUpdatesMutation]);
+
 
   const showAdsgramAd = (): Promise<boolean> => {
     return new Promise(async (resolve) => {
@@ -329,18 +521,18 @@ export default function Home() {
     });
   };
 
-  const showMonetagPopupAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
+  const showMonetagRewardedAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      console.log('🎬 Attempting to show Monetag popup ad...');
+      console.log('🎬 Attempting to show Monetag rewarded ad...');
       if (typeof window.show_10306459 === 'function') {
-        console.log('✅ Monetag SDK found, calling popup ad...');
-        window.show_10306459('pop')
+        console.log('✅ Monetag SDK found, calling rewarded ad...');
+        window.show_10306459()
           .then(() => {
-            console.log('✅ Monetag popup ad completed successfully');
+            console.log('✅ Monetag rewarded ad completed successfully');
             resolve({ success: true, unavailable: false });
           })
           .catch((error) => {
-            console.error('❌ Monetag popup ad error:', error);
+            console.error('❌ Monetag rewarded ad error:', error);
             resolve({ success: false, unavailable: false });
           });
       } else {
@@ -355,13 +547,25 @@ export default function Home() {
   };
 
   const handleConvertConfirm = async () => {
+    const amount = parseFloat(convertAmount) || 0;
+    
+    if (!convertAmount.trim() || amount <= 0) {
+      showNotification("Please enter a valid amount", "error");
+      return;
+    }
+    
+    if (amount > balancePAD) {
+      showNotification("Insufficient balance", "error");
+      return;
+    }
+
     const minimumConvertPAD = selectedConvertType === 'USD' 
       ? (appSettings?.minimumConvertPAD || 10000)
       : selectedConvertType === 'TON'
         ? (appSettings?.minimumConvertPadToTon || 10000)
         : (appSettings?.minimumConvertPadToBug || 1000);
     
-    if (balancePAD < minimumConvertPAD) {
+    if (amount < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
       return;
     }
@@ -369,26 +573,37 @@ export default function Home() {
     if (isConverting || convertMutation.isPending) return;
     
     setIsConverting(true);
-    console.log('💱 Convert started, showing popup ad...');
+    console.log('💱 Convert started, showing AdsGram ad first...');
     
     try {
-      const popupResult = await showMonetagPopupAd();
-      console.log('📊 Popup ad result:', popupResult);
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        console.log('⚠️ Ads unavailable, proceeding with convert');
-        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
-        return;
-      }
-      
-      if (!popupResult.success) {
+      if (!adsgramSuccess) {
         showNotification("Please watch the ad to convert.", "error");
         setIsConverting(false);
         return;
       }
       
-      console.log('✅ Ad watched, converting');
-      convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+      // Then show Monetag rewarded ad
+      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
+        console.log('⚠️ Monetag unavailable, proceeding with convert');
+        convertMutation.mutate({ amount, convertTo: selectedConvertType });
+        return;
+      }
+      
+      if (!monetagResult.success) {
+        showNotification("Please watch the ad to convert.", "error");
+        setIsConverting(false);
+        return;
+      }
+      
+      console.log('✅ Both ads watched, converting');
+      convertMutation.mutate({ amount, convertTo: selectedConvertType });
       
     } catch (error) {
       console.error('Convert error:', error);
@@ -404,20 +619,25 @@ export default function Home() {
     setIsClaimingStreak(true);
     
     try {
-      const popupResult = await showMonetagPopupAd();
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        const adSuccess = await showAdsgramAd();
-        if (!adSuccess) {
-          showNotification("Please watch the ad completely to claim your bonus.", "error");
-          setIsClaimingStreak(false);
-          return;
-        }
+      if (!adsgramSuccess) {
+        showNotification("Please watch the ad completely to claim your bonus.", "error");
+        setIsClaimingStreak(false);
+        return;
+      }
+      
+      // Then show Monetag rewarded ad
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
         claimStreakMutation.mutate();
         return;
       }
       
-      if (!popupResult.success) {
+      if (!monetagResult.success) {
         showNotification("Please watch the ad completely to claim your bonus.", "error");
         setIsClaimingStreak(false);
         return;
@@ -440,25 +660,36 @@ export default function Home() {
     if (isApplyingPromo || redeemPromoMutation.isPending) return;
     
     setIsApplyingPromo(true);
-    console.log('🎫 Promo code claim started, showing popup ad...');
+    console.log('🎫 Promo code claim started, showing AdsGram ad first...');
     
     try {
-      const popupResult = await showMonetagPopupAd();
-      console.log('📊 Popup ad result:', popupResult);
+      // Show AdsGram int-19149 first
+      const adsgramSuccess = await showAdsgramAd();
       
-      if (popupResult.unavailable) {
-        console.log('⚠️ Ads unavailable, proceeding with promo claim');
-        redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
-        return;
-      }
-      
-      if (!popupResult.success) {
+      if (!adsgramSuccess) {
         showNotification("Please watch the ad to claim your promo code.", "error");
         setIsApplyingPromo(false);
         return;
       }
       
-      console.log('✅ Ad watched, claiming promo code');
+      // Then show Monetag rewarded ad
+      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
+      const monetagResult = await showMonetagRewardedAd();
+      
+      if (monetagResult.unavailable) {
+        // If Monetag unavailable, proceed with just AdsGram
+        console.log('⚠️ Monetag unavailable, proceeding with promo claim');
+        redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
+        return;
+      }
+      
+      if (!monetagResult.success) {
+        showNotification("Please watch the ad to claim your promo code.", "error");
+        setIsApplyingPromo(false);
+        return;
+      }
+      
+      console.log('✅ Both ads watched, claiming promo code');
       redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
     } catch (error) {
       console.error('Promo claim error:', error);
@@ -467,12 +698,8 @@ export default function Home() {
     }
   };
 
-  const handleBoosterClick = () => {
-    if (isAdmin) {
-      setLocation("/store");
-    } else {
-      showNotification("Boosters are coming soon!", "info");
-    }
+  const handleCreateTaskClick = () => {
+    setLocation("/create-task");
   };
 
   if (isLoading) {
@@ -597,11 +824,11 @@ export default function Home() {
           </Button>
 
           <Button
-            onClick={handleBoosterClick}
-            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
+            onClick={handleCreateTaskClick}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <Rocket className="w-4 h-4 text-orange-400" />
-            <span className="text-white font-medium text-xs">Booster</span>
+            <Megaphone className="w-4 h-4 text-blue-400" />
+            <span className="text-white font-medium text-xs">Create Task</span>
           </Button>
         </div>
 
@@ -689,18 +916,135 @@ export default function Home() {
             </AnimatePresence>
           </div>
         </div>
+
+        <div className="bg-[#111] rounded-xl p-3 mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarCheck className="w-4 h-4 text-yellow-400" />
+            <span className="text-white text-sm font-semibold">Daily Tasks</span>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Share with Friends</p>
+                </div>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                </div>
+              </div>
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.shareStory?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : shareWithFriendsStep === 'ready' || shareWithFriendsStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimShareWithFriends}
+                    disabled={shareWithFriendsMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleShareWithFriends}
+                    disabled={!referralLink}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Share
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarCheck className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Daily Check-in</p>
+                </div>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                </div>
+              </div>
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.dailyCheckin?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : dailyCheckinStep === 'ads' ? (
+                  <Button
+                    disabled={true}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
+                  >
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  </Button>
+                ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimDailyCheckin}
+                    disabled={dailyCheckinMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleDailyCheckin}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Go
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Check for Updates</p>
+                </div>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                </div>
+              </div>
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.checkForUpdates?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : checkForUpdatesStep === 'opened' ? (
+                  <Button
+                    disabled={true}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                  >
+                    {checkForUpdatesCountdown}s
+                  </Button>
+                ) : checkForUpdatesStep === 'ready' || checkForUpdatesStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimCheckForUpdates}
+                    disabled={checkForUpdatesMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCheckForUpdates}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    Check
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
       </main>
 
-      {/* Static Create Task Button - Only on Home Page */}
-      <div className="fixed bottom-6 right-4 z-50">
-        <button
-          onClick={() => setLocation('/task/create')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-black text-white font-semibold text-sm border border-gray-700"
-        >
-          <Plus className="w-4 h-4" />
-          Create Task
-        </button>
-      </div>
 
       {promoPopupOpen && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
@@ -754,11 +1098,19 @@ export default function Home() {
             <div className="flex items-center justify-center gap-1.5 mb-4">
               <DiamondIcon size={14} />
               <p className="text-gray-400 text-sm">
-                {balancePAD.toLocaleString()} PAD
+                Available: {balancePAD.toLocaleString()} PAD
               </p>
             </div>
             
             <div className="space-y-2 mb-4">
+              <Input
+                type="number"
+                placeholder="Enter amount"
+                value={convertAmount}
+                onChange={(e) => setConvertAmount(e.target.value)}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 focus:border-[#4cd3ff] focus:ring-0 mb-3"
+              />
+              
               <button
                 onClick={() => setSelectedConvertType('USD')}
                 className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
@@ -805,7 +1157,10 @@ export default function Home() {
             
             <div className="flex gap-3">
               <Button
-                onClick={() => setConvertPopupOpen(false)}
+                onClick={() => {
+                  setConvertPopupOpen(false);
+                  setConvertAmount("");
+                }}
                 className="flex-1 h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white font-semibold rounded-xl border border-[#2a2a2a]"
               >
                 Close
