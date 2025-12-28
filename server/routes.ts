@@ -5224,6 +5224,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentBalance = parseInt(user?.balance || '0');
       const newBalance = currentBalance + rewardPAD;
 
+      // Use addBalance to ensure user_balances table is also updated
+      await storage.addBalance(userId, rewardPAD.toString());
+
       await db
         .update(users)
         .set({
@@ -7928,6 +7931,10 @@ ${walletAddress}
       // Add reward to user balance
       const user = await storage.getUser(userId);
       if (user) {
+        // Use addBalance to ensure user_balances table is also updated
+        await storage.addBalance(userId, reward.toString());
+        
+        // Ensure user is updated for compatibility
         const currentBalance = parseFloat(user.balance?.toString() || '0');
         await db.update(users).set({
           balance: (currentBalance + reward).toString(),
@@ -7998,6 +8005,10 @@ ${walletAddress}
       // Add reward to user balance
       const user = await storage.getUser(userId);
       if (user) {
+        // Use addBalance to ensure user_balances table is also updated
+        await storage.addBalance(userId, reward.toString());
+        
+        // Ensure user is updated for compatibility
         const currentBalance = parseFloat(user.balance?.toString() || '0');
         await db.update(users).set({
           balance: (currentBalance + reward).toString(),
@@ -8068,6 +8079,10 @@ ${walletAddress}
       // Add reward to user balance
       const user = await storage.getUser(userId);
       if (user) {
+        // Use addBalance to ensure user_balances table is also updated
+        await storage.addBalance(userId, reward.toString());
+        
+        // Ensure user is updated for compatibility
         const currentBalance = parseFloat(user.balance?.toString() || '0');
         await db.update(users).set({
           balance: (currentBalance + reward).toString(),
