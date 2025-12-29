@@ -1,32 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Users, Check, Sparkles, ChevronRight, Bell, CalendarCheck, Megaphone, Gamepad2, Handshake } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
 import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "framer-motion";
-
-interface UnifiedTask {
-  id: string;
-  type: 'advertiser';
-  taskType: string;
-  title: string;
-  link: string | null;
-  rewardPAD: number;
-  rewardBUG?: number;
-  rewardType: string;
-  isAdminTask: boolean;
-  isAdvertiserTask?: boolean;
-  priority: number;
-}
 
 declare global {
   interface Window {
@@ -37,6 +24,177 @@ declare global {
       };
     };
   }
+}
+
+function TasksDisplay({ userId, appSettings }: { userId?: string; appSettings?: any }) {
+  const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery<{ success: boolean; tasks: any[] }>({
+    queryKey: ["/api/advertiser-tasks"],
+    retry: false,
+    refetchInterval: 3000, // Reduced interval for faster updates
+  });
+
+  // Listen for WebSocket updates to force refetch
+  useEffect(() => {
+    const handleWebSocketMessage = (event: any) => {
+      const data = event.detail;
+      if (data?.type === 'task_reward' && data?.forceRefresh) {
+        console.log('🔄 Task completed, forcing task list refresh');
+        refetchTasks();
+      }
+    };
+
+    window.addEventListener('websocket-message', handleWebSocketMessage);
+    return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
+  }, [refetchTasks]);
+
+  if (tasksLoading) {
+    return <div className="text-gray-400 text-sm text-center py-2">Loading tasks...</div>;
+  }
+
+  const tasks = tasksData?.tasks || [];
+  
+  // Group tasks by type
+  const channelTasks = tasks.filter(t => t.taskType === 'channel');
+  const botTasks = tasks.filter(t => t.taskType === 'bot');
+  const partnerTasks = tasks.filter(t => t.taskType === 'partner');
+
+  const renderTaskSection = (taskList: any[], sectionTitle: string, emptyMessage: string) => {
+    if (taskList.length === 0) {
+      return (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-white text-xs font-semibold">{sectionTitle}</span>
+          </div>
+          <div className="text-gray-400 text-sm text-center py-3">{emptyMessage}</div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-white text-xs font-semibold">{sectionTitle}</span>
+        </div>
+        <div className="space-y-2">
+          {taskList.map((task) => (
+            <TaskItem key={task.id} task={task} appSettings={appSettings} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {renderTaskSection(channelTasks, "Social Task", "No Social Task")}
+      {renderTaskSection(botTasks, "Game Task", "No Game Task")}
+      {renderTaskSection(partnerTasks, "Partner Task", "No Partner Task")}
+    </div>
+  );
+}
+
+function TaskItem({ task, appSettings }: { task: any; appSettings?: any }) {
+  const [isStarted, setIsStarted] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const queryClient = useQueryClient();
+
+  const getTaskIcon = () => {
+    if (task.taskType === 'channel') return <Megaphone className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'bot') return <Gamepad2 className="w-4 h-4 text-[#4cd3ff]" />;
+    if (task.taskType === 'partner') return <Handshake className="w-4 h-4 text-[#4cd3ff]" />;
+    return <Coins className="w-4 h-4 text-[#4cd3ff]" />;
+  };
+
+  const getRewardDisplay = () => {
+    let reward = 0;
+    if (task.taskType === 'channel') {
+      reward = parseInt(appSettings?.channel_task_reward) || parseInt(appSettings?.channelTaskReward) || 30;
+    } else if (task.taskType === 'bot') {
+      reward = parseInt(appSettings?.bot_task_reward) || parseInt(appSettings?.botTaskReward) || 20;
+    } else if (task.taskType === 'partner') {
+      reward = parseInt(appSettings?.partner_task_reward) || parseInt(appSettings?.partnerTaskReward) || 5;
+    }
+    return `${reward} PAD`;
+  };
+
+  const handleStartTask = () => {
+    try {
+      window.open(task.link, '_blank');
+      setIsStarted(true);
+      showNotification('Task opened. Claim your reward when ready!', 'info');
+    } catch (error) {
+      console.error('Error starting task:', error);
+      showNotification('Error opening task', 'error');
+    }
+  };
+
+  const handleClaimReward = async () => {
+    setIsClaiming(true);
+    try {
+      const response = await apiRequest('POST', `/api/advertiser-tasks/${task.id}/claim`);
+      const data = await response.json();
+      if (data.success) {
+        const rewardAmount = data.reward || 0;
+        
+        // Immediate UI feedback
+        const rewardEvent = new CustomEvent('showReward', { 
+          detail: { amount: rewardAmount }
+        });
+        window.dispatchEvent(rewardEvent);
+        
+        showNotification(` Claimed +${rewardAmount} PAD!`, 'success');
+        
+        // Sync everything
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/advertiser-tasks'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/user/stats'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] })
+        ]);
+        
+        setIsStarted(false);
+      } else {
+        showNotification(data.message || 'Failed to claim reward', 'error');
+      }
+    } catch (error) {
+      console.error('Error claiming reward:', error);
+      showNotification('Failed to claim reward', 'error');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-2">
+          {getTaskIcon()}
+          <p className="text-white text-sm font-medium truncate">{task.title}</p>
+        </div>
+        <div className="space-y-1 text-xs text-gray-400 ml-6">
+          <p>Reward: <span className="text-white font-medium">{getRewardDisplay()}</span></p>
+        </div>
+      </div>
+      <div className="ml-3 flex-shrink-0">
+        <Button
+          onClick={isStarted ? handleClaimReward : handleStartTask}
+          disabled={isClaiming}
+          className={`h-8 px-4 text-xs font-bold rounded-lg text-white transition-colors ${
+            isStarted
+              ? 'bg-green-500 hover:bg-green-600' 
+              : 'bg-blue-500 hover:bg-blue-600'
+          } disabled:opacity-50`}
+        >
+          {isClaiming ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : isStarted ? (
+            'Claim'
+          ) : (
+            'Start'
+          )}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 interface User {
@@ -69,7 +227,16 @@ export default function Home() {
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
   const [convertPopupOpen, setConvertPopupOpen] = useState(false);
   const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [convertAmount, setConvertAmount] = useState<string>("");
+  
+  const [shareWithFriendsStep, setShareWithFriendsStep] = useState<'idle' | 'sharing' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [shareCountdown, setShareCountdown] = useState(3);
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'ads' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [dailyCheckinCountdown, setDailyCheckinCountdown] = useState(3);
+  const [checkForUpdatesStep, setCheckForUpdatesStep] = useState<'idle' | 'opened' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [checkForUpdatesCountdown, setCheckForUpdatesCountdown] = useState(3);
+
+  const { isShowingAds, adStep, runAdFlow } = useAdFlow();
 
   const { data: leaderboardData } = useQuery<{
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
@@ -83,30 +250,23 @@ export default function Home() {
     retry: false,
   });
 
-  const { data: unifiedTasksData, isLoading: isLoadingTasks } = useQuery<{
-    success: boolean;
-    tasks: UnifiedTask[];
-    completedTaskIds: string[];
-    referralCode?: string;
-  }>({
-    queryKey: ['/api/tasks/home/unified'],
-    queryFn: async () => {
-      const res = await fetch('/api/tasks/home/unified', { credentials: 'include' });
-      if (!res.ok) return { success: true, tasks: [], completedTaskIds: [] };
-      return res.json();
-    },
+  interface MissionStatus {
+    shareStory: { completed: boolean; claimed: boolean };
+    dailyCheckin: { completed: boolean; claimed: boolean };
+    checkForUpdates: { completed: boolean; claimed: boolean };
+  }
+
+  const { data: missionStatus } = useQuery<{ success: boolean } & MissionStatus>({
+    queryKey: ['/api/missions/status'],
     retry: false,
   });
 
-  useEffect(() => {
-    if (unifiedTasksData?.completedTaskIds) {
-      setCompletedTasks(new Set(unifiedTasksData.completedTaskIds));
-    } else {
-      setCompletedTasks(new Set());
-    }
-  }, [unifiedTasksData]);
+  const { data: userData } = useQuery<{ referralCode?: string }>({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+    staleTime: 30000,
+  });
 
-  const currentTask = unifiedTasksData?.tasks?.[0] || null;
 
   React.useEffect(() => {
     const updateTimer = () => {
@@ -250,51 +410,170 @@ export default function Home() {
     },
   });
 
-  const advertiserTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const res = await fetch(`/api/advertiser-tasks/${taskId}/click`, {
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
+  const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
+  const referralLink = userData?.referralCode 
+    ? `https://t.me/${botUsername}/${webAppName}?startapp=${userData.referralCode}`
+    : '';
+
+  const shareWithFriendsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/share-story/claim', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to complete task');
-      return data;
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
     },
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setShareWithFriendsStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
-      const padReward = Number(data.reward ?? 0);
-      const bugReward = Number(data.bugReward ?? 0);
-      if (bugReward > 0) {
-        showNotification(`+${padReward.toLocaleString()} PAD, +${bugReward} BUG`, 'success');
-      } else {
-        showNotification(`+${padReward.toLocaleString()} PAD`, 'success');
-      }
     },
-    onError: (error: any) => {
-      showNotification(error.message || 'Failed to complete task', 'error');
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setShareWithFriendsStep('idle');
     },
   });
 
-  const handleUnifiedTask = (task: UnifiedTask) => {
-    if (!task) return;
-    
-    if (task.link) {
-      window.open(task.link, '_blank');
-      setTimeout(() => advertiserTaskMutation.mutate(task.id), 2000);
-    } else {
-      advertiserTaskMutation.mutate(task.id);
+  const dailyCheckinMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/daily-checkin/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setDailyCheckinStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setDailyCheckinStep('idle');
+    },
+  });
+
+  const checkForUpdatesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/check-for-updates/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setCheckForUpdatesStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setCheckForUpdatesStep('idle');
+    },
+  });
+
+  const handleShareWithFriends = useCallback(async () => {
+    if (missionStatus?.shareStory?.claimed || !referralLink) return;
+    setShareWithFriendsStep('sharing');
+    try {
+      const tgWebApp = window.Telegram?.WebApp as any;
+      if (tgWebApp?.shareMessage) {
+        try {
+          const response = await fetch('/api/share/prepare-message', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const data = await response.json();
+          if (data.success && data.messageId) {
+            tgWebApp.shareMessage(data.messageId, (success: boolean) => {
+              setShareWithFriendsStep('ready');
+            });
+            return;
+          } else if (data.fallbackUrl) {
+            tgWebApp.openTelegramLink(data.fallbackUrl);
+            setShareWithFriendsStep('ready');
+            return;
+          }
+        } catch (error) {
+          console.error('Prepare message error:', error);
+        }
+      }
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
+      setShareWithFriendsStep('ready');
+    } catch (error) {
+      console.error('Share error:', error);
+      setShareWithFriendsStep('ready');
     }
-  };
+  }, [missionStatus?.shareStory?.claimed, referralLink]);
 
-  const getTaskIcon = (task: UnifiedTask) => {
-    return task.taskType === 'channel' ? <Send className="w-4 h-4" /> : 
-           task.taskType === 'bot' ? <ExternalLink className="w-4 h-4" /> :
-           <ExternalLink className="w-4 h-4" />;
-  };
+  const handleClaimShareWithFriends = useCallback(() => {
+    if (shareWithFriendsMutation.isPending) return;
+    setShareWithFriendsStep('claiming');
+    shareWithFriendsMutation.mutate();
+  }, [shareWithFriendsMutation]);
 
-  const isTaskPending = advertiserTaskMutation.isPending;
+  const handleDailyCheckin = useCallback(async () => {
+    if (missionStatus?.dailyCheckin?.claimed || dailyCheckinStep !== 'idle') return;
+    setDailyCheckinStep('ads');
+    const adResult = await runAdFlow();
+    if (!adResult.monetagWatched) {
+      showNotification("Please watch the ads completely to claim!", "error");
+      setDailyCheckinStep('idle');
+      return;
+    }
+    setDailyCheckinStep('ready');
+  }, [missionStatus?.dailyCheckin?.claimed, dailyCheckinStep, runAdFlow]);
+
+  const handleClaimDailyCheckin = useCallback(() => {
+    if (dailyCheckinMutation.isPending) return;
+    setDailyCheckinStep('claiming');
+    dailyCheckinMutation.mutate();
+  }, [dailyCheckinMutation]);
+
+  const handleCheckForUpdates = useCallback(() => {
+    if (missionStatus?.checkForUpdates?.claimed || checkForUpdatesStep !== 'idle') return;
+    const tgWebApp = window.Telegram?.WebApp as any;
+    if (tgWebApp?.openTelegramLink) {
+      tgWebApp.openTelegramLink('https://t.me/PaidADsNews');
+    } else if (tgWebApp?.openLink) {
+      tgWebApp.openLink('https://t.me/PaidADsNews');
+    } else {
+      window.open('https://t.me/PaidADsNews', '_blank');
+    }
+    setCheckForUpdatesStep('opened');
+    setCheckForUpdatesCountdown(3);
+    const countdownInterval = setInterval(() => {
+      setCheckForUpdatesCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setCheckForUpdatesStep('ready');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [missionStatus?.checkForUpdates?.claimed, checkForUpdatesStep]);
+
+  const handleClaimCheckForUpdates = useCallback(() => {
+    if (checkForUpdatesMutation.isPending) return;
+    setCheckForUpdatesStep('claiming');
+    checkForUpdatesMutation.mutate();
+  }, [checkForUpdatesMutation]);
+
 
   const showAdsgramAd = (): Promise<boolean> => {
     return new Promise(async (resolve) => {
@@ -355,13 +634,25 @@ export default function Home() {
   };
 
   const handleConvertConfirm = async () => {
+    const amount = parseFloat(convertAmount) || 0;
+    
+    if (!convertAmount.trim() || amount <= 0) {
+      showNotification("Please enter a valid amount", "error");
+      return;
+    }
+    
+    if (amount > balancePAD) {
+      showNotification("Insufficient balance", "error");
+      return;
+    }
+
     const minimumConvertPAD = selectedConvertType === 'USD' 
       ? (appSettings?.minimumConvertPAD || 10000)
       : selectedConvertType === 'TON'
         ? (appSettings?.minimumConvertPadToTon || 10000)
         : (appSettings?.minimumConvertPadToBug || 1000);
     
-    if (balancePAD < minimumConvertPAD) {
+    if (amount < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
       return;
     }
@@ -388,7 +679,7 @@ export default function Home() {
       if (monetagResult.unavailable) {
         // If Monetag unavailable, proceed with just AdsGram
         console.log('⚠️ Monetag unavailable, proceeding with convert');
-        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+        convertMutation.mutate({ amount, convertTo: selectedConvertType });
         return;
       }
       
@@ -399,7 +690,7 @@ export default function Home() {
       }
       
       console.log('✅ Both ads watched, converting');
-      convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+      convertMutation.mutate({ amount, convertTo: selectedConvertType });
       
     } catch (error) {
       console.error('Convert error:', error);
@@ -494,12 +785,8 @@ export default function Home() {
     }
   };
 
-  const handleBoosterClick = () => {
-    if (isAdmin) {
-      setLocation("/store");
-    } else {
-      showNotification("Boosters are coming soon!", "info");
-    }
+  const handleCreateTaskClick = () => {
+    setLocation("/create-task");
   };
 
   if (isLoading) {
@@ -624,11 +911,11 @@ export default function Home() {
           </Button>
 
           <Button
-            onClick={handleBoosterClick}
-            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
+            onClick={handleCreateTaskClick}
+            className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <Rocket className="w-4 h-4 text-orange-400" />
-            <span className="text-white font-medium text-xs">Booster</span>
+            <Megaphone className="w-4 h-4 text-blue-400" />
+            <span className="text-white font-medium text-xs">Create Task</span>
           </Button>
         </div>
 
@@ -636,98 +923,139 @@ export default function Home() {
           <AdWatchingSection user={user as User} />
         </div>
 
-        <div className="mt-3 px-0">
-          <div className="bg-[#0d0d0d] rounded-xl border border-[#1a1a1a] p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-[#4cd3ff]/20 flex items-center justify-center">
-                <Flame className="w-3.5 h-3.5 text-[#4cd3ff]" />
+        <div className="bg-[#111] rounded-xl p-3 mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarCheck className="w-4 h-4 text-yellow-400" />
+            <span className="text-white text-sm font-semibold">Daily Tasks</span>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Share with Friends</p>
+                </div>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                </div>
               </div>
-              <span className="text-sm font-semibold text-white">Tasks</span>
-            </div>
-            
-            <AnimatePresence mode="wait">
-              {isLoadingTasks ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
-                >
-                  <Loader2 className="w-5 h-5 text-[#4cd3ff] animate-spin mx-auto" />
-                </motion.div>
-              ) : currentTask ? (
-                <motion.div
-                  key={currentTask.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-[#1a1a1a] rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-500/20">
-                        <span className="text-green-400">
-                          {getTaskIcon(currentTask)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium text-sm truncate">{currentTask.title}</h3>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <DiamondIcon size={12} />
-                            <span className="text-xs font-semibold text-[#4cd3ff]">+{currentTask.rewardPAD.toLocaleString()}</span>
-                          </div>
-                          {currentTask.rewardBUG && currentTask.rewardBUG > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Bug className="w-3 h-3 text-purple-400" />
-                              <span className="text-xs font-semibold text-purple-400">+{currentTask.rewardBUG}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => handleUnifiedTask(currentTask)}
-                      disabled={isTaskPending}
-                      className="h-8 px-4 text-xs font-semibold rounded-lg text-black bg-green-400 hover:bg-green-300"
-                    >
-                      {isTaskPending ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        "Start"
-                      )}
-                    </Button>
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.shareStory?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
                   </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="no-tasks"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
-                >
-                  <span className="text-gray-400 text-sm">No tasks available</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                ) : shareWithFriendsStep === 'ready' || shareWithFriendsStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimShareWithFriends}
+                    disabled={shareWithFriendsMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleShareWithFriends}
+                    disabled={!referralLink}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Share
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarCheck className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Daily Check-in</p>
+                </div>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                </div>
+              </div>
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.dailyCheckin?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : dailyCheckinStep === 'ads' ? (
+                  <Button
+                    disabled={true}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
+                  >
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  </Button>
+                ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimDailyCheckin}
+                    disabled={dailyCheckinMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleDailyCheckin}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Go
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className="w-4 h-4 text-[#4cd3ff]" />
+                  <p className="text-white text-sm font-medium truncate">Check for Updates</p>
+                </div>
+                <div className="text-xs text-gray-400 ml-6">
+                  <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                </div>
+              </div>
+              <div className="ml-3 flex-shrink-0">
+                {missionStatus?.checkForUpdates?.claimed ? (
+                  <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                ) : checkForUpdatesStep === 'opened' ? (
+                  <Button
+                    disabled={true}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-gray-600 text-white"
+                  >
+                    {checkForUpdatesCountdown}s
+                  </Button>
+                ) : checkForUpdatesStep === 'ready' || checkForUpdatesStep === 'claiming' ? (
+                  <Button
+                    onClick={handleClaimCheckForUpdates}
+                    disabled={checkForUpdatesMutation.isPending}
+                    className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCheckForUpdates}
+                    className="h-8 w-16 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    Check
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* USER TASKS SECTION - Advertiser Tasks */}
+        <div className="bg-[#111] rounded-xl p-3 mt-3">
+          <TasksDisplay userId={(user as User)?.id} appSettings={appSettings} />
+        </div>
+
       </main>
 
-      {/* Static Create Task Button - Only on Home Page */}
-      <div className="fixed bottom-6 right-4 z-50">
-        <button
-          onClick={() => setLocation('/task/create')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-black text-white font-semibold text-sm border border-gray-700"
-        >
-          <Plus className="w-4 h-4" />
-          Create Task
-        </button>
-      </div>
 
       {promoPopupOpen && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
@@ -781,11 +1109,19 @@ export default function Home() {
             <div className="flex items-center justify-center gap-1.5 mb-4">
               <DiamondIcon size={14} />
               <p className="text-gray-400 text-sm">
-                {balancePAD.toLocaleString()} PAD
+                Available: {balancePAD.toLocaleString()} PAD
               </p>
             </div>
             
             <div className="space-y-2 mb-4">
+              <Input
+                type="number"
+                placeholder="Enter amount"
+                value={convertAmount}
+                onChange={(e) => setConvertAmount(e.target.value)}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 focus:border-[#4cd3ff] focus:ring-0 mb-3"
+              />
+              
               <button
                 onClick={() => setSelectedConvertType('USD')}
                 className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
@@ -832,7 +1168,10 @@ export default function Home() {
             
             <div className="flex gap-3">
               <Button
-                onClick={() => setConvertPopupOpen(false)}
+                onClick={() => {
+                  setConvertPopupOpen(false);
+                  setConvertAmount("");
+                }}
                 className="flex-1 h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white font-semibold rounded-xl border border-[#2a2a2a]"
               >
                 Close
