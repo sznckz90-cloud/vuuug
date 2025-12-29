@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Copy, Globe, MessageSquare, ShieldCheck, FileText, ExternalLink, Check } from 'lucide-react';
+import { X, Copy, Globe, MessageSquare, ShieldCheck, FileText, ExternalLink, Check, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -15,6 +15,15 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
   const [copied, setCopied] = React.useState(false);
 
   const [selectedLegal, setSelectedLegal] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    // Lock scroll on mount
+    document.body.style.overflow = 'hidden';
+    return () => {
+      // Restore scroll on unmount
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
 
   const uid = (user as any)?.referralCode || '00000';
 
@@ -121,8 +130,8 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] px-4 animate-in fade-in duration-200">
-      <div className="bg-[#0d0d0d] rounded-2xl w-full max-w-sm max-h-[90vh] border border-[#1a1a1a] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] px-4 animate-in fade-in duration-200 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-[#0d0d0d] rounded-2xl w-full max-w-sm max-h-[90vh] border border-[#1a1a1a] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -285,5 +294,3 @@ const LegalItem = ({ icon, label, onClick }: { icon: React.ReactNode, label: str
     <ChevronRight className="w-3 h-3 text-gray-600" />
   </div>
 );
-
-import { ChevronRight, RefreshCw } from 'lucide-react';
