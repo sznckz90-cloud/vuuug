@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus, CalendarCheck, Bell } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -68,7 +68,9 @@ export default function Home() {
   
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
   const [convertPopupOpen, setConvertPopupOpen] = useState(false);
+  const [boosterPopupOpen, setBoosterPopupOpen] = useState(false);
   const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
+  const [convertAmount, setConvertAmount] = useState<string>("");
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
   const { data: leaderboardData } = useQuery<{
@@ -355,14 +357,25 @@ export default function Home() {
   };
 
   const handleConvertConfirm = async () => {
+    const amount = parseFloat(convertAmount);
+    if (isNaN(amount) || amount <= 0) {
+      showNotification("Please enter a valid amount", "error");
+      return;
+    }
+
     const minimumConvertPAD = selectedConvertType === 'USD' 
       ? (appSettings?.minimumConvertPAD || 10000)
       : selectedConvertType === 'TON'
         ? (appSettings?.minimumConvertPadToTon || 10000)
         : (appSettings?.minimumConvertPadToBug || 1000);
     
-    if (balancePAD < minimumConvertPAD) {
+    if (amount < minimumConvertPAD) {
       showNotification(`Minimum ${minimumConvertPAD.toLocaleString()} PAD required.`, "error");
+      return;
+    }
+
+    if (balancePAD < amount) {
+      showNotification("Insufficient PAD balance", "error");
       return;
     }
 
@@ -388,7 +401,7 @@ export default function Home() {
       if (monetagResult.unavailable) {
         // If Monetag unavailable, proceed with just AdsGram
         console.log('⚠️ Monetag unavailable, proceeding with convert');
-        convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+        convertMutation.mutate({ amount, convertTo: selectedConvertType });
         return;
       }
       
@@ -399,7 +412,7 @@ export default function Home() {
       }
       
       console.log('✅ Both ads watched, converting');
-      convertMutation.mutate({ amount: balancePAD, convertTo: selectedConvertType });
+      convertMutation.mutate({ amount, convertTo: selectedConvertType });
       
     } catch (error) {
       console.error('Convert error:', error);
@@ -495,11 +508,7 @@ export default function Home() {
   };
 
   const handleBoosterClick = () => {
-    if (isAdmin) {
-      setLocation("/store");
-    } else {
-      showNotification("Boosters are coming soon!", "info");
-    }
+    setBoosterPopupOpen(true);
   };
 
   if (isLoading) {
@@ -537,6 +546,32 @@ export default function Home() {
   const displayName = getDisplayName();
   const userRank = leaderboardData?.userEarnerRank?.rank;
   const canClaimStreak = timeUntilNextClaim === "Available now" && !hasClaimed;
+
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
+  const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
+  const referralLink = (user as User)?.referralCode 
+    ? `https://t.me/${botUsername}/${webAppName}?startapp=${(user as User).referralCode}`
+    : '';
+
+  const { data: missionStatus } = useQuery<any>({
+    queryKey: ['/api/missions/status'],
+    retry: false,
+  });
+
+  const shareWithFriendsStep = 'idle'; 
+  const dailyCheckinStep = 'idle';
+  const checkForUpdatesStep = 'idle';
+  const checkForUpdatesCountdown = 0;
+
+  const handleShareWithFriends = () => {
+    if (referralLink) window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}`, '_blank');
+  };
+  const handleDailyCheckin = () => {
+    showNotification("Daily check-in coming soon", "info");
+  };
+  const handleCheckForUpdates = () => {
+    window.open('https://t.me/PaidADsNews', '_blank');
+  };
 
   return (
     <Layout>
@@ -627,8 +662,8 @@ export default function Home() {
             onClick={handleBoosterClick}
             className="h-12 bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition-all rounded-full flex items-center justify-center gap-2 shadow-lg"
           >
-            <Rocket className="w-4 h-4 text-orange-400" />
-            <span className="text-white font-medium text-xs">Booster</span>
+            <CalendarCheck className="w-4 h-4 text-orange-400" />
+            <span className="text-white font-medium text-xs">Daily Task</span>
           </Button>
         </div>
 
@@ -718,6 +753,105 @@ export default function Home() {
         </div>
       </main>
 
+      {boosterPopupOpen && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#0d0d0d] rounded-2xl p-6 w-full max-w-sm border border-[#1a1a1a] relative">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <CalendarCheck className="w-5 h-5 text-[#4cd3ff]" />
+              <h2 className="text-lg font-bold text-white">Daily Tasks</h2>
+            </div>
+            
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-4 h-4 text-[#4cd3ff]" />
+                    <p className="text-white text-sm font-medium truncate">Share with Friends</p>
+                  </div>
+                  <div className="text-xs text-gray-400 ml-6">
+                    <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                  </div>
+                </div>
+                <div className="ml-3 flex-shrink-0">
+                  {missionStatus?.shareStory?.claimed ? (
+                    <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                      <Check className="w-4 h-4 text-green-400" />
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleShareWithFriends}
+                      disabled={!referralLink}
+                      className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      Share
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CalendarCheck className="w-4 h-4 text-[#4cd3ff]" />
+                    <p className="text-white text-sm font-medium truncate">Daily Check-in</p>
+                  </div>
+                  <div className="text-xs text-gray-400 ml-6">
+                    <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                  </div>
+                </div>
+                <div className="ml-3 flex-shrink-0">
+                  {missionStatus?.dailyCheckin?.claimed ? (
+                    <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                      <Check className="w-4 h-4 text-green-400" />
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleDailyCheckin}
+                      className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      Go
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between bg-[#1a1a1a] rounded-lg p-3 hover:bg-[#222] transition">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Bell className="w-4 h-4 text-[#4cd3ff]" />
+                    <p className="text-white text-sm font-medium truncate">Check for Updates</p>
+                  </div>
+                  <div className="text-xs text-gray-400 ml-6">
+                    <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                  </div>
+                </div>
+                <div className="ml-3 flex-shrink-0">
+                  {missionStatus?.checkForUpdates?.claimed ? (
+                    <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
+                      <Check className="w-4 h-4 text-green-400" />
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleCheckForUpdates}
+                      className="h-8 w-16 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                      Check
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => setBoosterPopupOpen(false)}
+              className="w-full mt-6 h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white font-semibold rounded-xl border border-[#2a2a2a]"
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Static Create Task Button - Only on Home Page */}
       <div className="fixed bottom-6 right-4 z-50">
         <button
@@ -781,11 +915,19 @@ export default function Home() {
             <div className="flex items-center justify-center gap-1.5 mb-4">
               <DiamondIcon size={14} />
               <p className="text-gray-400 text-sm">
-                {balancePAD.toLocaleString()} PAD
+                Available: {balancePAD.toLocaleString()} PAD
               </p>
             </div>
             
             <div className="space-y-2 mb-4">
+              <Input
+                type="number"
+                placeholder="Enter amount"
+                value={convertAmount}
+                onChange={(e) => setConvertAmount(e.target.value)}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl text-white placeholder:text-gray-500 px-4 py-3 h-12 focus:border-[#4cd3ff] focus:ring-0 mb-3"
+              />
+              
               <button
                 onClick={() => setSelectedConvertType('USD')}
                 className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
@@ -832,7 +974,10 @@ export default function Home() {
             
             <div className="flex gap-3">
               <Button
-                onClick={() => setConvertPopupOpen(false)}
+                onClick={() => {
+                  setConvertPopupOpen(false);
+                  setConvertAmount("");
+                }}
                 className="flex-1 h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white font-semibold rounded-xl border border-[#2a2a2a]"
               >
                 Close
