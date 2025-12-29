@@ -168,6 +168,8 @@ function AppContent() {
   );
 }
 
+import { LanguageProvider } from "@/hooks/useLanguage";
+
 function App() {
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState<string>();
@@ -369,9 +371,11 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppContent />
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <AppContent />
+        </TooltipProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }
