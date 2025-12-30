@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import AdWatchingSection from "@/components/AdWatchingSection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
 import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus, CalendarCheck, Bell } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
@@ -72,6 +73,13 @@ export default function Home() {
   const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
   const [convertAmount, setConvertAmount] = useState<string>("");
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  
+  const [shareWithFriendsStep, setShareWithFriendsStep] = useState<'idle' | 'sharing' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [dailyCheckinStep, setDailyCheckinStep] = useState<'idle' | 'ads' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [checkForUpdatesStep, setCheckForUpdatesStep] = useState<'idle' | 'opened' | 'countdown' | 'ready' | 'claiming'>('idle');
+  const [checkForUpdatesCountdown, setCheckForUpdatesCountdown] = useState(3);
+
+  const { runAdFlow } = useAdFlow();
 
   const { data: leaderboardData } = useQuery<{
     userEarnerRank?: { rank: number; totalEarnings: string } | null;
@@ -98,6 +106,17 @@ export default function Home() {
       return res.json();
     },
     retry: false,
+  });
+
+  const { data: missionStatus } = useQuery<any>({
+    queryKey: ['/api/missions/status'],
+    retry: false,
+  });
+
+  const { data: userData } = useQuery<{ referralCode?: string }>({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+    staleTime: 30000,
   });
 
   useEffect(() => {
@@ -549,29 +568,168 @@ export default function Home() {
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
   const webAppName = import.meta.env.VITE_WEBAPP_NAME || 'app';
-  const referralLink = (user as User)?.referralCode 
-    ? `https://t.me/${botUsername}/${webAppName}?startapp=${(user as User).referralCode}`
+  const referralLink = userData?.referralCode 
+    ? `https://t.me/${botUsername}/${webAppName}?startapp=${userData.referralCode}`
     : '';
 
-  const { data: missionStatus } = useQuery<any>({
-    queryKey: ['/api/missions/status'],
-    retry: false,
+  // Mutation handlers for Daily Tasks
+  const shareWithFriendsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/share-story/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setShareWithFriendsStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setShareWithFriendsStep('idle');
+    },
   });
 
-  const shareWithFriendsStep = 'idle'; 
-  const dailyCheckinStep = 'idle';
-  const checkForUpdatesStep = 'idle';
-  const checkForUpdatesCountdown = 0;
+  const dailyCheckinMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/daily-checkin/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setDailyCheckinStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setDailyCheckinStep('idle');
+    },
+  });
 
-  const handleShareWithFriends = () => {
-    if (referralLink) window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}`, '_blank');
-  };
-  const handleDailyCheckin = () => {
-    showNotification("Daily check-in coming soon", "info");
-  };
-  const handleCheckForUpdates = () => {
-    window.open('https://t.me/PaidADsNews', '_blank');
-  };
+  const checkForUpdatesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/missions/check-for-updates/claim', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showNotification(`+${data.reward} PAD claimed!`, 'success');
+      setCheckForUpdatesStep('idle');
+      queryClient.invalidateQueries({ queryKey: ['/api/missions/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    },
+    onError: (error: Error) => {
+      showNotification(error.message, 'error');
+      setCheckForUpdatesStep('idle');
+    },
+  });
+
+  const handleShareWithFriends = useCallback(async () => {
+    if (missionStatus?.shareStory?.claimed || !referralLink) return;
+    setShareWithFriendsStep('sharing');
+    try {
+      const tgWebApp = window.Telegram?.WebApp as any;
+      if (tgWebApp?.shareMessage) {
+        try {
+          const response = await fetch('/api/share/prepare-message', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const data = await response.json();
+          if (data.success && data.messageId) {
+            tgWebApp.shareMessage(data.messageId, (success: boolean) => {
+              setShareWithFriendsStep('ready');
+            });
+            return;
+          } else if (data.fallbackUrl) {
+            tgWebApp.openTelegramLink(data.fallbackUrl);
+            setShareWithFriendsStep('ready');
+            return;
+          }
+        } catch (error) {
+          console.error('Prepare message error:', error);
+        }
+      }
+      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
+      if (tgWebApp?.openTelegramLink) {
+        tgWebApp.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
+      setShareWithFriendsStep('ready');
+    } catch (error) {
+      console.error('Share error:', error);
+      setShareWithFriendsStep('ready');
+    }
+  }, [missionStatus?.shareStory?.claimed, referralLink]);
+
+  const handleClaimShareWithFriends = useCallback(() => {
+    if (shareWithFriendsMutation.isPending) return;
+    setShareWithFriendsStep('claiming');
+    shareWithFriendsMutation.mutate();
+  }, [shareWithFriendsMutation]);
+
+  const handleDailyCheckin = useCallback(async () => {
+    if (missionStatus?.dailyCheckin?.claimed || dailyCheckinStep !== 'idle') return;
+    setDailyCheckinStep('ads');
+    const adResult = await runAdFlow();
+    if (!adResult.monetagWatched) {
+      showNotification("Please watch the ads completely to claim!", "error");
+      setDailyCheckinStep('idle');
+      return;
+    }
+    setDailyCheckinStep('ready');
+  }, [missionStatus?.dailyCheckin?.claimed, dailyCheckinStep, runAdFlow]);
+
+  const handleClaimDailyCheckin = useCallback(() => {
+    if (dailyCheckinMutation.isPending) return;
+    setDailyCheckinStep('claiming');
+    dailyCheckinMutation.mutate();
+  }, [dailyCheckinMutation]);
+
+  const handleCheckForUpdates = useCallback(() => {
+    if (missionStatus?.checkForUpdates?.claimed || checkForUpdatesStep !== 'idle') return;
+    const tgWebApp = window.Telegram?.WebApp as any;
+    if (tgWebApp?.openTelegramLink) {
+      tgWebApp.openTelegramLink('https://t.me/PaidADsNews');
+    } else if (tgWebApp?.openLink) {
+      tgWebApp.openLink('https://t.me/PaidADsNews');
+    } else {
+      window.open('https://t.me/PaidADsNews', '_blank');
+    }
+    setCheckForUpdatesStep('opened');
+    setCheckForUpdatesCountdown(3);
+    const countdownInterval = setInterval(() => {
+      setCheckForUpdatesCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setCheckForUpdatesStep('ready');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [missionStatus?.checkForUpdates?.claimed, checkForUpdatesStep]);
+
+  const handleClaimCheckForUpdates = useCallback(() => {
+    if (checkForUpdatesMutation.isPending) return;
+    setCheckForUpdatesStep('claiming');
+    checkForUpdatesMutation.mutate();
+  }, [checkForUpdatesMutation]);
 
   return (
     <Layout>
@@ -777,6 +935,14 @@ export default function Home() {
                     <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                       <Check className="w-4 h-4 text-green-400" />
                     </div>
+                  ) : shareWithFriendsStep === 'ready' || shareWithFriendsStep === 'claiming' ? (
+                    <Button
+                      onClick={handleClaimShareWithFriends}
+                      disabled={shareWithFriendsMutation.isPending}
+                      className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      {shareWithFriendsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                    </Button>
                   ) : (
                     <Button
                       onClick={handleShareWithFriends}
@@ -804,6 +970,21 @@ export default function Home() {
                     <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                       <Check className="w-4 h-4 text-green-400" />
                     </div>
+                  ) : dailyCheckinStep === 'ads' ? (
+                    <Button
+                      disabled={true}
+                      className="h-8 w-20 text-xs font-bold rounded-lg bg-purple-600 text-white"
+                    >
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    </Button>
+                  ) : dailyCheckinStep === 'ready' || dailyCheckinStep === 'claiming' ? (
+                    <Button
+                      onClick={handleClaimDailyCheckin}
+                      disabled={dailyCheckinMutation.isPending}
+                      className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      {dailyCheckinMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                    </Button>
                   ) : (
                     <Button
                       onClick={handleDailyCheckin}
@@ -830,6 +1011,14 @@ export default function Home() {
                     <div className="h-8 w-20 rounded-lg bg-green-500/20 flex items-center justify-center">
                       <Check className="w-4 h-4 text-green-400" />
                     </div>
+                  ) : checkForUpdatesStep === 'ready' || checkForUpdatesStep === 'claiming' ? (
+                    <Button
+                      onClick={handleClaimCheckForUpdates}
+                      disabled={checkForUpdatesMutation.isPending}
+                      className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                    </Button>
                   ) : (
                     <Button
                       onClick={handleCheckForUpdates}
