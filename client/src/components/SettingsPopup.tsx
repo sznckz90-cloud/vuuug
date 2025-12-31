@@ -65,7 +65,10 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
           <div>
             <h4 className="text-white font-bold mb-1">1. Information We Collect</h4>
             <p>We may collect User ID (UID), device & app usage data, task activity, and withdrawal history.</p>
-            <p className="mt-2 text-rose-400 font-bold">⚠️ We do NOT collect: Passwords, personal banking details, or private messages.</p>
+            <div className="mt-2 flex items-start gap-2 text-rose-400 font-bold bg-rose-400/5 p-2 rounded-lg border border-rose-400/10">
+              <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+              <p>We do NOT collect: Passwords, personal banking details, or private messages.</p>
+            </div>
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">2. How We Use Data</h4>
@@ -88,7 +91,10 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
         <div className="space-y-4 text-gray-300 text-sm">
           <p>To keep PaidAdz fair for everyone, users must not:</p>
           <div>
-            <h4 className="text-rose-400 font-bold mb-1">❌ Prohibited Activities</h4>
+            <h4 className="text-rose-400 font-bold mb-1 flex items-center gap-2">
+              <X className="w-4 h-4" />
+              Prohibited Activities
+            </h4>
             <ul className="list-disc pl-5 space-y-1">
               <li>Create multiple accounts</li>
               <li>Use bots, scripts, or automation</li>
@@ -98,11 +104,17 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
             </ul>
           </div>
           <div>
-            <h4 className="text-white font-bold mb-1">⚠️ Consequences</h4>
+            <h4 className="text-white font-bold mb-1 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-[#4cd3ff]" />
+              Consequences
+            </h4>
             <p>If violations are detected, rewards may be revoked, accounts may be banned, and withdrawals blocked.</p>
           </div>
           <div>
-            <h4 className="text-white font-bold mb-1">✅ Fair Play</h4>
+            <h4 className="text-white font-bold mb-1 flex items-center gap-2">
+              <Check className="w-4 h-4 text-green-500" />
+              Fair Play
+            </h4>
             <p>All rewards are based on predefined logic.</p>
           </div>
         </div>
@@ -133,87 +145,42 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] px-4 animate-in fade-in duration-200 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-[#0d0d0d] rounded-2xl w-full max-w-sm max-h-[90vh] border border-[#1a1a1a] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 overflow-y-auto custom-scrollbar">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Globe className="w-5 h-5 text-[#4cd3ff]" />
-              {t('settings')}
-            </h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* My UID */}
-            <div 
+            <LegalItem 
+              icon={<Copy className="w-4 h-4 text-[#4cd3ff]" />} 
+              label={`${t('my_uid')}: ${uid}`} 
               onClick={copyUid}
-              className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-[#4cd3ff]/50 transition-all active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#4cd3ff]/10 flex items-center justify-center">
-                  <Copy className="w-4 h-4 text-[#4cd3ff]" />
-                </div>
-                <div>
-                  <p className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">{t('my_uid')}</p>
-                  <p className="text-white font-mono font-bold">{uid}</p>
-                </div>
-              </div>
-              {copied ? <Check className="w-4 h-4 text-green-500" /> : <ChevronRight className="w-4 h-4 text-gray-600" />}
-            </div>
+              rightIcon={copied ? <Check className="w-3 h-3 text-green-500" /> : <ChevronRight className="w-3 h-3 text-gray-600" />}
+            />
 
             {/* Language */}
-            <div 
+            <LegalItem 
+              icon={<Globe className="w-4 h-4 text-purple-400" />} 
+              label={`${t('language')}: ${language === 'en' ? t('english') : t('russian')}`} 
               onClick={toggleLanguage}
-              className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-[#4cd3ff]/50 transition-all active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Globe className="w-4 h-4 text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">{t('language')}</p>
-                  <p className="text-white font-bold">{language === 'en' ? t('english') : t('russian')}</p>
-                </div>
-              </div>
-              <RefreshCw className="w-4 h-4 text-gray-600" />
-            </div>
+              rightIcon={<RefreshCw className="w-3 h-3 text-gray-600" />}
+            />
 
             {/* Admin Panel (Conditional) */}
             {(user as any)?.isAdmin && (
-              <div 
+              <LegalItem 
+                icon={<ShieldCheck className="w-4 h-4 text-red-500" />} 
+                label="Admin Panel" 
                 onClick={() => {
                   onClose();
                   window.location.href = '/admin';
                 }}
-                className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-red-500/50 transition-all active:scale-[0.98]"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-white font-bold">Admin Panel</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </div>
+              />
             )}
 
             {/* Contact Support */}
-            <div 
+            <LegalItem 
+              icon={<MessageSquare className="w-4 h-4 text-blue-400" />} 
+              label={t('contact_support')} 
               onClick={() => openLink('https://t.me/PaidAdzGroup')}
-              className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-[#4cd3ff]/50 transition-all active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-white font-bold">{t('contact_support')}</p>
-                </div>
-              </div>
-              <ExternalLink className="w-4 h-4 text-gray-600" />
-            </div>
+              rightIcon={<ExternalLink className="w-3 h-3 text-gray-600" />}
+            />
 
             {/* Legal Section */}
             <div className="pt-4 pb-2">
@@ -258,9 +225,6 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
                 {selectedLegal === 'acceptable' && <ShieldCheck className="w-5 h-5 text-rose-400" />}
                 {legalContent[selectedLegal].title}
               </h2>
-              <button onClick={() => setSelectedLegal(null)} className="text-gray-500 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {legalContent[selectedLegal].content}
@@ -280,7 +244,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
   );
 };
 
-const LegalItem = ({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) => (
+const LegalItem = ({ icon, label, onClick, rightIcon }: { icon: React.ReactNode, label: string, onClick?: () => void, rightIcon?: React.ReactNode }) => (
   <div 
     onClick={onClick}
     className="bg-[#1a1a1a]/50 border border-[#2a2a2a] rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-[#1a1a1a] transition-all active:scale-[0.98]"
@@ -291,6 +255,6 @@ const LegalItem = ({ icon, label, onClick }: { icon: React.ReactNode, label: str
       </div>
       <span className="text-gray-300 text-xs font-medium">{label}</span>
     </div>
-    <ChevronRight className="w-3 h-3 text-gray-600" />
+    {rightIcon || <ChevronRight className="w-3 h-3 text-gray-600" />}
   </div>
 );
