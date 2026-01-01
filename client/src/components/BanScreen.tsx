@@ -21,7 +21,7 @@ export default function BanScreen({ reason }: BanScreenProps) {
   }, []);
 
   const handleContactSupport = () => {
-    window.open('https://t.me/PaidAdzGroup', '_blank');
+    window.open('https://t.me/szxzyz', '_blank');
   };
 
   const handleSelfUnban = async () => {
@@ -86,7 +86,7 @@ export default function BanScreen({ reason }: BanScreenProps) {
               )}
 
               <p className="text-gray-400 text-sm mt-4">
-                All features are disabled. If you believe this is a mistake, please contact our support team.
+                All features are disabled. If you believe this is a mistake, please contact our <button onClick={handleContactSupport} className="text-red-500 hover:text-red-400 font-semibold underline underline-offset-4 transition-colors">support team</button>.
               </p>
             </div>
 
@@ -120,13 +120,6 @@ export default function BanScreen({ reason }: BanScreenProps) {
                 )}
               </button>
             )}
-
-            <button
-              onClick={handleContactSupport}
-              className="w-full py-3 px-6 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              Contact Support
-            </button>
           </div>
         </div>
       </div>

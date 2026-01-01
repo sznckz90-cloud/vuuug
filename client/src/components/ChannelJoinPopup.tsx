@@ -32,7 +32,9 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
       if (tg?.initData) {
         headers['x-telegram-data'] = tg.initData;
       }
-      const response = await fetch('/api/check-membership', { headers });
+      
+      // Use the specific membership check endpoint that verifies with Telegram
+      const response = await fetch('/api/membership/check', { headers });
       const data = await response.json();
       
       if (data.success && data.isVerified) {
@@ -40,14 +42,18 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
         return;
       }
       
-      setMembershipStatus({
-        channelMember: data.channelMember || false,
-        groupMember: data.groupMember || false,
-        channelUrl: data.channelUrl || "https://t.me/MoneyAdz",
-        groupUrl: data.groupUrl || "https://t.me/MoneyAdzChat",
-        channelName: data.channelName || "Money Adz",
-        groupName: data.groupName || "Money Adz Chat"
-      });
+      if (data.success) {
+        setMembershipStatus({
+          channelMember: data.channelMember || false,
+          groupMember: data.groupMember || false,
+          channelUrl: data.channelUrl || "https://t.me/MoneyAdz",
+          groupUrl: data.groupUrl || "https://t.me/MoneyAdzChat",
+          channelName: data.channelName || "Money Adz",
+          groupName: data.groupName || "Money Adz Chat"
+        });
+      } else if (!isInitialCheck) {
+        setError(data.message || "Failed to verify membership.");
+      }
     } catch (err) {
       console.error("Membership check error:", err);
       if (!isInitialCheck) {
