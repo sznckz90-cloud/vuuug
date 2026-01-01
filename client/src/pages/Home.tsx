@@ -839,75 +839,88 @@ export default function Home() {
               <span className="text-sm font-semibold text-white">Tasks</span>
             </div>
             
-            <AnimatePresence mode="wait">
-              {isLoadingTasks ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
-                >
-                  <Loader2 className="w-5 h-5 text-[#4cd3ff] animate-spin mx-auto" />
-                </motion.div>
-              ) : currentTask ? (
-                <motion.div
-                  key={currentTask.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-[#1a1a1a] rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-500/20">
-                        <span className="text-green-400">
-                          {getTaskIcon(currentTask)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium text-sm truncate">{currentTask.title}</h3>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <DiamondIcon size={12} />
-                            <span className="text-xs font-semibold text-[#4cd3ff]">+{currentTask.rewardPAD.toLocaleString()}</span>
-                          </div>
-                          {currentTask.rewardBUG && currentTask.rewardBUG > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Bug className="w-3 h-3 text-purple-400" />
-                              <span className="text-xs font-semibold text-purple-400">+{currentTask.rewardBUG}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => handleUnifiedTask(currentTask)}
-                      disabled={isTaskPending}
-                      className="h-8 px-4 text-xs font-semibold rounded-lg text-black bg-green-400 hover:bg-green-300"
+            <div className="flex flex-col gap-2">
+              <AnimatePresence mode="popLayout">
+                {isLoadingTasks ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="bg-[#1a1a1a] rounded-lg p-4 text-center"
+                  >
+                    <Loader2 className="w-5 h-5 text-[#4cd3ff] animate-spin mx-auto" />
+                  </motion.div>
+                ) : (unifiedTasksData?.tasks && unifiedTasksData.tasks.length > 0) ? (
+                  unifiedTasksData.tasks.map((task) => (
+                    <motion.div
+                      key={task.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-[#1a1a1a] rounded-lg p-3"
                     >
-                      {isTaskPending ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        "Start"
-                      )}
-                    </Button>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="no-tasks"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-[#1a1a1a] rounded-lg p-4 text-center"
-                >
-                  <span className="text-gray-400 text-sm">No tasks available</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-500/20">
+                            <span className="text-green-400">
+                              {getTaskIcon(task)}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-medium text-sm truncate">{task.title}</h3>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <DiamondIcon size={12} />
+                                <span className="text-xs font-semibold text-[#4cd3ff]">+{task.rewardPAD.toLocaleString()}</span>
+                              </div>
+                              {task.rewardBUG && task.rewardBUG > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <Bug className="w-3 h-3 text-purple-400" />
+                                  <span className="text-xs font-semibold text-purple-400">+{task.rewardBUG}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => handleUnifiedTask(task)}
+                          disabled={isTaskPending || completedTasks.has(task.id)}
+                          className={`h-8 px-4 text-xs font-bold rounded-lg transition-all ${
+                            completedTasks.has(task.id)
+                              ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                              : "bg-green-400 hover:bg-green-300 text-black"
+                          }`}
+                        >
+                          {completedTasks.has(task.id) ? (
+                            <div className="flex items-center gap-1">
+                              <Check className="w-3 h-3" />
+                              <span>Done</span>
+                            </div>
+                          ) : isTaskPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            "Start"
+                          )}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <motion.div
+                    key="no-tasks"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    className="bg-[#1a1a1a] rounded-lg p-4 text-center"
+                  >
+                    <span className="text-gray-400 text-sm">No tasks available</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </main>
