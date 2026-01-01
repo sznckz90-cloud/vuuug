@@ -918,7 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Add referral link with fallback bot username - use /start flow for reliable referral tracking
-      const botUsername = process.env.BOT_USERNAME || "PaidAdzbot";
+      const botUsername = process.env.BOT_USERNAME || "MoneyAdzbot";
       const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       res.json({
@@ -2140,7 +2140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     'https://vuuug.onrender.com';
       
       // Build the referral URL using /start flow for reliable referral tracking
-      const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
+      const botUsername = process.env.BOT_USERNAME || 'MoneyAdzbot';
       const webAppUrl = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       // Get share banner image URL
@@ -5656,7 +5656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Check if our bot is in the admin list
-        const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
+        const botUsername = process.env.BOT_USERNAME || 'MoneyAdzbot';
         const isAdmin = data.result.some((admin: any) => 
           admin.user?.username?.toLowerCase() === botUsername.toLowerCase()
         );
@@ -6222,7 +6222,7 @@ ${walletAddress}
 💸 Amount: ${newWithdrawal.withdrawnAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${currentDate}
-🤖 Bot: @PaidAdzbot`;
+🤖 Bot: @MoneyAdzbot`;
 
       // Create inline keyboard with Approve and Reject buttons
       const inlineKeyboard = {
@@ -6262,7 +6262,7 @@ ${walletAddress}
 💸 Amount: ${newWithdrawal.withdrawnAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${currentDate}
-🤖 Bot: @PaidAdzbot`;
+🤖 Bot: @MoneyAdzbot`;
 
         fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
@@ -8141,7 +8141,7 @@ ${walletAddress}
         return res.status(500).json({ error: 'Bot not configured' });
       }
 
-      const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
+      const botUsername = process.env.BOT_USERNAME || 'MoneyAdzbot';
       const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       const appUrl = process.env.RENDER_EXTERNAL_URL || 
@@ -8252,7 +8252,7 @@ ${walletAddress}
         return res.status(400).json({ error: 'Referral code not found' });
       }
 
-      const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
+      const botUsername = process.env.BOT_USERNAME || 'MoneyAdzbot';
       const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
       // Return just the referral link for the new share flow

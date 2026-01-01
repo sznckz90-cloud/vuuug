@@ -560,7 +560,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
     }
 
     // Build the referral link - use /start flow for reliable referral tracking
-    const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'PaidAdzbot';
+    const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'MoneyAdzbot';
     const referralLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
     
     // Get the app URL for the share banner image
@@ -597,7 +597,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
         id: `share_${user.referralCode}_${Date.now()}`,
         photo_url: shareImageUrl,
         thumbnail_url: shareImageUrl,
-        title: '💸 Start Earning with Paid Adz!',
+        title: '💸 Start Earning with Money Adz!',
         description: 'Complete tasks & watch ads to earn real money!',
         caption: '💵 Get paid for completing tasks and watching ads.',
         parse_mode: 'HTML',
@@ -616,11 +616,11 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
       {
         type: 'article',
         id: `article_${user.referralCode}_${Date.now()}`,
-        title: '💸 Invite Friends to Paid Adz!',
+        title: '💸 Invite Friends to Money Adz!',
         description: 'Share and earn bonus PAD for every friend who joins!',
         thumbnail_url: shareImageUrl,
         input_message_content: {
-          message_text: '💵 <b>Get paid for completing tasks and watching ads.</b>\n\n🎯 Join Paid Adz and get rewarded for simple tasks!\n\n👇 Click the button below to start earning:',
+          message_text: '💵 <b>Get paid for completing tasks and watching ads.</b>\n\n🎯 Join Money Adz and get rewarded for simple tasks!\n\n👇 Click the button below to start earning:',
           parse_mode: 'HTML'
         },
         reply_markup: {
@@ -989,7 +989,7 @@ ${walletAddress}
 💸 Amount: ${netAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${createdAt}
-🤖 Bot: @PaidAdzbot`;
+🤖 Bot: @MoneyAdzbot`;
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
               method: 'POST',
@@ -1169,7 +1169,7 @@ ${walletAddress}
 💸 Amount: ${netAmount.toFixed(5)} USD
 🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
 📅 Date: ${currentDate}
-🤖 Bot: @PaidAdzbot`;
+🤖 Bot: @MoneyAdzbot`;
             
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
               method: 'POST',
