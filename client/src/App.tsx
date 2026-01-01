@@ -13,7 +13,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 
 declare global {
   interface Window {
-    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10401872: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
   }
 }
 
@@ -91,9 +91,9 @@ function AppContent() {
     inAppAdInitialized.current = true;
 
     const showInAppAd = () => {
-      if (typeof window.show_10306459 === 'function') {
+      if (typeof window.show_10401872 === 'function') {
         console.log('🎬 Showing In-App Interstitial ad...');
-        window.show_10306459({
+        window.show_10401872({
           type: 'inApp',
           inAppSettings: {
             frequency: 999,
