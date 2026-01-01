@@ -14,7 +14,7 @@ export const config = {
     channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Paid Adz App',
     // Group settings (environment variables required)
     groupId: process.env.TELEGRAM_GROUP_ID || '@PaidAdzGroup',
-    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/PaidAdzGroup',
+    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/szxzyz',
     groupName: process.env.TELEGRAM_GROUP_NAME || 'Paid Adz Group',
   },
   

@@ -267,7 +267,7 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
         
         return res.status(403).json({ 
           banned: true,
-          message: "Your account has been banned for violating our multi-account policy. Only one account per device is allowed.",
+          message: "Your account has been banned for violating our multi-account policy. Only one account per device is allowed. Contact support: https://t.me/szxzyz",
           reason: deviceValidation.reason
         });
       }
@@ -296,7 +296,7 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
       console.log(`🚫 Banned user attempted login: ${upsertedUser.id} (Telegram: ${telegramUser.id})`);
       return res.status(403).json({ 
         banned: true,
-        message: "Your account has been banned due to suspicious multi-account activity.",
+        message: "Your account has been banned due to suspicious multi-account activity. Contact support: https://t.me/szxzyz",
         reason: upsertedUser.bannedReason || "Account banned"
       });
     }

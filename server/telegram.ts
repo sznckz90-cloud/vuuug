@@ -1160,7 +1160,7 @@ ${walletAddress}
               // Always show "Share in Group" button instead of transaction button
               const shareInGroupButton = {
                 inline_keyboard: [[
-                  { text: '📢 Share in Group', url: 'https://t.me/PaidAdzGroup' }
+                  { text: '📢 Share in Group', url: 'https://t.me/szxzyz' }
                 ]]
               };
               
@@ -1813,7 +1813,7 @@ Please contact support if you believe this is a mistake.`;
                 
                 const supportButton = {
                   inline_keyboard: [[
-                    { text: '👉🏻 Contact Support', url: 'https://t.me/PaidAdzGroup' }
+                    { text: '👉🏻 Contact Support', url: 'https://t.me/szxzyz' }
                   ]]
                 };
                 
