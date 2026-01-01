@@ -196,6 +196,10 @@ function App() {
       const data = await response.json();
       
       if (data.success) {
+        if (data.banned) {
+          setIsBanned(true);
+          return;
+        }
         setIsChannelVerified(data.isVerified);
       }
     } catch (err) {
@@ -359,6 +363,10 @@ function App() {
     }
   }, [isDevMode, isCheckingCountry, isCountryBlocked]);
 
+  if (isBanned) {
+    return <BanScreen reason={banReason} />;
+  }
+
   if (isCheckingCountry || isAuthenticating || isCheckingMembership) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
@@ -373,10 +381,6 @@ function App() {
 
   if (isCountryBlocked) {
     return <CountryBlockedScreen />;
-  }
-
-  if (isBanned) {
-    return <BanScreen reason={banReason} />;
   }
 
   if (!telegramId && !isDevMode) {
