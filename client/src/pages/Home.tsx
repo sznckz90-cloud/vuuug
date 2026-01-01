@@ -31,7 +31,7 @@ interface UnifiedTask {
 
 declare global {
   interface Window {
-    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10401872: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -321,7 +321,7 @@ export default function Home() {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "int-19149" }).show();
+          await window.Adsgram.init({ blockId: "int-20373" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
@@ -335,8 +335,8 @@ export default function Home() {
 
   const showMonetagAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10306459 === 'function') {
-        window.show_10306459()
+      if (typeof window.show_10401872 === 'function') {
+        window.show_10401872()
           .then(() => {
             resolve({ success: true, unavailable: false });
           })
@@ -353,9 +353,9 @@ export default function Home() {
   const showMonetagRewardedAd = (): Promise<{ success: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
       console.log('🎬 Attempting to show Monetag rewarded ad...');
-      if (typeof window.show_10306459 === 'function') {
+      if (typeof window.show_10401872 === 'function') {
         console.log('✅ Monetag SDK found, calling rewarded ad...');
-        window.show_10306459()
+        window.show_10401872()
           .then(() => {
             console.log('✅ Monetag rewarded ad completed successfully');
             resolve({ success: true, unavailable: false });
@@ -404,7 +404,7 @@ export default function Home() {
     console.log('💱 Convert started, showing AdsGram ad first...');
     
     try {
-      // Show AdsGram int-19149 first
+      // Show AdsGram int-20373 first
       const adsgramSuccess = await showAdsgramAd();
       
       if (!adsgramSuccess) {
@@ -447,7 +447,7 @@ export default function Home() {
     setIsClaimingStreak(true);
     
     try {
-      // Show AdsGram int-19149 first
+      // Show AdsGram int-20373 first
       const adsgramSuccess = await showAdsgramAd();
       
       if (!adsgramSuccess) {
@@ -491,7 +491,7 @@ export default function Home() {
     console.log('🎫 Promo code claim started, showing AdsGram ad first...');
     
     try {
-      // Show AdsGram int-19149 first
+      // Show AdsGram int-20373 first
       const adsgramSuccess = await showAdsgramAd();
       
       if (!adsgramSuccess) {
