@@ -106,10 +106,11 @@ CashWatch is a Telegram-based earning platform where users earn PAD currency by 
 - **HTML escaping**: All user-provided names are properly sanitized before being included in notification messages to prevent Telegram parsing errors.
 - **Notification format**: "New Referral Activity! Your friend watched their first ad. You earned X PAD."
 
-### December 2024 - Promo Code Bug Fix
-- **Fixed double-reward bug**: Removed duplicate `addEarning()` call from `storage.usePromoCode()` since `routes.ts` already handles balance updates for different reward types (PAD, TON, USD).
-- **Fixed return format**: `usePromoCode()` now returns just the reward amount string, not "amount currency" format.
-- **Consistent tracking**: All promo code redemptions now properly record earnings via `storage.addEarning()` in routes.ts after balance update.
+### December 2024 - Real-time TON Balance Updates
+- **Instant TON Balance Sync**: Implemented WebSocket-based real-time updates for TON top-ups.
+- **Backend**: Added `sendRealtimeUpdate` call in ArcPay webhook handler to push new balance to the user.
+- **Frontend**: Updated `useWebSocket` hook to handle `balance_update` messages, directly updating the React Query cache and invalidating user data for instant UI reflection.
+- **UI Consistency**: TON Wallet Setup dialog updated to match Promo Popup design pattern (spacing, theme, buttons).
 
 ## Development Setup
 
