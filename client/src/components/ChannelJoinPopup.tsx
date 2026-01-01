@@ -48,8 +48,8 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
           groupMember: data.groupMember || false,
           channelUrl: data.channelUrl || "https://t.me/MoneyAdz",
           groupUrl: data.groupUrl || "https://t.me/MoneyAdzChat",
-          channelName: data.channelName || "Money Adz",
-          groupName: data.groupName || "Money Adz Chat"
+          channelName: data.channelName || "Money adz",
+          groupName: data.groupName || "Money adz community"
         });
       } else if (!isInitialCheck) {
         setError(data.message || "Failed to verify membership.");
@@ -136,7 +136,7 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
               </div>
               <div className="text-left">
                 <p className="text-white font-medium text-sm">Join Channel</p>
-                <p className="text-white/40 text-xs">{membershipStatus?.channelName || "Paid Adz App"}</p>
+                <p className="text-white/40 text-xs">{membershipStatus?.channelName || "Money adz"}</p>
               </div>
             </div>
             {membershipStatus?.channelMember ? (
@@ -165,7 +165,7 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
               </div>
               <div className="text-left">
                 <p className="text-white font-medium text-sm">Join Group</p>
-                <p className="text-white/40 text-xs">{membershipStatus?.groupName || "Paid Adz Group"}</p>
+                <p className="text-white/40 text-xs">{membershipStatus?.groupName || "Money adz community"}</p>
               </div>
             </div>
             {membershipStatus?.groupMember ? (
