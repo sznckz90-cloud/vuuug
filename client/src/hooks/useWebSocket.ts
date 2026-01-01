@@ -118,7 +118,26 @@ export function useWebSocket() {
               break;
               
             case 'balance_update':
-              showNotification("Balance updated!", "success", parseFloat((message as any).delta || message.amount || '0'));
+              console.log('💰 Real-time balance update received:', message);
+              
+              // Force update the cache with new balance values
+              queryClient.setQueryData(['/api/auth/user'], (oldUser: any) => {
+                if (!oldUser) return oldUser;
+                return {
+                  ...oldUser,
+                  tonBalance: (message as any).tonBalance ?? oldUser.tonBalance,
+                  balance: (message as any).balance ?? oldUser.balance,
+                  usdBalance: (message as any).usdBalance ?? oldUser.usdBalance,
+                  bugBalance: (message as any).bugBalance ?? oldUser.bugBalance,
+                };
+              });
+              
+              // Also invalidate to ensure everything is perfectly in sync
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              
+              if (message.message) {
+                showNotification("Balance Updated", "success");
+              }
               break;
               
             case 'promotion_approved':
