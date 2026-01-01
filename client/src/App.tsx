@@ -10,6 +10,7 @@ import CountryBlockedScreen from "@/components/CountryBlockedScreen";
 import SeasonEndOverlay from "@/components/SeasonEndOverlay";
 import { SeasonEndContext } from "@/lib/SeasonEndContext";
 import { useAdmin } from "@/hooks/useAdmin";
+import ChannelJoinPopup from "@/components/ChannelJoinPopup";
 
 declare global {
   interface Window {
@@ -178,8 +179,35 @@ function App() {
   const [telegramId, setTelegramId] = useState<string | null>(null);
   const [isCheckingCountry, setIsCheckingCountry] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [isChannelVerified, setIsChannelVerified] = useState<boolean>(true);
+  const [isCheckingMembership, setIsCheckingMembership] = useState(true);
   
   const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
+
+  const checkMembership = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      const tg = window.Telegram?.WebApp;
+      if (tg?.initData) {
+        headers['x-telegram-data'] = tg.initData;
+      }
+      
+      const response = await fetch('/api/check-membership', { headers });
+      const data = await response.json();
+      
+      if (data.success) {
+        setIsChannelVerified(data.isVerified);
+      }
+    } catch (err) {
+      console.error("Membership check error:", err);
+    } finally {
+      setIsCheckingMembership(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkMembership();
+  }, [checkMembership]);
 
   const checkCountry = useCallback(async () => {
     try {
@@ -331,7 +359,7 @@ function App() {
     }
   }, [isDevMode, isCheckingCountry, isCountryBlocked]);
 
-  if (isCheckingCountry || isAuthenticating) {
+  if (isCheckingCountry || isAuthenticating || isCheckingMembership) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="flex gap-1">
@@ -373,6 +401,14 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <TooltipProvider>
+          {!isChannelVerified && (
+            <Suspense fallback={null}>
+              <ChannelJoinPopup 
+                telegramId={telegramId || ""} 
+                onVerified={() => setIsChannelVerified(true)} 
+              />
+            </Suspense>
+          )}
           <AppContent />
         </TooltipProvider>
       </LanguageProvider>
