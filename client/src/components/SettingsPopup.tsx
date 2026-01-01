@@ -33,14 +33,14 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
       content: (
         <div className="space-y-4 text-gray-300 text-sm">
           <p className="text-[#4cd3ff] font-bold">Last Updated: December 26, 2025</p>
-          <p>Welcome to PaidAdz. By accessing or using this app, you agree to comply with these Terms & Conditions. If you do not agree, please do not use the app.</p>
+          <p>Welcome to Money Adz. By accessing or using this app, you agree to comply with these Terms & Conditions. If you do not agree, please do not use the app.</p>
           <div>
             <h4 className="text-white font-bold mb-1">1. Eligibility</h4>
             <p>Users must be at least 13 years old. You are responsible for maintaining the confidentiality of your account.</p>
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">2. App Usage</h4>
-            <p>PaidAdz allows users to earn PAD / BUG tokens through tasks, ads, and activities. Tokens earned in the app do not represent real money unless withdrawn according to app rules.</p>
+            <p>Money Adz allows users to earn PAD / BUG tokens through tasks, ads, and activities. Tokens earned in the app do not represent real money unless withdrawn according to app rules.</p>
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">3. Rewards & Withdrawals</h4>
@@ -61,7 +61,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
       title: t('privacy_policy'),
       content: (
         <div className="space-y-4 text-gray-300 text-sm">
-          <p>PaidAdz respects your privacy.</p>
+          <p>Money Adz respects your privacy.</p>
           <div>
             <h4 className="text-white font-bold mb-1">1. Information We Collect</h4>
             <p>We may collect User ID (UID), device & app usage data, task activity, and withdrawal history.</p>
@@ -80,7 +80,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
           </div>
           <div>
             <h4 className="text-white font-bold mb-1">4. Ads & Analytics</h4>
-            <p>Third-party ad networks may collect non-personal data for ad delivery. PaidAdz is not responsible for external ad services.</p>
+            <p>Third-party ad networks may collect non-personal data for ad delivery. Money Adz is not responsible for external ad services.</p>
           </div>
         </div>
       )
@@ -89,7 +89,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
       title: t('acceptable_use'),
       content: (
         <div className="space-y-4 text-gray-300 text-sm">
-          <p>To keep PaidAdz fair for everyone, users must not:</p>
+          <p>To keep Money Adz fair for everyone, users must not:</p>
           <div>
             <h4 className="text-rose-400 font-bold mb-1 flex items-center gap-2">
               <X className="w-4 h-4" />
