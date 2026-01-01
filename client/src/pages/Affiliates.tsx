@@ -117,7 +117,7 @@ export default function Affiliates() {
       }
       
       // Fallback: Use Telegram's native share URL dialog
-      const shareTitle = `💸 Start earning money just by completing tasks & watching ads!`;
+      const shareTitle = `💵 Get paid for completing tasks and watching ads.`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareTitle)}`;
       
       if (tgWebApp?.openTelegramLink) {
