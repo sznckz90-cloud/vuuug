@@ -585,7 +585,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
     }
 
     // Get the share banner image URL - use public URL
-    const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
+    const shareImageUrl = `${appUrl}/images/share_v5.jpg`;
     
     console.log(`📷 Share image URL: ${shareImageUrl}`);
     console.log(`🔗 Referral Link: ${referralLink}`);
@@ -597,8 +597,8 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
         id: `share_${user.referralCode}_${Date.now()}`,
         photo_url: shareImageUrl,
         thumbnail_url: shareImageUrl,
-        title: '💸 Start Earning with Money Adz!',
-        description: 'Complete tasks & watch ads to earn real money!',
+        title: '💵 Get Paid with Money Adz!',
+        description: 'Join Money Adz and earn $PAD tokens by watching ads or completing simple tasks!',
         caption: '💵 Get paid for completing tasks and watching ads.',
         parse_mode: 'HTML',
         reply_markup: {
@@ -616,7 +616,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
       {
         type: 'article',
         id: `article_${user.referralCode}_${Date.now()}`,
-        title: '💸 Invite Friends to Money Adz!',
+        title: '💸 Share with friends',
         description: 'Share and earn bonus PAD for every friend who joins!',
         thumbnail_url: shareImageUrl,
         input_message_content: {

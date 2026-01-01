@@ -2144,7 +2144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const webAppUrl = `https://t.me/${botUsername}?start=${user.referralCode}`;
       
       // Get share banner image URL
-      const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
+      const shareImageUrl = `${appUrl}/images/share_v5.jpg`;
       
       // Caption for the share message
       const caption = '💵 Get paid for completing tasks and watching ads.';
@@ -8149,7 +8149,7 @@ ${walletAddress}
                     (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null) ||
                     'https://vuuug.onrender.com';
 
-      const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
+      const shareImageUrl = `${appUrl}/images/share_v5.jpg`;
       const webAppUrl = referralLink;
 
       console.log(`📤 Preparing share message for user ${userId}`);
@@ -8165,9 +8165,9 @@ ${walletAddress}
         id: `share_${user.referralCode}_${Date.now()}`,
         photo_url: shareImageUrl,
         thumbnail_url: shareImageUrl,
-        title: '💸 Start Earning with Paid Adz!',
-        description: 'Complete tasks & watch ads to earn real money!',
-        caption: '💸 Start earning money just by completing tasks & watching ads!',
+        title: '💵 Get Paid with Money Adz!',
+        description: 'Join Money Adz and earn $PAD tokens by watching ads or completing simple tasks!',
+        caption: '💵 Get paid for completing tasks and watching ads.',
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
@@ -8216,7 +8216,7 @@ ${walletAddress}
             success: false,
             error: prepareResult.description || 'Failed to prepare message',
             referralLink,
-            fallbackUrl: `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('💸 Start earning money just by completing tasks & watching ads!')}`
+            fallbackUrl: `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('💵 Get paid for completing tasks and watching ads.')}`
           });
         }
       } catch (telegramError: any) {
