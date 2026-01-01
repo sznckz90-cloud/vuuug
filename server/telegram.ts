@@ -398,25 +398,29 @@ export async function sendSharePhotoToChat(
 }
 
 export function formatWelcomeMessage(): { message: string; inlineKeyboard: any } {
-  const botUsername = process.env.BOT_USERNAME || 'PaidAdzbot';
-  const channelUrl = process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/PaidAdzApp';
-  const groupUrl = process.env.TELEGRAM_GROUP_URL || 'https://t.me/PaidAdzGroup';
+  const botUsername = process.env.VITE_BOT_USERNAME || process.env.BOT_USERNAME || 'MoneyAdzbot';
+  const channelUrl = 'https://t.me/MoneyAdz';
+  const groupUrl = 'https://t.me/MoneyAdzChat';
   
-  const message = `💁🏻‍♂️ Paid Adz lets every ad you watch turn into real money and complete simple tasks, it's that easy.
+  const message = `Stop wasting time on useless airdrops.
+Start earning real rewards today.
 
-✅ Fast, reliable, and affordable, offering a truly real earning experience.`;
+Money Adz is a Telegram mini-app where you earn $PAD tokens by watching ads or completing simple tasks — and swap them instantly to $USD, even before any airdrop. 💸
+
+Every ad has value.
+Every task pays. 🚀`;
 
   const inlineKeyboard = {
     inline_keyboard: [
       [
         {
           text: "🚀 Let's Go",
-          url: `https://t.me/${botUsername}/GetPaid`
+          url: `https://t.me/${botUsername}/MyWAdz`
         }
       ],
       [
         {
-          text: "🤝 Announce",
+          text: "🤝 Channel",
           url: channelUrl
         }
       ],
@@ -434,7 +438,33 @@ export function formatWelcomeMessage(): { message: string; inlineKeyboard: any }
 
 export async function sendWelcomeMessage(userId: string): Promise<boolean> {
   const { message, inlineKeyboard } = formatWelcomeMessage();
-  return await sendUserTelegramNotification(userId, message, inlineKeyboard);
+  const domain = process.env.REPLIT_DOMAIN || (process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.replit.app` : null);
+  const imageUrl = domain ? `https://${domain}/images/welcome-image.jpg` : null;
+  
+  try {
+    if (imageUrl) {
+      const payload = {
+        chat_id: userId,
+        photo: imageUrl,
+        caption: message,
+        parse_mode: 'HTML',
+        reply_markup: inlineKeyboard
+      };
+
+      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) return true;
+    }
+    
+    // Fallback to text if photo fails or imageUrl is null
+    return await sendUserTelegramNotification(userId, message, inlineKeyboard);
+  } catch (error) {
+    return await sendUserTelegramNotification(userId, message, inlineKeyboard);
+  }
 }
 
 // Admin broadcast functionality
