@@ -61,7 +61,7 @@ export default function Affiliates() {
 
   const isLoading = userLoading || statsLoading;
 
-  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'MoneyAdzbot';
   // Use bot deep link format (?start=) for reliable referral tracking
   // This ensures the /start command is triggered and referral is processed via webhook
   const referralLink = user?.referralCode 

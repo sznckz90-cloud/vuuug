@@ -164,7 +164,7 @@ export default function Withdraw() {
   const hasEnoughReferrals = !withdrawalInviteRequirementEnabled || validReferralCount >= MINIMUM_VALID_REFERRALS_REQUIRED;
   const hasEnoughBug = !withdrawalBugRequirementEnabled || bugBalance >= minimumBugForWithdrawal;
 
-  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'PaidAdzbot';
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'MoneyAdzbot';
   // Use bot deep link format (?start=) for reliable referral tracking
   const referralLink = user?.referralCode 
     ? `https://t.me/${botUsername}?start=${user.referralCode}`

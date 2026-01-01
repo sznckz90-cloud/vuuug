@@ -704,12 +704,13 @@ export default function Home() {
   const handleCheckForUpdates = useCallback(() => {
     if (missionStatus?.checkForUpdates?.claimed || checkForUpdatesStep !== 'idle') return;
     const tgWebApp = window.Telegram?.WebApp as any;
+    const channelUrl = 'https://t.me/MoneyAdz';
     if (tgWebApp?.openTelegramLink) {
-      tgWebApp.openTelegramLink('https://t.me/PaidADsNews');
+      tgWebApp.openTelegramLink(channelUrl);
     } else if (tgWebApp?.openLink) {
-      tgWebApp.openLink('https://t.me/PaidADsNews');
+      tgWebApp.openLink(channelUrl);
     } else {
-      window.open('https://t.me/PaidADsNews', '_blank');
+      window.open(channelUrl, '_blank');
     }
     setCheckForUpdatesStep('opened');
     setCheckForUpdatesCountdown(3);
