@@ -8,7 +8,7 @@ import { Ticket, Clock, Shield } from "lucide-react";
 
 declare global {
   interface Window {
-    show_10013974: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10401872: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -48,9 +48,9 @@ export default function PromoCodeInput() {
 
   const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10013974 === 'function') {
+      if (typeof window.show_10401872 === 'function') {
         monetagStartTimeRef.current = Date.now();
-        window.show_10013974()
+        window.show_10401872()
           .then(() => {
             const watchDuration = Date.now() - monetagStartTimeRef.current;
             const watchedAtLeast3Seconds = watchDuration >= 3000;
@@ -72,7 +72,7 @@ export default function PromoCodeInput() {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "int-18225" }).show();
+          await window.Adsgram.init({ blockId: "int-20373" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);

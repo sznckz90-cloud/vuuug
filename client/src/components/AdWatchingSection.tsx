@@ -7,7 +7,7 @@ import { showNotification } from "@/components/AppNotification";
 
 declare global {
   interface Window {
-    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10401872: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
     Adsgram: {
       init: (config: { blockId: string }) => {
         show: () => Promise<void>;
@@ -74,9 +74,9 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
 
   const showMonetagAd = (): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10306459 === 'function') {
+      if (typeof window.show_10401872 === 'function') {
         monetagStartTimeRef.current = Date.now();
-        window.show_10306459()
+        window.show_10401872()
           .then(() => {
             const watchDuration = Date.now() - monetagStartTimeRef.current;
             const watchedAtLeast3Seconds = watchDuration >= 3000;
@@ -98,7 +98,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
     return new Promise(async (resolve) => {
       if (window.Adsgram) {
         try {
-          await window.Adsgram.init({ blockId: "19148" }).show();
+          await window.Adsgram.init({ blockId: "20372" }).show();
           resolve(true);
         } catch (error) {
           console.error('Adsgram ad error:', error);
