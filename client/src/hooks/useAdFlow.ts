@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 
 declare global {
   interface Window {
-    show_10306459: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    show_10401872: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
   }
 }
 
@@ -18,9 +18,9 @@ export function useAdFlow() {
 
   const showMonetagAd = useCallback((): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
     return new Promise((resolve) => {
-      if (typeof window.show_10306459 === 'function') {
+      if (typeof window.show_10401872 === 'function') {
         monetagStartTimeRef.current = Date.now();
-        window.show_10306459()
+        window.show_10401872()
           .then(() => {
             const watchDuration = Date.now() - monetagStartTimeRef.current;
             const watchedAtLeast3Seconds = watchDuration >= 3000;
