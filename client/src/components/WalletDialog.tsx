@@ -80,13 +80,13 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-[20px] bg-black/95">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Settings2 className="w-5 h-5" />
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Settings2 className="w-5 h-5 text-blue-500" />
             Wallet Setup
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-gray-400">
             Enter your payment details to withdraw earned funds
           </DialogDescription>
         </DialogHeader>
@@ -97,6 +97,7 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
                 type="button"
                 variant={paymentType === 'ton' ? 'default' : 'outline'}
                 onClick={() => setPaymentType('ton')}
+                className={`rounded-[20px] ${paymentType === 'ton' ? 'bg-blue-600 hover:bg-blue-700' : 'border-gray-700 text-gray-400 hover:text-white'}`}
               >
                 <Gem className="w-4 h-4 mr-2" />
                 TON Coin
@@ -105,60 +106,70 @@ export default function WalletDialog({ open, onOpenChange }: WalletDialogProps) 
                 type="button"
                 variant={paymentType === 'stars' ? 'default' : 'outline'}
                 onClick={() => setPaymentType('stars')}
+                className={`rounded-[20px] ${paymentType === 'stars' ? 'bg-blue-600 hover:bg-blue-700' : 'border-gray-700 text-gray-400 hover:text-white'}`}
               >
                 <Star className="w-4 h-4 mr-2" />
-                Telegram Stars
+                Stars
               </Button>
             </div>
 
             {paymentType === 'ton' ? (
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm font-medium mb-3">TON Payment</p>
-                  <p className="text-xs text-muted-foreground mb-4">Enter your payment details to withdraw earned funds.</p>
+                  <p className="text-sm font-medium text-white mb-1">TON Payment</p>
+                  <p className="text-xs text-gray-400 mb-4">Enter your payment details to withdraw earned funds.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>TON Address</Label>
+                  <Label className="text-gray-300">TON Address</Label>
                   <Input
                     placeholder="Enter TON address"
                     value={tonAddress}
                     onChange={(e) => setTonAddress(e.target.value)}
+                    className="bg-transparent border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500 rounded-[10px]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Comment (optional)</Label>
+                  <Label className="text-gray-300">Comment (optional)</Label>
                   <Input
                     placeholder="Enter comment"
                     value={tonComment}
                     onChange={(e) => setTonComment(e.target.value)}
+                    className="bg-transparent border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500 rounded-[10px]"
                   />
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm font-medium mb-3">Star Payment</p>
-                  <p className="text-xs text-muted-foreground mb-4">Enter your payment details to withdraw earned funds.</p>
+                  <p className="text-sm font-medium text-white mb-1">Star Payment</p>
+                  <p className="text-xs text-gray-400 mb-4">Enter your payment details to withdraw earned funds.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Telegram Username</Label>
+                  <Label className="text-gray-300">Telegram Username</Label>
                   <Input
                     placeholder="Enter Telegram username"
                     value={telegramUsername}
                     onChange={(e) => setTelegramUsername(e.target.value)}
+                    className="bg-transparent border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500 rounded-[10px]"
                   />
-                  <p className="text-xs text-muted-foreground">Telegram Stars</p>
                 </div>
               </div>
             )}
 
             <div className="mt-4">
               <Button
-                className="w-full"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-[20px]"
                 onClick={handleSave}
                 disabled={saveWalletMutation.isPending}
               >
-                {saveWalletMutation.isPending ? 'Saving...' : 'Save Wallet'}
+                {saveWalletMutation.isPending ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Wallet'
+                )}
               </Button>
             </div>
           </div>
