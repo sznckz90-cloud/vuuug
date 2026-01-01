@@ -9,13 +9,13 @@ export const config = {
   // 3. It will show the channel ID (looks like: -1001234567890)
   telegram: {
     // Channel settings (environment variables required)
-    channelId: process.env.TELEGRAM_CHANNEL_ID || '@PaidAdzApp',
-    channelUrl: process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/PaidAdzApp',
-    channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Paid Adz App',
+    channelId: process.env.TELEGRAM_CHANNEL_ID || '-1002242502661',
+    channelUrl: process.env.TELEGRAM_CHANNEL_URL || 'https://t.me/MoneyAdz',
+    channelName: process.env.TELEGRAM_CHANNEL_NAME || 'Money adz',
     // Group settings (environment variables required)
-    groupId: process.env.TELEGRAM_GROUP_ID || '@PaidAdzGroup',
-    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/szxzyz',
-    groupName: process.env.TELEGRAM_GROUP_NAME || 'Paid Adz Group',
+    groupId: process.env.TELEGRAM_GROUP_ID || '-1002422003884',
+    groupUrl: process.env.TELEGRAM_GROUP_URL || 'https://t.me/MoneyAdzChat',
+    groupName: process.env.TELEGRAM_GROUP_NAME || 'Money adz community',
   },
   
   // Bot configuration

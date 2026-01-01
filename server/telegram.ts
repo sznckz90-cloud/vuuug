@@ -437,6 +437,17 @@ Every task pays. 🚀`;
 }
 
 export async function sendWelcomeMessage(userId: string): Promise<boolean> {
+  // Check if user is banned before sending welcome message
+  try {
+    const user = await storage.getUserByTelegramId(userId);
+    if (user?.banned) {
+      console.log(`🚫 Skipping welcome message for banned user ${userId}`);
+      return false;
+    }
+  } catch (err) {
+    console.error('Error checking ban status for welcome message:', err);
+  }
+
   const { message, inlineKeyboard } = formatWelcomeMessage();
   const domain = process.env.REPLIT_DOMAIN || (process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.replit.app` : null);
   const imageUrl = domain ? `https://${domain}/images/welcome-image.jpg` : null;
@@ -656,6 +667,27 @@ export async function handleTelegramMessage(update: any): Promise<boolean> {
   try {
     console.log('🔄 Processing Telegram update...');
     
+    // Handle message for ban check
+    const message = update.message || update.edited_message;
+    if (message) {
+      const chatId = message.chat.id.toString();
+      const telegramId = message.from?.id?.toString();
+
+      if (telegramId) {
+        const user = await storage.getUserByTelegramId(telegramId);
+        if (user?.banned) {
+          const banMessage = `Your account has been banned for violating our multi-account policy.\n\nReason: Self-referral attempt detected.\n\nPlease contact support if you believe this is a mistake.`;
+          const replyMarkup = {
+            inline_keyboard: [
+              [{ text: "Contact support", url: "https://t.me/szxzyz" }]
+            ]
+          };
+          await sendUserTelegramNotification(chatId, banMessage, replyMarkup);
+          return true;
+        }
+      }
+    }
+
     // Handle inline queries for rich media sharing
     if (update.inline_query) {
       return await handleInlineQuery(update.inline_query);
@@ -1346,15 +1378,15 @@ ${walletAddress}
       return true;
     }
     
-    const message = update.message;
-    if (!message || !message.text) {
+    const updateMessage = update.message;
+    if (!updateMessage || !updateMessage.text) {
       console.log('❌ No message or text found in update');
       return false;
     }
 
-    const chatId = message.chat.id.toString();
-    const text = message.text.trim();
-    const user = message.from;
+    const chatId = updateMessage.chat.id.toString();
+    const text = updateMessage.text.trim();
+    const user = updateMessage.from;
 
     console.log(`📝 Received message: "${text}" from user ${chatId}`);
 

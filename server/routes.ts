@@ -465,8 +465,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const telegramId = telegramUser.id.toString();
       const userId = parseInt(telegramId, 10);
-      
-      // Check both channel and group membership
+
+      // 1. BAN CHECK FIRST
+      const user = await storage.getUserByTelegramId(telegramId);
+      if (user?.banned) {
+        console.log(`🚫 Banned user ${telegramId} blocked at membership check`);
+        return res.json({
+          success: true,
+          banned: true,
+          reason: user.bannedReason,
+          isVerified: true // Don't show join screen if banned
+        });
+      }
+
+      // 2. CHANNEL/GROUP JOIN CHECK
       const [channelMember, groupMember] = await Promise.all([
         verifyChannelMembership(userId, channelConfig.channelId, botToken),
         verifyChannelMembership(userId, channelConfig.groupId, botToken)
