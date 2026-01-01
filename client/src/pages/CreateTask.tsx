@@ -48,7 +48,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import TopUpSheet from "@/components/TopUpSheet";
+import TopUpPopup from "@/components/TopUpPopup";
 import { Plus } from "lucide-react";
 
 interface Task {
@@ -92,6 +92,7 @@ export default function CreateTask() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [showVerifyInfo, setShowVerifyInfo] = useState(false);
+  const [topUpPopupOpen, setTopUpPopupOpen] = useState(false);
 
   const { data: appSettings } = useQuery<any>({
     queryKey: ['/api/app-settings'],
@@ -370,6 +371,7 @@ export default function CreateTask() {
 
   return (
     <Layout>
+      <TopUpPopup open={topUpPopupOpen} onOpenChange={setTopUpPopupOpen} />
       <main ref={mainRef} className="max-w-md mx-auto px-4 pt-4 pb-24">
         {!isAdmin && (
           <div className="flex items-center justify-between mb-4 p-3 bg-gradient-to-r from-[#1A1A1A] to-[#0D1117] rounded-xl border border-[#2A2A2A] shadow-lg">
@@ -377,14 +379,12 @@ export default function CreateTask() {
               <img src="/images/ton.png" alt="TON" className="w-5 h-5 object-cover rounded-full" />
               <span className="text-sm font-semibold text-white">{tonBalance.toFixed(4)} TON</span>
             </div>
-            <TopUpSheet 
-              trigger={
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-[#4cd3ff] to-[#007BFF] hover:from-[#6ddeff] hover:to-[#1a8cff] text-white text-xs font-semibold rounded-lg transition-all shadow-md">
-                  <Plus className="w-3.5 h-3.5" />
-                  Top Up
-                </button>
-              }
-            />
+            <button 
+              onClick={() => setTopUpPopupOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-[#4cd3ff] to-[#007BFF] hover:from-[#6ddeff] hover:to-[#1a8cff] text-white text-xs font-semibold rounded-lg transition-all shadow-md"
+            >
+              Top Up
+            </button>
           </div>
         )}
         <div className="grid grid-cols-2 gap-2 mb-6">
