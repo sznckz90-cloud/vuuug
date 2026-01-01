@@ -43,10 +43,10 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
       setMembershipStatus({
         channelMember: data.channelMember || false,
         groupMember: data.groupMember || false,
-        channelUrl: data.channelUrl || "https://t.me/PaidAdzApp",
-        groupUrl: data.groupUrl || "https://t.me/PaidAdzGroup",
-        channelName: data.channelName || "Paid Adz App",
-        groupName: data.groupName || "Paid Adz Group"
+        channelUrl: data.channelUrl || "https://t.me/MoneyAdz",
+        groupUrl: data.groupUrl || "https://t.me/MoneyAdzChat",
+        channelName: data.channelName || "Money Adz",
+        groupName: data.groupName || "Money Adz Chat"
       });
     } catch (err) {
       console.error("Membership check error:", err);
@@ -66,7 +66,7 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
   }, [telegramId, hasInitialized]);
 
   const openChannel = () => {
-    const url = membershipStatus?.channelUrl || "https://t.me/PaidAdzApp";
+    const url = membershipStatus?.channelUrl || "https://t.me/MoneyAdz";
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.openTelegramLink(url);
     } else {
@@ -75,7 +75,7 @@ export default function ChannelJoinPopup({ telegramId, onVerified }: ChannelJoin
   };
 
   const openGroup = () => {
-    const url = membershipStatus?.groupUrl || "https://t.me/PaidAdzGroup";
+    const url = membershipStatus?.groupUrl || "https://t.me/MoneyAdzChat";
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.openTelegramLink(url);
     } else {

@@ -230,9 +230,9 @@ export default function TaskSection() {
     if (channelStep !== 'idle') return;
     
     if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsNews');
+      window.Telegram.WebApp.openTelegramLink('https://t.me/MoneyAdz');
     } else {
-      window.open('https://t.me/PaidAdsNews', '_blank');
+      window.open('https://t.me/MoneyAdz', '_blank');
     }
     
     setChannelStep('countdown');
@@ -249,9 +249,9 @@ export default function TaskSection() {
     if (communityStep !== 'idle') return;
     
     if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink('https://t.me/PaidAdsCommunity');
+      window.Telegram.WebApp.openTelegramLink('https://t.me/MoneyAdzChat');
     } else {
-      window.open('https://t.me/PaidAdsCommunity', '_blank');
+      window.open('https://t.me/MoneyAdzChat', '_blank');
     }
     
     setCommunityStep('countdown');

@@ -35,10 +35,10 @@ export default function MandatoryJoinScreen({ telegramId, onVerified }: Mandator
       setMembershipStatus({
         channelMember: data.channelMember || false,
         groupMember: data.groupMember || false,
-        channelUrl: data.channelUrl || "https://t.me/PaidAdsNews",
-        groupUrl: data.groupUrl || "https://t.me/PaidAdsCommunity",
-        channelName: data.channelName || "Paid Ads News",
-        groupName: data.groupName || "Paid Ads Community"
+        channelUrl: data.channelUrl || "https://t.me/MoneyAdz",
+        groupUrl: data.groupUrl || "https://t.me/MoneyAdzChat",
+        channelName: data.channelName || "Money Adz",
+        groupName: data.groupName || "Money Adz Chat"
       });
     } catch (err) {
       console.error("Membership check error:", err);
@@ -53,7 +53,7 @@ export default function MandatoryJoinScreen({ telegramId, onVerified }: Mandator
   }, [telegramId]);
 
   const openChannel = () => {
-    const url = membershipStatus?.channelUrl || "https://t.me/PaidAdsNews";
+    const url = membershipStatus?.channelUrl || "https://t.me/MoneyAdz";
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.openTelegramLink(url);
     } else {
@@ -62,7 +62,7 @@ export default function MandatoryJoinScreen({ telegramId, onVerified }: Mandator
   };
 
   const openGroup = () => {
-    const url = membershipStatus?.groupUrl || "https://t.me/PaidAdsCommunity";
+    const url = membershipStatus?.groupUrl || "https://t.me/MoneyAdzChat";
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.openTelegramLink(url);
     } else {

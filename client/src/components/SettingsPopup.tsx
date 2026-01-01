@@ -178,7 +178,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({ onClose }) => {
             <LegalItem 
               icon={<MessageSquare className="w-4 h-4 text-blue-400" />} 
               label={t('contact_support')} 
-              onClick={() => openLink('https://t.me/PaidAdzGroup')}
+              onClick={() => openLink('http://t.me/szxzyz')}
               rightIcon={<ExternalLink className="w-3 h-3 text-gray-600" />}
             />
 
