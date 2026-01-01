@@ -599,7 +599,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
         thumbnail_url: shareImageUrl,
         title: '💸 Start Earning with Paid Adz!',
         description: 'Complete tasks & watch ads to earn real money!',
-        caption: '💸 Start earning money just by completing tasks & watching ads!',
+        caption: '💵 Get paid for completing tasks and watching ads.',
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
@@ -620,7 +620,7 @@ export async function handleInlineQuery(inlineQuery: any): Promise<boolean> {
         description: 'Share and earn bonus PAD for every friend who joins!',
         thumbnail_url: shareImageUrl,
         input_message_content: {
-          message_text: '💸 <b>Start earning money just by completing tasks & watching ads!</b>\n\n🎯 Join Paid Adz and get rewarded for simple tasks!\n\n👇 Click the button below to start earning:',
+          message_text: '💵 <b>Get paid for completing tasks and watching ads.</b>\n\n🎯 Join Paid Adz and get rewarded for simple tasks!\n\n👇 Click the button below to start earning:',
           parse_mode: 'HTML'
         },
         reply_markup: {

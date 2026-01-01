@@ -2147,7 +2147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shareImageUrl = `${appUrl}/images/share-banner.jpg`;
       
       // Caption for the share message
-      const caption = '💸 Start earning money just by completing tasks & watching ads!';
+      const caption = '💵 Get paid for completing tasks and watching ads.';
       
       // Send the photo message with inline button
       const result = await sendSharePhotoToChat(
