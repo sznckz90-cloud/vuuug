@@ -7417,6 +7417,13 @@ ${walletAddress}
 
           console.log(`💚 TON balance updated for user ${userId}: +${tonAmount} (Total: ${newTon})`);
 
+          // CRITICAL: Send real-time update via WebSocket to the user's frontend
+          sendRealtimeUpdate(userId, {
+            type: 'balance_update',
+            tonBalance: newTon.toString(),
+            message: `🎉 Top-up successful! +${tonAmount} TON credited.`
+          });
+
           // Send notification to user via Telegram
           try {
             const message = `🎉 Top-up successful!\n\n✅ You received ${tonAmount} TON\n💎 New balance: ${newTon} TON`;
