@@ -77,8 +77,10 @@ export interface IStorage {
   
   // Ads tracking
   incrementAdsWatched(userId: string): Promise<void>;
+  incrementExtraAdsWatched(userId: string): Promise<void>;
   resetDailyAdsCount(userId: string): Promise<void>;
   canWatchAd(userId: string): Promise<boolean>;
+  canWatchExtraAd(userId: string): Promise<boolean>;
   
   // Withdrawal operations
   createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal>;
@@ -609,6 +611,35 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { newStreak, rewardEarned, isBonusDay };
+  }
+
+  async incrementExtraAdsWatched(userId: string): Promise<void> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return;
+    const now = new Date();
+    await db.update(users).set({
+      extraAdsWatchedToday: sql`${users.extraAdsWatchedToday} + 1`,
+      lastExtraAdDate: now,
+      updatedAt: now,
+    }).where(eq(users.id, userId));
+  }
+
+  async canWatchExtraAd(userId: string): Promise<boolean> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return false;
+    const now = new Date();
+    const lastAdDate = user.lastExtraAdDate;
+    const isSameDay = lastAdDate && 
+      lastAdDate.getUTCFullYear() === now.getUTCFullYear() &&
+      lastAdDate.getUTCMonth() === now.getUTCMonth() &&
+      lastAdDate.getUTCDate() === now.getUTCDate();
+    
+    if (!isSameDay) {
+      await db.update(users).set({ extraAdsWatchedToday: 0, lastExtraAdDate: now }).where(eq(users.id, userId));
+      return true;
+    }
+
+    return (user.extraAdsWatchedToday || 0) < 100;
   }
 
   // Helper function for consistent 12:00 PM UTC reset date calculation

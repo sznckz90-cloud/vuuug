@@ -334,6 +334,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
+  app.post("/api/ads/extra-watch", authenticateTelegram, async (req: any, res) => {
+    try {
+      const user = req.user?.user;
+      if (!user) return res.status(401).json({ message: "Not authenticated" });
+
+      const canWatch = await storage.canWatchExtraAd(user.id);
+      if (!canWatch) {
+        return res.status(429).json({ message: "Daily extra earn limit reached (100 ads/day)" });
+      }
+
+      await storage.incrementExtraAdsWatched(user.id);
+      const rewardAmount = "2";
+      await storage.addEarning({
+        userId: user.id,
+        amount: rewardAmount,
+        source: "extra_earn",
+        description: "Extra earn ad reward",
+      });
+
+      const updatedUser = await storage.getUser(user.id);
+      res.json({
+        success: true,
+        newBalance: updatedUser?.balance,
+        extraAdsWatchedToday: updatedUser?.extraAdsWatchedToday,
+        rewardPAD: rewardAmount,
+      });
+    } catch (error) {
+      console.error("Extra earn ad reward error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Simple test route to verify routing works
   app.get('/api/test', (req: any, res) => {
     console.log('✅ Test route called!');
@@ -394,14 +426,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isDevMode = process.env.NODE_ENV === 'development';
       const channelConfig = getChannelConfig();
       
-      // In dev mode, return not verified to test popup
+      // In dev mode, skip verification to allow easy testing
       if (isDevMode) {
-        console.log('🔧 Development mode: Testing channel join popup');
+        console.log('🔧 Development mode: Skipping channel join check');
         return res.json({
           success: true,
-          isVerified: false,
-          channelMember: false,
-          groupMember: false,
+          isVerified: true,
+          channelMember: true,
+          groupMember: true,
           channelUrl: channelConfig.channelUrl,
           groupUrl: channelConfig.groupUrl,
           channelName: channelConfig.channelName,
@@ -523,15 +555,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const telegramId = sessionUser?.telegram_id;
       const isDevMode = process.env.NODE_ENV === 'development';
       
-      // In development mode, return not verified to test popup
+      // In development mode, skip verification to allow easy testing
       if (isDevMode) {
-        console.log('🔧 Development mode: Testing channel join popup');
+        console.log('🔧 Development mode: Skipping channel join check');
         const channelConfig = getChannelConfig();
         return res.json({
           success: true,
-          isVerified: false,
-          channelMember: false,
-          groupMember: false,
+          isVerified: true,
+          channelMember: true,
+          groupMember: true,
           channelUrl: channelConfig.channelUrl,
           groupUrl: channelConfig.groupUrl,
           channelName: channelConfig.channelName,
