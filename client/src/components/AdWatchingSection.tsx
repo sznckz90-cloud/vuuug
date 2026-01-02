@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Play, Clock, Shield } from "lucide-react";
 import { showNotification } from "@/components/AppNotification";
+import { useLocation } from "wouter";
 
 declare global {
   interface Window {
@@ -18,10 +19,12 @@ declare global {
 
 interface AdWatchingSectionProps {
   user: any;
+  onStartEarning: () => void;
 }
 
-export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
+export default function AdWatchingSection({ user, onStartEarning }: AdWatchingSectionProps) {
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [isShowingAds, setIsShowingAds] = useState(false);
   const [currentAdStep, setCurrentAdStep] = useState<'idle' | 'monetag' | 'adsgram' | 'verifying'>('idle');
   const sessionRewardedRef = useRef(false);
@@ -111,69 +114,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
   };
 
   const handleStartEarning = async () => {
-    if (isShowingAds) return;
-    
-    setIsShowingAds(true);
-    sessionRewardedRef.current = false;
-    
-    try {
-      // STEP 1: Show Monetag ad - User must watch at least 3 seconds
-      setCurrentAdStep('monetag');
-      const monetagResult = await showMonetagAd();
-      
-      // Handle Monetag unavailable
-      if (monetagResult.unavailable) {
-        showNotification("Ads not available. Please try again later.", "error");
-        return;
-      }
-      
-      // Check if Monetag was closed before 3 seconds
-      if (!monetagResult.watchedFully) {
-        showNotification("Claimed too fast!", "error");
-        return;
-      }
-      
-      // Monetag was watched fully (at least 3 seconds)
-      if (!monetagResult.success) {
-        showNotification("Ad failed. Please try again.", "error");
-        return;
-      }
-      
-      // Small delay between ads
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // STEP 2: Show AdGram ad
-      setCurrentAdStep('adsgram');
-      const adsgramSuccess = await showAdsgramAd();
-      
-      // Both ads must be watched to get reward
-      if (!adsgramSuccess) {
-        showNotification("Please complete both ads to earn rewards.", "error");
-        return;
-      }
-      
-      // STEP 3: Grant reward after both ads complete successfully
-      setCurrentAdStep('verifying');
-      
-      if (!sessionRewardedRef.current) {
-        sessionRewardedRef.current = true;
-        
-        // Optimistic UI update - only ONE increment to progress
-        const rewardAmount = appSettings?.rewardPerAd || 2;
-        queryClient.setQueryData(["/api/auth/user"], (old: any) => ({
-          ...old,
-          balance: String(parseFloat(old?.balance || '0') + rewardAmount),
-          adsWatchedToday: (old?.adsWatchedToday || 0) + 1
-        }));
-        
-        // Sync with backend - single reward call
-        watchAdMutation.mutate('monetag+adsgram');
-      }
-    } finally {
-      // Always reset state on completion or error
-      setCurrentAdStep('idle');
-      setIsShowingAds(false);
-    }
+    onStartEarning();
   };
 
   const adsWatchedToday = user?.adsWatchedToday || 0;
