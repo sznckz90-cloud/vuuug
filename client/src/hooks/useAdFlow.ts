@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from 'react';
 declare global {
   interface Window {
     show_10401872: (type?: string | { type: string; inAppSettings: any }) => Promise<void>;
+    showGiga: () => Promise<void>;
   }
 }
 
@@ -29,6 +30,28 @@ export function useAdFlow() {
           .catch((error) => {
             console.error('Monetag ad error:', error);
             const watchDuration = Date.now() - monetagStartTimeRef.current;
+            const watchedAtLeast3Seconds = watchDuration >= 3000;
+            resolve({ success: false, watchedFully: watchedAtLeast3Seconds, unavailable: false });
+          });
+      } else {
+        resolve({ success: false, watchedFully: false, unavailable: true });
+      }
+    });
+  }, []);
+
+  const showGigaAd = useCallback((): Promise<{ success: boolean; watchedFully: boolean; unavailable: boolean }> => {
+    return new Promise((resolve) => {
+      if (typeof window.showGiga === 'function') {
+        const startTime = Date.now();
+        window.showGiga()
+          .then(() => {
+            const watchDuration = Date.now() - startTime;
+            const watchedAtLeast3Seconds = watchDuration >= 3000;
+            resolve({ success: true, watchedFully: watchedAtLeast3Seconds, unavailable: false });
+          })
+          .catch((error) => {
+            console.error('GigaHub ad error:', error);
+            const watchDuration = Date.now() - startTime;
             const watchedAtLeast3Seconds = watchDuration >= 3000;
             resolve({ success: false, watchedFully: watchedAtLeast3Seconds, unavailable: false });
           });
@@ -72,5 +95,6 @@ export function useAdFlow() {
     adStep,
     runAdFlow,
     showMonetagAd,
+    showGigaAd,
   };
 }
