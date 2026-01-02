@@ -79,6 +79,8 @@ export const users = pgTable("users", {
   taskChannelCompletedToday: boolean("task_channel_completed_today").default(false),
   taskCommunityCompletedToday: boolean("task_community_completed_today").default(false),
   taskCheckinCompletedToday: boolean("task_checkin_completed_today").default(false),
+  extraAdsWatchedToday: integer("extra_ads_watched_today").default(0),
+  lastExtraAdDate: timestamp("last_extra_ad_date"),
   // Wallet details
   tonWalletAddress: text("ton_wallet_address"),
   tonWalletComment: text("ton_wallet_comment"),
