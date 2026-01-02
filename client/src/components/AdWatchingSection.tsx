@@ -139,8 +139,20 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         return;
       }
       
-      // STEP 2: Grant reward after Monetag ad completes successfully
-      // (AdsGram section removed temporarily)
+      // Small delay between ads
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // STEP 2: Show AdGram ad
+      setCurrentAdStep('adsgram');
+      const adsgramSuccess = await showAdsgramAd();
+      
+      // Both ads must be watched to get reward
+      if (!adsgramSuccess) {
+        showNotification("Please complete both ads to earn rewards.", "error");
+        return;
+      }
+      
+      // STEP 3: Grant reward after both ads complete successfully
       setCurrentAdStep('verifying');
       
       if (!sessionRewardedRef.current) {
@@ -155,7 +167,7 @@ export default function AdWatchingSection({ user }: AdWatchingSectionProps) {
         }));
         
         // Sync with backend - single reward call
-        watchAdMutation.mutate('monetag');
+        watchAdMutation.mutate('monetag+adsgram');
       }
     } finally {
       // Always reset state on completion or error
