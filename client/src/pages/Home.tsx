@@ -7,7 +7,7 @@ import React from "react";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAdFlow } from "@/hooks/useAdFlow";
 import { useLocation } from "wouter";
-import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus, CalendarCheck, Bell } from "lucide-react";
+import { Award, Wallet, RefreshCw, Flame, Ticket, Clock, Loader2, Gift, Rocket, X, Bug, DollarSign, Coins, Send, Users, Check, ExternalLink, Plus, CalendarCheck, Bell, Film, Tv, Target, Star } from "lucide-react";
 import { DiamondIcon } from "@/components/DiamondIcon";
 import { Button } from "@/components/ui/button";
 import { showNotification } from "@/components/AppNotification";
@@ -68,6 +68,7 @@ export default function Home() {
   const [timeUntilNextClaim, setTimeUntilNextClaim] = useState<string>("");
   
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
+  const [adListPopupOpen, setAdListPopupOpen] = useState(false);
   const [convertPopupOpen, setConvertPopupOpen] = useState(false);
   const [boosterPopupOpen, setBoosterPopupOpen] = useState(false);
   const [selectedConvertType, setSelectedConvertType] = useState<'USD' | 'TON' | 'BUG'>('USD');
@@ -374,6 +375,91 @@ export default function Home() {
   const handleConvertClick = () => {
     setConvertPopupOpen(true);
   };
+
+  const handleWatchAd = async (providerId: string) => {
+    if (isTaskPending) return;
+    
+    const startTime = Date.now();
+    
+    const handleAdCompletion = () => {
+      const watchDuration = Date.now() - startTime;
+      if (watchDuration < 3000) {
+        showNotification("Claimed too fast!", "error");
+        return;
+      }
+      advertiserTaskMutation.mutate(providerId);
+    };
+
+    const handleAdError = (error?: any) => {
+      showNotification("Ad failed to load. Please try again.", "error");
+    };
+    
+    try {
+      switch (providerId) {
+        case 'monetag':
+          if (typeof window.show_10401872 === 'function') {
+            window.show_10401872()
+              .then(() => handleAdCompletion())
+              .catch((error) => handleAdError(error));
+          } else {
+            showNotification("Monetag not available. Try again later.", "error");
+          }
+          break;
+        case 'adsgram':
+          if (window.Adsgram) {
+            try {
+              await window.Adsgram.init({ blockId: "int-18225" }).show();
+              handleAdCompletion();
+            } catch (error) {
+              handleAdError(error);
+            }
+          } else {
+            showNotification("Adsgram not available. Try again later.", "error");
+          }
+          break;
+        case 'gigahub':
+          if (typeof window.showGiga === 'function') {
+            window.showGiga()
+              .then(() => handleAdCompletion())
+              .catch((error) => handleAdError(error));
+          } else {
+            showNotification("GigaHub not available. Try again later.", "error");
+          }
+          break;
+        default:
+          showNotification("Provider integration coming soon", "info");
+      }
+    } catch (error) {
+      handleAdError(error);
+    }
+  };
+
+  const adProviders = [
+    {
+      id: "monetag",
+      name: "Monetag Ads",
+      description: "Watch video ads to earn rewards",
+      expectedReward: "500-1000 PAD",
+      icon: <Film className="w-5 h-5 text-purple-400" />,
+      iconBg: "bg-purple-500/20"
+    },
+    {
+      id: "adsgram",
+      name: "Adsgram",
+      description: "Interactive ad experiences",
+      expectedReward: "300-800 PAD",
+      icon: <Tv className="w-5 h-5 text-blue-400" />,
+      iconBg: "bg-blue-500/20"
+    },
+    {
+      id: "gigahub",
+      name: "GigaHub",
+      description: "High reward video ads",
+      expectedReward: "600-1200 PAD",
+      icon: <Rocket className="w-5 h-5 text-orange-400" />,
+      iconBg: "bg-orange-500/20"
+    }
+  ];
 
   const handleConvertConfirm = async () => {
     const amount = parseFloat(convertAmount);
@@ -734,6 +820,61 @@ export default function Home() {
 
   return (
     <Layout>
+      {/* Ad List Popup */}
+      {adListPopupOpen && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] px-4">
+          <div className="bg-[#0d0d0d] rounded-2xl w-full max-w-sm border border-[#1a1a1a] overflow-hidden relative">
+            <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
+              <div>
+                <h2 className="text-white text-lg font-bold">Ad Providers</h2>
+                <p className="text-gray-400 text-xs">
+                  Watched: {user?.adsWatchedToday || 0}/{appSettings?.dailyAdLimit || 50}
+                </p>
+              </div>
+              <button 
+                onClick={() => setAdListPopupOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {adProviders.map((provider) => (
+                <div key={provider.id} className="bg-[#1a1a1a] border border-white/10 rounded-xl p-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`w-10 h-10 rounded-lg ${provider.iconBg} flex items-center justify-center flex-shrink-0`}>
+                      {provider.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-bold text-white leading-tight">{provider.name}</h3>
+                      <p className="text-[10px] text-gray-400 leading-tight line-clamp-1">{provider.description}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Gift className="w-3 h-3 text-[#4cd3ff]" />
+                        <span className="text-[10px] font-semibold text-[#4cd3ff]">{provider.expectedReward}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handleWatchAd(provider.id)}
+                    disabled={isTaskPending || (user?.adsWatchedToday || 0) >= (appSettings?.dailyAdLimit || 50)}
+                    className="bg-[#4cd3ff] hover:bg-[#6ddeff] text-black font-bold h-8 px-4 rounded-full text-xs"
+                    size="sm"
+                  >
+                    Start
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 bg-white/5 border-t border-white/5">
+              <p className="text-[10px] text-gray-500 text-center">
+                Watch ads to earn PAD rewards. Complete viewing to receive your reward.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <main className="max-w-md mx-auto px-4 pt-[14px]">
         <div className="flex flex-col items-center mb-3">
           {photoUrl ? (
@@ -827,7 +968,7 @@ export default function Home() {
         </div>
 
         <div className="mt-3">
-          <AdWatchingSection user={user as User} />
+          <AdWatchingSection user={user as User} onStartEarning={() => setAdListPopupOpen(true)} />
         </div>
 
         <div className="mt-3 px-0">
