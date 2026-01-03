@@ -137,6 +137,15 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUserVerificationStatus(userId: string, isVerified: boolean): Promise<void> {
+    await db.update(users)
+      .set({ 
+        isChannelGroupVerified: isVerified,
+        lastMembershipCheck: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
   async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
     try {
       // Use raw SQL to avoid Drizzle ORM issues

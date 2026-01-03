@@ -511,6 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 2. CHANNEL/GROUP JOIN CHECK
+      // MANDATORY: ALWAYS check membership in both channel and group
       const [channelMember, groupMember] = await Promise.all([
         verifyChannelMembership(userId, channelConfig.channelId, botToken),
         verifyChannelMembership(userId, channelConfig.groupId, botToken)
@@ -519,6 +520,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isVerified = channelMember && groupMember;
       
       console.log(`🔍 check-membership for ${telegramId}: channel=${channelMember}, group=${groupMember}, verified=${isVerified}`);
+      
+      // Update user status in database to match current membership state
+      if (user) {
+        await storage.updateUserVerificationStatus(user.id, isVerified);
+      }
       
       res.json({
         success: true,
@@ -2245,7 +2251,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // ALWAYS verify membership - no exceptions, no dev mode skipping
+      // ALWAYS verify membership - no exceptions
+      // verifyChannelMembership handles the actual Telegram API check
       const isMember = await verifyChannelMembership(
         parseInt(telegramUserId), 
         config.telegram.channelId,
@@ -2253,7 +2260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!isMember) {
-        console.log(`❌ User ${telegramUserId} tried to claim channel task but is not a member`);
+        console.log(`❌ User ${telegramUserId} tried to claim channel task but is not a member (verified via API)`);
         return res.status(403).json({
           success: false,
           message: `Please join the Telegram channel ${config.telegram.channelUrl || config.telegram.channelId} first to complete this task`,
@@ -2339,7 +2346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // ALWAYS verify membership - no exceptions, no dev mode skipping
+      // ALWAYS verify membership - no exceptions
       const isMember = await verifyChannelMembership(
         parseInt(telegramUserId), 
         config.telegram.groupId,
@@ -2347,7 +2354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!isMember) {
-        console.log(`❌ User ${telegramUserId} tried to claim community task but is not a member`);
+        console.log(`❌ User ${telegramUserId} tried to claim community task but is not a member (verified via API)`);
         return res.status(403).json({
           success: false,
           message: `Please join the Telegram group ${config.telegram.groupUrl || config.telegram.groupId} first to complete this task`,
