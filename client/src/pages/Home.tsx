@@ -405,21 +405,12 @@ export default function Home() {
     console.log('💱 Convert started, showing AdsGram ad first...');
     
     try {
-      // Show AdsGram int-20373 first
-      const adsgramSuccess = await showAdsgramAd();
-      
-      if (!adsgramSuccess) {
-        showNotification("Please watch the ad to convert.", "error");
-        setIsConverting(false);
-        return;
-      }
-      
       // Then show Monetag rewarded ad
-      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
+      console.log('🎬 Proceeding with Monetag rewarded...');
       const monetagResult = await showMonetagRewardedAd();
       
       if (monetagResult.unavailable) {
-        // If Monetag unavailable, proceed with just AdsGram
+        // If Monetag unavailable, proceed
         console.log('⚠️ Monetag unavailable, proceeding with convert');
         convertMutation.mutate({ amount, convertTo: selectedConvertType });
         return;
@@ -431,7 +422,7 @@ export default function Home() {
         return;
       }
       
-      console.log('✅ Both ads watched, converting');
+      console.log('✅ Ad watched, converting');
       convertMutation.mutate({ amount, convertTo: selectedConvertType });
       
     } catch (error) {
@@ -448,20 +439,11 @@ export default function Home() {
     setIsClaimingStreak(true);
     
     try {
-      // Show AdsGram int-20373 first
-      const adsgramSuccess = await showAdsgramAd();
-      
-      if (!adsgramSuccess) {
-        showNotification("Please watch the ad completely to claim your bonus.", "error");
-        setIsClaimingStreak(false);
-        return;
-      }
-      
       // Then show Monetag rewarded ad
       const monetagResult = await showMonetagRewardedAd();
       
       if (monetagResult.unavailable) {
-        // If Monetag unavailable, proceed with just AdsGram
+        // If Monetag unavailable, proceed
         claimStreakMutation.mutate();
         return;
       }
@@ -492,21 +474,12 @@ export default function Home() {
     console.log('🎫 Promo code claim started, showing AdsGram ad first...');
     
     try {
-      // Show AdsGram int-20373 first
-      const adsgramSuccess = await showAdsgramAd();
-      
-      if (!adsgramSuccess) {
-        showNotification("Please watch the ad to claim your promo code.", "error");
-        setIsApplyingPromo(false);
-        return;
-      }
-      
       // Then show Monetag rewarded ad
-      console.log('🎬 AdsGram complete, showing Monetag rewarded...');
+      console.log('🎬 Proceeding with Monetag rewarded...');
       const monetagResult = await showMonetagRewardedAd();
       
       if (monetagResult.unavailable) {
-        // If Monetag unavailable, proceed with just AdsGram
+        // If Monetag unavailable, proceed
         console.log('⚠️ Monetag unavailable, proceeding with promo claim');
         redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
         return;
@@ -518,7 +491,7 @@ export default function Home() {
         return;
       }
       
-      console.log('✅ Both ads watched, claiming promo code');
+      console.log('✅ Ad watched, claiming promo code');
       redeemPromoMutation.mutate(promoCode.trim().toUpperCase());
     } catch (error) {
       console.error('Promo claim error:', error);
@@ -892,7 +865,7 @@ export default function Home() {
                   <div className="flex items-center gap-3 mt-2">
                     <div className="flex items-center gap-1.5">
                       <DiamondIcon size={12} />
-                      <span className="text-xs font-semibold text-[#4cd3ff]">2 PAD</span>
+                      <span className="text-xs font-semibold text-[#4cd3ff]">{appSettings?.rewardPerAd || '2'} PAD</span>
                     </div>
                   </div>
                 </div>
@@ -1031,7 +1004,7 @@ export default function Home() {
                     <p className="text-white text-sm font-medium truncate">Share with Friends</p>
                   </div>
                   <div className="text-xs text-gray-400 ml-6">
-                    <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                    <p>Reward: <span className="text-white font-medium">{appSettings?.referralRewardPAD || '5'} PAD</span></p>
                   </div>
                 </div>
                 <div className="ml-3 flex-shrink-0">
@@ -1066,7 +1039,7 @@ export default function Home() {
                     <p className="text-white text-sm font-medium truncate">Daily Check-in</p>
                   </div>
                   <div className="text-xs text-gray-400 ml-6">
-                    <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                    <p>Reward: <span className="text-white font-medium">{appSettings?.dailyCheckinReward || '5'} PAD</span></p>
                   </div>
                 </div>
                 <div className="ml-3 flex-shrink-0">
@@ -1107,7 +1080,7 @@ export default function Home() {
                     <p className="text-white text-sm font-medium truncate">Check for Updates</p>
                   </div>
                   <div className="text-xs text-gray-400 ml-6">
-                    <p>Reward: <span className="text-white font-medium">5 PAD</span></p>
+                    <p>Reward: <span className="text-white font-medium">{appSettings?.checkForUpdatesReward || '5'} PAD</span></p>
                   </div>
                 </div>
                 <div className="ml-3 flex-shrink-0">
