@@ -283,11 +283,69 @@ export async function sendUserTelegramNotification(userId: string, message: stri
 
 // Escape HTML special characters to prevent Telegram parsing errors
 function escapeHtml(text: string): string {
+  if (!text) return '';
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+export async function sendWithdrawalApprovedNotification(withdrawal: any): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('❌ Telegram bot token not configured for withdrawal approval notification');
+    return false;
+  }
+
+  try {
+    const PAIDADZ_GROUP_CHAT_ID = '-1003402950172';
+    const user = await storage.getUser(withdrawal.userId);
+    
+    const withdrawalDetails = withdrawal.details as any;
+    const netAmount = parseFloat(withdrawalDetails?.netAmount || withdrawal.amount);
+    const feeAmount = parseFloat(withdrawalDetails?.fee || '0');
+    const feePercent = withdrawalDetails?.feePercent || '0';
+    const walletAddress = withdrawalDetails?.paymentDetails || withdrawalDetails?.walletAddress || 'N/A';
+    
+    const userName = user?.firstName || user?.username || 'Unknown';
+    const userTelegramId = user?.telegram_id || '';
+    const userTelegramUsername = user?.username ? `@${user.username}` : 'N/A';
+    const currentDate = new Date().toUTCString();
+
+    const groupMessage = `✅ Withdrawal Approved
+    
+🗣 User: <a href="tg://user?id=${userTelegramId}">${escapeHtml(userName)}</a>
+🆔 User ID: ${userTelegramId}
+💳 Username: ${userTelegramUsername}
+🌐 Address:
+<code>${walletAddress}</code>
+💸 Amount: ${netAmount.toFixed(5)} USD
+🛂 Fee: ${feeAmount.toFixed(5)} (${feePercent}%)
+📅 Date: ${currentDate}
+🤖 Bot: @MoneyAdzbot`;
+
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: PAIDADZ_GROUP_CHAT_ID,
+        text: groupMessage,
+        parse_mode: 'HTML'
+      })
+    });
+
+    if (response.ok) {
+      console.log('✅ Group notification for withdrawal approval sent successfully');
+      return true;
+    } else {
+      const errorData = await response.text();
+      console.error('❌ Failed to send group notification for withdrawal approval:', errorData);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error sending withdrawal approval group notification:', error);
+    return false;
+  }
 }
 
 // Send notification to referrer when referred user watches their first ad

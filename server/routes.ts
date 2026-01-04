@@ -341,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const canWatch = await storage.canWatchExtraAd(user.id);
       if (!canWatch) {
-        return res.status(429).json({ message: "Daily extra earn limit reached (100 ads/day)" });
+        return res.status(429).json({ message: "Daily extra earn limit reached (250 ads/day)" });
       }
 
       await storage.incrementExtraAdsWatched(user.id);

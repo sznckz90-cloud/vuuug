@@ -1540,6 +1540,14 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`✅ Withdrawal #${withdrawalId} approved with balance deduction — ${currency} balance updated ✅`);
       
+      // Send group notification for approval
+      try {
+        const { sendWithdrawalApprovedNotification } = require('./telegram');
+        await sendWithdrawalApprovedNotification(updatedWithdrawal);
+      } catch (notifyError) {
+        console.error('⚠️ Failed to send withdrawal approval notification:', notifyError);
+      }
+      
       return { success: true, message: 'Withdrawal approved and processed', withdrawal: updatedWithdrawal };
     } catch (error) {
       console.error('Error approving withdrawal:', error);
