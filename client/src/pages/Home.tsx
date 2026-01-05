@@ -272,6 +272,8 @@ export default function Home() {
     },
   });
 
+  const [clickedTasks, setClickedTasks] = useState<Set<string>>(new Set());
+
   const advertiserTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
       const res = await fetch(`/api/advertiser-tasks/${taskId}/click`, {
@@ -280,31 +282,73 @@ export default function Home() {
         credentials: 'include',
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to complete task');
+      if (!data.success) throw new Error(data.message || 'Failed to start task');
+      return data;
+    },
+    onSuccess: async (data, taskId) => {
+      setClickedTasks(prev => new Set(prev).add(taskId));
+      showNotification("Task started! Click the claim button to earn your reward.", "info");
+    },
+    onError: (error: any) => {
+      showNotification(error.message || 'Failed to start task', 'error');
+    },
+  });
+
+  const claimAdvertiserTaskMutation = useMutation({
+    mutationFn: async ({ taskId, taskType, link }: { taskId: string, taskType: string, link: string | null }) => {
+      // Step 1: Real-time verification for channel tasks
+      if (taskType === 'channel' && link) {
+        const username = link.replace('https://t.me/', '').split('?')[0];
+        const currentTelegramData = getTelegramInitData();
+        
+        const resVerify = await fetch('/api/tasks/verify/channel', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-telegram-data': currentTelegramData || ''
+          },
+          body: JSON.stringify({ channelId: `@${username}` }),
+          credentials: 'include',
+        });
+        
+        const verifyData = await resVerify.json();
+        if (!resVerify.ok || !verifyData.isJoined) {
+          throw new Error('Please join the channel to complete this task.');
+        }
+      }
+
+      // Step 2: Claim reward
+      const res = await fetch(`/api/advertiser-tasks/${taskId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to claim reward');
       return data;
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       await queryClient.refetchQueries({ queryKey: ['/api/tasks/home/unified'] });
       const padReward = Number(data.reward ?? 0);
-      const bugReward = Number(data.bugReward ?? 0);
-      if (bugReward > 0) {
-        showNotification(`+${padReward.toLocaleString()} PAD, +${bugReward} BUG`, 'success');
-      } else {
-        showNotification(`+${padReward.toLocaleString()} PAD`, 'success');
-      }
+      showNotification(`+${padReward.toLocaleString()} PAD earned!`, 'success');
     },
     onError: (error: any) => {
-      showNotification(error.message || 'Failed to complete task', 'error');
+      showNotification(error.message || 'Failed to claim reward', 'error');
     },
   });
 
   const handleUnifiedTask = (task: UnifiedTask) => {
     if (!task) return;
     
+    if (clickedTasks.has(task.id)) {
+      claimAdvertiserTaskMutation.mutate({ taskId: task.id, taskType: task.taskType, link: task.link });
+      return;
+    }
+
     if (task.link) {
       window.open(task.link, '_blank');
-      setTimeout(() => advertiserTaskMutation.mutate(task.id), 2000);
+      advertiserTaskMutation.mutate(task.id);
     } else {
       advertiserTaskMutation.mutate(task.id);
     }
@@ -461,6 +505,15 @@ export default function Home() {
       setIsClaimingStreak(false);
     }
   };
+
+  useEffect(() => {
+    if (checkForUpdatesStep === 'countdown' && checkForUpdatesCountdown > 0) {
+      const timer = setTimeout(() => setCheckForUpdatesCountdown(prev => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (checkForUpdatesStep === 'countdown' && checkForUpdatesCountdown === 0) {
+      setCheckForUpdatesStep('ready');
+    }
+  }, [checkForUpdatesStep, checkForUpdatesCountdown]);
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) {
@@ -639,6 +692,20 @@ export default function Home() {
 
   const checkForUpdatesMutation = useMutation({
     mutationFn: async () => {
+      // Step 1: Real-time verification via Telegram Bot API
+      const resVerify = await fetch('/api/tasks/verify/channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId: '@MoneyAdz' }),
+        credentials: 'include',
+      });
+      
+      const verifyData = await resVerify.json();
+      if (!resVerify.ok || !verifyData.isJoined) {
+        throw new Error('Please join the channel to complete this task.');
+      }
+
+      // Step 2: Claim reward if verified
       const response = await fetch('/api/missions/check-for-updates/claim', {
         method: 'POST',
         credentials: 'include',
@@ -949,11 +1016,13 @@ export default function Home() {
                         </div>
                         <Button
                           onClick={() => handleUnifiedTask(task)}
-                          disabled={isTaskPending || completedTasks.has(task.id)}
+                          disabled={isTaskPending || claimAdvertiserTaskMutation.isPending || completedTasks.has(task.id)}
                           className={`h-8 px-4 text-xs font-bold rounded-lg transition-all ${
                             completedTasks.has(task.id)
                               ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                              : "bg-green-400 hover:bg-green-300 text-black"
+                              : clickedTasks.has(task.id)
+                                ? "bg-blue-500 text-white"
+                                : "bg-green-400 hover:bg-green-300 text-black"
                           }`}
                         >
                           {completedTasks.has(task.id) ? (
@@ -961,8 +1030,10 @@ export default function Home() {
                               <Check className="w-3 h-3" />
                               <span>Done</span>
                             </div>
-                          ) : isTaskPending ? (
+                          ) : (isTaskPending || claimAdvertiserTaskMutation.isPending) ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : clickedTasks.has(task.id) ? (
+                            "Claim"
                           ) : (
                             "Start"
                           )}
@@ -1094,26 +1165,26 @@ export default function Home() {
                       disabled={checkForUpdatesMutation.isPending}
                       className="h-8 w-20 text-xs font-bold rounded-lg bg-green-500 hover:bg-green-600 text-white"
                     >
-                      {checkForUpdatesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                      {checkForUpdatesMutation.isPending || checkForUpdatesStep === 'claiming' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                    </Button>
+                  ) : checkForUpdatesStep === 'opened' || checkForUpdatesStep === 'countdown' ? (
+                    <Button
+                      disabled={true}
+                      className="h-8 w-20 text-xs font-bold rounded-lg bg-blue-500/50 text-white"
+                    >
+                      {checkForUpdatesStep === 'countdown' ? `${checkForUpdatesCountdown}s` : <Loader2 className="w-3 h-3 animate-spin" />}
                     </Button>
                   ) : (
                     <Button
                       onClick={handleCheckForUpdates}
-                      className="h-8 w-16 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white"
+                      className="h-8 w-16 text-xs font-bold rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
                     >
-                      Check
+                      Go
                     </Button>
                   )}
                 </div>
               </div>
             </div>
-
-            <Button
-              onClick={() => setBoosterPopupOpen(false)}
-              className="w-full mt-6 h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white font-semibold rounded-xl border border-[#2a2a2a]"
-            >
-              Close
-            </Button>
           </div>
         </div>
       )}
