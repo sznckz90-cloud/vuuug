@@ -919,7 +919,6 @@ export default function Home() {
           <AdWatchingSection user={user as User} />
         </div>
 
-        {/* Extra Earn Section */}
         <div className="mt-3 px-0">
           <div className="bg-[#0d0d0d] rounded-xl border border-[#1a1a1a] p-3 mb-3">
             <div className="flex items-center justify-between gap-3">
@@ -1058,6 +1057,7 @@ export default function Home() {
           </div>
         </div>
       </main>
+
 
       {boosterPopupOpen && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
