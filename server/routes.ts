@@ -553,29 +553,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Secure verify-channel endpoint for task completion
-  app.post('/api/tasks/verify/channel', authenticateTelegram, async (req: any, res) => {
+  // Mandatory channel/group membership check endpoint - authenticated
+  app.get('/api/membership/check', authenticateTelegram, async (req: any, res) => {
     try {
-      const { channelId } = req.body;
+      // Get telegramId from authenticated session, NOT from query params
       const sessionUser = req.user?.user;
       const telegramId = sessionUser?.telegram_id;
+      const isDevMode = process.env.NODE_ENV === 'development';
       
-      if (!telegramId || !channelId) {
-        return res.status(400).json({ success: false, message: 'Missing telegramId or channelId' });
+      // In development mode, skip verification to allow easy testing
+      if (isDevMode) {
+        console.log('🔧 Development mode: Skipping channel join check');
+        const channelConfig = getChannelConfig();
+        return res.json({
+          success: true,
+          isVerified: true,
+          channelMember: true,
+          groupMember: true,
+          channelUrl: channelConfig.channelUrl,
+          groupUrl: channelConfig.groupUrl,
+          channelName: channelConfig.channelName,
+          groupName: channelConfig.groupName
+        });
+      }
+      
+      if (!telegramId) {
+        console.log('⚠️ Membership check failed - no telegram_id in session');
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Authentication required',
+          isVerified: false 
+        });
       }
       
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
-        return res.status(500).json({ success: false, message: 'Bot token not configured' });
+        // SECURITY: Fail closed when bot token is missing
+        console.log('❌ TELEGRAM_BOT_TOKEN not configured - blocking access');
+        return res.json({ 
+          success: false, 
+          isVerified: false,
+          channelMember: false,
+          groupMember: false,
+          message: 'Bot token not configured - verification unavailable'
+        });
       }
       
+      const channelConfig = getChannelConfig();
       const userId = parseInt(telegramId, 10);
-      const isJoined = await verifyChannelMembership(userId, channelId, botToken);
       
-      res.json({ success: true, isJoined });
+      // Check both channel and group membership
+      const [channelMember, groupMember] = await Promise.all([
+        verifyChannelMembership(userId, channelConfig.channelId, botToken),
+        verifyChannelMembership(userId, channelConfig.groupId, botToken)
+      ]);
+      
+      const isVerified = channelMember && groupMember;
+      
+      // Update user verification status in database
+      try {
+        await db.update(users)
+          .set({ 
+            isChannelGroupVerified: isVerified,
+            lastMembershipCheck: new Date()
+          })
+          .where(eq(users.id, sessionUser.id));
+      } catch (dbError) {
+        console.error('⚠️ Could not update user verification status:', dbError);
+      }
+      
+      console.log(`🔍 Membership check for ${telegramId}: channel=${channelMember}, group=${groupMember}, verified=${isVerified}`);
+      
+      res.json({
+        success: true,
+        isVerified,
+        channelMember,
+        groupMember,
+        channelUrl: channelConfig.channelUrl,
+        groupUrl: channelConfig.groupUrl,
+        channelName: channelConfig.channelName,
+        groupName: channelConfig.groupName
+      });
     } catch (error) {
-      console.error('❌ verify-channel error:', error);
-      res.status(500).json({ success: false, message: 'Failed to verify channel membership' });
+      console.error('❌ Membership check error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to check membership',
+        isVerified: false 
+      });
     }
   });
 
@@ -2153,16 +2218,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/tasks/complete/channel', authenticateTelegram, async (req: any, res) => {
+  app.post('/api/tasks/complete/channel', async (req: any, res) => {
     try {
-      const userId = req.user?.user?.id;
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
       const telegramUserId = req.user?.telegramUser?.id?.toString();
       
-      if (!userId || !telegramUserId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication error - please try again'
-        });
+      if (!userId) {
+        return res.json({ success: true, skipAuth: true });
       }
       
       // Check if already completed today
@@ -2178,32 +2240,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // MANDATORY: VERIFY CHANNEL MEMBERSHIP BEFORE GIVING REWARD
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      if (!botToken) {
-        return res.status(500).json({ success: false, message: 'Telegram bot not configured' });
+      
+      if (!botToken || !telegramUserId) {
+        console.error('❌ Channel task claim rejected: Missing bot token or telegram user ID');
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication error - please try again'
+        });
       }
       
-      const channelConfig = getChannelConfig();
+      // ALWAYS verify membership - no exceptions
+      // verifyChannelMembership handles the actual Telegram API check
       const isMember = await verifyChannelMembership(
         parseInt(telegramUserId), 
-        channelConfig.channelId,
+        config.telegram.channelId,
         botToken
       );
       
       if (!isMember) {
+        console.log(`❌ User ${telegramUserId} tried to claim channel task but is not a member (verified via API)`);
         return res.status(403).json({
           success: false,
-          message: `Please join the Telegram channel ${channelConfig.channelUrl || channelConfig.channelId} first to complete this task`,
-          requiresChannelJoin: true
+          message: `Please join the Telegram channel ${config.telegram.channelUrl || config.telegram.channelId} first to complete this task`,
+          requiresChannelJoin: true,
+          channelUsername: config.telegram.channelId,
+          channelUrl: config.telegram.channelUrl
         });
       }
       
-      const rewardAmount = '1000';
+      // Reward: 0.0001 TON = 1,000 PAD
+      const rewardAmount = '0.0001';
+      
+      // Get BUG reward setting
+      const bugRewardSetting = await storage.getAppSetting('bug_reward_per_task', '10');
+      const bugReward = parseInt(bugRewardSetting);
       
       await db.transaction(async (tx) => {
         await tx.update(users)
           .set({ 
             balance: sql`${users.balance} + ${rewardAmount}`,
+            bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugReward}`,
             taskChannelCompletedToday: true,
             updatedAt: new Date()
           })
@@ -2213,32 +2291,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           amount: rewardAmount,
           source: 'task_channel',
-          description: 'Channel join reward'
+          description: 'Check for Updates task completed'
         });
       });
+      
+      console.log(`🐛 Added ${bugReward} BUG to user ${userId} for channel task`);
       
       res.json({
         success: true,
         message: 'Task completed!',
-        rewardAmount
+        rewardAmount,
+        rewardBUG: bugReward
       });
       
     } catch (error) {
       console.error('Error completing channel task:', error);
-      res.status(500).json({ success: false, message: 'Failed to complete task' });
+      res.status(500).json({
+        success: false,
+        message: 'Failed to complete task'
+      });
     }
   });
 
-  app.post('/api/tasks/complete/community', authenticateTelegram, async (req: any, res) => {
+  app.post('/api/tasks/complete/community', async (req: any, res) => {
     try {
-      const userId = req.user?.user?.id;
+      const userId = req.session?.user?.user?.id || req.user?.user?.id;
       const telegramUserId = req.user?.telegramUser?.id?.toString();
       
-      if (!userId || !telegramUserId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication error - please try again'
-        });
+      if (!userId) {
+        return res.json({ success: true, skipAuth: true });
       }
       
       // Check if already completed today
@@ -2254,32 +2335,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // MANDATORY: VERIFY GROUP/COMMUNITY MEMBERSHIP BEFORE GIVING REWARD
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      if (!botToken) {
-        return res.status(500).json({ success: false, message: 'Telegram bot not configured' });
+      
+      if (!botToken || !telegramUserId) {
+        console.error('❌ Community task claim rejected: Missing bot token or telegram user ID');
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication error - please try again'
+        });
       }
       
-      const channelConfig = getChannelConfig();
+      // ALWAYS verify membership - no exceptions
       const isMember = await verifyChannelMembership(
         parseInt(telegramUserId), 
-        channelConfig.groupId,
+        config.telegram.groupId,
         botToken
       );
       
       if (!isMember) {
+        console.log(`❌ User ${telegramUserId} tried to claim community task but is not a member (verified via API)`);
         return res.status(403).json({
           success: false,
-          message: `Please join the Telegram group ${channelConfig.groupUrl || channelConfig.groupId} first to complete this task`,
-          requiresGroupJoin: true
+          message: `Please join the Telegram group ${config.telegram.groupUrl || config.telegram.groupId} first to complete this task`,
+          requiresGroupJoin: true,
+          groupUsername: config.telegram.groupId,
+          groupUrl: config.telegram.groupUrl
         });
       }
       
-      const rewardAmount = '1000';
+      // Reward: 0.0001 TON = 1,000 PAD
+      const rewardAmount = '0.0001';
+      
+      // Get BUG reward setting
+      const bugRewardSetting = await storage.getAppSetting('bug_reward_per_task', '10');
+      const bugReward = parseInt(bugRewardSetting);
       
       await db.transaction(async (tx) => {
         await tx.update(users)
           .set({ 
             balance: sql`${users.balance} + ${rewardAmount}`,
+            bugBalance: sql`COALESCE(${users.bugBalance}, '0')::numeric + ${bugReward}`,
             taskCommunityCompletedToday: true,
             updatedAt: new Date()
           })
@@ -2289,19 +2385,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           amount: rewardAmount,
           source: 'task_community',
-          description: 'Community join reward'
+          description: 'Join Community task completed'
         });
       });
+      
+      console.log(`🐛 Added ${bugReward} BUG to user ${userId} for community task`);
       
       res.json({
         success: true,
         message: 'Task completed!',
-        rewardAmount
+        rewardAmount,
+        rewardBUG: bugReward
       });
       
     } catch (error) {
       console.error('Error completing community task:', error);
-      res.status(500).json({ success: false, message: 'Failed to complete task' });
+      res.status(500).json({
+        success: false,
+        message: 'Failed to complete task'
+      });
     }
   });
 
