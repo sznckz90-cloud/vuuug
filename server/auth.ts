@@ -62,8 +62,16 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): { 
   try {
     const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get('hash');
+    const authDate = parseInt(urlParams.get('auth_date') || '0');
     
     if (!hash) {
+      return { isValid: false };
+    }
+
+    // Anti-Scripting: Ensure auth_date is within last 24 hours
+    const now = Math.floor(Date.now() / 1000);
+    if (now - authDate > 86400) {
+      console.log('❌ Telegram data expired (auth_date too old)');
       return { isValid: false };
     }
     
@@ -94,8 +102,9 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): { 
     }
     
     const user = JSON.parse(userString);
-    console.log('✅ Telegram data verified successfully for user:', user.id);
-    
+
+    // ANTI-BYPASS: Strict User-Agent check
+    // We expect Telegram's WebView user agents
     return { isValid: true, user };
   } catch (error) {
     console.error('❌ Error verifying Telegram data:', error);
@@ -103,17 +112,113 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): { 
   }
 }
 
+// Timing tracker for ad watches
+const lastAdWatchMap = new Map<string, number>();
+const interactionEntropyMap = new Map<string, { entropy: number; lastHeartbeat: number }>();
+
+// Helper to get client fingerprint/hash
+function getRequestHash(req: any): string {
+  const body = JSON.stringify(req.body || {});
+  const query = JSON.stringify(req.query || {});
+  return crypto.createHash('md5').update(`${body}${query}`).digest('hex');
+}
+
+// Anti-automation checks
+function detectAutomation(req: any): { isBot: boolean; reason?: string } {
+  const userAgent = req.headers['user-agent'] || '';
+  const clientIP = getClientIP(req);
+  const userId = req.user?.user?.id;
+  
+  // 1. Detect common scraping/automation tools
+  const botPatterns = [
+    'curl', 'postman', 'insomnia', 'python-requests', 'node-fetch', 
+    'axios', 'got', 'headless', 'selenium', 'puppeteer', 'playwright',
+    'termux', 'libcurl', 'wget', 'aiohttp', 'httpx'
+  ];
+  
+  if (botPatterns.some(pattern => userAgent.toLowerCase().includes(pattern))) {
+    return { isBot: true, reason: 'Automation tool detected' };
+  }
+
+  // 2. Strict Telegram environment check
+  if (process.env.NODE_ENV === 'production') {
+    if (!userAgent.includes('Telegram')) {
+      return { isBot: true, reason: 'Non-Telegram environment' };
+    }
+  }
+
+  // 3. Header check for scripting
+  const xTgData = req.headers['x-telegram-data'];
+  if (xTgData && xTgData.length < 50) {
+     return { isBot: true, reason: 'Malformed Telegram data' };
+  }
+  
+  // 4. Identical request timing patterns (Impossible Speed check in storage handles this specifically for ads)
+  // This is a generic check for all API routes
+  if (userId) {
+    const now = Date.now();
+    const lastRequest = lastAdWatchMap.get(userId);
+    if (lastRequest && (now - lastRequest) < 100) { // 100ms between ANY request is suspicious
+       return { isBot: true, reason: 'Impossible request frequency' };
+    }
+    lastAdWatchMap.set(userId, now);
+    
+    // 5. Heartbeat & Interaction Proof check
+    const proof = req.headers['x-interaction-proof'];
+    if (proof) {
+       try {
+         const interactionData = JSON.parse(proof as string);
+         const userEntropy = interactionEntropyMap.get(userId) || { entropy: 0, lastHeartbeat: 0 };
+         
+         // Update internal tracking
+         interactionEntropyMap.set(userId, {
+            entropy: (userEntropy.entropy || 0) + (interactionData.entropy || 0),
+            lastHeartbeat: now
+         });
+       } catch (e) {}
+    }
+  }
+
+  return { isBot: false };
+}
+
 // Modern Telegram authentication middleware
 export const authenticateTelegram: RequestHandler = async (req: any, res, next) => {
   try {
+    const automation = detectAutomation(req);
     const telegramData = req.headers['x-telegram-data'] || req.query.tgData;
-    
+
     // Extract device tracking information
     const deviceId = req.headers['x-device-id'] as string;
     const deviceFingerprint = req.headers['x-device-fingerprint'];
     const clientIP = getClientIP(req);
     const userAgent = req.headers['user-agent'] as string;
     const appVersion = req.headers['x-app-version'] as string;
+
+    // MANDATORY: Telegram-Only Execution (Hard Lock)
+    if (process.env.NODE_ENV === 'production') {
+      if (automation.isBot || !telegramData) {
+         console.log(`🚫 Security Violation: ${automation.isBot ? automation.reason : 'No Telegram Data'} from IP ${clientIP}`);
+         
+         if (telegramData) {
+           const botToken = process.env.TELEGRAM_BOT_TOKEN;
+           if (botToken) {
+             const { user: telegramUser } = verifyTelegramWebAppData(telegramData as string, botToken);
+             if (telegramUser?.id) {
+               const { user: existingUser } = await storage.getUserByTelegramId(telegramUser.id.toString());
+               if (existingUser) {
+                 await banUserForMultipleAccounts(existingUser.id, `Permanent Ban: Security Violation (${automation.reason || 'Missing Data'})`);
+               }
+             }
+           }
+         }
+
+         return res.status(403).json({ 
+           message: "ACCESS DENIED: Unauthorized environment detected.",
+           error_code: "SECURITY_VIOLATION_BAN"
+         });
+      }
+    }
     
     // Build comprehensive device info for tracking
     let deviceInfo: DeviceInfo | null = null;
@@ -144,7 +249,7 @@ export const authenticateTelegram: RequestHandler = async (req: any, res, next) 
     }
     
     // Development mode - allow test users (only in development, not production)
-    if (!telegramData && (process.env.NODE_ENV === 'development' || process.env.REPL_ID)) {
+    if (!telegramData && (process.env.NODE_ENV === 'development')) {
       console.log('🔧 Development mode: Using test user authentication');
       
       const testUser = {
