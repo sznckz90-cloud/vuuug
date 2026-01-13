@@ -2,6 +2,59 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+// MANDATORY: Hard Lock check for Telegram WebApp environment
+const isTelegram = !!(window as any).Telegram?.WebApp?.initData;
+
+if (!isTelegram && process.env.NODE_ENV === "production") {
+  // Completely block rendering and show a dead screen
+  document.body.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #000; color: #ff4d4d; font-family: sans-serif; text-align: center; padding: 20px;">
+      <h1 style="font-size: 24px; margin-bottom: 10px;">🛑 ACCESS DENIED</h1>
+      <p style="font-size: 16px; line-height: 1.5;">This application is strictly locked to the Telegram environment.<br>External browsers or automation tools are permanently banned.</p>
+      <div style="margin-top: 20px; font-size: 12px; opacity: 0.6;">Error Code: ENV_LOCK_VIOLATION</div>
+    </div>
+  `;
+} else {
+  // Security: Human Interaction Tracking
+let interactionEntropy = 0;
+let lastHeartbeat = Date.now();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('mousemove', () => { interactionEntropy += 0.01; });
+  window.addEventListener('click', () => { interactionEntropy += 1; });
+  window.addEventListener('touchstart', () => { interactionEntropy += 0.5; });
+  
+  // Focus check
+  window.addEventListener('blur', () => { interactionEntropy = 0; });
+  
+  // Heartbeat loop
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      lastHeartbeat = Date.now();
+    }
+  }, 5000);
+}
+
+// Global fetch wrapper to inject security proof
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  const [url, config = {}] = args as [string, RequestInit];
+  const isApi = typeof url === 'string' && url.includes('/api/');
+  
+  if (isApi) {
+    const headers = new Headers(config.headers || {});
+    headers.set('x-interaction-proof', JSON.stringify({
+      entropy: Math.floor(interactionEntropy),
+      timestamp: Date.now(),
+      heartbeat: lastHeartbeat,
+      visible: document.visibilityState === 'visible'
+    }));
+    config.headers = headers;
+  }
+  
+  return originalFetch(url, config);
+};
+
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -11,3 +64,4 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
+}
