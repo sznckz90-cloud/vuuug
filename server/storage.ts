@@ -671,20 +671,6 @@ export class DatabaseStorage implements IStorage {
     if (!user) return;
 
     const now = new Date();
-    
-    // ANTI-SCRIPT: Speed Check (Ads completed too fast)
-    // Minimum 10 seconds between ads (typical interstitial duration)
-    const lastAdWatch = user.lastAdDate ? new Date(user.lastAdDate) : null;
-    if (lastAdWatch && (now.getTime() - lastAdWatch.getTime()) < 10000) {
-      console.log(`🚫 User ${userId} flagged for impossible ad completion speed`);
-      await db.update(users).set({ 
-        banned: true, 
-        bannedReason: "Permanent Ban: Automation detected (Impossible ad completion speed)",
-        bannedAt: now
-      }).where(eq(users.id, userId));
-      throw new Error("SECURITY_VIOLATION: Impossible speed");
-    }
-
     const currentResetDate = this.getCurrentResetDate(); // Use new reset method
 
     // Check if last ad was watched today (same reset period)
